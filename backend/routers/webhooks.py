@@ -25,6 +25,7 @@ from services.auto_responses import (
 from services.media_storage import save_media_bytes
 from services.branch_matcher import match_branch_by_text
 from services.order_flow_matcher import match_delivery_type_text, match_payment_method_text, mentions_cash
+from services.push_service import notify_branch_new_message
 
 logger = logging.getLogger("farmhouse.webhooks")
 
@@ -38,8 +39,12 @@ def verify_meta_signature(raw_body: bytes, signature_header: Optional[str]) -> b
     """
     if settings.WHATSAPP_MODE == "meta":
         if not settings.META_APP_SECRET or not settings.META_APP_SECRET.strip():
-            logger.error("[Webhook Security] META_APP_SECRET no está configurado en modo Meta. Rechazando solicitud.")
-            return False
+            if settings.ENVIRONMENT == "production":
+                logger.error("[Webhook Security] META_APP_SECRET no está configurado en producción. Rechazando solicitud.")
+                return False
+            # En modo desarrollo, permitir para pruebas locales si aún no se ha configurado el App Secret
+            return True
+
         if not signature_header or not signature_header.strip():
             logger.warning("[Webhook Security] Encabezado X-Hub-Signature-256 ausente en solicitud de Meta.")
             return False
@@ -279,7 +284,19 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                 incoming_msg.media_url = saved_url
                 incoming_msg.media_mime_type = media_result["mime_type"]
                 db.commit()
+                db.refresh(incoming_msg)
                 logger.info(f"[Media Background] Archivo guardado para conv {conv.id}: {saved_url}")
+
+                # Emitir actualización en tiempo real por WebSocket
+                await ws_manager.broadcast_to_branch(conv.branch_id, {
+                    "type": "message_media_updated",
+                    "conversation_id": conv.id,
+                    "branch_id": conv.branch_id,
+                    "message_id": incoming_msg.id,
+                    "media_url": saved_url,
+                    "media_type": incoming_msg.media_type,
+                    "media_mime_type": incoming_msg.media_mime_type
+                })
 
         # 2. Si la conversación tiene automatización pausada por un agente, no responder
         if conv.automation_paused:
@@ -416,6 +433,25 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             })
     except Exception as e:
         logger.error(f"[AutoResponse Background Error] Conv ID {conv_id}: {e}", exc_info=True)
+    finally:
+        db.close()
+
+def _send_push_notification_background(branch_id: int, conversation_id: int, contact_name: str, message_preview: str):
+    """
+    Envía notificaciones push del navegador a los encargados de la sucursal (y supervisores/admins)
+    cuando llega un mensaje nuevo. Se ejecuta desacoplado del ciclo de respuesta HTTP a Meta.
+    """
+    db = SessionLocal()
+    try:
+        notify_branch_new_message(
+            db=db,
+            branch_id=branch_id,
+            title=f"💬 {contact_name}",
+            body=message_preview,
+            conversation_id=conversation_id
+        )
+    except Exception as e:
+        logger.error(f"[Push Background Error] Conv ID {conversation_id}: {e}", exc_info=True)
     finally:
         db.close()
 
@@ -604,6 +640,16 @@ async def receive_webhook(
             msg_data=msg_data,
             msg_id=message.id
         )
+
+        # 10. Notificación push a los encargados de la sucursal (si ya tiene una asignada)
+        if conv.branch_id:
+            background_tasks.add_task(
+                _send_push_notification_background,
+                branch_id=conv.branch_id,
+                conversation_id=conv.id,
+                contact_name=contact.name,
+                message_preview=text
+            )
 
         return {
             "status": "received",

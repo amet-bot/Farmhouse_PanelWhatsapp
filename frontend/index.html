@@ -5,10 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Farmhouse WhatsApp Center</title>
   <link rel="icon" id="appFavicon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=2.2.0">
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -104,9 +107,9 @@
           <span class="theme-label">Oscuro</span>
         </button>
 
-        <button class="notif-bell" aria-label="Notificaciones" title="Notificaciones">
-          <span class="nav-icon"><i data-lucide="bell"></i></span>
-          <span class="count">0</span>
+        <button class="notif-bell" id="btnEnableNotifications" aria-label="Notificaciones" title="Activar notificaciones push">
+          <span class="nav-icon" id="notifBellIconSlot"><i data-lucide="bell"></i></span>
+          <span class="count" id="notifBellCount" style="display:none">0</span>
         </button>
 
         <div class="user-profile">
@@ -685,15 +688,16 @@
   </div>
 
   <!-- Scripts JavaScript Modularizados y Seguros -->
-  <script src="js/utils.js?v=2.1.0"></script>
-  <script src="js/api.js?v=2.1.0"></script>
-  <script src="js/ws.js?v=2.1.0"></script>
-  <script src="js/modules/auth.js?v=2.1.0"></script>
-  <script src="js/modules/branches.js?v=2.1.0"></script>
-  <script src="js/modules/users.js?v=2.1.0"></script>
-  <script src="js/modules/devices.js?v=2.1.0"></script>
-  <script src="js/modules/conversations.js?v=2.1.0"></script>
-  <script src="js/modules/chat.js?v=2.1.0"></script>
-  <script src="js/app.js?v=2.1.0"></script>
+  <script src="js/utils.js?v=2.2.0"></script>
+  <script src="js/api.js?v=2.2.0"></script>
+  <script src="js/ws.js?v=2.2.0"></script>
+  <script src="js/modules/auth.js?v=2.2.0"></script>
+  <script src="js/modules/branches.js?v=2.2.0"></script>
+  <script src="js/modules/users.js?v=2.2.0"></script>
+  <script src="js/modules/devices.js?v=2.2.0"></script>
+  <script src="js/modules/conversations.js?v=2.2.0"></script>
+  <script src="js/modules/chat.js?v=2.2.0"></script>
+  <script src="js/modules/push.js?v=2.2.0"></script>
+  <script src="js/app.js?v=2.2.0"></script>
 </body>
 </html>

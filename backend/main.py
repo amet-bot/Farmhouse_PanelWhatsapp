@@ -18,7 +18,8 @@ from routers import (
     orders,
     media,
     websocket,
-    webhooks
+    webhooks,
+    push
 )
 
 logging.basicConfig(
@@ -122,6 +123,7 @@ app.include_router(conversations.router, prefix=settings.API_V1_STR)
 app.include_router(messages.router, prefix=settings.API_V1_STR)
 app.include_router(orders.router, prefix=settings.API_V1_STR)
 app.include_router(media.router, prefix=settings.API_V1_STR)
+app.include_router(push.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router)
 app.include_router(websocket.router)
@@ -158,6 +160,17 @@ if frontend_dir.exists():
     @app.get("/app", include_in_schema=False)
     def serve_frontend():
         return FileResponse(str(frontend_dir / "index.html"))
+
+    if (frontend_dir / "manifest.json").exists():
+        @app.get("/manifest.json", include_in_schema=False)
+        def serve_manifest():
+            return FileResponse(str(frontend_dir / "manifest.json"), media_type="application/manifest+json")
+
+    if (frontend_dir / "sw.js").exists():
+        @app.get("/sw.js", include_in_schema=False)
+        def serve_service_worker():
+            # Debe servirse desde la raíz (no /js/sw.js) para que su scope cubra todo el sitio.
+            return FileResponse(str(frontend_dir / "sw.js"), media_type="application/javascript")
 else:
     @app.get("/")
     def fallback_root():

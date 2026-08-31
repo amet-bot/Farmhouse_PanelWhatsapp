@@ -26,10 +26,13 @@ const api = {
   resolveMediaUrl(path) {
     if (!path) return '';
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    if (path.startsWith('/media/')) {
-      return `${this.baseUrl}${path}`;
+    const cleanPath = path.startsWith('/media/') ? path.replace('/media/', '') : path.replace('media/', '');
+    let url = `${this.baseUrl}/media/${cleanPath}`;
+    const token = typeof auth !== 'undefined' ? auth.getToken() : null;
+    if (token) {
+      url += (url.includes('?') ? '&' : '?') + `token=${encodeURIComponent(token)}`;
     }
-    return `${this.baseUrl}/media/${path}`;
+    return url;
   },
 
 

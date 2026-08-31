@@ -618,6 +618,11 @@ a:focus-visible {
   font-weight: 700;
 }
 
+.notif-bell.notif-active {
+  color: var(--green, #16a34a);
+  border-color: var(--green, #16a34a);
+}
+
 .user-profile {
   display: flex;
   align-items: center;

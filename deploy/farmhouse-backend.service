@@ -1,0 +1,23 @@
+[Unit]
+Description=Farmhouse WhatsApp Center - Backend FastAPI
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=farmhouse
+Group=farmhouse
+WorkingDirectory=/srv/farmhouse-whatsapp-center/backend
+EnvironmentFile=/srv/farmhouse-whatsapp-center/backend/.env
+ExecStart=/srv/farmhouse-whatsapp-center/backend/venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=5
+
+# Endurecimiento básico del servicio
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/srv/farmhouse-whatsapp-center/backend/media
+
+[Install]
+WantedBy=multi-user.target

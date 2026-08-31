@@ -184,6 +184,63 @@ document.addEventListener('DOMContentLoaded', async () => {
     wsClient.connect();
     await conversationsModule.init();
     utils.renderIcons();
+
+    // Notificaciones Push (silencioso: solo re-sincroniza si el permiso ya fue concedido antes)
+    pushModule.init();
+    updateNotifBellIcon();
+
+    // Si la app fue abierta desde una notificación push (nueva pestaña), abrir esa conversación
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetConvId = urlParams.get('conversation_id');
+    if (targetConvId) {
+      chatModule.loadConversation(parseInt(targetConvId));
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }
+
+  // Estado visual de la campana de notificaciones según el permiso del navegador
+  function updateNotifBellIcon() {
+    const iconSlot = document.getElementById('notifBellIconSlot');
+    const btn = document.getElementById('btnEnableNotifications');
+    if (!iconSlot || !btn || !('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      iconSlot.innerHTML = '<i data-lucide="bell-ring"></i>';
+      btn.title = 'Notificaciones push activadas';
+      btn.classList.add('notif-active');
+    } else if (Notification.permission === 'denied') {
+      iconSlot.innerHTML = '<i data-lucide="bell-off"></i>';
+      btn.title = 'Notificaciones bloqueadas por el navegador. Habilítalas desde la configuración del sitio.';
+    } else {
+      iconSlot.innerHTML = '<i data-lucide="bell"></i>';
+      btn.title = 'Activar notificaciones push';
+    }
+    utils.renderIcons();
+  }
+
+  const btnEnableNotifications = document.getElementById('btnEnableNotifications');
+  if (btnEnableNotifications) {
+    btnEnableNotifications.addEventListener('click', async () => {
+      if ('Notification' in window && Notification.permission === 'denied') {
+        utils.showToast('Bloqueaste las notificaciones para este sitio. Actívalas desde los ajustes del navegador.', 'warning');
+        return;
+      }
+      const ok = await pushModule.requestPermissionAndSubscribe();
+      updateNotifBellIcon();
+      if (ok) {
+        utils.showToast('Notificaciones push activadas para esta sucursal.', 'success');
+      }
+    });
+  }
+
+  // Al hacer clic en una notificación push, el Service Worker enfoca esta pestaña y avisa qué conversación abrir
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'push_notification_click' && event.data.url) {
+        const params = new URL(event.data.url, window.location.origin).searchParams;
+        const convId = params.get('conversation_id');
+        if (convId) chatModule.loadConversation(parseInt(convId));
+      }
+    });
   }
 
   // 5. Conexión y Eventos en Tiempo Real (WebSockets)
@@ -195,6 +252,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       chatModule.renderMessages();
     }
     utils.showToast(`Nuevo mensaje de ${data.contact_name}`, 'info');
+  });
+
+  wsClient.on('message_media_updated', (data) => {
+    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
+      if (chatModule.currentConversation.messages) {
+        const msg = chatModule.currentConversation.messages.find(m => m.id === data.message_id);
+        if (msg) {
+          msg.media_url = data.media_url;
+          msg.media_type = data.media_type;
+          msg.media_mime_type = data.media_mime_type;
+          chatModule.renderMessages();
+        }
+      }
+    }
+    conversationsModule.loadConversations();
   });
 
   wsClient.on('new_outgoing_message', (data) => {

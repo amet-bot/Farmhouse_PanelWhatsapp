@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     META_WA_VERIFY_TOKEN: str = "farmhouse_meta_verify_token_secure_2026"
     META_APP_SECRET: Optional[str] = None
 
+    # Web Push (Notificaciones push del navegador vía VAPID)
+    VAPID_PUBLIC_KEY: Optional[str] = None
+    VAPID_PRIVATE_KEY: Optional[str] = None
+    VAPID_CLAIM_SUB: str = "mailto:admin@farmhouse.pa"
+
     def get_allowed_origins(self) -> List[str]:
         if not self.ALLOWED_ORIGINS:
             return ["http://127.0.0.1:8000", "http://localhost:8000"]

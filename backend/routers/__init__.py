@@ -7,8 +7,10 @@ from routers import (
     conversations,
     messages,
     orders,
+    media,
     websocket,
-    webhooks
+    webhooks,
+    push
 )
 
 __all__ = [
@@ -20,6 +22,8 @@ __all__ = [
     "conversations",
     "messages",
     "orders",
+    "media",
     "websocket",
-    "webhooks"
+    "webhooks",
+    "push"
 ]

@@ -42,8 +42,7 @@ const wsClient = {
     const isDevServer = window.location.protocol === 'file:' || ['5500', '3000', '5173', '8080'].includes(window.location.port);
     const wsHost = isDevServer ? '127.0.0.1:8000' : window.location.host;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const authParam = isTicket ? `ticket=${encodeURIComponent(token)}` : `token=${encodeURIComponent(token)}`;
-    let wsUrl = `${protocol}//${wsHost}/ws?${authParam}`;
+    let wsUrl = `${protocol}//${wsHost}/ws?token=${encodeURIComponent(token)}`;
     if (deviceId) {
       wsUrl += `&device_id=${encodeURIComponent(deviceId)}`;
     }

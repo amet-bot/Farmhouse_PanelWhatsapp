@@ -13,18 +13,27 @@ logger = logging.getLogger("farmhouse.websocket")
 
 router = APIRouter(tags=["WebSockets"])
 
+from typing import Optional
 from routers.auth import consume_ws_ticket
 
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
-    token: str = Query(...),
-    device_id: str = Query(None)
+    token: Optional[str] = Query(None),
+    ticket: Optional[str] = Query(None),
+    device_id: Optional[str] = Query(None)
 ):
     user_id = None
+    auth_val = ticket or token
+
+    if not auth_val:
+        logger.warning("Conexión WebSocket rechazada: No se proporcionó token ni ticket de autenticación.")
+        await websocket.close(code=1008)
+        return
+
     # 1. Intentar validar como ticket de un solo uso
-    if token.startswith("wst_"):
-        user_id = consume_ws_ticket(token)
+    if auth_val.startswith("wst_"):
+        user_id = consume_ws_ticket(auth_val)
         if not user_id:
             logger.warning("Conexión WebSocket rechazada: Ticket WebSocket inválido, ya consumido o expirado.")
             await websocket.close(code=1008)
@@ -33,7 +42,7 @@ async def websocket_endpoint(
     # 2. Si no es ticket, validar como Token JWT
     if not user_id:
         try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            payload = jwt.decode(auth_val, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
             user_id_str = payload.get("sub")
             if not user_id_str:
                 await websocket.close(code=1008)
