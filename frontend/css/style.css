@@ -454,7 +454,19 @@ a:focus-visible {
   padding: 0 20px;
   height: 68px;
   flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
   transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Los controles de la topbar nunca se aplastan: si no caben, la barra se
+   vuelve scrolleable en vez de romper el layout (ver overflow-x arriba). */
+.status-indicator,
+.top-select-group,
+.theme-toggle-btn,
+.notif-bell,
+.user-profile {
+  flex-shrink: 0;
 }
 
 .status-indicator {
@@ -469,6 +481,13 @@ a:focus-visible {
   border: 1px solid var(--line);
   color: var(--text-primary);
   user-select: none;
+}
+
+#topDevBadgeText {
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status-circle {
@@ -623,6 +642,10 @@ a:focus-visible {
   display: block;
   line-height: 1.2;
   color: var(--text-primary);
+  max-width: 130px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .user-profile small {
@@ -1801,7 +1824,8 @@ input:-webkit-autofill:focus {
 .chat-messages::-webkit-scrollbar,
 .conversation-scroll-list::-webkit-scrollbar,
 .panel-details::-webkit-scrollbar,
-.sidebar::-webkit-scrollbar {
+.sidebar::-webkit-scrollbar,
+.topbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
@@ -1810,7 +1834,8 @@ input:-webkit-autofill:focus {
 .chat-messages::-webkit-scrollbar-track,
 .conversation-scroll-list::-webkit-scrollbar-track,
 .panel-details::-webkit-scrollbar-track,
-.sidebar::-webkit-scrollbar-track {
+.sidebar::-webkit-scrollbar-track,
+.topbar::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -1818,7 +1843,8 @@ input:-webkit-autofill:focus {
 .chat-messages::-webkit-scrollbar-thumb,
 .conversation-scroll-list::-webkit-scrollbar-thumb,
 .panel-details::-webkit-scrollbar-thumb,
-.sidebar::-webkit-scrollbar-thumb {
+.sidebar::-webkit-scrollbar-thumb,
+.topbar::-webkit-scrollbar-thumb {
   background: var(--line);
   border-radius: 999px;
 }
@@ -1827,7 +1853,8 @@ input:-webkit-autofill:focus {
 .chat-messages::-webkit-scrollbar-thumb:hover,
 .conversation-scroll-list::-webkit-scrollbar-thumb:hover,
 .panel-details::-webkit-scrollbar-thumb:hover,
-.sidebar::-webkit-scrollbar-thumb:hover {
+.sidebar::-webkit-scrollbar-thumb:hover,
+.topbar::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
 
@@ -2013,6 +2040,28 @@ input:-webkit-autofill:focus {
 /* ----------------------------------------------------------------------------
    11. RESPONSIVE (DESKTOP, TABLET, MOBILE)
    ---------------------------------------------------------------------------- */
+/* Pantallas grandes: la columna central de chat no crece sin límite en monitores ultra-anchos */
+@media (min-width: 1700px) {
+  .chat-messages {
+    padding-left: max(20px, calc(50% - 480px));
+    padding-right: max(20px, calc(50% - 480px));
+  }
+}
+
+/* Laptop / tablet grande: la topbar empieza a perder elementos secundarios
+   antes de que la ventana llegue a quedar realmente apretada */
+@media (max-width: 1200px) {
+  .top-select-group label {
+    display: none;
+  }
+  #topDevBadgeText {
+    max-width: 150px;
+  }
+  .user-profile small {
+    display: none;
+  }
+}
+
 @media (max-width: 1100px) {
   .workspace {
     grid-template-columns: 300px minmax(0, 1fr);
@@ -2042,6 +2091,19 @@ input:-webkit-autofill:focus {
   }
 }
 
+/* Tablet: se libera espacio en la topbar antes de esconder el sidebar por completo */
+@media (max-width: 900px) {
+  .search-box {
+    display: none;
+  }
+  .theme-toggle-btn .theme-label {
+    display: none;
+  }
+  #topDevBadgeText {
+    max-width: 90px;
+  }
+}
+
 @media (max-width: 768px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -2054,14 +2116,15 @@ input:-webkit-autofill:focus {
     padding: 6px;
     position: relative;
   }
+  .main-area {
+    grid-template-rows: 56px minmax(0, 1fr);
+  }
   .topbar {
-    padding: 0 12px;
+    height: 56px;
+    padding: 0 10px;
     gap: 8px;
   }
-  .search-box {
-    display: none;
-  }
-  .theme-toggle-btn .theme-label {
+  .status-text {
     display: none;
   }
   .workspace.show-chat .panel-conversations {
@@ -2090,5 +2153,15 @@ input:-webkit-autofill:focus {
     width: 100%;
     border-radius: 0;
     z-index: 100;
+  }
+}
+
+/* Teléfonos angostos: solo lo esencial visible en la topbar */
+@media (max-width: 420px) {
+  #topDevBadgeText {
+    max-width: 60px;
+  }
+  .user-profile strong {
+    max-width: 70px;
   }
 }

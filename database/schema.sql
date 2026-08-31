@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS `branches` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `name` VARCHAR(100) NOT NULL UNIQUE,
     `code` VARCHAR(50) NOT NULL UNIQUE,
-    `phone` VARCHAR(50) NULL,
     `color` VARCHAR(20) DEFAULT '#16a34a',
     `active` TINYINT(1) NOT NULL DEFAULT 1,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -167,13 +166,13 @@ CREATE TABLE IF NOT EXISTS `orders` (
 -- ============================================================================
 
 -- 1. Sucursales Oficiales de Farmhouse Panamá
-INSERT IGNORE INTO `branches` (`id`, `code`, `name`, `phone`, `color`, `active`) VALUES
-(1, 'CDE', 'Costa del Este', '+50760000001', '#16a34a', 1),
-(2, 'SF', 'San Francisco', '+50760000002', '#0d9488', 1),
-(3, 'CLY', 'Clayton', '+50760000003', '#d97706', 1),
-(4, 'OBR', 'Obarrio', '+50760000004', '#2563eb', 1),
-(5, 'VP', 'Via Porras', '+50760000005', '#9333ea', 1),
-(6, 'CAT', 'Catering', '+50760000006', '#e11d48', 1);
+INSERT IGNORE INTO `branches` (`id`, `code`, `name`, `color`, `active`) VALUES
+(1, 'CDE', 'Costa del Este', '#16a34a', 1),
+(2, 'SF', 'San Francisco', '#0d9488', 1),
+(3, 'CLY', 'Clayton', '#d97706', 1),
+(4, 'OBR', 'Obarrio', '#2563eb', 1),
+(5, 'VP', 'Via Porras', '#9333ea', 1),
+(6, 'CAT', 'Catering', '#e11d48', 1);
 
 -- 2. Usuario Administrador General Inicial (Password inicial: Admin123!)
 INSERT IGNORE INTO `users` (`id`, `username`, `name`, `email`, `password_hash`, `role`, `branch_id`, `active`) VALUES

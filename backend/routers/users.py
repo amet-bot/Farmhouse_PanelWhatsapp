@@ -47,7 +47,17 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db), current_user
             detail="El nombre de usuario o código ya está registrado en el sistema."
         )
 
-    # 2. Validar sucursal según rol
+    # 2. Validar que el email no esté registrado (columna UNIQUE en MySQL)
+    email_clean = user_in.email.strip().lower() if user_in.email else None
+    if email_clean:
+        existing_email = db.query(User).filter(func.lower(User.email) == email_clean).first()
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El correo electrónico ya está registrado en el sistema."
+            )
+
+    # 3. Validar sucursal según rol
     branch_id_val = None
     if user_in.role == "agent":
         if not user_in.branch_id:
@@ -71,13 +81,13 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db), current_user
             )
         branch_id_val = branch.id
 
-    # 3. Generar hash bcrypt real y seguro
+    # 4. Generar hash bcrypt real y seguro
     hashed_pwd = get_password_hash(user_in.password.strip())
 
     user = User(
         username=username_clean,
         name=user_in.name.strip(),
-        email=user_in.email.strip().lower() if user_in.email else None,
+        email=email_clean,
         password_hash=hashed_pwd,
         role=user_in.role,
         branch_id=branch_id_val,
@@ -114,10 +124,15 @@ def update_user(
             user.username = new_username
         del update_data["username"]
 
-    # Validar email si se modifica
+    # Validar email único si se modifica (columna UNIQUE en MySQL)
     if "email" in update_data:
         if update_data["email"]:
-            user.email = update_data["email"].strip().lower()
+            new_email = update_data["email"].strip().lower()
+            if new_email != (user.email or "").lower():
+                dup_email = db.query(User).filter(func.lower(User.email) == new_email, User.id != user_id).first()
+                if dup_email:
+                    raise HTTPException(status_code=400, detail="El correo electrónico ya está en uso por otro usuario.")
+            user.email = new_email
         else:
             user.email = None
         del update_data["email"]

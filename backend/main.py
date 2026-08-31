@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import IntegrityError
 from config import settings, mask_secret
 from routers import (
     auth,
@@ -100,6 +101,16 @@ async def security_and_csrf_middleware(request: Request, call_next):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
     return response
+
+# Red de seguridad: cualquier violación de restricción de MySQL (UNIQUE, FK, etc.)
+# que no haya sido validada explícitamente en el endpoint no debe filtrarse como 500 crudo.
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request: Request, exc: IntegrityError):
+    logger.error(f"[IntegrityError] {request.method} {request.url.path}: {exc.orig}")
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": "La operación viola una restricción de integridad de la base de datos (dato duplicado o referencia inválida)."}
+    )
 
 # Montaje de routers REST API
 app.include_router(auth.router, prefix=settings.API_V1_STR)

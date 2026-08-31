@@ -14,7 +14,9 @@ class Branch(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relaciones
-    users = relationship("User", back_populates="branch", cascade="all, delete-orphan")
+    # Sin cascade de borrado: la FK real es ON DELETE SET NULL (users.branch_id es nullable),
+    # por lo que eliminar una sucursal nunca debe eliminar a sus usuarios.
+    users = relationship("User", back_populates="branch")
     devices = relationship("Device", back_populates="branch")
     conversations = relationship("Conversation", back_populates="branch")
     orders = relationship("Order", back_populates="branch")
