@@ -1,0 +1,444 @@
+/**
+ * Farmhouse WhatsApp Center - Inicialización y Control de la Aplicación
+ */
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // 1. Mapeo de elementos principales del DOM
+  const modalLogin = document.getElementById('modalLogin');
+  const loginForm = document.getElementById('loginForm');
+  const btnLogout = document.getElementById('btnLogout');
+  const themeToggle = document.getElementById('btnThemeToggle');
+  const themeIconSlot = document.getElementById('themeIconSlot');
+  const themeLabel = document.querySelector('#btnThemeToggle .theme-label');
+
+  // 2. Control de Tema (Claro / Oscuro) con Íconos Lucide
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('fh_theme', theme);
+    if (themeIconSlot) {
+      themeIconSlot.innerHTML = `<i data-lucide="${theme === 'dark' ? 'sun' : 'moon'}"></i>`;
+    }
+    if (themeLabel) {
+      themeLabel.textContent = theme === 'dark' ? 'Claro' : 'Oscuro';
+    }
+    utils.renderIcons();
+  }
+
+  const savedTheme = localStorage.getItem('fh_theme') || 'light';
+  applyTheme(savedTheme);
+
+  if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      applyTheme(newTheme);
+    });
+  }
+
+  // 3. Manejo de Modales y Autenticación
+  function showLoginModal(errorMessage = '') {
+    if (modalLogin) {
+      modalLogin.classList.add('active');
+      const errBox = document.getElementById('loginError');
+      if (errBox) {
+        if (errorMessage) {
+          errBox.textContent = errorMessage;
+          errBox.style.display = 'block';
+        } else {
+          errBox.style.display = 'none';
+        }
+      }
+      utils.renderIcons();
+    }
+  }
+
+  function hideLoginModal() {
+    if (modalLogin) {
+      modalLogin.classList.remove('active');
+      const errBox = document.getElementById('loginError');
+      if (errBox) errBox.style.display = 'none';
+    }
+  }
+
+  // Toggle de visibilidad de contraseña en login
+  const btnTogglePassword = document.getElementById('btnTogglePassword');
+  const loginPasswordInput = document.getElementById('password');
+  if (btnTogglePassword && loginPasswordInput) {
+    btnTogglePassword.addEventListener('click', () => {
+      if (loginPasswordInput.type === 'password') {
+        loginPasswordInput.type = 'text';
+        btnTogglePassword.innerHTML = '<i data-lucide="eye-off"></i>';
+      } else {
+        loginPasswordInput.type = 'password';
+        btnTogglePassword.innerHTML = '<i data-lucide="eye"></i>';
+      }
+      utils.renderIcons();
+    });
+  }
+
+  // Enviar formulario de Login
+  async function handleLoginSubmit(e) {
+    if (e) e.preventDefault();
+    const usernameInput = document.getElementById('username') || document.getElementById('email') || document.querySelector('input[name="username"]') || document.querySelector('input[name="email"]');
+    const passwordInput = document.getElementById('password') || document.querySelector('input[name="password"]');
+    const username = usernameInput ? usernameInput.value.trim().toLowerCase() : '';
+    const password = passwordInput ? passwordInput.value.trim() : '';
+    const errBox = document.getElementById('loginError');
+    const btnSubmit = document.getElementById('btnLoginSubmit');
+
+    if (!username || !password) {
+      if (errBox) {
+        errBox.textContent = 'Por favor ingresa tu nombre de usuario y contraseña.';
+        errBox.style.display = 'block';
+      }
+      return;
+    }
+
+    try {
+      if (errBox) errBox.style.display = 'none';
+      if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = 'Validando credenciales...';
+      }
+
+      await auth.login(username, password);
+      hideLoginModal();
+      await initApp();
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = err.message || 'Nombre de usuario o contraseña incorrectos.';
+        errBox.style.display = 'block';
+      }
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Iniciar sesión';
+      }
+    }
+  }
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', handleLoginSubmit);
+  }
+  const btnLoginSubmit = document.getElementById('btnLoginSubmit');
+  if (btnLoginSubmit) {
+    btnLoginSubmit.addEventListener('click', (e) => {
+      if (loginForm && !loginForm.checkValidity()) {
+        loginForm.reportValidity();
+        return;
+      }
+      handleLoginSubmit(e);
+    });
+  }
+
+  // Logout
+  if (btnLogout) {
+    btnLogout.addEventListener('click', async () => {
+      await auth.logout();
+      wsClient.disconnect();
+      chatModule.renderEmpty();
+      const passInp = document.getElementById('password');
+      if (passInp) passInp.value = '';
+      showLoginModal();
+    });
+  }
+
+  // Eventos de Autenticación y Seguridad
+  window.addEventListener('auth:unauthorized', () => {
+    wsClient.disconnect();
+    chatModule.renderEmpty();
+    showLoginModal('Tu sesión expiró. Inicia sesión nuevamente.');
+  });
+
+  window.addEventListener('auth:device_forbidden', (e) => {
+    document.getElementById('deviceForbiddenText').textContent = e.detail;
+    document.getElementById('modalDeviceForbidden').classList.add('active');
+  });
+
+  document.getElementById('closeModalDeviceForbidden').addEventListener('click', () => {
+    document.getElementById('modalDeviceForbidden').classList.remove('active');
+    document.getElementById('modalDevicesList').classList.add('active');
+    devicesModule.renderTable();
+  });
+
+  // 4. Inicialización Global de la Aplicación
+  async function initApp() {
+    const user = auth.getUser();
+    if (!user) return;
+
+    // Encabezado de Usuario
+    document.getElementById('topAgentName').textContent = user.name;
+    document.getElementById('topAgentRole').textContent = `${user.role.toUpperCase()} ${user.branch ? '• ' + user.branch.name : ''}`;
+    document.getElementById('topAgentAvatar').textContent = utils.getInitials(user.name);
+
+    // Permisos de Menú
+    const navUsers = document.getElementById('navUsers');
+    if (navUsers) {
+      navUsers.style.display = (user.role === 'admin') ? 'flex' : 'none';
+    }
+
+    // Inicialización Secuencial de Módulos
+    await branchesModule.init();
+    await usersModule.init();
+    await devicesModule.init();
+    wsClient.connect();
+    await conversationsModule.init();
+    utils.renderIcons();
+  }
+
+  // 5. Conexión y Eventos en Tiempo Real (WebSockets)
+  wsClient.on('new_incoming_message', (data) => {
+    conversationsModule.loadConversations();
+    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
+      if (!chatModule.currentConversation.messages) chatModule.currentConversation.messages = [];
+      chatModule.currentConversation.messages.push(data.message);
+      chatModule.renderMessages();
+    }
+    utils.showToast(`Nuevo mensaje de ${data.contact_name}`, 'info');
+  });
+
+  wsClient.on('new_outgoing_message', (data) => {
+    conversationsModule.loadConversations();
+    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
+      if (!chatModule.currentConversation.messages) chatModule.currentConversation.messages = [];
+      // Evitar duplicar el mensaje si esta misma pestaña fue la que lo mandó
+      const yaExiste = chatModule.currentConversation.messages.some(m => m.id === data.message.id);
+      if (!yaExiste) {
+        chatModule.currentConversation.messages.push(data.message);
+        chatModule.renderMessages();
+      }
+    }
+  });
+
+  wsClient.on('conversation_transferred', (data) => {
+    conversationsModule.loadConversations();
+    branchesModule.updateCounters();
+    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
+      chatModule.loadConversation(data.conversation_id);
+    }
+  });
+
+  wsClient.on('conversation_deleted', (data) => {
+    conversationsModule.loadConversations();
+    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
+      chatModule.renderEmpty();
+      utils.showToast('Esta conversación fue eliminada.', 'info');
+    }
+  });
+
+  wsClient.on('message_deleted', (data) => {
+    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
+      if (chatModule.currentConversation.messages) {
+        chatModule.currentConversation.messages = chatModule.currentConversation.messages.filter(m => m.id !== data.message_id);
+        chatModule.renderMessages();
+      }
+    }
+  });
+
+  // 6. Formularios y Modales de Administración
+
+  // Modales de Usuarios (Admin)
+  const navUsersBtn = document.getElementById('navUsers');
+  if (navUsersBtn) {
+    navUsersBtn.addEventListener('click', () => {
+      document.getElementById('modalUsersList').classList.add('active');
+      usersModule.renderTable();
+    });
+  }
+  document.getElementById('closeModalUsersList').addEventListener('click', () => {
+    document.getElementById('modalUsersList').classList.remove('active');
+  });
+  document.getElementById('btnOpenAddUser').addEventListener('click', () => {
+    usersModule.openAddModal();
+  });
+  document.getElementById('closeModalAddUser').addEventListener('click', () => {
+    document.getElementById('modalAddUser').classList.remove('active');
+  });
+  document.getElementById('closeModalEditUser').addEventListener('click', () => {
+    document.getElementById('modalEditUser').classList.remove('active');
+  });
+  document.getElementById('closeModalDeleteUser').addEventListener('click', () => {
+    document.getElementById('modalDeleteUser').classList.remove('active');
+  });
+  document.getElementById('btnCancelDeleteUser').addEventListener('click', () => {
+    document.getElementById('modalDeleteUser').classList.remove('active');
+  });
+  document.getElementById('btnConfirmDeleteUser').addEventListener('click', () => {
+    usersModule.confirmDeleteUser();
+  });
+
+  document.getElementById('addUserRole').addEventListener('change', (e) => {
+    const branchGroup = document.getElementById('addUserBranchGroup');
+    const branchSelect = document.getElementById('addUserBranch');
+    if (e.target.value === 'admin') {
+      branchGroup.style.display = 'none';
+      branchSelect.required = false;
+    } else {
+      branchGroup.style.display = 'block';
+      branchSelect.required = (e.target.value === 'agent');
+    }
+  });
+
+  document.getElementById('formAddUser').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const roleVal = document.getElementById('addUserRole').value;
+    const branchVal = document.getElementById('addUserBranch').value;
+    const usernameVal = document.getElementById('addUserUsername').value.trim().toLowerCase();
+    const nameVal = document.getElementById('addUserName').value.trim();
+    const emailVal = document.getElementById('addUserEmail').value.trim().toLowerCase();
+    const pwdVal = document.getElementById('addUserPassword').value.trim();
+
+    if (!usernameVal || !nameVal || !pwdVal) {
+      utils.showToast('Por favor completa el usuario, nombre y contraseña.', 'error');
+      return;
+    }
+
+    if (roleVal === 'agent' && !branchVal) {
+      utils.showToast('Para un agente debes seleccionar una sucursal.', 'error');
+      return;
+    }
+
+    const data = {
+      username: usernameVal,
+      name: nameVal,
+      email: emailVal || null,
+      password: pwdVal,
+      role: roleVal,
+      branch_id: (roleVal === 'agent' || branchVal) ? parseInt(branchVal) : null,
+      active: true
+    };
+
+    try {
+      await usersModule.registerUser(data);
+      document.getElementById('modalAddUser').classList.remove('active');
+    } catch (err) {
+      utils.showToast(`Error creando usuario: ${err.message}`, 'error');
+    }
+  });
+
+  document.getElementById('formEditUser').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('editUserId').value;
+    const branchVal = document.getElementById('editUserBranch').value;
+    const pwdVal = document.getElementById('editUserPassword').value.trim();
+    const emailVal = document.getElementById('editUserEmail').value.trim().toLowerCase();
+    const data = {
+      username: document.getElementById('editUserUsername').value.trim().toLowerCase(),
+      name: document.getElementById('editUserName').value.trim(),
+      email: emailVal || null,
+      role: document.getElementById('editUserRole').value,
+      branch_id: branchVal ? parseInt(branchVal) : null,
+      active: document.getElementById('editUserStatus').value === 'true'
+    };
+    if (pwdVal) data.password = pwdVal;
+
+    try {
+      await usersModule.updateUser(id, data);
+      document.getElementById('modalEditUser').classList.remove('active');
+    } catch (err) {
+      utils.showToast(`Error actualizando usuario: ${err.message}`, 'error');
+    }
+  });
+
+  // Modales de Dispositivos
+  document.getElementById('navDevices').addEventListener('click', () => {
+    document.getElementById('modalDevicesList').classList.add('active');
+    devicesModule.renderTable();
+  });
+  document.getElementById('topDevBadge').addEventListener('click', () => {
+    document.getElementById('modalDevicesList').classList.add('active');
+    devicesModule.renderTable();
+  });
+  document.getElementById('closeModalDevicesList').addEventListener('click', () => {
+    document.getElementById('modalDevicesList').classList.remove('active');
+  });
+  document.getElementById('btnOpenAddDevice').addEventListener('click', () => {
+    devicesModule.openAddModal();
+  });
+  document.getElementById('closeModalAddDevice').addEventListener('click', () => {
+    document.getElementById('modalAddDevice').classList.remove('active');
+  });
+  document.getElementById('closeModalEditDevice').addEventListener('click', () => {
+    document.getElementById('modalEditDevice').classList.remove('active');
+  });
+
+  document.getElementById('formAddDevice').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nameVal = document.getElementById('addDevName').value.trim();
+    const devTypeVal = document.getElementById('addDevType').value;
+    const branchVal = document.getElementById('addDevBranch').value;
+    const assignedUserVal = document.getElementById('addDevUser').value;
+
+    if (!nameVal || !branchVal) {
+      utils.showToast('Por favor completa el nombre y la sucursal del dispositivo.', 'error');
+      return;
+    }
+
+    const data = {
+      name: nameVal,
+      device_type: devTypeVal,
+      branch_id: parseInt(branchVal),
+      assigned_user_id: assignedUserVal ? parseInt(assignedUserVal) : null,
+      status: 'active'
+    };
+    try {
+      await devicesModule.registerDevice(data);
+      document.getElementById('modalAddDevice').classList.remove('active');
+    } catch (err) {
+      utils.showToast(`Error registrando dispositivo: ${err.message}`, 'error');
+    }
+  });
+
+  document.getElementById('formEditDevice').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('editDevId').value;
+    const branchVal = document.getElementById('editDevBranch').value;
+    const data = {
+      name: document.getElementById('editDevName').value.trim(),
+      device_type: document.getElementById('editDevType').value,
+      branch_id: parseInt(branchVal),
+      status: document.getElementById('editDevStatus').value
+    };
+    try {
+      await devicesModule.updateDevice(id, data);
+      document.getElementById('modalEditDevice').classList.remove('active');
+    } catch (err) {
+      utils.showToast(`Error actualizando dispositivo: ${err.message}`, 'error');
+    }
+  });
+
+  // Modal Transferencia de Conversación
+  document.getElementById('closeModalTransfer').addEventListener('click', () => {
+    document.getElementById('modalTransferBranch').classList.remove('active');
+  });
+  document.getElementById('btnCancelTransfer').addEventListener('click', () => {
+    document.getElementById('modalTransferBranch').classList.remove('active');
+  });
+  document.getElementById('btnConfirmTransfer').addEventListener('click', () => {
+    chatModule.confirmTransfer();
+  });
+
+  // Enviar mensaje en chat (vía botón o tecla Enter)
+  const btnSend = document.getElementById('btnSend');
+  const msgInput = document.getElementById('messageInput');
+  if (btnSend && msgInput) {
+    btnSend.addEventListener('click', () => {
+      if (msgInput.value.trim()) {
+        chatModule.sendMessage(msgInput.value);
+      }
+    });
+  }
+
+  // 7. Verificación inicial de sesión al cargar la página
+  const existingUser = await auth.checkSession();
+  if (existingUser) {
+    hideLoginModal();
+    await initApp();
+  } else {
+    showLoginModal();
+    try {
+      await branchesModule.loadBranches();
+    } catch (e) {}
+    utils.renderIcons();
+  }
+});

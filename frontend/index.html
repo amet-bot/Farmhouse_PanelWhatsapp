@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Farmhouse WhatsApp Center</title>
+  <link rel="icon" id="appFavicon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- 1. SIDEBAR -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo-wrap">
+          <img src="assets/images/farmhouse-logo.png" alt="Farmhouse" class="sidebar-brand-logo" onerror="this.style.display='none'; document.getElementById('sidebarFallbackIcon').style.display='grid';" />
+          <div class="brand-mark brand-mark-fallback" id="sidebarFallbackIcon" style="display:none">
+            <i data-lucide="sprout"></i>
+          </div>
+        </div>
+        <div>
+          <div class="brand-name">FARMHOUSE</div>
+          <div class="brand-sub">WHATSAPP CENTER</div>
+        </div>
+      </div>
+
+      <!-- Bandeja -->
+      <button class="nav-btn active" data-nav="conversaciones">
+        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="message-square"></i></span>Conversaciones</span>
+        <span class="nav-badge" id="badgeConversaciones">0</span>
+      </button>
+      <button class="nav-btn tool-upcoming" data-tool="Menciones">
+        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="at-sign"></i></span>Menciones</span>
+        <span class="nav-badge">0</span>
+      </button>
+      <button class="nav-btn" data-nav="no-asignadas">
+        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="clock"></i></span>No asignadas</span>
+        <span class="nav-badge">0</span>
+      </button>
+      <button class="nav-btn" data-nav="todas">
+        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="inbox"></i></span>Todas</span>
+        <span class="nav-badge">0</span>
+      </button>
+
+      <!-- Sucursales Oficiales Dinámicas desde MySQL -->
+      <div class="nav-section-title">Equipos / Sucursales</div>
+      <div id="sidebarBranchesList">
+        <!-- Renderizado dinámicamente desde /api/branches/ -->
+      </div>
+
+      <!-- Administración & Herramientas -->
+      <div class="nav-section-title">Administración</div>
+      <button class="nav-btn" id="navUsers"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="users"></i></span>Agentes / Usuarios</span></button>
+      <button class="nav-btn" id="navDevices"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="laptop"></i></span>Dispositivos</span></button>
+      <button class="nav-btn tool-upcoming" data-tool="Plantillas Meta"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="file-text"></i></span>Plantillas</span></button>
+      <button class="nav-btn tool-upcoming" data-tool="Respuestas Rápidas"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="zap"></i></span>Respuestas rápidas</span></button>
+      <button class="nav-btn tool-upcoming" data-tool="Etiquetas"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="tag"></i></span>Etiquetas</span></button>
+      <button class="nav-btn tool-upcoming" data-tool="Automatizaciones"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="sliders"></i></span>Automatizaciones</span></button>
+      <button class="nav-btn tool-upcoming" data-tool="Reportes"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span>Reportes</span></button>
+
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <button class="nav-btn tool-upcoming" data-tool="Configuración"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="settings"></i></span>Configuración</span></button>
+        <button class="nav-btn" id="btnLogout"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="log-out"></i></span>Cerrar sesión</span></button>
+      </div>
+    </aside>
+
+    <!-- 2. MAIN AREA & TOPBAR -->
+    <main class="main-area">
+      <header class="topbar">
+        <div class="status-indicator">
+          <span class="status-circle"></span>
+          <span>En línea</span>
+        </div>
+
+        <!-- Indicador de Dispositivo Activo -->
+        <button class="status-indicator" id="topDevBadge" style="cursor:pointer" title="Ver Dispositivos Autorizados">
+          <span class="nav-icon"><i data-lucide="laptop"></i></span>
+          <strong id="topDevBadgeText">Dispositivo no vinculado</strong>
+        </button>
+
+        <div class="top-select-group">
+          <label for="branchSelect">Sucursal actual</label>
+          <select id="branchSelect">
+            <!-- Renderizado dinámicamente desde la base de datos -->
+          </select>
+        </div>
+
+        <div class="top-spacer"></div>
+
+        <div class="search-box">
+          <input id="searchInput" placeholder="Buscar conversación o teléfono..." />
+          <span class="search-icon"><i data-lucide="search"></i></span>
+        </div>
+
+        <!-- Botón Selector de Tema Claro / Oscuro -->
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+
+        <button class="notif-bell" aria-label="Notificaciones" title="Notificaciones">
+          <span class="nav-icon"><i data-lucide="bell"></i></span>
+          <span class="count">0</span>
+        </button>
+
+        <div class="user-profile">
+          <div class="profile-avatar" id="topAgentAvatar">AD</div>
+          <div>
+            <strong id="topAgentName">Administrador</strong>
+            <small id="topAgentRole">ADMIN</small>
+          </div>
+        </div>
+      </header>
+
+      <!-- Workspace 3 Columnas -->
+      <section class="workspace" id="workspaceContainer">
+        <!-- COLUMNA 1: BANDEJA DE CONVERSACIONES -->
+        <section class="card-panel panel-conversations">
+          <div class="panel-header-title">Conversaciones</div>
+
+          <div class="filter-tabs">
+            <button class="tab-btn" data-tab="todas">Todas</button>
+            <button class="tab-btn active" data-tab="abiertas">Abiertas</button>
+            <button class="tab-btn" data-tab="no-asignadas">No asignadas</button>
+            <button class="tab-btn" data-tab="pendientes">Pendientes</button>
+          </div>
+
+          <div class="conversation-scroll-list" id="conversationList">
+            <!-- Renderizado dinámico desde backend -->
+          </div>
+
+          <div class="panel-footer-pager">
+            <span>Conversaciones sincronizadas</span>
+            <div id="pagerText">MySQL</div>
+          </div>
+        </section>
+
+        <!-- COLUMNA 2: CHAT ACTIVO -->
+        <section class="card-panel panel-chat">
+          <div class="chat-header" id="chatHeader" style="display:none">
+            <button class="btn-mobile-back" id="btnMobileBack" aria-label="Volver a lista de conversaciones" title="Volver">
+              <i data-lucide="chevron-left"></i>
+            </button>
+            <div class="avatar-circle" id="chatAvatar">--</div>
+            <div class="meta">
+              <strong id="chatName">--</strong>
+              <span id="chatPhone">--</span>
+            </div>
+            <div class="spacer"></div>
+            <button class="header-chip branch" id="chipBranch">● Sucursal</button>
+            <button class="header-chip progress" id="chipStatus">● ESTADO ▾</button>
+            <button class="header-chip btn-toggle-details" id="btnToggleDetail" title="Información del cliente / pedido" aria-label="Ver detalles del pedido">
+              <i data-lucide="panel-right"></i>
+            </button>
+          </div>
+
+          <!-- Feed de Mensajes -->
+          <div class="chat-messages" id="chatMessages">
+            <!-- Mensajes inyectados dinámicamente -->
+          </div>
+
+          <!-- Caja para Responder -->
+          <div class="chat-composer" id="chatComposer">
+            <div class="composer-tabs">
+              <div class="composer-tab active" id="tabMsg" data-mode="message">Mensaje</div>
+              <div class="composer-tab" id="tabInternal" data-mode="internal">Nota interna</div>
+            </div>
+            <textarea id="messageInput" placeholder="Escribe un mensaje..."></textarea>
+            <div class="composer-actions-bar">
+              <button class="composer-tool-btn" title="Emoji" aria-label="Insertar Emoji"><i data-lucide="smile"></i></button>
+              <button class="composer-tool-btn" title="Adjuntar" aria-label="Adjuntar archivo"><i data-lucide="paperclip"></i></button>
+              <button class="composer-tool-btn" title="Plantilla / Documento" aria-label="Documento"><i data-lucide="file-up"></i></button>
+              <button class="btn-send" id="btnSend"><span>Enviar</span> <i data-lucide="send"></i></button>
+            </div>
+          </div>
+        </section>
+
+        <!-- COLUMNA 3: INFORMACIÓN DEL CLIENTE & PEDIDO ACTUAL -->
+        <aside class="card-panel panel-details">
+          <div class="detail-block">
+            <div class="detail-block-title">Información del contacto</div>
+            <div class="contact-header-card">
+              <div class="wa-icon-badge"><i data-lucide="phone"></i></div>
+              <div>
+                <strong id="detailName" style="font-size:13px;display:block">Sin conversación activa</strong>
+                <div class="muted-text" id="detailPhone">-</div>
+              </div>
+            </div>
+
+            <div class="data-grid-two">
+              <div>
+                <div class="muted-text">Primera vez</div>
+                <div class="data-val" id="detailFirstSeen">-</div>
+              </div>
+              <div>
+                <div class="muted-text">Última conversación</div>
+                <div class="data-val" id="detailLastSeen">-</div>
+              </div>
+            </div>
+
+            <div class="muted-text" style="margin-top:10px">Etiquetas</div>
+            <div class="tag-container" id="detailTags">
+              <span class="tag-pill blue" id="detailBranchTag">-</span>
+            </div>
+
+            <div class="detail-block-title" style="margin-top:12px;margin-bottom:2px">Notas</div>
+            <div class="notes-box-card" id="detailNotes">Selecciona una conversación para ver detalles.</div>
+          </div>
+
+          <div class="detail-block">
+            <div class="detail-block-title"><i data-lucide="receipt"></i> Pedido actual</div>
+            <div class="order-row">
+              <span>ID Pedido</span>
+              <strong id="orderId">-</strong>
+            </div>
+            <div class="order-row">
+              <span>Sucursal</span>
+              <span id="orderBranch">-</span>
+            </div>
+            <div class="order-row">
+              <span>Entrega</span>
+              <span id="orderDeliveryType">-</span>
+            </div>
+            <div class="order-row">
+              <span>Pago</span>
+              <span id="orderPaymentMethod">-</span>
+            </div>
+            <div class="order-row">
+              <span>Tipo</span>
+              <span class="tag-pill" id="orderType">-</span>
+            </div>
+            <div class="order-row">
+              <span>Estado</span>
+              <span class="tag-pill" id="orderStatus">-</span>
+            </div>
+            <div class="order-row">
+              <span>Subtotal</span>
+              <strong id="orderSubtotal" class="price-subtotal">$0.00</strong>
+            </div>
+          </div>
+
+          <div class="detail-block">
+            <div class="detail-block-title">Acciones rápidas</div>
+            <div class="quick-actions-stack">
+              <button class="btn-quick-act" id="btnActionMenu"><i data-lucide="book-open"></i> Enviar menú digital</button>
+              <button class="btn-quick-act" id="btnActionStatus"><i data-lucide="check-square"></i> Consulta de pedido</button>
+              <button class="btn-quick-act" id="btnActionTransfer"><i data-lucide="repeat"></i> Transferir conversación</button>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <!-- ====================================================================
+       MODALES DEL SISTEMA (LOGIN, USUARIOS, DISPOSITIVOS, TRANSFERENCIA)
+       ==================================================================== -->
+
+  <!-- 1. Modal: Iniciar Sesión (Compatible con Gestores de Contraseñas del Navegador) -->
+  <div class="modal-backdrop" id="modalLogin">
+    <div class="modal-card modal-sm">
+      <div class="modal-header login-modal-header">
+        <div class="login-brand-header">
+          <div class="brand-logo-wrap">
+            <img src="assets/images/farmhouse-logo.png" alt="Farmhouse" class="login-brand-logo" onerror="this.style.display='none'; document.getElementById('loginFallbackIcon').style.display='grid';" />
+            <div class="brand-mark brand-mark-fallback" id="loginFallbackIcon" style="display:none">
+              <i data-lucide="sprout"></i>
+            </div>
+          </div>
+          <div>
+            <h3>Farmhouse WhatsApp Center</h3>
+            <span class="modal-subtitle">Inicio de Sesión Oficial</span>
+          </div>
+        </div>
+      </div>
+      <form id="loginForm" autocomplete="on">
+        <div class="modal-body">
+          <div id="loginError" class="login-error-box" style="display:none"></div>
+          <div>
+            <label class="modal-label" for="username">Usuario / Código de Empleado:</label>
+            <input 
+              type="text" 
+              id="username" 
+              name="username" 
+              autocomplete="username" 
+              class="modal-input" 
+              placeholder="admin, carlos01..." 
+              required 
+            />
+          </div>
+          <div>
+            <label class="modal-label" for="password">Contraseña:</label>
+            <div style="position:relative;display:flex;align-items:center">
+              <input 
+                type="password" 
+                id="password" 
+                name="password" 
+                autocomplete="current-password" 
+                class="modal-input" 
+                placeholder="••••••••" 
+                required 
+                style="padding-right:38px" 
+              />
+              <button 
+                type="button" 
+                id="btnTogglePassword" 
+                class="btn-toggle-password" 
+                title="Mostrar/Ocultar contraseña"
+                aria-label="Mostrar u ocultar contraseña"
+              >
+                <i data-lucide="eye" id="passwordEyeIcon"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" id="btnLoginSubmit" class="btn-primary" style="width:100%">Iniciar sesión</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. Modal: Administración de Usuarios / Agentes (Exclusivo ADMIN) -->
+  <div class="modal-backdrop" id="modalUsersList">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="users"></i> Gestión de Usuarios y Agentes</h3>
+          <span class="modal-subtitle">Administra los operadores autorizados y sus sucursales</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalUsersList">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span style="font-size:12px;color:var(--muted)">Usuarios registrados en el sistema</span>
+          <button class="btn-primary" id="btnOpenAddUser"><i data-lucide="user-plus"></i> Crear Nuevo Agente / Usuario</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="device-table">
+            <thead>
+              <tr>
+                <th>Nombre / Usuario</th>
+                <th>Rol</th>
+                <th>Sucursal</th>
+                <th>Estado</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody">
+              <!-- Inyectado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Modal: Crear Nuevo Usuario / Agente -->
+  <div class="modal-backdrop" id="modalAddUser">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="user-plus"></i> Crear Usuario / Agente</h3>
+          <span class="modal-subtitle">Asignar nombre de usuario, rol y sucursal</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalAddUser">&times;</button>
+      </div>
+      <form id="formAddUser">
+        <div class="modal-body">
+          <div>
+            <label class="modal-label">Usuario / Código de Empleado:</label>
+            <input id="addUserUsername" class="modal-input" placeholder="Ej: carlos01, maria102" required />
+          </div>
+          <div>
+            <label class="modal-label">Nombre Completo:</label>
+            <input id="addUserName" class="modal-input" placeholder="Ej: Carlos Pérez" required />
+          </div>
+          <div>
+            <label class="modal-label">Correo Electrónico (Opcional):</label>
+            <input type="email" id="addUserEmail" class="modal-input" placeholder="carlos@farmhouse.pa" />
+          </div>
+          <div>
+            <label class="modal-label">Contraseña Inicial:</label>
+            <input type="password" id="addUserPassword" class="modal-input" placeholder="••••••••" required />
+          </div>
+          <div>
+            <label class="modal-label">Rol:</label>
+            <select id="addUserRole" class="modal-select" required>
+              <option value="agent" selected>Agente de Sucursal</option>
+              <option value="supervisor">Supervisor General</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+          <div id="addUserBranchGroup">
+            <label class="modal-label">Sucursal Asignada:</label>
+            <select id="addUserBranch" class="modal-select" required>
+              <!-- Llenado dinámicamente con GET /api/branches/ -->
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-primary" style="width:100%">Guardar Usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. Modal: Editar Usuario / Agente -->
+  <div class="modal-backdrop" id="modalEditUser">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="pencil"></i> Editar Usuario</h3>
+          <span class="modal-subtitle">Modificar datos o estado</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalEditUser">&times;</button>
+      </div>
+      <form id="formEditUser">
+        <input type="hidden" id="editUserId" />
+        <div class="modal-body">
+          <div>
+            <label class="modal-label">Usuario / Código:</label>
+            <input id="editUserUsername" class="modal-input" required />
+          </div>
+          <div>
+            <label class="modal-label">Nombre Completo:</label>
+            <input id="editUserName" class="modal-input" required />
+          </div>
+          <div>
+            <label class="modal-label">Correo Electrónico (Opcional):</label>
+            <input type="email" id="editUserEmail" class="modal-input" />
+          </div>
+          <div>
+            <label class="modal-label">Rol:</label>
+            <select id="editUserRole" class="modal-select" required>
+              <option value="agent">Agente de Sucursal</option>
+              <option value="supervisor">Supervisor General</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Sucursal:</label>
+            <select id="editUserBranch" class="modal-select">
+              <!-- Llenado dinámicamente con GET /api/branches/ -->
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Estado:</label>
+            <select id="editUserStatus" class="modal-select" required>
+              <option value="true">● Activo</option>
+              <option value="false">✕ Desactivado / Inactivo</option>
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Nueva Contraseña (Opcional):</label>
+            <input type="password" id="editUserPassword" class="modal-input" placeholder="Dejar en blanco para conservar" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-primary" style="width:100%">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4.1 Modal: Confirmar Eliminación de Usuario -->
+  <div class="modal-backdrop" id="modalDeleteUser">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3 class="text-danger-heading"><i data-lucide="trash-2"></i> ¿Eliminar usuario?</h3>
+          <span class="modal-subtitle">Confirmación de eliminación en la base de datos</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalDeleteUser">&times;</button>
+      </div>
+      <div class="modal-body" style="line-height:1.5">
+        <input type="hidden" id="deleteUserId" />
+        <p style="font-size:13px;color:var(--text-primary);margin-bottom:10px">
+          Estás a punto de eliminar permanentemente a:
+        </p>
+        <div class="alert-danger-box">
+          <strong id="deleteUserNameSpan" class="alert-danger-title"></strong>
+          <div id="deleteUserUsernameSpan" class="alert-danger-detail"></div>
+        </div>
+        <div id="deleteUserAlert" class="alert-danger-banner" style="display:none"></div>
+        <p style="font-size:11px;color:var(--text-muted)">
+          Esta acción borrará la cuenta del sistema. Los mensajes históricos y comandas se conservarán sin alteración.
+        </p>
+      </div>
+      <div class="modal-footer" style="display:flex;gap:10px">
+        <button type="button" class="btn-cancel" id="btnCancelDeleteUser" style="flex:1">Cancelar</button>
+        <button type="button" class="btn-danger" id="btnConfirmDeleteUser" style="flex:1">Eliminar usuario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Modal: Administración de Dispositivos Autorizados -->
+  <div class="modal-backdrop" id="modalDevicesList">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="laptop"></i> Dispositivos Autorizados de Acceso</h3>
+          <span class="modal-subtitle">Inventario de hardware autorizado en el sistema</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalDevicesList">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span style="font-size:12px;color:var(--muted)">Control exclusivo de Administrador.</span>
+          <button class="btn-primary" id="btnOpenAddDevice" style="display:none"><i data-lucide="plus-circle"></i> Registrar Nuevo Dispositivo</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="device-table">
+            <thead>
+              <tr>
+                <th>Nombre / Código</th>
+                <th>Tipo</th>
+                <th>Sucursal</th>
+                <th>Usuario Asignado</th>
+                <th>Estado</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="deviceTableBody">
+              <!-- Inyectado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Modal: Registrar Nuevo Dispositivo (Exclusivo ADMIN) -->
+  <div class="modal-backdrop" id="modalAddDevice">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="plus-circle"></i> Autorizar Nuevo Dispositivo</h3>
+          <span class="modal-subtitle">Control de Acceso de Administrador</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalAddDevice">&times;</button>
+      </div>
+      <form id="formAddDevice">
+        <div class="modal-body">
+          <div>
+            <label class="modal-label">Nombre del Dispositivo:</label>
+            <input id="addDevName" class="modal-input" placeholder="Ej: Tablet Clayton 01" required />
+          </div>
+          <div>
+            <label class="modal-label">Tipo de Hardware:</label>
+            <select id="addDevType" class="modal-select" required>
+              <option value="computadora">Computadora</option>
+              <option value="tablet">Tablet</option>
+              <option value="celular">Celular</option>
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Sucursal:</label>
+            <select id="addDevBranch" class="modal-select" required>
+              <!-- Llenado dinámicamente con GET /api/branches/ -->
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Agente Asignado (Opcional):</label>
+            <select id="addDevUser" class="modal-select">
+              <option value="">-- Sin asignar / Agente de turno --</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-primary" style="width:100%">Autorizar y Generar FH-DEVICE</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 7. Modal: Editar Dispositivo (Exclusivo ADMIN) -->
+  <div class="modal-backdrop" id="modalEditDevice">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="pencil"></i> Editar Dispositivo</h3>
+          <span class="modal-subtitle">Modificar asignación o estado</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalEditDevice">&times;</button>
+      </div>
+      <form id="formEditDevice">
+        <input type="hidden" id="editDevId" />
+        <div class="modal-body">
+          <div>
+            <label class="modal-label">Nombre:</label>
+            <input id="editDevName" class="modal-input" required />
+          </div>
+          <div>
+            <label class="modal-label">Tipo:</label>
+            <select id="editDevType" class="modal-select" required>
+              <option value="computadora">Computadora</option>
+              <option value="tablet">Tablet</option>
+              <option value="celular">Celular</option>
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Sucursal:</label>
+            <select id="editDevBranch" class="modal-select" required>
+              <!-- Llenado dinámicamente con GET /api/branches/ -->
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Estado:</label>
+            <select id="editDevStatus" class="modal-select" required>
+              <option value="active">● Activo (Autorizado)</option>
+              <option value="disabled">✕ Deshabilitado</option>
+              <option value="revoked">Revocado</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-primary" style="width:100%">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 8. Modal: Transferir Conversación -->
+  <div class="modal-backdrop" id="modalTransferBranch">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="repeat"></i> Transferir Conversación</h3>
+          <span class="modal-subtitle">Reasignar a otra sucursal de Farmhouse</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalTransfer">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label class="modal-label">Sucursal de Destino:</label>
+        <select id="transferTargetBranch" class="modal-select">
+          <!-- Llenado dinámicamente con GET /api/branches/ -->
+        </select>
+        <label class="modal-label" style="margin-top:10px">Motivo de la transferencia (Nota Interna):</label>
+        <input id="transferReason" class="modal-input" placeholder="Ej: Cliente se encuentra en otra zona..." />
+      </div>
+      <div class="modal-footer" style="display:flex;gap:10px">
+        <button type="button" class="btn-cancel" id="btnCancelTransfer" style="flex:1">Cancelar</button>
+        <button type="button" class="btn-primary" id="btnConfirmTransfer" style="flex:1">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. Modal: Dispositivo No Autorizado (Bloqueo 403) -->
+  <div class="modal-backdrop" id="modalDeviceForbidden">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3 class="text-danger-heading"><i data-lucide="shield-alert"></i> Acceso Denegado</h3>
+          <span class="modal-subtitle">Control de Seguridad Farmhouse</span>
+        </div>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:24px">
+        <div class="modal-danger-icon-large">
+          <i data-lucide="lock"></i>
+        </div>
+        <strong id="deviceForbiddenText" class="alert-danger-title" style="margin-bottom:8px">
+          Este dispositivo no está autorizado para atender conversaciones.
+        </strong>
+        <p style="font-size:12px;color:var(--text-muted)">
+          Solicita a un administrador que autorice este equipo desde el panel de dispositivos de Farmhouse Center.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="closeModalDeviceForbidden" style="width:100%">Abrir Panel de Dispositivos</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notificación Toast Flotante -->
+  <div id="toastNotification" class="toast-banner">
+    <span id="toastIconSlot"><i data-lucide="check" id="toastIcon"></i></span>
+    <span id="toastMessage">Operación realizada con éxito.</span>
+  </div>
+
+  <!-- Scripts JavaScript Modularizados y Seguros -->
+  <script src="js/utils.js?v=2.1.0"></script>
+  <script src="js/api.js?v=2.1.0"></script>
+  <script src="js/ws.js?v=2.1.0"></script>
+  <script src="js/modules/auth.js?v=2.1.0"></script>
+  <script src="js/modules/branches.js?v=2.1.0"></script>
+  <script src="js/modules/users.js?v=2.1.0"></script>
+  <script src="js/modules/devices.js?v=2.1.0"></script>
+  <script src="js/modules/conversations.js?v=2.1.0"></script>
+  <script src="js/modules/chat.js?v=2.1.0"></script>
+  <script src="js/app.js?v=2.1.0"></script>
+</body>
+</html>
