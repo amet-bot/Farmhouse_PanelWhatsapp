@@ -160,18 +160,45 @@ const chatModule = {
       }
 
       let mediaHtml = '';
+      const isMediaPlaceholder = msg.content && (
+        msg.content === '📷 Imagen' ||
+        msg.content === '📷 Foto' ||
+        msg.content === '[image]' ||
+        msg.content === '🎥 Video' ||
+        msg.content === '[video]' ||
+        msg.content === '🎵 Audio' ||
+        msg.content === '[audio]'
+      );
+
       if (msg.media_url) {
         const mediaSrc = api.resolveMediaUrl(msg.media_url);
-        if (msg.media_type === 'image' || msg.media_type === 'sticker') {
-          mediaHtml = `<img src="${utils.escapeHtml(mediaSrc)}" alt="Imagen enviada por el cliente" class="msg-media-image" style="max-width:260px;max-height:260px;border-radius:8px;margin-top:6px;display:block;cursor:pointer;object-fit:cover" onclick="window.open('${utils.escapeHtml(mediaSrc)}', '_blank')">`;
-        } else if (msg.media_type === 'video') {
-          mediaHtml = `<video controls style="max-width:260px;border-radius:8px;margin-top:6px;display:block"><source src="${utils.escapeHtml(mediaSrc)}" type="${utils.escapeHtml(msg.media_mime_type || '')}"></video>`;
-        } else if (msg.media_type === 'audio') {
-          mediaHtml = `<audio controls style="margin-top:6px;display:block"><source src="${utils.escapeHtml(mediaSrc)}" type="${utils.escapeHtml(msg.media_mime_type || '')}"></audio>`;
+        const isImage = msg.media_type === 'image' || msg.media_type === 'sticker' ||
+          /\.(jpg|jpeg|png|webp|gif)$/i.test(msg.media_url);
+
+        if (isImage) {
+          mediaHtml = `
+            <div class="msg-media-container" style="margin-top:6px">
+              <img src="${utils.escapeHtml(mediaSrc)}" 
+                   alt="Imagen adjunta" 
+                   class="msg-media-image" 
+                   loading="lazy"
+                   style="max-width:280px;max-height:280px;border-radius:8px;display:block;cursor:pointer;object-fit:cover;border:1px solid rgba(255,255,255,0.1);transition:transform 0.2s ease" 
+                   onclick="window.open('${utils.escapeHtml(mediaSrc)}', '_blank')"
+                   onmouseover="this.style.transform='scale(1.02)'"
+                   onmouseout="this.style.transform='scale(1)'">
+            </div>`;
+        } else if (msg.media_type === 'video' || /\.(mp4|webm|mov)$/i.test(msg.media_url)) {
+          mediaHtml = `<video controls style="max-width:280px;border-radius:8px;margin-top:6px;display:block"><source src="${utils.escapeHtml(mediaSrc)}" type="${utils.escapeHtml(msg.media_mime_type || 'video/mp4')}"></video>`;
+        } else if (msg.media_type === 'audio' || /\.(mp3|ogg|wav|m4a)$/i.test(msg.media_url)) {
+          mediaHtml = `<audio controls style="margin-top:6px;display:block"><source src="${utils.escapeHtml(mediaSrc)}" type="${utils.escapeHtml(msg.media_mime_type || 'audio/mpeg')}"></audio>`;
         } else {
-          mediaHtml = `<a href="${utils.escapeHtml(mediaSrc)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:var(--green)"><i data-lucide="paperclip"></i> Descargar archivo</a>`;
+          mediaHtml = `<a href="${utils.escapeHtml(mediaSrc)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:var(--green)"><i data-lucide="paperclip"></i> Descargar archivo adjunto</a>`;
         }
       }
+
+      const textHtml = (msg.content && (!isMediaPlaceholder || !msg.media_url))
+        ? `<div class="msg-text">${utils.escapeHtml(msg.content)}</div>`
+        : '';
 
       const deleteMsgBtn = canDeleteMessages
         ? `<button class="btn-delete-msg" onclick="chatModule.deleteMessage(${msg.id})" title="Borrar mensaje" aria-label="Borrar mensaje"><i data-lucide="trash-2"></i></button>`
@@ -180,7 +207,7 @@ const chatModule = {
       msgDiv.innerHTML = `
         ${deleteMsgBtn}
         <div class="msg-sender">${senderLabel}</div>
-        ${msg.content ? `<div class="msg-text">${utils.escapeHtml(msg.content)}</div>` : ''}
+        ${textHtml}
         ${mediaHtml}
         <div class="msg-time" style="display:flex;align-items:center;justify-content:flex-end;gap:4px">
           <span>${utils.escapeHtml(timeStr)}</span>
