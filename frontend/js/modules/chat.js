@@ -182,10 +182,10 @@ const chatModule = {
                    alt="Imagen adjunta" 
                    class="msg-media-image" 
                    loading="lazy"
-                   style="max-width:280px;max-height:280px;border-radius:8px;display:block;cursor:pointer;object-fit:cover;border:1px solid rgba(255,255,255,0.1);transition:transform 0.2s ease" 
-                   onclick="window.open('${utils.escapeHtml(mediaSrc)}', '_blank')"
-                   onmouseover="this.style.transform='scale(1.02)'"
-                   onmouseout="this.style.transform='scale(1)'">
+                   style="max-width:280px;max-height:280px;border-radius:8px;display:block;cursor:zoom-in;object-fit:cover;border:1px solid rgba(255,255,255,0.1);transition:transform 0.2s ease, box-shadow 0.2s ease" 
+                   onclick="chatModule.openLightbox('${utils.escapeHtml(mediaSrc)}')"
+                   onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 8px 16px rgba(0,0,0,0.3)'"
+                   onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none'">
             </div>`;
         } else if (msg.media_type === 'video' || /\.(mp4|webm|mov)$/i.test(msg.media_url)) {
           mediaHtml = `<video controls style="max-width:280px;border-radius:8px;margin-top:6px;display:block"><source src="${utils.escapeHtml(mediaSrc)}" type="${utils.escapeHtml(msg.media_mime_type || 'video/mp4')}"></video>`;
@@ -478,6 +478,41 @@ const chatModule = {
     } catch (e) {
       utils.showToast(`Error al cambiar automatización: ${e.message}`, 'error');
     }
+  },
+
+  openLightbox(mediaSrc) {
+    const modal = document.getElementById('modalImageLightbox');
+    const img = document.getElementById('lightboxImage');
+    const downloadBtn = document.getElementById('lightboxDownloadBtn');
+    if (!modal || !img) return;
+
+    img.src = mediaSrc;
+    if (downloadBtn) {
+      downloadBtn.href = mediaSrc;
+    }
+    modal.style.display = 'flex';
+    utils.renderIcons();
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        this.closeLightbox();
+        document.removeEventListener('keydown', onKeyDown);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+  },
+
+  closeLightbox(e) {
+    if (e && e.target && e.target.id !== 'modalImageLightbox' && !e.target.closest('.lightbox-close-btn')) {
+      return;
+    }
+    const modal = document.getElementById('modalImageLightbox');
+    const img = document.getElementById('lightboxImage');
+    if (modal) {
+      modal.style.display = 'none';
+      if (img) img.src = '';
+    }
   }
 };
+
 

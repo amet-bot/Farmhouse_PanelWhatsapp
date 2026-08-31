@@ -681,6 +681,21 @@
     </div>
   </div>
 
+  <!-- 10. Modal Lightbox: Visualización de Imágenes en Pantalla Completa -->
+  <div class="lightbox-backdrop" id="modalImageLightbox" style="display:none" onclick="chatModule.closeLightbox(event)">
+    <div class="lightbox-content">
+      <button class="lightbox-close-btn" onclick="chatModule.closeLightbox()" title="Cerrar (Esc)" aria-label="Cerrar">
+        <i data-lucide="x"></i>
+      </button>
+      <img id="lightboxImage" src="" alt="Vista previa de imagen" class="lightbox-img" onclick="event.stopPropagation()">
+      <div class="lightbox-actions" onclick="event.stopPropagation()">
+        <a id="lightboxDownloadBtn" href="#" target="_blank" download="whatsapp-image.jpg" class="lightbox-action-btn">
+          <i data-lucide="download"></i> Descargar imagen
+        </a>
+      </div>
+    </div>
+  </div>
+
   <!-- Notificación Toast Flotante -->
   <div id="toastNotification" class="toast-banner">
     <span id="toastIconSlot"><i data-lucide="check" id="toastIcon"></i></span>
