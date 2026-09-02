@@ -2261,9 +2261,7 @@ input:-webkit-autofill:focus {
   }
   .chat-secondary-actions {
     display: none;
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
+    position: fixed;
     background: var(--panel-bg);
     border: 1px solid var(--line);
     border-radius: 10px;

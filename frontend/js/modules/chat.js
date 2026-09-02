@@ -111,7 +111,14 @@ const chatModule = {
     if (btnMore) {
       btnMore.addEventListener('click', (e) => {
         e.stopPropagation();
-        document.getElementById('chatSecondaryActions')?.classList.toggle('open');
+        const menu = document.getElementById('chatSecondaryActions');
+        if (!menu) return;
+        // position: fixed calculado desde el botón, para escapar del recorte por
+        // overflow-x:auto del encabezado (el menú no cabría si fuera absolute).
+        const rect = btnMore.getBoundingClientRect();
+        menu.style.top = `${rect.bottom + 6}px`;
+        menu.style.right = `${window.innerWidth - rect.right}px`;
+        menu.classList.toggle('open');
       });
     }
     // Listener global (una sola vez) para cerrar el menú al tocar fuera de él
