@@ -146,6 +146,9 @@ frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
 if frontend_dir.exists():
     if (frontend_dir / "assets").exists():
         app.mount("/assets", StaticFiles(directory=str(frontend_dir / "assets")), name="assets")
+    static_catalog_dir = frontend_dir / "assets" / "catalog"
+    static_catalog_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static/catalog", StaticFiles(directory=str(static_catalog_dir)), name="static_catalog")
     if (frontend_dir / "css").exists():
         app.mount("/css", StaticFiles(directory=str(frontend_dir / "css")), name="css")
     if (frontend_dir / "js").exists():
