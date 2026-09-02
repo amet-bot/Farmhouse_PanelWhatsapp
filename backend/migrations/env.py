@@ -7,7 +7,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
 from alembic import context
 
 from config import settings
