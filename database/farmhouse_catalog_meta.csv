@@ -1,0 +1,49 @@
+id,title,description,availability,condition,price,currency,brand,category
+SAL_001_R,Sassy Caesar (Regular),Mézclum kale + repollo tomates cherry parmesan crumble zaatar crumbs farmhouse caesar dressing,in stock,new,11.95,USD,Farmhouse,Salads
+SAL_001_L,Sassy Caesar (Large),Mézclum kale + repollo tomates cherry parmesan crumble zaatar crumbs farmhouse caesar dressing,in stock,new,13.95,USD,Farmhouse,Salads
+SAL_002_R,La Lupita (Regular),Mézclum roasted corn avo smash frijolitos negros cebolla encurtida cilantro totopos chipotle lime dressing,in stock,new,12.95,USD,Farmhouse,Salads
+SAL_002_L,La Lupita (Large),Mézclum roasted corn avo smash frijolitos negros cebolla encurtida cilantro totopos chipotle lime dressing,in stock,new,14.95,USD,Farmhouse,Salads
+SAL_003_R,La Greca (Regular),Mézclum kale + repollo tomates cherry pepino aceitunas kalamata pimentón rostizado feta garbanzos crispy green tahini dressing,in stock,new,11.95,USD,Farmhouse,Salads
+SAL_003_L,La Greca (Large),Mézclum kale + repollo tomates cherry pepino aceitunas kalamata pimentón rostizado feta garbanzos crispy green tahini dressing,in stock,new,13.95,USD,Farmhouse,Salads
+BWL_001_R,La Cosecha (Regular),Cilantro pesto rice kale + repollo zapallo rostizado queso de cabra cranberries almendras tostadas balsamic vinaigrette,in stock,new,12.95,USD,Farmhouse,Bowls
+BWL_001_L,La Cosecha (Large),Cilantro pesto rice kale + repollo zapallo rostizado queso de cabra cranberries almendras tostadas balsamic vinaigrette,in stock,new,14.95,USD,Farmhouse,Bowls
+BWL_002_R,Crispy Sai (Regular),Cilantro pesto rice kale + repollo zanahorias ralladas pepino brócoli rostizado cilantro almendras tostadas arroz crispy rodaja de limón thai peanut dressing,in stock,new,12.95,USD,Farmhouse,Bowls
+BWL_002_L,Crispy Sai (Large),Cilantro pesto rice kale + repollo zanahorias ralladas pepino brócoli rostizado cilantro almendras tostadas arroz crispy rodaja de limón thai peanut dressing,in stock,new,14.95,USD,Farmhouse,Bowls
+BWL_003_R,La Levantina (Regular),Mézclum quinoa tomates cherry + pepino zanahorias encurtidas hummus zaatar crumbs chili-gurt dressing,in stock,new,13.50,USD,Farmhouse,Bowls
+BWL_003_L,La Levantina (Large),Mézclum quinoa tomates cherry + pepino zanahorias encurtidas hummus zaatar crumbs chili-gurt dressing,in stock,new,15.50,USD,Farmhouse,Bowls
+BWL_004_R,La Otoña (Regular),Quinoa kale + repollo zapallo rostizado zucchini rostizado pecans caramelizados feta carrot bliss vinaigrette,in stock,new,13.50,USD,Farmhouse,Bowls
+BWL_004_L,La Otoña (Large),Quinoa kale + repollo zapallo rostizado zucchini rostizado pecans caramelizados feta carrot bliss vinaigrette,in stock,new,15.50,USD,Farmhouse,Bowls
+BWL_005_R,La Buff (Regular),Cilantro pesto rice kale + repollo tomates cherry cranberries queso de cabra garbanzos crispy chipotle lime dressing,in stock,new,13.50,USD,Farmhouse,Bowls
+BWL_005_L,La Buff (Large),Cilantro pesto rice kale + repollo tomates cherry cranberries queso de cabra garbanzos crispy chipotle lime dressing,in stock,new,15.50,USD,Farmhouse,Bowls
+WRP_001,Wrap El César,Mézclum kale + repollo tomates cherry parmesan crumble zaatar crumbs farmhouse caesar dressing todo envuelto en tortilla de harina,in stock,new,12.95,USD,Farmhouse,Wraps
+WRP_002,Wrap El Lupito,Mézclum roasted corn cebolla encurtida cilantro avo smash frijolitos negros totopos chipotle lime dressing todo envuelto en tortilla de harina,in stock,new,12.95,USD,Farmhouse,Wraps
+BYO_001_R,Build Your Own Bowl / Salad (Regular),Arma tu bowl o ensalada: elige hasta 2 bases 4 toppings 1 dressing 1 crunch,in stock,new,13.95,USD,Farmhouse,Build Your Own
+BYO_001_L,Build Your Own Bowl / Salad (Large),Arma tu bowl o ensalada: elige hasta 2 bases 4 toppings 1 dressing 1 crunch,in stock,new,15.95,USD,Farmhouse,Build Your Own
+TOA_001,Avotuna Toastie,Pan de masa madre tuna rodajas de aguacate cebollitas crunchy y tabasco,in stock,new,12.95,USD,Farmhouse,Toasties
+TOA_002,Hot Tuna Toastie,Pan de masa madre tuna pesto rodajas de tomate y pickled jalapeños,in stock,new,12.50,USD,Farmhouse,Toasties
+TOA_003,Pesto Chicken Toastie,Pan de masa madre pesto chicken feta y sundried tomato spread,in stock,new,13.95,USD,Farmhouse,Toasties
+TOA_004,Serranito Margarita Toastie,Pan de masa madre jamón serrano tomate rallado y mozzarella fresca,in stock,new,14.95,USD,Farmhouse,Toasties
+TOA_005,Turkey Melt Toastie,Pan de masa madre pechuga de pavo mozzarella rodajas de tomate y honey mustard,in stock,new,14.50,USD,Farmhouse,Toasties
+TOA_006,Avopesto Toastie,Pan de masa madre rodajas de aguacate mozzarella fresca pesto y rodajas de tomate,in stock,new,13.95,USD,Farmhouse,Toasties
+TOA_007,Spicy Chickpea Toastie,Pan de masa madre chickpea salad whipped feta cebollitas crunchy rodajas de tomate y tabasco,in stock,new,12.95,USD,Farmhouse,Toasties
+SMO_001,Smoothie Supernova (Classic),Blueberries mango dátiles leche de coco blue spirulina agua de pipa y limón,in stock,new,9.00,USD,Farmhouse,Smoothies
+SMO_002,Smoothie Marble Acai (Classic),Açai piña banana cacao nibs yogur griego green spirulina leche de almendras y limón,in stock,new,9.00,USD,Farmhouse,Smoothies
+SMO_003,Smoothie Choco-Shake (Classic),Cacao peanut butter banana leche de almendras miel de abeja y cacao nibs,in stock,new,8.00,USD,Farmhouse,Smoothies
+SMO_004,Smoothie Frostee (Classic),Fresa piña mango blueberry splash y agua de pipa,in stock,new,8.00,USD,Farmhouse,Smoothies
+SMO_005,Smoothie Mango (Classic),Mango con agua de pipa o leche de almendras,in stock,new,8.00,USD,Farmhouse,Smoothies
+SMO_006,Smoothie Papaya (Classic),Papaya con agua de pipa o leche de almendras,in stock,new,7.00,USD,Farmhouse,Smoothies
+SMO_007,Smoothie Pretty in Pink (Signature),Fresa banana mango leche de almendras yogur griego beetroot powder miel de abeja y vegan protein scoop,in stock,new,9.00,USD,Farmhouse,Smoothies
+SMO_008,Smoothie Nutty Chai (Signature),Banana almond butter especias de chai hojuelas de avena leche de almendras y pizca de sal,in stock,new,8.00,USD,Farmhouse,Smoothies
+SMO_009,Smoothie Tropicalia (Signature),Piña maracuyá mango agua de pipa blue spirulina y miel de abeja,in stock,new,8.00,USD,Farmhouse,Smoothies
+SMO_010,Smoothie Evergreen (Signature),Manzana verde piña pepino kale agua de pipa limón y strawberry splash,in stock,new,8.00,USD,Farmhouse,Smoothies
+SMO_011,Smoothie Blush (Signature),Fresa mora limón mandarina miel de abeja hierbabuena jengibre y agua de pipa,in stock,new,8.00,USD,Farmhouse,Smoothies
+SMO_012,Smoothie Summertime (Signature),Sandía piña jengibre limón miel de abeja y agua de pipa,in stock,new,8.00,USD,Farmhouse,Smoothies
+DRK_001,Agua,Agua embotellada,in stock,new,2.00,USD,Farmhouse,Drinks
+DRK_002,Agua con gas,Agua mineral con gas,in stock,new,3.00,USD,Farmhouse,Drinks
+DRK_003,Coca Cola (Regular o Zero),Bebida gaseosa regular o zero,in stock,new,2.50,USD,Farmhouse,Drinks
+DRK_004,Sodas artesanales,Sodas artesanales sabores variados,in stock,new,3.50,USD,Farmhouse,Drinks
+DRK_005,Chicha de saril,Bebida tradicional de flor de jamaica / saril,in stock,new,4.00,USD,Farmhouse,Drinks
+DRK_006,Iced chamomile + limón mandarina,Té frío de manzanilla con toque de limón mandarina,in stock,new,2.50,USD,Farmhouse,Drinks
+VIT_001,Platanitos,Platanitos crujientes de vitrina,in stock,new,2.00,USD,Farmhouse,Snacks
+VIT_002,Maduritos,Plátano madurito frito de vitrina,in stock,new,2.00,USD,Farmhouse,Snacks
+VIT_003,Yuquitas,Yuquitas tostadas de vitrina,in stock,new,2.00,USD,Farmhouse,Snacks
