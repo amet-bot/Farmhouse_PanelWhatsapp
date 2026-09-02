@@ -62,7 +62,12 @@ class Settings(BaseSettings):
         return origins
 
     def get_database_url(self) -> str:
-        db_url = self.DATABASE_URL or os.environ.get("MYSQL_URL") or os.environ.get("MYSQLPRIVATE_URL")
+        db_url = (
+            self.DATABASE_URL
+            or os.environ.get("DATABASE_URL")
+            or os.environ.get("MYSQL_URL")
+            or os.environ.get("MYSQLPRIVATE_URL")
+        )
         if db_url:
             if db_url.startswith("mysql://"):
                 db_url = db_url.replace("mysql://", "mysql+pymysql://", 1)
@@ -70,10 +75,18 @@ class Settings(BaseSettings):
                 separator = "&" if "?" in db_url else "?"
                 db_url = f"{db_url}{separator}charset=utf8mb4"
             return db_url
-        pwd_part = f":{self.DB_PASSWORD}" if self.DB_PASSWORD else ""
+
+        # Soporte nativo para variables individuales inyectadas por Railway / Docker
+        server = os.environ.get("MYSQLHOST") or os.environ.get("MYSQL_HOST") or self.DB_SERVER
+        port = os.environ.get("MYSQLPORT") or os.environ.get("MYSQL_PORT") or str(self.DB_PORT)
+        user = os.environ.get("MYSQLUSER") or os.environ.get("MYSQL_USER") or self.DB_USER
+        password = os.environ.get("MYSQLPASSWORD") or os.environ.get("MYSQL_PASSWORD") or self.DB_PASSWORD
+        dbname = os.environ.get("MYSQLDATABASE") or os.environ.get("MYSQL_DATABASE") or self.DB_NAME
+
+        pwd_part = f":{password}" if password else ""
         return (
-            f"mysql+pymysql://{self.DB_USER}{pwd_part}@"
-            f"{self.DB_SERVER}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
+            f"mysql+pymysql://{user}{pwd_part}@"
+            f"{server}:{port}/{dbname}?charset=utf8mb4"
         )
 
     def validate_production_security(self) -> None:
