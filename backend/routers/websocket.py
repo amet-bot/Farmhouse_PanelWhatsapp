@@ -23,6 +23,12 @@ async def websocket_endpoint(
     ticket: Optional[str] = Query(None),
     device_id: Optional[str] = Query(None)
 ):
+    # Aceptar el handshake ANTES de validar credenciales: un WebSocket.close(code=...)
+    # emitido antes de accept() no puede transmitir un código real de cierre (el navegador
+    # recibe un cierre genérico 1006), lo que rompe la lógica del cliente que decide si
+    # reintentar la reconexión según el código recibido (ver wsClient.onclose en ws.js).
+    await websocket.accept()
+
     user_id = None
     auth_val = ticket or token
 
