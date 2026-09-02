@@ -29,5 +29,5 @@ EXPOSE 8000
 
 WORKDIR /app/backend
 
-# Iniciar: ejecuta migraciones y levanta FastAPI con uvicorn
-CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
+# Iniciar: ejecuta migraciones, seed inicial de sucursales/admin y levanta FastAPI
+CMD ["sh", "-c", "alembic upgrade head && python seeds/seed_data.py && uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
