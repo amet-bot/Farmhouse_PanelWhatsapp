@@ -85,11 +85,16 @@ const chatModule = {
       <button class="header-chip btn-toggle-details" id="btnToggleDetail" title="Ver información del cliente / pedido" aria-label="Detalles de conversación">
         <i data-lucide="panel-right"></i>
       </button>
-      <div class="chat-header-actions" style="display:flex;gap:6px;margin-left:6px">
+      <div class="chat-header-actions">
         ${actionBtnHtml}
-        <button class="btn-sm-action" onclick="chatModule.openTransferModal()" title="Transferir a otra sucursal"><i data-lucide="repeat"></i> Transferir</button>
-        <button class="btn-sm-action" onclick="chatModule.closeConversation()" title="Cerrar conversación"><i data-lucide="check-circle-2"></i> Resolver</button>
-        ${deleteBtnHtml}
+        <button class="btn-header-more" id="btnHeaderMore" aria-label="Más acciones" title="Más acciones">
+          <i data-lucide="more-vertical"></i>
+        </button>
+        <div class="chat-secondary-actions" id="chatSecondaryActions">
+          <button class="btn-sm-action" onclick="chatModule.openTransferModal()" title="Transferir a otra sucursal"><i data-lucide="repeat"></i> Transferir</button>
+          <button class="btn-sm-action" onclick="chatModule.closeConversation()" title="Cerrar conversación"><i data-lucide="check-circle-2"></i> Resolver</button>
+          ${deleteBtnHtml}
+        </div>
       </div>
     `;
 
@@ -98,6 +103,26 @@ const chatModule = {
     if (btnBack) {
       btnBack.addEventListener('click', () => {
         document.getElementById('workspaceContainer')?.classList.remove('show-chat');
+      });
+    }
+
+    // Conectar menú "más acciones" (⋮) que en móvil agrupa Transferir/Resolver/Eliminar
+    const btnMore = document.getElementById('btnHeaderMore');
+    if (btnMore) {
+      btnMore.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('chatSecondaryActions')?.classList.toggle('open');
+      });
+    }
+    // Listener global (una sola vez) para cerrar el menú al tocar fuera de él
+    if (!this._secondaryActionsOutsideClickBound) {
+      this._secondaryActionsOutsideClickBound = true;
+      document.addEventListener('click', (e) => {
+        const menu = document.getElementById('chatSecondaryActions');
+        const trigger = document.getElementById('btnHeaderMore');
+        if (menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target !== trigger) {
+          menu.classList.remove('open');
+        }
       });
     }
 

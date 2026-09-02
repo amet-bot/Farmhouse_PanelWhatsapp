@@ -281,6 +281,26 @@ a:focus-visible {
   border-right: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* Botón para cerrar el menú deslizante (solo visible en celular, ver media query) */
+.btn-sidebar-close {
+  display: none;
+  align-self: flex-end;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-radius: 8px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+/* Fondo oscuro detrás del menú deslizante en celular (oculto en escritorio/tablet) */
+.sidebar-backdrop {
+  display: none;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -457,6 +477,20 @@ a:focus-visible {
   overflow-x: auto;
   overflow-y: hidden;
   transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Botón de menú hamburguesa: solo existe visualmente en celular (ver media query) */
+.btn-hamburger {
+  display: none;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  border-radius: 8px;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Los controles de la topbar nunca se aplastan: si no caben, la barra se
@@ -1041,6 +1075,36 @@ a:focus-visible {
   padding: 4px 8px;
   font-weight: 700;
   color: var(--text-primary);
+}
+
+/* Acciones del encabezado del chat: en escritorio/tablet se ven todas en línea,
+   igual que siempre. El botón "⋮" solo aparece en celular (ver media query),
+   donde Transferir/Resolver/Eliminar se agrupan en un menú desplegable. */
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  position: relative;
+}
+
+.btn-header-more {
+  display: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  border-radius: 8px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chat-secondary-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* Feed de Mensajes con flex-grow para ocupar todo el espacio disponible */
@@ -2113,9 +2177,36 @@ input:-webkit-autofill:focus {
   .app-shell {
     grid-template-columns: 1fr;
   }
-  .sidebar {
-    display: none;
+
+  /* --- Menú lateral como panel deslizante (drawer), no columna fija --- */
+  .btn-hamburger {
+    display: inline-flex;
   }
+  .btn-sidebar-close {
+    display: inline-flex;
+  }
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(280px, 82vw);
+    z-index: 210;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-lg);
+  }
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  .sidebar-backdrop.active {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 205;
+  }
+
   .workspace {
     grid-template-columns: 1fr;
     padding: 6px;
@@ -2148,6 +2239,10 @@ input:-webkit-autofill:focus {
   }
   .btn-mobile-back {
     display: inline-flex !important;
+    min-width: 40px;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
   }
   .panel-details {
     position: fixed;
@@ -2158,6 +2253,69 @@ input:-webkit-autofill:focus {
     width: 100%;
     border-radius: 0;
     z-index: 100;
+  }
+
+  /* --- Menú "⋮" del encabezado del chat: agrupa Transferir/Resolver/Eliminar --- */
+  .btn-header-more {
+    display: inline-flex;
+  }
+  .chat-secondary-actions {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    background: var(--panel-bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow-lg);
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 190px;
+    padding: 6px;
+    z-index: 60;
+  }
+  .chat-secondary-actions.open {
+    display: flex;
+  }
+  .chat-secondary-actions .btn-sm-action {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  /* --- Elementos táctiles más grandes: cómodos para tocar con el dedo --- */
+  .nav-btn {
+    padding: 12px 12px;
+    font-size: 14px;
+  }
+  .tab-btn {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .header-chip {
+    padding: 8px 12px;
+    min-height: 36px;
+  }
+  .chat-header-actions .btn-sm-action,
+  .chat-secondary-actions .btn-sm-action {
+    padding: 10px 12px;
+    font-size: 13px;
+    min-height: 40px;
+  }
+  .composer-tool-btn {
+    padding: 8px 10px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .btn-send {
+    padding: 10px 18px;
+    min-height: 40px;
+  }
+  .chat-composer textarea {
+    font-size: 14px;
+  }
+  .conv-item {
+    padding-top: 12px;
+    padding-bottom: 12px;
   }
 }
 

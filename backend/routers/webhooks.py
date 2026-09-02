@@ -436,17 +436,19 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
     finally:
         db.close()
 
-def _send_push_notification_background(branch_id: int, conversation_id: int, contact_name: str, message_preview: str):
+def _send_push_notification_background(branch_id: Optional[int], conversation_id: int, contact_label: str, branch_label: str, message_preview: str):
     """
     Envía notificaciones push del navegador a los encargados de la sucursal (y supervisores/admins)
     cuando llega un mensaje nuevo. Se ejecuta desacoplado del ciclo de respuesta HTTP a Meta.
+    branch_id puede ser None (conversación todavía sin sucursal asignada): en ese caso solo
+    notifica a admin/supervisor, ver notify_branch_new_message.
     """
     db = SessionLocal()
     try:
         notify_branch_new_message(
             db=db,
             branch_id=branch_id,
-            title=f"💬 {contact_name}",
+            title=f"💬 {contact_label} • {branch_label}",
             body=message_preview,
             conversation_id=conversation_id
         )
@@ -641,15 +643,18 @@ async def receive_webhook(
             msg_id=message.id
         )
 
-        # 10. Notificación push a los encargados de la sucursal (si ya tiene una asignada)
-        if conv.branch_id:
-            background_tasks.add_task(
-                _send_push_notification_background,
-                branch_id=conv.branch_id,
-                conversation_id=conv.id,
-                contact_name=contact.name,
-                message_preview=text
-            )
+        # 10. Notificación push: a los agentes de la sucursal (si ya tiene una asignada) y
+        # siempre a admin/supervisor, incluso si la conversación todavía no tiene sucursal.
+        contact_label = contact.name or contact.phone
+        branch_label = conv.branch.name if conv.branch_id and conv.branch else "Sin sucursal"
+        background_tasks.add_task(
+            _send_push_notification_background,
+            branch_id=conv.branch_id,
+            conversation_id=conv.id,
+            contact_label=contact_label,
+            branch_label=branch_label,
+            message_preview=text
+        )
 
         return {
             "status": "received",

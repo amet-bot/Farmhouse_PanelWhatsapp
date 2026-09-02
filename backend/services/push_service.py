@@ -1,5 +1,7 @@
 import json
 import logging
+from typing import Optional
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 try:
@@ -42,19 +44,24 @@ def _send_to_subscription(db: Session, sub: PushSubscription, payload: dict) -> 
     except Exception as e:
         logger.error(f"[Push] Error inesperado enviando a user_id={sub.user_id}: {e}", exc_info=True)
 
-def notify_branch_new_message(db: Session, branch_id: int, title: str, body: str, conversation_id: int) -> None:
+def notify_branch_new_message(db: Session, branch_id: Optional[int], title: str, body: str, conversation_id: int) -> None:
     """
     Envía notificaciones push a los agentes/encargados de la sucursal indicada y a todos
     los supervisores/administradores activos (mismo criterio de audiencia que la difusión
     en tiempo real por WebSocket, ver ConnectionManager.broadcast_to_branch).
+    branch_id puede ser None (conversación aún sin sucursal asignada): en ese caso solo
+    califican admin/supervisor, nunca agentes (un agente siempre requiere coincidencia de sucursal).
     No hace nada si el servidor no tiene VAPID configurado (Web Push deshabilitado).
     """
-    if not is_push_configured() or not branch_id:
+    if not is_push_configured():
         return
+
+    role_condition = User.role.in_(["admin", "supervisor"])
+    audience_condition = or_(role_condition, User.branch_id == branch_id) if branch_id is not None else role_condition
 
     target_users = db.query(User).filter(
         User.active == True,
-        (User.branch_id == branch_id) | (User.role.in_(["admin", "supervisor"]))
+        audience_condition
     ).all()
     if not target_users:
         return
@@ -66,7 +73,7 @@ def notify_branch_new_message(db: Session, branch_id: int, title: str, body: str
 
     payload = {
         "title": title,
-        "body": (body or "Nuevo mensaje")[:180],
+        "body": (body or "Nuevo mensaje")[:100],
         "url": f"/?conversation_id={conversation_id}",
         "conversation_id": conversation_id
     }

@@ -35,6 +35,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // 2.1 Menú lateral como panel deslizante en celular (hamburguesa + fondo + botón cerrar)
+  const sidebarEl = document.querySelector('.sidebar');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  const btnHamburger = document.getElementById('btnHamburgerMenu');
+  const btnSidebarClose = document.getElementById('btnSidebarClose');
+
+  function openSidebarDrawer() {
+    sidebarEl?.classList.add('mobile-open');
+    sidebarBackdrop?.classList.add('active');
+  }
+  function closeSidebarDrawer() {
+    sidebarEl?.classList.remove('mobile-open');
+    sidebarBackdrop?.classList.remove('active');
+  }
+  btnHamburger?.addEventListener('click', openSidebarDrawer);
+  btnSidebarClose?.addEventListener('click', closeSidebarDrawer);
+  sidebarBackdrop?.addEventListener('click', closeSidebarDrawer);
+  // Al elegir cualquier opción del menú en celular, se cierra solo (no afecta escritorio)
+  sidebarEl?.addEventListener('click', (e) => {
+    if (e.target.closest('.nav-btn') || e.target.closest('.branch-btn')) {
+      closeSidebarDrawer();
+    }
+  });
+
   // 3. Manejo de Modales y Autenticación
   function showLoginModal(errorMessage = '') {
     if (modalLogin) {
@@ -490,16 +514,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     chatModule.confirmTransfer();
   });
 
-  // Enviar mensaje en chat (vía botón o tecla Enter)
-  const btnSend = document.getElementById('btnSend');
-  const msgInput = document.getElementById('messageInput');
-  if (btnSend && msgInput) {
-    btnSend.addEventListener('click', () => {
-      if (msgInput.value.trim()) {
-        chatModule.sendMessage(msgInput.value);
-      }
-    });
-  }
+  // Nota: el envío de mensajes (clic en botón + tecla Enter) se maneja en
+  // chatModule.setupComposer(), que se re-vincula en cada conversación.
+  // No duplicar el listener aquí para evitar envíos dobles a WhatsApp.
 
   // 7. Verificación inicial de sesión al cargar la página
   const existingUser = await auth.checkSession();

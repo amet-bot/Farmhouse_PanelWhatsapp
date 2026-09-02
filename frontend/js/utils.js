@@ -56,6 +56,23 @@ const utils = {
   },
 
   /**
+   * Formatea solo la fecha, sin hora (ej: 28 ago 2026)
+   */
+  formatDate(isoString) {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleDateString('es-PA', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (e) {
+      return '';
+    }
+  },
+
+  /**
    * Genera las iniciales de un nombre (ej: "Juan Pérez" -> "JP")
    */
   getInitials(name) {
