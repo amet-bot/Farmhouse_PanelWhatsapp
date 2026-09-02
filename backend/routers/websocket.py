@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
@@ -28,6 +29,7 @@ async def websocket_endpoint(
     # recibe un cierre genérico 1006), lo que rompe la lógica del cliente que decide si
     # reintentar la reconexión según el código recibido (ver wsClient.onclose en ws.js).
     await websocket.accept()
+    await asyncio.sleep(0)  # Ceder el loop para asegurar que el frame de accept se envíe antes de un close inmediato
 
     user_id = None
     auth_val = ticket or token
