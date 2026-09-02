@@ -12,7 +12,9 @@ class ConnectionManager:
         self.supervisor_room: Set[WebSocket] = set()
 
     async def connect(self, websocket: WebSocket, user_id: int, branch_id: int = None, role: str = "agent"):
-        await websocket.accept()
+        # El accept() ya se hace al inicio de websocket_endpoint (routers/websocket.py),
+        # antes de validar credenciales, para que un close(code=...) por auth fallida
+        # pueda transmitir su código real al cliente.
 
         # 1. Registrar usuario
         if user_id not in self.active_users:
