@@ -262,6 +262,8 @@ a:focus-visible {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   height: 100vh;
+  height: 100dvh; /* En celular, 100vh incluye el área detrás de la barra de
+                     direcciones del navegador; 100dvh usa la altura visible real. */
   width: 100vw;
   overflow: hidden;
 }
@@ -276,6 +278,7 @@ a:focus-visible {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   overflow-y: auto;
   overflow-x: hidden;
   border-right: 1px solid rgba(255, 255, 255, 0.05);
@@ -462,6 +465,7 @@ a:focus-visible {
   grid-template-rows: 68px minmax(0, 1fr);
   min-width: 0;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -2222,6 +2226,13 @@ input:-webkit-autofill:focus {
   }
   .status-text {
     display: none;
+  }
+  /* La campana de notificaciones debe quedar siempre visible sin desplazar la
+     barra superior: se ocultan el indicador "En línea", el badge de dispositivo
+     y el selector de sucursal (accesible igual desde el menú lateral). */
+  .status-indicator,
+  .top-select-group {
+    display: none !important;
   }
   .workspace.show-chat .panel-conversations {
     display: none !important;
