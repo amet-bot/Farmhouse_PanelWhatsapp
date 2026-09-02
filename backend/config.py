@@ -62,8 +62,14 @@ class Settings(BaseSettings):
         return origins
 
     def get_database_url(self) -> str:
-        if self.DATABASE_URL:
-            return self.DATABASE_URL
+        db_url = self.DATABASE_URL or os.environ.get("MYSQL_URL") or os.environ.get("MYSQLPRIVATE_URL")
+        if db_url:
+            if db_url.startswith("mysql://"):
+                db_url = db_url.replace("mysql://", "mysql+pymysql://", 1)
+            if "charset=" not in db_url:
+                separator = "&" if "?" in db_url else "?"
+                db_url = f"{db_url}{separator}charset=utf8mb4"
+            return db_url
         pwd_part = f":{self.DB_PASSWORD}" if self.DB_PASSWORD else ""
         return (
             f"mysql+pymysql://{self.DB_USER}{pwd_part}@"
