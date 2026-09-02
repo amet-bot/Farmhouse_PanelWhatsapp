@@ -148,6 +148,18 @@ const chatModule = {
     const container = document.getElementById('chatMessages');
     if (!container || !this.currentConversation) return;
 
+    // Red de seguridad: nunca pintar dos burbujas con el mismo ID, sin importar
+    // por qué ruta (HTTP, WebSocket) haya llegado el mensaje duplicado.
+    if (Array.isArray(this.currentConversation.messages)) {
+      const seenIds = new Set();
+      this.currentConversation.messages = this.currentConversation.messages.filter(msg => {
+        if (!msg || !msg.id) return true;
+        if (seenIds.has(msg.id)) return false;
+        seenIds.add(msg.id);
+        return true;
+      });
+    }
+
     container.innerHTML = '';
     const messages = this.currentConversation.messages || [];
     const user = auth.getUser();
@@ -383,8 +395,13 @@ const chatModule = {
       if (!this.currentConversation.messages) {
         this.currentConversation.messages = [];
       }
-      this.currentConversation.messages.push(newMsg);
-      this.renderMessages();
+      // El WebSocket (new_outgoing_message) puede insertar este mismo mensaje
+      // antes de que esta promesa se resuelva; evitar duplicarlo en pantalla.
+      const yaExiste = this.currentConversation.messages.some(m => m.id === newMsg.id);
+      if (!yaExiste) {
+        this.currentConversation.messages.push(newMsg);
+        this.renderMessages();
+      }
 
       const input = document.getElementById('messageInput');
       if (input) input.value = '';
