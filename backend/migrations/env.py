@@ -47,6 +47,22 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # Los IDs de revisión de este proyecto (ej. "007_hardening_security_and_orders",
+        # 33 caracteres) superan el ancho VARCHAR(32) que Alembic usa por defecto para
+        # alembic_version.version_num. MySQL trunca el valor en silencio al guardarlo,
+        # rompiendo el control de versiones (la siguiente actualización ya no encuentra
+        # la fila esperada). Se ensancha la columna antes de migrar; es una operación
+        # idempotente y segura de repetir en cada arranque.
+        connection.execute(text(
+            "CREATE TABLE IF NOT EXISTS alembic_version ("
+            "version_num VARCHAR(255) NOT NULL, "
+            "PRIMARY KEY (version_num))"
+        ))
+        connection.execute(text(
+            "ALTER TABLE alembic_version MODIFY COLUMN version_num VARCHAR(255) NOT NULL"
+        ))
+        connection.commit()
+
         context.configure(
             connection=connection, target_metadata=target_metadata
         )
