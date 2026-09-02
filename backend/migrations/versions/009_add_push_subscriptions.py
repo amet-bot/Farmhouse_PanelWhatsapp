@@ -15,21 +15,29 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
-    op.create_table(
-        'push_subscriptions',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('user_id', sa.Integer(), nullable=False),
-        sa.Column('endpoint', sa.String(length=500), nullable=False),
-        sa.Column('p256dh', sa.String(length=255), nullable=False),
-        sa.Column('auth', sa.String(length=255), nullable=False),
-        sa.Column('user_agent', sa.String(length=255), nullable=True),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('endpoint')
-    )
-    op.create_index(op.f('ix_push_subscriptions_id'), 'push_subscriptions', ['id'], unique=False)
-    op.create_index(op.f('ix_push_subscriptions_user_id'), 'push_subscriptions', ['user_id'], unique=False)
+    # Defensivo: ver nota en 007_hardening_security_and_orders.py sobre bases de
+    # datos inicializadas alguna vez desde database/schema.sql con alembic_version
+    # desalineado.
+    if not sa.inspect(op.get_bind()).has_table('push_subscriptions'):
+        op.create_table(
+            'push_subscriptions',
+            sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+            sa.Column('user_id', sa.Integer(), nullable=False),
+            sa.Column('endpoint', sa.String(length=500), nullable=False),
+            sa.Column('p256dh', sa.String(length=255), nullable=False),
+            sa.Column('auth', sa.String(length=255), nullable=False),
+            sa.Column('user_agent', sa.String(length=255), nullable=True),
+            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
+            sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('endpoint')
+        )
+
+    existing_idx = {i['name'] for i in sa.inspect(op.get_bind()).get_indexes('push_subscriptions')}
+    if op.f('ix_push_subscriptions_id') not in existing_idx:
+        op.create_index(op.f('ix_push_subscriptions_id'), 'push_subscriptions', ['id'], unique=False)
+    if op.f('ix_push_subscriptions_user_id') not in existing_idx:
+        op.create_index(op.f('ix_push_subscriptions_user_id'), 'push_subscriptions', ['user_id'], unique=False)
 
 def downgrade() -> None:
     op.drop_table('push_subscriptions')
