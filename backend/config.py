@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     META_WA_VERIFY_TOKEN: str = "farmhouse_meta_verify_token_secure_2026"
     META_APP_SECRET: Optional[str] = None
     META_CATALOG_ID: Optional[str] = None
+    # Número real (E.164, solo dígitos) de la línea de WhatsApp Business de Farmhouse,
+    # usado para construir el enlace wa.me del botón "Enviar Pedido a WhatsApp" en /menu.
+    META_WA_DISPLAY_NUMBER: Optional[str] = None
 
     # Web Push (Notificaciones push del navegador vía VAPID)
     VAPID_PUBLIC_KEY: Optional[str] = None

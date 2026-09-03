@@ -19,7 +19,8 @@ from routers import (
     media,
     websocket,
     webhooks,
-    push
+    push,
+    menu
 )
 
 logging.basicConfig(
@@ -122,6 +123,7 @@ app.include_router(messages.router, prefix=settings.API_V1_STR)
 app.include_router(orders.router, prefix=settings.API_V1_STR)
 app.include_router(media.router, prefix=settings.API_V1_STR)
 app.include_router(push.router, prefix=settings.API_V1_STR)
+app.include_router(menu.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router)
 app.include_router(websocket.router)
@@ -161,6 +163,11 @@ if frontend_dir.exists():
     @app.get("/app", include_in_schema=False)
     def serve_frontend():
         return FileResponse(str(frontend_dir / "index.html"))
+
+    if (frontend_dir / "menu.html").exists():
+        @app.get("/menu", include_in_schema=False)
+        def serve_menu():
+            return FileResponse(str(frontend_dir / "menu.html"))
 
     if (frontend_dir / "manifest.json").exists():
         @app.get("/manifest.json", include_in_schema=False)

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <title>Menú Farmhouse</title>
+  <meta name="theme-color" content="#16a34a">
+  <link rel="icon" type="image/png" href="/assets/images/farmhouse-logo.png">
+  <link rel="apple-touch-icon" href="/assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/menu.css?v=1.0.2">
+</head>
+<body>
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="menu-header">
+    <div class="menu-header-top">
+      <img src="/assets/images/farmhouse-logo.png" alt="Farmhouse" class="menu-logo" onerror="this.style.display='none'">
+      <div class="menu-header-titles">
+        <h1>Farmhouse</h1>
+        <span>Menú digital &amp; pedidos</span>
+      </div>
+      <select id="branchSelect" class="branch-select" aria-label="Selecciona tu sucursal">
+        <option value="">Sucursal...</option>
+      </select>
+    </div>
+    <div class="menu-search-wrap">
+      <svg class="menu-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchInput" class="menu-search-input" type="search" placeholder="Buscar en el menú (ej: caesar, salmón, smoothie)...">
+    </div>
+    <nav id="categoryPills" class="category-pills"></nav>
+  </header>
+
+  <!-- ===================== PRODUCT GRID ===================== -->
+  <main id="productsGrid" class="products-grid">
+    <div class="menu-loading">Cargando el menú de Farmhouse... 🌿</div>
+  </main>
+
+  <div id="emptyState" class="empty-state" hidden>
+    <p>No encontramos platos que coincidan con tu búsqueda.</p>
+  </div>
+
+  <!-- ===================== FLOATING CART BUTTON ===================== -->
+  <button id="floatingCartBtn" class="floating-cart-btn" hidden>
+    <span class="cart-count" id="cartCount">0</span>
+    <span class="cart-label">Ver pedido</span>
+    <span class="cart-subtotal" id="cartSubtotal">$0.00</span>
+  </button>
+
+  <!-- ===================== PRODUCT CUSTOMIZATION MODAL ===================== -->
+  <div id="productModalBackdrop" class="modal-backdrop" hidden>
+    <div class="product-modal" role="dialog" aria-modal="true">
+      <button class="modal-close-btn" id="productModalClose" aria-label="Cerrar">✕</button>
+      <div class="product-modal-img-wrap">
+        <img id="productModalImg" src="" alt="">
+      </div>
+      <div class="product-modal-body">
+        <h2 id="productModalTitle"></h2>
+        <p id="productModalDesc" class="product-modal-desc"></p>
+
+        <div id="sizeSection" class="modal-section" hidden>
+          <h3>Tamaño</h3>
+          <div id="sizeOptions" class="option-pills"></div>
+        </div>
+
+        <div id="warmAddonsSection" class="modal-section" hidden>
+          <h3>Proteínas / Adicionales calientes</h3>
+          <div id="warmAddonsList" class="addon-list"></div>
+        </div>
+
+        <div id="coldAddonsSection" class="modal-section" hidden>
+          <h3>Adicionales fríos</h3>
+          <div id="coldAddonsList" class="addon-list"></div>
+        </div>
+
+        <div id="flatAddonsSection" class="modal-section" hidden>
+          <h3 id="flatAddonsTitle">Adicionales</h3>
+          <div id="flatAddonsList" class="addon-list"></div>
+        </div>
+
+        <div class="modal-section">
+          <h3>Notas especiales</h3>
+          <textarea id="productNotes" class="notes-input" maxlength="300" placeholder='Ej: "sin cebolla", "aderezo aparte"...'></textarea>
+        </div>
+
+        <div class="modal-footer">
+          <div class="qty-stepper">
+            <button id="qtyMinus" type="button" aria-label="Restar">−</button>
+            <span id="qtyValue">1</span>
+            <button id="qtyPlus" type="button" aria-label="Sumar">+</button>
+          </div>
+          <button id="addToOrderBtn" class="btn-add-order">
+            Agregar al Pedido · <span id="productModalPrice">$0.00</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== CART / CHECKOUT DRAWER ===================== -->
+  <div id="cartDrawerBackdrop" class="modal-backdrop" hidden>
+    <div class="cart-drawer" role="dialog" aria-modal="true">
+      <div class="cart-drawer-header">
+        <h2>Tu Pedido</h2>
+        <button id="cartDrawerClose" class="modal-close-btn" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div id="cartItemsList" class="cart-items-list"></div>
+
+      <div class="cart-section">
+        <h3>Tipo de Entrega</h3>
+        <div class="delivery-toggle">
+          <button type="button" class="delivery-option active" data-delivery="pickup">
+            🏪 Retiro en Sucursal<span class="delivery-price">$0.00</span>
+          </button>
+          <button type="button" class="delivery-option" data-delivery="delivery">
+            🛵 Delivery<span class="delivery-price">+$3.50</span>
+          </button>
+        </div>
+        <input id="deliveryAddress" class="text-input" type="text" placeholder="Dirección completa de entrega..." hidden>
+      </div>
+
+      <div class="cart-section">
+        <h3>Método de Pago</h3>
+        <div id="paymentOptions" class="option-pills payment-pills">
+          <button type="button" class="option-pill" data-payment="yappy">📱 Yappy</button>
+          <button type="button" class="option-pill" data-payment="ach">🏦 ACH / Transferencia</button>
+          <button type="button" class="option-pill" data-payment="card">💳 Tarjeta</button>
+          <button type="button" class="option-pill" data-payment="cash">💵 Efectivo</button>
+        </div>
+      </div>
+
+      <div class="cart-section">
+        <h3>Tus Datos</h3>
+        <input id="customerName" class="text-input" type="text" placeholder="Tu nombre completo">
+        <input id="customerPhone" class="text-input" type="tel" placeholder="Tu teléfono (ej: 6000-1234)">
+      </div>
+
+      <div class="cart-totals">
+        <div class="totals-row"><span>Subtotal</span><span id="totalSubtotal">$0.00</span></div>
+        <div class="totals-row"><span>Delivery</span><span id="totalDelivery">$0.00</span></div>
+        <div class="totals-row totals-final"><span>Total</span><span id="totalFinal">$0.00</span></div>
+      </div>
+
+      <button id="sendOrderBtn" class="btn-send-order">📲 Enviar Pedido a WhatsApp</button>
+    </div>
+  </div>
+
+  <div id="toast" class="menu-toast" hidden></div>
+
+  <script src="/js/modules/menu_app.js?v=1.0.0"></script>
+</body>
+</html>

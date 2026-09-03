@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 from enum import Enum
 
@@ -45,6 +45,32 @@ class OrderUpdate(BaseModel):
     subtotal: Optional[Decimal] = Field(None, ge=0)
     delivery_cost: Optional[Decimal] = Field(None, ge=0)
     items_json: Optional[str] = None
+
+class PublicOrderItem(BaseModel):
+    sku: str = Field(..., min_length=1, max_length=60)
+    quantity: int = Field(1, ge=1, le=20)
+    addon_skus: List[str] = Field(default_factory=list, max_length=15)
+    notes: Optional[str] = Field(None, max_length=300)
+
+
+class PublicOrderCreate(BaseModel):
+    branch_code: str = Field(..., min_length=1, max_length=20)
+    delivery_type: Literal["pickup", "delivery"]
+    delivery_address: Optional[str] = Field(None, max_length=300)
+    payment_method: Literal["yappy", "ach", "card", "cash"]
+    customer_name: str = Field(..., min_length=2, max_length=100)
+    customer_phone: str = Field(..., min_length=6, max_length=20)
+    items: List[PublicOrderItem] = Field(..., min_length=1, max_length=50)
+
+
+class PublicOrderResponse(BaseModel):
+    order_code: str
+    conversation_id: int
+    subtotal: Decimal
+    delivery_cost: Decimal
+    total: Decimal
+    whatsapp_url: str
+
 
 class OrderResponse(OrderBase):
     id: int

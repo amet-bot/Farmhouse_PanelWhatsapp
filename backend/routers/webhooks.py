@@ -276,6 +276,43 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         message_type = msg_data.get("message_type", "text")
         text = msg_data.get("text", "")
 
+        # 0. Pedido estructurado enviado desde la Web App de Menú (/menu). Ya trae sucursal,
+        #    entrega y pago resueltos (ver POST /api/orders/public), así que respondemos de
+        #    inmediato y pausamos el bot para que un agente tome el control, sin importar en
+        #    qué punto del flujo conversacional estaba la conversación.
+        if message_type == "text" and "MI PEDIDO FARMHOUSE" in text.upper():
+            confirmation_text = (
+                "¡Recibimos tu pedido con éxito! 🌿 En breve te confirmamos el tiempo estimado. "
+                "Si pagas por Yappy o ACH, por favor adjúntanos tu comprobante aquí 📸."
+            )
+            send_res = await wa_service.send_text_message(phone, confirmation_text)
+            wamid = None
+            if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
+                wamid = send_res["messages"][0].get("id")
+            confirmation_msg = Message(
+                conversation_id=conv.id, direction="outgoing", sender_type="system",
+                content=confirmation_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
+            )
+            db.add(confirmation_msg)
+            conv.automation_paused = True
+            conv.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(confirmation_msg)
+            await ws_manager.broadcast_to_branch(conv.branch_id, {
+                "type": "new_incoming_message",
+                "conversation_id": conv.id,
+                "branch_id": conv.branch_id,
+                "contact_name": contact.name,
+                "contact_phone": contact.phone,
+                "message": {
+                    "id": confirmation_msg.id, "direction": confirmation_msg.direction,
+                    "sender_type": confirmation_msg.sender_type, "content": confirmation_msg.content,
+                    "status": confirmation_msg.status, "created_at": confirmation_msg.created_at.isoformat()
+                },
+                "is_new_conversation": False
+            })
+            return
+
         # 1. Descargar archivo multimedia si existe
         if message_type != "text" and msg_data.get("media_id"):
             media_result = await wa_service.download_media(msg_data["media_id"])

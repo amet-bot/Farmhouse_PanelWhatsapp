@@ -306,6 +306,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  wsClient.on('order_created', (data) => {
+    conversationsModule.loadConversations();
+    branchesModule.updateCounters();
+    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
+      chatModule.loadConversation(data.conversation_id);
+    }
+    utils.showToast(`🧾 Nuevo pedido de ${data.contact_name}: ${data.order.order_code}`, 'success');
+  });
+
   wsClient.on('conversation_transferred', (data) => {
     conversationsModule.loadConversations();
     branchesModule.updateCounters();
