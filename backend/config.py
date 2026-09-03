@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     META_WA_ACCESS_TOKEN: Optional[str] = None
     META_WA_VERIFY_TOKEN: str = "farmhouse_meta_verify_token_secure_2026"
     META_APP_SECRET: Optional[str] = None
+    META_CATALOG_ID: Optional[str] = None
 
     # Web Push (Notificaciones push del navegador vía VAPID)
     VAPID_PUBLIC_KEY: Optional[str] = None

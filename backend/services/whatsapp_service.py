@@ -39,6 +39,16 @@ class WhatsAppService(ABC):
         """Envía un mensaje con botones de respuesta rápida interactivos (máx. 3)."""
         pass
 
+    @abstractmethod
+    async def send_catalog_message(self, to_phone: str, body_text: str, catalog_id: Optional[str] = None) -> Dict[str, Any]:
+        """Envía un mensaje con CTA que abre el catálogo completo de Meta Commerce conectado al WABA."""
+        pass
+
+    @abstractmethod
+    async def send_product_list_message(self, to_phone: str, header_text: str, body_text: str, catalog_id: str, sections: list, footer_text: Optional[str] = None) -> Dict[str, Any]:
+        """Envía un mensaje de lista de productos (Multi-Product Message) desde el catálogo de Meta."""
+        pass
+
 class MockWhatsAppService(WhatsAppService):
     async def send_text_message(self, to_phone: str, text: str) -> Dict[str, Any]:
         wamid = f"wamid.HBgL{uuid.uuid4().hex[:16].upper()}"
@@ -63,6 +73,17 @@ class MockWhatsAppService(WhatsAppService):
     async def download_media(self, media_id: str) -> Optional[Dict[str, Any]]:
         logger.info(f"[MockWhatsAppService] Modo prueba: no se descarga archivo real para media_id={media_id}.")
         return None
+
+    async def send_catalog_message(self, to_phone: str, body_text: str, catalog_id: Optional[str] = None) -> Dict[str, Any]:
+        wamid = f"wamid.HBgL{uuid.uuid4().hex[:16].upper()}"
+        logger.info(f"[MockWhatsAppService] Mensaje de catálogo enviado a {to_phone}: '{body_text}' (WAMID: {wamid})")
+        return {"messaging_product": "whatsapp", "messages": [{"id": wamid}]}
+
+    async def send_product_list_message(self, to_phone: str, header_text: str, body_text: str, catalog_id: str, sections: list, footer_text: Optional[str] = None) -> Dict[str, Any]:
+        wamid = f"wamid.HBgL{uuid.uuid4().hex[:16].upper()}"
+        total_items = sum(len(s.get("product_items", [])) for s in sections)
+        logger.info(f"[MockWhatsAppService] Lista de productos enviada a {to_phone}: {len(sections)} secciones, {total_items} productos (WAMID: {wamid})")
+        return {"messaging_product": "whatsapp", "messages": [{"id": wamid}]}
 
     def parse_incoming_message(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
@@ -265,6 +286,81 @@ class MetaWhatsAppService(WhatsAppService):
                 return response.json()
             except httpx.HTTPStatusError as e:
                 logger.error(f"[MetaWhatsAppService] Error HTTP {e.response.status_code} de Meta al enviar botones interactivos a '{to_phone_clean}': {e.response.text}")
+                raise e
+
+    async def send_catalog_message(self, to_phone: str, body_text: str, catalog_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Mensaje con botón "Ver catálogo": abre el catálogo completo de Meta Commerce
+        Manager conectado a este WABA. El Cloud API no acepta un catalog_id por mensaje
+        para este tipo de interactivo (siempre usa el catálogo conectado a la cuenta);
+        el parámetro se conserva por consistencia de firma y uso futuro.
+        """
+        url = f"{self.api_url}/{self.phone_number_id}/messages"
+        to_phone_clean = "".join(c for c in str(to_phone) if c.isdigit())
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to_phone_clean,
+            "type": "interactive",
+            "interactive": {
+                "type": "catalog_message",
+                "body": {"text": body_text},
+                "action": {
+                    "name": "catalog_message",
+                    "parameters": {}
+                }
+            }
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(url, headers=headers, json=data, timeout=10.0)
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"[MetaWhatsAppService] Error HTTP {e.response.status_code} de Meta al enviar mensaje de catálogo a '{to_phone_clean}': {e.response.text}")
+                raise e
+
+    async def send_product_list_message(self, to_phone: str, header_text: str, body_text: str, catalog_id: str, sections: list, footer_text: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Mensaje de lista de productos (Multi-Product Message): muestra varios productos
+        del catálogo agrupados en secciones. `sections` = [{"title": str, "product_items":
+        [{"product_retailer_id": sku}, ...]}, ...] (máx. 30 productos / 10 secciones, límites de Meta).
+        """
+        url = f"{self.api_url}/{self.phone_number_id}/messages"
+        to_phone_clean = "".join(c for c in str(to_phone) if c.isdigit())
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json"
+        }
+        interactive: Dict[str, Any] = {
+            "type": "product_list",
+            "header": {"type": "text", "text": header_text},
+            "body": {"text": body_text},
+            "action": {
+                "catalog_id": catalog_id,
+                "sections": sections
+            }
+        }
+        if footer_text:
+            interactive["footer"] = {"text": footer_text}
+        data = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to_phone_clean,
+            "type": "interactive",
+            "interactive": interactive
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(url, headers=headers, json=data, timeout=10.0)
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"[MetaWhatsAppService] Error HTTP {e.response.status_code} de Meta al enviar lista de productos a '{to_phone_clean}': {e.response.text}")
                 raise e
 
     async def download_media(self, media_id: str) -> Optional[Dict[str, Any]]:
