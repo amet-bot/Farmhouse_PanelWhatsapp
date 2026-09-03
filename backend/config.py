@@ -1,7 +1,9 @@
+import json
+import logging
 import os
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional, List
+from typing import Dict, Optional, List, Set
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -51,6 +53,11 @@ class Settings(BaseSettings):
     # Número real (E.164, solo dígitos) de la línea de WhatsApp Business de Farmhouse,
     # usado para construir el enlace wa.me del botón "Enviar Pedido a WhatsApp" en /menu.
     META_WA_DISPLAY_NUMBER: Optional[str] = None
+    # Mapa OPCIONAL {codigo_sucursal: numero} para el día en que alguna sucursal tenga su
+    # propia línea de WhatsApp — ej. '{"OBR": "50761112222"}'. Vacío por defecto: hoy todas
+    # las sucursales (incluida Obarrio) comparten la única línea de META_WA_DISPLAY_NUMBER,
+    # y así debe seguir hasta que exista un número real que configurar aquí.
+    BRANCH_WHATSAPP_NUMBERS: Optional[str] = None
     # URL pública base del panel (sin slash final), usada para armar enlaces como el del
     # Menú Digital que el bot manda por WhatsApp.
     PUBLIC_BASE_URL: str = "https://farmhousepanelwhatsapp-production.up.railway.app"
@@ -151,6 +158,68 @@ def get_official_whatsapp_number() -> str:
         raise RuntimeError(
             "META_WA_DISPLAY_NUMBER no está configurado (o está vacío). Sin este número no se "
             "puede generar un enlace wa.me válido: WhatsApp mostraría su selector de chats en "
-            "vez de abrir la conversación de Farmhouse."
+            "vez de abrir la conversación de Farmhouse. Revisa las variables de entorno del "
+            "servidor que está atendiendo esta petición (si es un proceso local de larga "
+            "duración, reinícialo después de editar backend/.env; en Railway, agrega la "
+            "variable en la pestaña Variables y vuelve a desplegar)."
         )
     return digits
+
+
+def get_branch_whatsapp_overrides() -> Dict[str, str]:
+    """
+    Números de WhatsApp propios por sucursal, si algún día existen. Se leen de la variable de
+    entorno opcional BRANCH_WHATSAPP_NUMBERS como JSON, ej:
+        BRANCH_WHATSAPP_NUMBERS={"OBR": "50761112222", "CLY": "50763334444"}
+
+    Nunca fabrica números: si la variable no está configurada, está vacía, o no es JSON válido,
+    devuelve {} sin lanzar — cada sucursal simplemente cae al número oficial general
+    (get_official_whatsapp_number), que es el comportamiento correcto hoy para TODAS las
+    sucursales, Obarrio incluida, porque ninguna tiene línea propia todavía.
+    """
+    raw = str(settings.BRANCH_WHATSAPP_NUMBERS or "").strip()
+    if not raw:
+        return {}
+    log = logging.getLogger("farmhouse.config")
+    try:
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            raise ValueError("BRANCH_WHATSAPP_NUMBERS debe ser un objeto JSON {codigo: numero}")
+        overrides: Dict[str, str] = {}
+        for branch_code, number in parsed.items():
+            digits = "".join(c for c in str(number) if c.isdigit())
+            if digits:
+                overrides[str(branch_code).strip().upper()] = digits
+        return overrides
+    except Exception as e:
+        log.warning(f"[Config Warning] BRANCH_WHATSAPP_NUMBERS inválido, se ignora por completo: {e}")
+        return {}
+
+
+def get_whatsapp_number_for_branch(branch_code: Optional[str]) -> str:
+    """
+    Número de WhatsApp a usar para una sucursal específica.
+
+    Prioridad:
+      1. Número propio de la sucursal (get_branch_whatsapp_overrides), si existe.
+      2. Número oficial general de Farmhouse (get_official_whatsapp_number).
+
+    Nunca devuelve vacío: si ni siquiera el número oficial general está configurado, propaga
+    RuntimeError (ver get_official_whatsapp_number).
+    """
+    overrides = get_branch_whatsapp_overrides()
+    code = str(branch_code or "").strip().upper()
+    if code and code in overrides:
+        return overrides[code]
+    return get_official_whatsapp_number()
+
+
+def get_all_official_whatsapp_numbers() -> Set[str]:
+    """
+    Conjunto de todos los números de WhatsApp legítimos del sistema (el general, más los de
+    sucursal si existen). Se usa para validar cualquier `?wa=` que llegue por la URL del menú
+    antes de confiar en él — nunca se acepta un número que no esté en este conjunto.
+    """
+    numbers = set(get_branch_whatsapp_overrides().values())
+    numbers.add(get_official_whatsapp_number())
+    return numbers

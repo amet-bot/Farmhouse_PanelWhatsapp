@@ -128,6 +128,46 @@ def test_public_order_accepts_matching_origin_wa(client, clayton_branch):
     assert resp.json()["whatsapp_url"].startswith(f"https://wa.me/{settings.META_WA_DISPLAY_NUMBER}?text=")
 
 
+def test_obarrio_without_wa_param_still_resolves_a_number(client, obarrio_branch):
+    """Caso reportado por el usuario: entrar directo a /menu (sin ?wa=), seleccionar Obarrio y
+    enviar el pedido. No debe requerirse ?wa= para nada — la sucursal por sí sola debe bastar
+    para resolver un número de WhatsApp válido."""
+    payload = {**BASE_ORDER_PAYLOAD, "branch_code": "OBR"}
+    resp = client.post("/api/orders/public", json=payload, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["whatsapp_url"].startswith(f"https://wa.me/{settings.META_WA_DISPLAY_NUMBER}?text=")
+
+
+def test_branch_specific_whatsapp_override_takes_priority(client, obarrio_branch, monkeypatch):
+    """Si en el futuro se configura un número propio para una sucursal (BRANCH_WHATSAPP_NUMBERS),
+    ese número debe usarse en vez del general — sin necesidad de ningún ?wa=."""
+    monkeypatch.setattr(settings, "BRANCH_WHATSAPP_NUMBERS", '{"OBR": "+507 6111-2222"}')
+    payload = {**BASE_ORDER_PAYLOAD, "branch_code": "OBR"}
+    resp = client.post("/api/orders/public", json=payload, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["whatsapp_url"].startswith("https://wa.me/50761112222?text=")
+
+
+def test_branch_override_missing_falls_back_to_official(client, obarrio_branch, monkeypatch):
+    """Un mapa de overrides configurado, pero sin entrada para la sucursal seleccionada, debe
+    caer al número oficial general sin fallar."""
+    monkeypatch.setattr(settings, "BRANCH_WHATSAPP_NUMBERS", '{"CLY": "50763334444"}')
+    payload = {**BASE_ORDER_PAYLOAD, "branch_code": "OBR"}
+    resp = client.post("/api/orders/public", json=payload, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["whatsapp_url"].startswith(f"https://wa.me/{settings.META_WA_DISPLAY_NUMBER}?text=")
+
+
+def test_malformed_branch_overrides_are_ignored_not_fatal(client, obarrio_branch, monkeypatch):
+    """BRANCH_WHATSAPP_NUMBERS con JSON inválido nunca debe tumbar el endpoint: se ignora por
+    completo y se usa el número oficial general."""
+    monkeypatch.setattr(settings, "BRANCH_WHATSAPP_NUMBERS", "esto no es JSON valido {{{")
+    payload = {**BASE_ORDER_PAYLOAD, "branch_code": "OBR"}
+    resp = client.post("/api/orders/public", json=payload, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["whatsapp_url"].startswith(f"https://wa.me/{settings.META_WA_DISPLAY_NUMBER}?text=")
+
+
 def test_public_order_fails_loudly_without_official_number(client, clayton_branch, db_session, monkeypatch):
     """Si META_WA_DISPLAY_NUMBER no está configurado (ej. falta en las variables de Railway),
     el endpoint debe fallar con un 500 explícito ANTES de crear nada en la base de datos —

@@ -9,7 +9,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
-from config import settings, get_official_whatsapp_number
+from config import settings, get_official_whatsapp_number, get_whatsapp_number_for_branch, get_all_official_whatsapp_numbers
 from database import get_db
 from models.order import Order
 from models.conversation import Conversation
@@ -33,35 +33,35 @@ PAYMENT_METHOD_LABELS = {"yappy": "Yappy", "ach": "ACH / Transferencia", "card":
 WA_NUMBER_RE = re.compile(r"^\d{8,15}$")
 
 
-def resolve_whatsapp_destination(origin_wa: Optional[str]) -> str:
+def resolve_whatsapp_destination(branch_code: str, origin_wa: Optional[str]) -> str:
     """
     Decide a qué número de WhatsApp debe apuntar el enlace `wa.me` del pedido.
 
     Prioridad:
-      1. `origin_wa` (el `?wa=` que trae /menu, ver webhooks._send_branch_welcome_and_menu) —
-         SOLO si es un teléfono válido y coincide exactamente con el número oficial. Nunca se
-         confía en un valor arbitrario: esto es lo único que evita que alguien edite la URL del
-         menú para redirigir pedidos a otro número.
-      2. Número oficial de Farmhouse (get_official_whatsapp_number) — hoy es el único número
-         real que existe en el sistema (una sola línea de WhatsApp Business para todas las
-         sucursales), así que en la práctica esta es siempre la fuente de verdad final.
-
-    Nunca devuelve una cadena vacía: si el número oficial no está configurado, propaga la
-    excepción para que el endpoint falle con un 500 explícito en vez de generar un enlace
-    `wa.me/?text=` sin destino (que hace que WhatsApp muestre su selector de chats).
+      1. Número propio de la sucursal seleccionada (get_whatsapp_number_for_branch) — hoy
+         siempre resuelve al número oficial general, porque ninguna sucursal (Obarrio incluida)
+         tiene todavía una línea de WhatsApp propia configurada en BRANCH_WHATSAPP_NUMBERS.
+      2. `origin_wa` (el `?wa=` que trae /menu, ver webhooks._send_branch_welcome_and_menu) —
+         SOLO si es un teléfono válido y coincide con alguno de los números oficiales conocidos
+         del sistema. Nunca se confía en un valor arbitrario: esto es lo único que evita que
+         alguien edite la URL del menú para redirigir pedidos a otro número.
+      3. El paso 1 ya cubre el número general como último recurso, así que este resolver nunca
+         devuelve una cadena vacía: si ni siquiera el número oficial general está configurado,
+         propaga la excepción para que el endpoint falle con un 500 explícito en vez de generar
+         un enlace `wa.me/?text=` sin destino (que hace que WhatsApp muestre su selector de chats).
     """
-    official_number = get_official_whatsapp_number()
+    branch_number = get_whatsapp_number_for_branch(branch_code)
 
     candidate = "".join(c for c in str(origin_wa or "") if c.isdigit())
     if candidate:
-        if WA_NUMBER_RE.match(candidate) and candidate == official_number:
+        if WA_NUMBER_RE.match(candidate) and candidate in get_all_official_whatsapp_numbers():
             return candidate
         logger.warning(
-            f"[PublicOrder] Se recibió ?wa={candidate!r} pero no coincide con el número oficial "
-            f"configurado; se ignora y se usa el número oficial de Farmhouse."
+            f"[PublicOrder] Se recibió ?wa={candidate!r} pero no coincide con ningún número "
+            f"oficial configurado; se ignora y se usa el número de la sucursal ({branch_number})."
         )
 
-    return official_number
+    return branch_number
 
 @router.post("/public", response_model=PublicOrderResponse)
 async def create_public_order(
@@ -87,7 +87,7 @@ async def create_public_order(
     # pedido y luego devolver un enlace wa.me sin destino (WhatsApp mostraría su selector de
     # chats en vez de abrir la conversación de Farmhouse).
     try:
-        whatsapp_destination = resolve_whatsapp_destination(order_in.origin_wa)
+        whatsapp_destination = resolve_whatsapp_destination(order_in.branch_code, order_in.origin_wa)
     except RuntimeError as e:
         logger.error(f"[PublicOrder] {e}")
         raise HTTPException(

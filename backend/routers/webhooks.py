@@ -10,7 +10,7 @@ from fastapi import APIRouter, Request, Response, HTTPException, status, Query, 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from config import settings, mask_phone, get_official_whatsapp_number
+from config import settings, mask_phone, get_whatsapp_number_for_branch
 from database import SessionLocal, get_db
 from models.contact import Contact
 from models.conversation import Conversation
@@ -201,11 +201,11 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
     branch_code = conv.branch.code if conv.branch else ""
     client_name = urllib.parse.quote(contact.name or "")
     client_phone = urllib.parse.quote(phone.lstrip("+"))
-    # Se incluye el número oficial de WhatsApp como ?wa= para que /menu sepa a qué chat debe
-    # volver al enviar el pedido (ver resolve_whatsapp_destination en routers/orders.py, que
-    # es quien valida este valor de verdad — nunca se confía en él solo por venir en la URL).
+    # Se incluye el número de WhatsApp de la sucursal como ?wa= para que /menu sepa a qué chat
+    # debe volver al enviar el pedido (ver resolve_whatsapp_destination en routers/orders.py,
+    # que es quien valida este valor de verdad — nunca se confía en él solo por venir en la URL).
     try:
-        origin_wa = get_official_whatsapp_number()
+        origin_wa = get_whatsapp_number_for_branch(branch_code)
     except RuntimeError:
         origin_wa = None
     wa_param = f"&wa={origin_wa}" if origin_wa else ""
