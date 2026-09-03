@@ -10,7 +10,7 @@
   const WA_ORIGIN_STORAGE_KEY = "farmhouse_wa_origin";
   const MENU_SESSION_STORAGE_KEY = "farmhouse_menu_session";
   const WA_NUMBER_RE = /^\d{8,15}$/;
-  const DELIVERY_SURCHARGE = 3.5;
+  const DELIVERY_SURCHARGE = 0;
   const CART_SYNC_DEBOUNCE_MS = 300;
 
   const state = {
@@ -542,11 +542,12 @@
       const addSum = it.addons.reduce((s, a) => s + a.price, 0);
       return acc + (it.unit_price + addSum) * it.quantity;
     }, 0);
-    const delivery = state.deliveryType === "delivery" ? DELIVERY_SURCHARGE : 0;
-    const finalTotal = subtotal + delivery;
+    const isDelivery = state.deliveryType === "delivery";
+    const deliveryDisplay = isDelivery ? "A coordinar" : "$0.00";
+    const finalTotal = subtotal;
 
     if (el("totalSubtotal")) el("totalSubtotal").textContent = money(subtotal);
-    if (el("totalDelivery")) el("totalDelivery").textContent = money(delivery);
+    if (el("totalDelivery")) el("totalDelivery").textContent = deliveryDisplay;
     if (el("totalFinal")) el("totalFinal").textContent = money(finalTotal);
   }
 

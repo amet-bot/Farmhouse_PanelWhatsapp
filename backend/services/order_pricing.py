@@ -18,12 +18,14 @@ from typing import List, Tuple
 from fastapi import HTTPException, status
 from services.menu_catalog import get_item_by_sku, clean_item_title
 
-DELIVERY_SURCHARGE = Decimal("3.50")
+DELIVERY_SURCHARGE = Decimal("0.00")
 
 
 def compute_delivery_fee(delivery_type: str) -> Decimal:
-    """Único lugar que decide cuánto cobrar por Delivery. Retiro/pickup siempre $0.00."""
-    return DELIVERY_SURCHARGE if delivery_type == "delivery" else Decimal("0.00")
+    """Único lugar que decide el costo automático de Delivery en el menú.
+    Ahora el costo de delivery es a criterio de la sucursal/agente según distancia,
+    por lo que el sistema no fija un monto automático."""
+    return Decimal("0.00")
 
 
 def price_cart_items(items: List) -> Tuple[list, Decimal]:

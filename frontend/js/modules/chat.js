@@ -514,7 +514,13 @@ const chatModule = {
     }
 
     if (orderSubtotal) orderSubtotal.textContent = `$${subtotalNum.toFixed(2)}`;
-    if (orderDeliveryFee) orderDeliveryFee.textContent = `$${deliveryNum.toFixed(2)}`;
+    if (orderDeliveryFee) {
+      if (deliveryType === 'delivery') {
+        orderDeliveryFee.textContent = deliveryNum > 0 ? `$${deliveryNum.toFixed(2)}` : 'Por coordinar';
+      } else {
+        orderDeliveryFee.textContent = '$0.00';
+      }
+    }
     if (orderTotal) orderTotal.textContent = `$${totalNum.toFixed(2)}`;
   },
 

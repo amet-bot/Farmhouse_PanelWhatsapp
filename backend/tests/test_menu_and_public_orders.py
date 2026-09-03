@@ -51,16 +51,16 @@ def test_public_order_recalculates_price_and_ignores_client_total(client, clayto
     assert resp.status_code == 200, resp.text
     data = resp.json()
 
-    # 13.95 (large) + 4.00 (pollo spiced) + 9.00 (smoothie) = 26.95 ; delivery +3.50 = 30.45
+    # 13.95 (large) + 4.00 (pollo spiced) + 9.00 (smoothie) = 26.95 ; delivery a coordinar (0.00 en menú) = 26.95
     assert data["subtotal"] == "26.95"
-    assert data["delivery_cost"] == "3.50"
-    assert data["total"] == "30.45"
+    assert data["delivery_cost"] == "0.00"
+    assert data["total"] == "26.95"
     assert data["whatsapp_url"].startswith("https://wa.me/")
     assert data["order_code"].startswith("FH-")
 
     order = db_session.query(Order).filter(Order.order_code == data["order_code"]).first()
     assert order is not None
-    assert str(order.total) == "30.45"
+    assert str(order.total) == "26.95"
     assert order.branch_id == clayton_branch.id
 
     conv = db_session.query(Conversation).filter(Conversation.id == order.conversation_id).first()

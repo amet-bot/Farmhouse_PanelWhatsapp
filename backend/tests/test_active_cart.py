@@ -62,7 +62,7 @@ def test_cart_sync_creates_single_active_cart_row_and_updates_in_place(client, c
     assert carts_after[0].id == carts[0].id
 
 
-def test_cart_sync_switching_to_delivery_adds_fee(client, clayton_branch, db_session):
+def test_cart_sync_switching_to_delivery_captures_address_without_auto_surcharge(client, clayton_branch, db_session):
     conv, _ = _make_conversation(db_session, clayton_branch)
     session_token = create_menu_session_token(conv.id, clayton_branch.id)
     payload = {
@@ -74,8 +74,8 @@ def test_cart_sync_switching_to_delivery_adds_fee(client, clayton_branch, db_ses
     resp = client.put("/api/orders/cart", json=payload, headers={"X-Requested-With": "XMLHttpRequest"})
     assert resp.status_code == 200, resp.text
     data = resp.json()
-    assert data["delivery_fee"] == "3.50"
-    assert float(data["total"]) == round(float(data["subtotal"]) + 3.50, 2)
+    assert data["delivery_fee"] == "0.00"
+    assert float(data["total"]) == round(float(data["subtotal"]), 2)
 
 
 def test_cart_sync_empty_items_clears_draft(client, clayton_branch, db_session):

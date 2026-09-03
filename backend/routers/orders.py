@@ -364,8 +364,11 @@ def _build_whatsapp_order_text(order_code: str, branch_name: str, line_items: li
         if item.get("notes"):
             lines.append(f"   Nota: {item['notes']}")
 
-    entrega_label = "Delivery" if order_in.delivery_type == "delivery" else "Retiro en Sucursal"
-    lines.append(f"Entrega: {entrega_label}" + (f" (+${delivery_cost:.2f})" if delivery_cost else ""))
+    if order_in.delivery_type == "delivery":
+        entrega_label = "Delivery" + (f" (+${delivery_cost:.2f})" if delivery_cost else " (Costo por coordinar con la sucursal)")
+    else:
+        entrega_label = "Retiro en Sucursal"
+    lines.append(f"Entrega: {entrega_label}")
     if order_in.delivery_type == "delivery" and order_in.delivery_address:
         lines.append(f"Dirección: {order_in.delivery_address}")
     lines.append(f"Método de pago: {PAYMENT_METHOD_LABELS[order_in.payment_method]}")
