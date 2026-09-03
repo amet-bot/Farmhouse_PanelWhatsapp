@@ -697,12 +697,19 @@
         state.deliveryType = btn.dataset.delivery;
         document.querySelectorAll(".delivery-option").forEach((b) => b.classList.toggle("active", b === btn));
         const isDelivery = state.deliveryType === "delivery";
-        el("deliveryAddress").hidden = !isDelivery;
-        el("deliveryAddressLabel").hidden = !isDelivery;
+        const section = el("deliveryAddressSection");
+        if (section) section.hidden = !isDelivery;
+        if (el("deliveryAddress")) el("deliveryAddress").hidden = !isDelivery;
+        if (el("deliveryAddressLabel")) el("deliveryAddressLabel").hidden = !isDelivery;
         updateTotals();
         scheduleCartSync();
       });
     });
+
+    const btnDetectGps = el("btnDetectGps");
+    if (btnDetectGps) {
+      btnDetectGps.addEventListener("click", handleDetectGps);
+    }
 
     const deliveryAddressInput = el("deliveryAddress");
     if (deliveryAddressInput) {
@@ -719,6 +726,104 @@
 
     const sendBtn = el("sendOrderBtn");
     if (sendBtn) sendBtn.addEventListener("click", submitOrder);
+  }
+
+  // ===================== DETECCIÓN DE UBICACIÓN GPS =====================
+
+  async function handleDetectGps() {
+    const btn = el("btnDetectGps");
+    const label = el("btnDetectGpsLabel");
+    const hint = el("deliveryGpsHint");
+    const input = el("deliveryAddress");
+
+    if (!navigator.geolocation) {
+      if (hint) {
+        hint.textContent = "Tu navegador no soporta geolocalización GPS. Por favor escribe tu dirección manual.";
+        hint.className = "delivery-gps-hint error";
+        hint.hidden = false;
+      }
+      if (input) input.focus();
+      return;
+    }
+
+    if (btn) btn.disabled = true;
+    if (label) label.textContent = "Obteniendo GPS...";
+    if (hint) {
+      hint.textContent = "Solicitando permiso de ubicación en tu dispositivo...";
+      hint.className = "delivery-gps-hint";
+      hint.hidden = false;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lng = pos.coords.longitude.toFixed(6);
+        const mapsLink = `https://maps.google.com/?q=${lat},${lng}`;
+
+        if (label) label.textContent = "Actualizar GPS";
+        if (btn) btn.disabled = false;
+
+        let addressText = "";
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2500);
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+            { signal: controller.signal }
+          );
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+            const road = addr.road || addr.street || addr.pedestrian || "";
+            const neighborhood = addr.neighbourhood || addr.suburb || addr.quarter || addr.city_district || "";
+            const city = addr.city || addr.town || addr.municipality || "Panamá";
+            const parts = [road, neighborhood, city].filter(Boolean);
+            if (parts.length > 0) {
+              addressText = `${parts.join(", ")} (GPS: ${mapsLink})`;
+            }
+          }
+        } catch (e) {
+          // Si tarda o falla, se continúa con el enlace directo
+        }
+
+        if (!addressText) {
+          addressText = `Ubicación GPS: ${mapsLink}`;
+        }
+
+        if (input) {
+          input.value = addressText;
+          input.focus();
+        }
+
+        if (hint) {
+          hint.innerHTML = `✅ <strong>Ubicación detectada.</strong> Puedes escribir detalles adicionales si lo prefieres (ej: edificio, piso o casa).`;
+          hint.className = "delivery-gps-hint success";
+          hint.hidden = false;
+        }
+
+        scheduleCartSync();
+      },
+      (err) => {
+        if (btn) btn.disabled = false;
+        if (label) label.textContent = "Usar mi ubicación actual";
+        let errMsg = "No se pudo obtener tu ubicación. Por favor escribe tu dirección manualmente.";
+        if (err.code === 1) {
+          errMsg = "Permiso de ubicación denegado. Escribe tu dirección manual en el campo.";
+        } else if (err.code === 2) {
+          errMsg = "Ubicación GPS no disponible en tu dispositivo. Escribe tu dirección manual.";
+        } else if (err.code === 3) {
+          errMsg = "Tiempo de espera agotado buscando el GPS. Escribe tu dirección manual.";
+        }
+        if (hint) {
+          hint.textContent = errMsg;
+          hint.className = "delivery-gps-hint error";
+          hint.hidden = false;
+        }
+        if (input) input.focus();
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   }
 
   // ===================== ENVÍO DEL PEDIDO =====================

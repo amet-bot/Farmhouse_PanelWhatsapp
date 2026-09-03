@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/menu.css?v=2.0.2">
+  <link rel="stylesheet" href="/css/menu.css?v=2.1.0">
 </head>
 <body>
 
@@ -158,8 +158,16 @@
             Delivery<span class="delivery-price">+$3.50</span>
           </button>
         </div>
-        <label class="field-label delivery-address-label" for="deliveryAddress" id="deliveryAddressLabel" hidden>Dirección de entrega</label>
-        <input id="deliveryAddress" class="text-input delivery-address-input" type="text" placeholder="Dirección completa de entrega en Panamá..." hidden>
+        <div id="deliveryAddressSection" class="delivery-address-section" hidden>
+          <div class="delivery-address-header">
+            <label class="field-label delivery-address-label" for="deliveryAddress" id="deliveryAddressLabel">Dirección de entrega</label>
+            <button type="button" id="btnDetectGps" class="btn-detect-gps" title="Detectar mi ubicación actual por GPS">
+              <span class="gps-icon">📍</span> <span id="btnDetectGpsLabel">Usar mi ubicación actual</span>
+            </button>
+          </div>
+          <input id="deliveryAddress" class="text-input delivery-address-input" type="text" placeholder="Dirección manual o pulsa el botón de ubicación...">
+          <div id="deliveryGpsHint" class="delivery-gps-hint" hidden></div>
+        </div>
       </div>
 
       <div class="cart-section">
@@ -205,6 +213,6 @@
 
   <div id="toast" class="menu-toast" hidden role="status" aria-live="polite"></div>
 
-  <script src="/js/modules/menu_app.js?v=2.0.1"></script>
+  <script src="/js/modules/menu_app.js?v=2.1.0"></script>
 </body>
 </html>

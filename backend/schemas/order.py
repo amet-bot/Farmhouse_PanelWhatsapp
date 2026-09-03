@@ -56,7 +56,7 @@ class PublicOrderItem(BaseModel):
 class PublicOrderCreate(BaseModel):
     branch_code: str = Field(..., min_length=1, max_length=20)
     delivery_type: Literal["pickup", "delivery"]
-    delivery_address: Optional[str] = Field(None, max_length=300)
+    delivery_address: Optional[str] = Field(None, max_length=500)
     payment_method: Literal["yappy", "ach", "card", "cash"]
     customer_name: str = Field(..., min_length=2, max_length=100)
     customer_phone: str = Field(..., min_length=6, max_length=20)
@@ -99,7 +99,7 @@ class CartSyncRequest(BaseModel):
     session: str = Field(..., min_length=10, max_length=2000)
     items: List[CartItemIn] = Field(default_factory=list, max_length=50)
     delivery_type: Literal["pickup", "delivery"] = "pickup"
-    delivery_address: Optional[str] = Field(None, max_length=300)
+    delivery_address: Optional[str] = Field(None, max_length=500)
     payment_method: Optional[Literal["yappy", "ach", "card", "cash"]] = None
     branch_code: Optional[str] = Field(None, max_length=20)
 
