@@ -364,14 +364,17 @@ class MetaWhatsAppService(WhatsAppService):
                 raise e
 
     async def download_media(self, media_id: str) -> Optional[Dict[str, Any]]:
-        headers = {
+        auth_headers = {
             "Authorization": f"Bearer {self.access_token}",
+            "User-Agent": "curl/7.64.1"
+        }
+        cdn_headers = {
             "User-Agent": "curl/7.64.1"
         }
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 # Paso 1: Meta nos da una URL temporal (caduca en minutos) + el mime_type real
-                meta_resp = await client.get(f"{self.api_url}/{media_id}", headers=headers)
+                meta_resp = await client.get(f"{self.api_url}/{media_id}", headers=auth_headers)
                 meta_resp.raise_for_status()
                 media_info = meta_resp.json()
                 media_url = media_info.get("url")
@@ -381,12 +384,18 @@ class MetaWhatsAppService(WhatsAppService):
                     return None
 
                 # Paso 2: Descargar los bytes reales desde la URL temporal.
-                # Meta lookaside.fbsbx.com devuelve 302 hacia su CDN.
-                # Para evitar que httpx pierda el header Authorization o User-Agent en redirecciones cross-host,
-                # manejamos las redirecciones manualmente pasando siempre los headers de autenticación requeridos.
+                # IMPORTANTE CRÍTICO:
+                # - lookaside.fbsbx.com requiere 'Authorization: Bearer <token>' y 'User-Agent'.
+                # - Al redirigir hacia el CDN (*.fbcdn.net / *.cdninstagram.com), Facebook CDN RECHAZA
+                #   la petición con HTTP 400 Bad Request si lleva el encabezado Authorization.
+                #   Por ende, en dominios fbcdn.net o cdninstagram.com se deben enviar ÚNICAMENTE cabeceras
+                #   sin token (solo User-Agent).
                 target_url = media_url
                 for redirect_hop in range(5):
-                    file_resp = await client.get(target_url, headers=headers, follow_redirects=False)
+                    is_cdn = "fbcdn.net" in target_url or "cdninstagram.com" in target_url
+                    headers_to_send = cdn_headers if is_cdn else auth_headers
+
+                    file_resp = await client.get(target_url, headers=headers_to_send, follow_redirects=False)
                     if file_resp.status_code in (301, 302, 303, 307, 308):
                         target_url = file_resp.headers.get("Location")
                         if not target_url:

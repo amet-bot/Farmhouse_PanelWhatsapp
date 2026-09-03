@@ -41,19 +41,9 @@ const api = {
     // (404 siempre). El endpoint de medios vive en <origen>/api/media/..., así que se arma
     // con `mediaBaseUrl` (origen sin "/api") en vez de `baseUrl`.
     let url = `${this.mediaBaseUrl}/api/media/${cleanPath}`;
-    // El navegador ya envía la cookie HttpOnly `access_token` automáticamente en peticiones
-    // <img>/<video>/<audio> del MISMO origen (caso de producción: panel y API en el mismo
-    // dominio) — no hace falta ningún token en la URL ahí. Solo en desarrollo, cuando el panel
-    // corre en un puerto distinto al backend (cross-origin), las cookies no viajan de forma
-    // confiable en subrecursos, así que se agrega un `?token=` de respaldo con el JWT de sesión
-    // (nunca el ticket de un solo uso de WebSocket). BUG histórico corregido: aquí se llamaba a
-    // `auth.getToken()`, un método que nunca existió (auth.js solo expone getWsToken()), lo que
-    // lanzaba un TypeError y rompía renderMessages() en cuanto CUALQUIER mensaje tenía media_url.
-    if (this.mediaBaseUrl) {
-      const token = typeof auth !== 'undefined' ? auth.getWsToken() : null;
-      if (token) {
-        url += (url.includes('?') ? '&' : '?') + `token=${encodeURIComponent(token)}`;
-      }
+    const token = typeof auth !== 'undefined' ? auth.getWsToken() : null;
+    if (token) {
+      url += (url.includes('?') ? '&' : '?') + `token=${encodeURIComponent(token)}`;
     }
     return url;
   },
