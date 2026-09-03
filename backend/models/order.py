@@ -19,6 +19,10 @@ class Order(Base):
     items_json = Column(Text, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    # updated_at/expires_at: usados por el carrito activo del Menú Digital (status="carrito_activo"),
+    # que reutiliza esta misma tabla en vez de crear una entidad nueva (ver migración 010).
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=True)
+    expires_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
 
     # Relaciones

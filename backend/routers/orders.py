@@ -16,10 +16,14 @@ from models.conversation import Conversation
 from models.contact import Contact
 from models.branch import Branch
 from models.user import User
-from schemas.order import OrderResponse, OrderCreate, OrderUpdate, PublicOrderCreate, PublicOrderResponse
-from security.auth import get_current_authorized_user
+from schemas.order import (
+    OrderResponse, OrderCreate, OrderUpdate, PublicOrderCreate, PublicOrderResponse,
+    CartSyncRequest, CartSyncResponse,
+)
+from security.auth import get_current_authorized_user, decode_menu_session_token
 from security.access_control import check_order_access, check_conversation_access, check_target_branch_valid
-from services.menu_catalog import get_item_by_sku, clean_item_title
+from services.order_pricing import price_cart_items, compute_delivery_fee
+from services.active_cart import get_active_cart, upsert_active_cart, clear_active_cart, cart_to_dict
 from services.websocket_manager import ws_manager
 
 logger = logging.getLogger("farmhouse.orders")
@@ -27,7 +31,6 @@ logger = logging.getLogger("farmhouse.orders")
 router = APIRouter(prefix="/orders", tags=["Pedidos"])
 
 ITBMS_RATE = Decimal("0.07") # 7% impuesto ITBMS en Panamá
-DELIVERY_SURCHARGE = Decimal("3.50")
 
 PAYMENT_METHOD_LABELS = {"yappy": "Yappy", "ach": "ACH / Transferencia", "card": "Tarjeta", "cash": "Efectivo"}
 WA_NUMBER_RE = re.compile(r"^\d{8,15}$")
@@ -95,39 +98,10 @@ async def create_public_order(
             detail="El envío de pedidos por WhatsApp no está disponible en este momento. Por favor contacta directamente a la sucursal.",
         )
 
-    # 1. Recalcular cada línea del pedido desde el catálogo (fuente de verdad de precios)
-    line_items = []
-    subtotal = Decimal("0.00")
-    for raw_item in order_in.items:
-        catalog_item = get_item_by_sku(raw_item.sku)
-        if not catalog_item:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Producto no encontrado en el catálogo: {raw_item.sku}")
-
-        addons = []
-        addons_total = Decimal("0.00")
-        for addon_sku in raw_item.addon_skus:
-            addon_item = get_item_by_sku(addon_sku)
-            if not addon_item:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Adicional no encontrado en el catálogo: {addon_sku}")
-            addons.append({"sku": addon_item["sku"], "title": clean_item_title(addon_item["title"]), "price": float(addon_item["price"])})
-            addons_total += addon_item["price"]
-
-        unit_price = catalog_item["price"] + addons_total
-        line_total = (unit_price * raw_item.quantity).quantize(Decimal("0.01"))
-        subtotal += line_total
-
-        line_items.append({
-            "sku": catalog_item["sku"],
-            "title": catalog_item["title"],
-            "quantity": raw_item.quantity,
-            "unit_price": float(catalog_item["price"]),
-            "addons": addons,
-            "notes": raw_item.notes,
-            "line_total": float(line_total),
-        })
-
-    subtotal = subtotal.quantize(Decimal("0.01"))
-    delivery_cost = DELIVERY_SURCHARGE if order_in.delivery_type == "delivery" else Decimal("0.00")
+    # 1. Recalcular cada línea del pedido desde el catálogo (fuente de verdad de precios,
+    #    compartida con PUT /orders/cart y con el mensaje de WhatsApp — services.order_pricing).
+    line_items, subtotal = price_cart_items(order_in.items)
+    delivery_cost = compute_delivery_fee(order_in.delivery_type)
     total = (subtotal + delivery_cost).quantize(Decimal("0.01"))
 
     # 2. Contacto: mismo formato "+<digitos>" que usa el webhook de Meta, para que ambos
@@ -150,49 +124,97 @@ async def create_public_order(
         if order_in.customer_name.strip():
             contact.name = order_in.customer_name.strip()
 
-    # 3. Conversación activa (o nueva), con la sucursal/entrega/pago ya resueltos para
-    #    que el bot de WhatsApp no vuelva a preguntarlos cuando llegue el mensaje real.
-    conv = db.query(Conversation).filter(
-        Conversation.customer_id == contact.id,
-        Conversation.status.in_(["new", "unassigned", "open", "pending"]),
-        Conversation.deleted_at.is_(None)
-    ).order_by(Conversation.updated_at.desc()).first()
-
+    # 3. Conversación: si el carrito trae un token de sesión válido (generado por el bot al
+    #    mandar el enlace de /menu, ver webhooks._send_branch_welcome_and_menu), se usa ESA
+    #    conversationId directamente — es determinista y evita el caso donde la búsqueda por
+    #    teléfono encuentra una conversación distinta a la que el agente tiene abierta (por
+    #    ejemplo si el contacto tiene más de una conversación "abierta" a la vez). Si no hay
+    #    sesión válida (enlace viejo, o cliente entrando a /menu sin pasar por el bot), se cae
+    #    al comportamiento histórico de buscar/crear por teléfono.
+    conv = None
     is_new_conv = False
+    session_data = decode_menu_session_token(order_in.session) if order_in.session else None
+    if session_data:
+        conv = db.query(Conversation).filter(
+            Conversation.id == session_data["conv"],
+            Conversation.deleted_at.is_(None),
+        ).first()
+
+    if not conv:
+        conv = db.query(Conversation).filter(
+            Conversation.customer_id == contact.id,
+            Conversation.status.in_(["new", "unassigned", "open", "pending"]),
+            Conversation.deleted_at.is_(None)
+        ).order_by(Conversation.updated_at.desc()).first()
+
     if not conv:
         conv = Conversation(customer_id=contact.id, status="unassigned", created_at=now, updated_at=now)
         db.add(conv)
         db.flush()
         is_new_conv = True
+    elif conv.customer_id != contact.id:
+        # La sesión apunta a una conversación real, pero de OTRO contacto (teléfono cambiado a
+        # mano en el formulario, por ejemplo): no se reasigna la conversación de otra persona,
+        # se cae al flujo por teléfono para no filtrar datos entre clientes.
+        conv = db.query(Conversation).filter(
+            Conversation.customer_id == contact.id,
+            Conversation.status.in_(["new", "unassigned", "open", "pending"]),
+            Conversation.deleted_at.is_(None)
+        ).order_by(Conversation.updated_at.desc()).first()
+        if not conv:
+            conv = Conversation(customer_id=contact.id, status="unassigned", created_at=now, updated_at=now)
+            db.add(conv)
+            db.flush()
+            is_new_conv = True
 
     conv.branch_id = branch.id
     conv.delivery_type = order_in.delivery_type
     conv.payment_method = order_in.payment_method
     conv.updated_at = now
 
-    # 4. Registrar la comanda
+    # 4. Registrar la comanda: si ya existe un carrito activo sincronizado para esta conversación
+    #    (Puntos 12 y 17), se confirma ESA misma fila en vez de crear un pedido nuevo — así el
+    #    panel nunca ve pedidos duplicados por la misma compra.
+    active_cart = get_active_cart(db, conv.id)
     order_code = f"FH-{uuid.uuid4().hex[:6].upper()}"
     order_type = "takeout" if order_in.delivery_type == "pickup" else "delivery"
-    order = Order(
-        order_code=order_code,
-        conversation_id=conv.id,
-        branch_id=branch.id,
-        order_type=order_type,
-        status="en_proceso",
-        subtotal=subtotal,
-        delivery_cost=delivery_cost,
-        tax=Decimal("0.00"),
-        total=total,
-        items_json=json.dumps({
-            "items": line_items,
-            "delivery_address": order_in.delivery_address,
-            "payment_method": order_in.payment_method,
-            "source": "menu_web",
-        }, ensure_ascii=False),
-        created_by=None,
-        created_at=now
-    )
-    db.add(order)
+    items_payload = json.dumps({
+        "items": line_items,
+        "delivery_address": order_in.delivery_address,
+        "payment_method": order_in.payment_method,
+        "source": "menu_web",
+    }, ensure_ascii=False)
+
+    if active_cart:
+        order = active_cart
+        order.order_code = order_code
+        order.branch_id = branch.id
+        order.order_type = order_type
+        order.status = "en_proceso"
+        order.subtotal = subtotal
+        order.delivery_cost = delivery_cost
+        order.total = total
+        order.items_json = items_payload
+        order.updated_at = now
+        order.expires_at = None
+    else:
+        order = Order(
+            order_code=order_code,
+            conversation_id=conv.id,
+            branch_id=branch.id,
+            order_type=order_type,
+            status="en_proceso",
+            subtotal=subtotal,
+            delivery_cost=delivery_cost,
+            tax=Decimal("0.00"),
+            total=total,
+            items_json=items_payload,
+            created_by=None,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(order)
+
     db.commit()
     db.refresh(order)
     db.refresh(conv)
@@ -228,6 +250,102 @@ async def create_public_order(
         delivery_cost=delivery_cost,
         total=total,
         whatsapp_url=whatsapp_url,
+    )
+
+
+@router.put("/cart", response_model=CartSyncResponse)
+async def sync_cart(
+    cart_in: CartSyncRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint público (sin autenticación) usado por /menu para sincronizar el carrito del
+    cliente en tiempo real con el panel administrativo, mientras el cliente todavía está
+    armando su pedido (Puntos 1, 5 y 6 del pedido del usuario).
+
+    Requiere un token de sesión de menú válido (`session`, ver security.auth.
+    create_menu_session_token): sin él no hay forma segura de saber a qué conversación
+    pertenece el carrito, así que la petición se rechaza con 401 en vez de confiar en un
+    conversationId que el cliente podría editar a mano en la URL (Punto 8).
+    """
+    session_data = decode_menu_session_token(cart_in.session)
+    if not session_data:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión de menú inválida o expirada. Vuelve a abrir el enlace del menú desde WhatsApp.")
+
+    conv = db.query(Conversation).filter(
+        Conversation.id == session_data["conv"],
+        Conversation.deleted_at.is_(None),
+    ).first()
+    if not conv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversación no encontrada.")
+
+    branch = None
+    if cart_in.branch_code:
+        branch = db.query(Branch).filter(Branch.code == cart_in.branch_code, Branch.active == True).first()
+    if not branch and conv.branch_id:
+        branch = db.query(Branch).filter(Branch.id == conv.branch_id).first()
+    if not branch:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sucursal inválida o inactiva.")
+
+    if cart_in.delivery_type == "delivery" and not (cart_in.delivery_address or "").strip():
+        # El carrito puede sincronizarse antes de que el cliente escriba la dirección (por
+        # ejemplo justo al tocar "Delivery"); no es un error, simplemente aún no hay dirección.
+        cart_in.delivery_address = None
+
+    # Carrito vacío (cliente eliminó el último producto): se borra el borrador en vez de dejar
+    # una fila con subtotal $0.00 dando vueltas (Punto 12).
+    if not cart_in.items:
+        clear_active_cart(db, conv.id)
+        await ws_manager.broadcast_to_branch(branch.id, {
+            "type": "cart_update",
+            "conversation_id": conv.id,
+            "branch_id": branch.id,
+            "cart": cart_to_dict(None),
+        })
+        return CartSyncResponse(
+            conversation_id=conv.id, status="empty", items=[],
+            subtotal=Decimal("0.00"), delivery_fee=Decimal("0.00"), total=Decimal("0.00"),
+        )
+
+    line_items, subtotal = price_cart_items(cart_in.items)
+    delivery_fee = compute_delivery_fee(cart_in.delivery_type)
+    total = (subtotal + delivery_fee).quantize(Decimal("0.01"))
+
+    now = datetime.now(timezone.utc)
+    conv.branch_id = branch.id
+    conv.delivery_type = cart_in.delivery_type
+    if cart_in.payment_method:
+        conv.payment_method = cart_in.payment_method
+    conv.updated_at = now
+
+    cart = upsert_active_cart(
+        db,
+        conversation_id=conv.id,
+        branch_id=branch.id,
+        line_items=line_items,
+        subtotal=subtotal,
+        delivery_fee=delivery_fee,
+        total=total,
+        delivery_type=cart_in.delivery_type,
+        delivery_address=cart_in.delivery_address,
+        payment_method=cart_in.payment_method,
+    )
+    db.commit()
+
+    await ws_manager.broadcast_to_branch(branch.id, {
+        "type": "cart_update",
+        "conversation_id": conv.id,
+        "branch_id": branch.id,
+        "cart": cart_to_dict(cart),
+    })
+
+    return CartSyncResponse(
+        conversation_id=conv.id,
+        status=cart.status,
+        items=line_items,
+        subtotal=subtotal,
+        delivery_fee=delivery_fee,
+        total=total,
     )
 
 

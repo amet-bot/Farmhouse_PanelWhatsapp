@@ -60,6 +60,42 @@ def create_access_token(subject: Union[str, Any], expires_delta: Optional[timede
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
+MENU_SESSION_TOKEN_TYPE = "menu_session"
+MENU_SESSION_EXPIRE_HOURS = 12
+
+def create_menu_session_token(conversation_id: int, branch_id: Optional[int]) -> str:
+    """
+    Token firmado (HS256, mismo SECRET_KEY que la sesión de agentes) que asocia una sesión
+    del Menú Digital (/menu) con una conversationId interna concreta. Reemplaza la confianza
+    ciega en `?conv=<id>` de la URL (Punto 8 del pedido del usuario): un cliente puede seguir
+    viendo `conv=19` en la barra de direcciones por compatibilidad/depuración, pero el backend
+    solo acepta escrituras de carrito si vienen acompañadas de este token válido y no vencido.
+    """
+    now = datetime.now(timezone.utc)
+    to_encode = {
+        "typ": MENU_SESSION_TOKEN_TYPE,
+        "conv": conversation_id,
+        "branch": branch_id,
+        "iat": now,
+        "exp": now + timedelta(hours=MENU_SESSION_EXPIRE_HOURS),
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+def decode_menu_session_token(token: str) -> Optional[dict]:
+    """Devuelve {"conv": conversation_id, "branch": branch_id} si el token es válido, o None."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except JWTError:
+        return None
+    if payload.get("typ") != MENU_SESSION_TOKEN_TYPE:
+        return None
+    conv_id = payload.get("conv")
+    if not isinstance(conv_id, int):
+        return None
+    return {"conv": conv_id, "branch": payload.get("branch")}
+
 def get_token_from_request(request: Request, header_token: Optional[str] = None) -> Optional[str]:
     # 1. Preferencia por Cookie HttpOnly de sesión
     cookie_token = request.cookies.get("access_token")

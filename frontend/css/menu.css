@@ -865,6 +865,20 @@ a:focus-visible {
   margin-top: 4px;
 }
 
+.cart-sync-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: 8px;
+  background: transparent;
+  vertical-align: middle;
+  transition: background-color 0.3s ease;
+}
+.cart-sync-dot.sync-syncing { background: #f59e0b; }
+.cart-sync-dot.sync-synced { background: #22c55e; }
+.cart-sync-dot.sync-offline { background: #ef4444; }
+
 .customer-summary-badge {
   background: var(--fh-green-soft);
   border: 1px solid var(--fh-line-strong);

@@ -296,7 +296,10 @@ const chatModule = {
       detailNotes.textContent = conv.notes || 'Sin notas registradas para esta conversación.';
     }
 
-    // 2. Actualizar Bloque de Pedido Actual
+    // 2. Actualizar Bloque de Pedido Actual (carrito activo del Menú Digital en tiempo real,
+    //    o el último pedido confirmado). conv.orders ya viene ordenado del más reciente al más
+    //    antiguo (ver models/conversation.py), así que orders[0] siempre es "lo vigente" — salvo
+    //    que sea un carrito abandonado, en cuyo caso se busca el siguiente relevante.
     const orderId = document.getElementById('orderId');
     const orderBranch = document.getElementById('orderBranch');
     const orderDeliveryType = document.getElementById('orderDeliveryType');
@@ -304,30 +307,111 @@ const chatModule = {
     const orderType = document.getElementById('orderType');
     const orderStatus = document.getElementById('orderStatus');
     const orderSubtotal = document.getElementById('orderSubtotal');
+    const orderDeliveryFee = document.getElementById('orderDeliveryFee');
+    const orderTotal = document.getElementById('orderTotal');
+    const orderLiveDot = document.getElementById('orderLiveDot');
+    const orderItemsWrap = document.getElementById('orderItemsWrap');
+    const orderItemsCount = document.getElementById('orderItemsCount');
+    const orderItemsList = document.getElementById('orderItemsList');
 
-    const deliveryLabels = { delivery: '🛵 Delivery', pickup: '🏠 Retiro en el local' };
-    const paymentLabels = { card: '💳 Tarjeta', yappy: '📱 Yappy', cash: '💵 Efectivo', ach: '🏦 ACH' };
-    const deliveryText = conv.delivery_type ? (deliveryLabels[conv.delivery_type] || conv.delivery_type) : '-';
-    const paymentText = conv.payment_method ? (paymentLabels[conv.payment_method] || conv.payment_method) : '-';
-
-    if (orderDeliveryType) orderDeliveryType.textContent = deliveryText;
-    if (orderPaymentMethod) orderPaymentMethod.textContent = paymentText;
+    const DELIVERY_LABELS = { delivery: '🛵 Delivery', pickup: '🏠 Retiro en el local' };
+    const PAYMENT_LABELS = { card: '💳 Tarjeta', yappy: '📱 Yappy', cash: '💵 Efectivo', ach: '🏦 ACH' };
+    const STATUS_LABELS = {
+      carrito_activo: 'Armando pedido', en_proceso: 'En proceso', en_cocina: 'En cocina',
+      en_delivery: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado', abandonado: 'Carrito abandonado',
+    };
 
     const orders = conv.orders || [];
-    if (orders.length > 0) {
-      const order = orders[0];
-      if (orderId) orderId.textContent = `#${order.order_code || order.id}`;
-      if (orderBranch) orderBranch.textContent = branch.name || '-';
-      if (orderType) orderType.textContent = order.order_type || 'WhatsApp';
-      if (orderStatus) orderStatus.textContent = order.status || 'En Proceso';
-      if (orderSubtotal) orderSubtotal.textContent = `$${(order.subtotal || order.total_amount || 0).toFixed(2)}`;
-    } else {
-      if (orderId) orderId.textContent = '-';
-      if (orderBranch) orderBranch.textContent = branch.name || '-';
-      if (orderType) orderType.textContent = 'Sin comanda';
-      if (orderStatus) orderStatus.textContent = 'N/A';
-      if (orderSubtotal) orderSubtotal.textContent = '$0.00';
+    const current = orders.find(o => o.status !== 'abandonado') || null;
+    const isDraft = !!current && current.status === 'carrito_activo';
+
+    if (orderLiveDot) orderLiveDot.hidden = !isDraft;
+
+    let itemsData = null;
+    if (current && current.items_json) {
+      try { itemsData = JSON.parse(current.items_json); } catch (e) { itemsData = null; }
     }
+
+    // Entrega/pago: mientras el cliente arma el carrito, la fuente de verdad es el carrito
+    // mismo (más reciente); si aún no hay ninguno, se cae al último valor conocido en la
+    // conversación (fijado por el bot de WhatsApp o por un pedido confirmado anterior).
+    const deliveryType = current ? (current.order_type === 'delivery' ? 'delivery' : 'pickup') : conv.delivery_type;
+    const paymentMethod = (itemsData && itemsData.payment_method) || conv.payment_method;
+
+    if (orderDeliveryType) orderDeliveryType.textContent = deliveryType ? (DELIVERY_LABELS[deliveryType] || deliveryType) : '-';
+    if (orderPaymentMethod) orderPaymentMethod.textContent = paymentMethod ? (PAYMENT_LABELS[paymentMethod] || paymentMethod) : '-';
+
+    if (!current) {
+      if (orderId) orderId.textContent = 'Sin pedido activo';
+      if (orderBranch) orderBranch.textContent = branch.name || '-';
+      if (orderType) orderType.textContent = '-';
+      if (orderStatus) orderStatus.textContent = 'N/A';
+      if (orderItemsWrap) orderItemsWrap.hidden = true;
+      if (orderSubtotal) orderSubtotal.textContent = '$0.00';
+      if (orderDeliveryFee) orderDeliveryFee.textContent = '$0.00';
+      if (orderTotal) orderTotal.textContent = '$0.00';
+      return;
+    }
+
+    if (orderId) orderId.textContent = isDraft ? 'Carrito activo' : `#${current.order_code || current.id}`;
+    if (orderBranch) orderBranch.textContent = branch.name || '-';
+    if (orderType) {
+      const source = itemsData && itemsData.source;
+      orderType.textContent = (source && String(source).startsWith('menu_web')) ? '🌐 Menú Digital' : '💬 WhatsApp';
+    }
+    if (orderStatus) orderStatus.textContent = STATUS_LABELS[current.status] || current.status;
+
+    const items = (itemsData && itemsData.items) || [];
+    if (orderItemsWrap && orderItemsCount && orderItemsList) {
+      if (items.length > 0) {
+        orderItemsWrap.hidden = false;
+        orderItemsCount.textContent = `${items.length} producto${items.length === 1 ? '' : 's'}`;
+        orderItemsList.innerHTML = items.map((it) => `
+          <div class="order-item-row">
+            <div class="order-item-row-main">
+              <span>${it.quantity}x ${utils.escapeHtml(it.title || '')}</span>
+              <span>$${Number(it.line_total || 0).toFixed(2)}</span>
+            </div>
+            ${(it.addons && it.addons.length) ? `<div class="order-item-addons">${it.addons.map((a) => `+ ${utils.escapeHtml(a.title || '')}`).join('<br>')}</div>` : ''}
+            ${it.notes ? `<div class="order-item-addons">Nota: ${utils.escapeHtml(it.notes)}</div>` : ''}
+          </div>
+        `).join('');
+      } else {
+        orderItemsWrap.hidden = true;
+      }
+    }
+
+    let subtotalNum = Number(current.subtotal ?? 0);
+    let deliveryNum = Number(current.delivery_cost ?? 0);
+    let totalNum = Number(current.total ?? 0);
+
+    // Fallback 1: Si subtotal es 0 pero itemsData tiene items, calcular de los items
+    if (subtotalNum === 0 && items && items.length > 0) {
+      subtotalNum = items.reduce((acc, it) => acc + (Number(it.line_total || 0)), 0);
+    }
+
+    // Fallback 2: Si total es 0 pero tenemos subtotal, sumar delivery
+    if (totalNum === 0 && subtotalNum > 0) {
+      totalNum = subtotalNum + deliveryNum;
+    }
+
+    // Fallback 3: Extraer monto del texto de mensajes si vino con "TOTAL: $XX.XX"
+    if (totalNum === 0 && conv.messages && conv.messages.length > 0) {
+      for (const m of conv.messages) {
+        if (m.content && m.content.includes("TOTAL: $")) {
+          const match = m.content.match(/TOTAL:\s*\$([0-9]+(?:\.[0-9]{2})?)/i);
+          if (match && match[1]) {
+            totalNum = parseFloat(match[1]);
+            if (subtotalNum === 0) subtotalNum = Math.max(0, totalNum - deliveryNum);
+            break;
+          }
+        }
+      }
+    }
+
+    if (orderSubtotal) orderSubtotal.textContent = `$${subtotalNum.toFixed(2)}`;
+    if (orderDeliveryFee) orderDeliveryFee.textContent = `$${deliveryNum.toFixed(2)}`;
+    if (orderTotal) orderTotal.textContent = `$${totalNum.toFixed(2)}`;
   },
 
   setupComposer() {

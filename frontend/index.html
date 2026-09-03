@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=2.3.3">
+  <link rel="stylesheet" href="css/style.css?v=2.5.0">
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -226,10 +226,13 @@
             <div class="notes-box-card" id="detailNotes">Selecciona una conversación para ver detalles.</div>
           </div>
 
-          <div class="detail-block">
-            <div class="detail-block-title"><i data-lucide="receipt"></i> Pedido actual</div>
+          <div class="detail-block" id="orderPanelBlock">
+            <div class="order-panel-header">
+              <div class="detail-block-title"><i data-lucide="receipt"></i> Pedido actual</div>
+              <span id="orderLiveDot" class="order-live-dot" hidden title="Cliente armando el pedido en el menú digital"></span>
+            </div>
             <div class="order-row">
-              <span>ID Pedido</span>
+              <span>Pedido</span>
               <strong id="orderId">-</strong>
             </div>
             <div class="order-row">
@@ -245,16 +248,32 @@
               <span id="orderPaymentMethod">-</span>
             </div>
             <div class="order-row">
-              <span>Tipo</span>
+              <span>Origen</span>
               <span class="tag-pill" id="orderType">-</span>
             </div>
             <div class="order-row">
               <span>Estado</span>
               <span class="tag-pill" id="orderStatus">-</span>
             </div>
+
+            <div id="orderItemsWrap" class="order-items-wrap" hidden>
+              <div class="order-items-divider"></div>
+              <div class="order-items-count" id="orderItemsCount">0 productos</div>
+              <div id="orderItemsList" class="order-items-list"></div>
+              <div class="order-items-divider"></div>
+            </div>
+
             <div class="order-row">
               <span>Subtotal</span>
               <strong id="orderSubtotal" class="price-subtotal">$0.00</strong>
+            </div>
+            <div class="order-row">
+              <span>Delivery</span>
+              <strong id="orderDeliveryFee" class="price-subtotal">$0.00</strong>
+            </div>
+            <div class="order-row order-row-total">
+              <span>Total</span>
+              <strong id="orderTotal" class="price-total">$0.00</strong>
             </div>
           </div>
 
@@ -713,16 +732,16 @@
   </div>
 
   <!-- Scripts JavaScript Modularizados y Seguros -->
-  <script src="js/utils.js?v=2.3.3"></script>
-  <script src="js/api.js?v=2.3.3"></script>
-  <script src="js/ws.js?v=2.3.3"></script>
-  <script src="js/modules/auth.js?v=2.3.3"></script>
-  <script src="js/modules/branches.js?v=2.3.3"></script>
-  <script src="js/modules/users.js?v=2.3.3"></script>
-  <script src="js/modules/devices.js?v=2.3.3"></script>
-  <script src="js/modules/conversations.js?v=2.3.3"></script>
-  <script src="js/modules/chat.js?v=2.3.3"></script>
-  <script src="js/modules/push.js?v=2.3.3"></script>
-  <script src="js/app.js?v=2.3.3"></script>
+  <script src="js/utils.js?v=2.5.0"></script>
+  <script src="js/api.js?v=2.5.0"></script>
+  <script src="js/ws.js?v=2.5.0"></script>
+  <script src="js/modules/auth.js?v=2.5.0"></script>
+  <script src="js/modules/branches.js?v=2.5.0"></script>
+  <script src="js/modules/users.js?v=2.5.0"></script>
+  <script src="js/modules/devices.js?v=2.5.0"></script>
+  <script src="js/modules/conversations.js?v=2.5.0"></script>
+  <script src="js/modules/chat.js?v=2.5.0"></script>
+  <script src="js/modules/push.js?v=2.5.0"></script>
+  <script src="js/app.js?v=2.5.0"></script>
 </body>
 </html>

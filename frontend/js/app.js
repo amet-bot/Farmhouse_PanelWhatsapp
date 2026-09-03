@@ -272,8 +272,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     conversationsModule.loadConversations();
     if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
       if (!chatModule.currentConversation.messages) chatModule.currentConversation.messages = [];
-      chatModule.currentConversation.messages.push(data.message);
-      chatModule.renderMessages();
+      const yaExiste = chatModule.currentConversation.messages.some(m => m.id === data.message.id);
+      if (!yaExiste) {
+        chatModule.currentConversation.messages.push(data.message);
+        chatModule.renderMessages();
+      }
+      // Si el mensaje es una comanda del menú o trae datos de orden, recargar la conversación para actualizar el panel de Pedido Actual
+      const content = String(data.message?.content || '');
+      if (content.includes('MI PEDIDO FARMHOUSE') || content.includes('Pedido: FH-')) {
+        chatModule.loadConversation(data.conversation_id);
+      }
     }
     utils.showToast(`Nuevo mensaje de ${data.contact_name}`, 'info');
   });
@@ -304,6 +312,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         chatModule.renderMessages();
       }
     }
+  });
+
+  wsClient.on('cart_update', (data) => {
+    // El cliente está armando el pedido en /menu ahora mismo (Punto 5): se actualiza el panel
+    // de "Pedido actual" sin recargar toda la conversación, para que se sienta instantáneo.
+    if (!chatModule.currentConversation || chatModule.currentConversation.id !== data.conversation_id) return;
+    const conv = chatModule.currentConversation;
+    if (!conv.orders) conv.orders = [];
+
+    const cart = data.cart || {};
+    const isEmpty = cart.status === 'empty' || !cart.order_id;
+    conv.orders = conv.orders.filter((o) => o.status !== 'carrito_activo');
+
+    if (!isEmpty) {
+      conv.orders.unshift({
+        id: cart.order_id,
+        order_code: cart.order_code,
+        conversation_id: cart.conversation_id,
+        branch_id: cart.branch_id,
+        status: cart.status,
+        order_type: cart.order_type,
+        subtotal: cart.subtotal,
+        delivery_cost: cart.delivery_fee,
+        total: cart.total,
+        items_json: JSON.stringify({ items: cart.items, delivery_address: cart.delivery_address, payment_method: cart.payment_method, source: 'menu_web_cart' }),
+      });
+    }
+
+    chatModule.renderOrderPanel();
   });
 
   wsClient.on('order_created', (data) => {

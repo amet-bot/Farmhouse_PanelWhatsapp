@@ -8,8 +8,10 @@
 
   const CART_STORAGE_KEY = "fh_menu_cart_v1";
   const WA_ORIGIN_STORAGE_KEY = "farmhouse_wa_origin";
+  const MENU_SESSION_STORAGE_KEY = "farmhouse_menu_session";
   const WA_NUMBER_RE = /^\d{8,15}$/;
   const DELIVERY_SURCHARGE = 3.5;
+  const CART_SYNC_DEBOUNCE_MS = 300;
 
   const state = {
     tabs: [],
@@ -21,6 +23,7 @@
     customerName: "",
     customerPhone: "",
     conversationId: null,
+    sessionToken: null,
     originWaNumber: null,
     cart: loadCartFromStorage(),
     deliveryType: "pickup",
@@ -83,12 +86,29 @@
     const phoneParam = params.get("phone") || params.get("tel");
     const nameParam = params.get("name") || params.get("cliente");
     const convParam = params.get("conv") || params.get("conversation_id");
+    const sessionParam = params.get("session");
     const waParam = params.get("wa");
 
     if (branchParam) state.branchCode = branchParam.trim();
     if (phoneParam) state.customerPhone = phoneParam.trim();
     if (nameParam) state.customerName = nameParam.trim();
     if (convParam) state.conversationId = convParam.trim();
+
+    // Token de sesión firmado por el backend (ver security.auth.create_menu_session_token) que
+    // asocia este carrito con la conversationId real de forma segura: `conv=` en la URL es solo
+    // informativo, el backend NUNCA confía en él para sincronizar el carrito (evita que alguien
+    // edite `conv=20` a mano y termine actualizando el pedido de otra conversación). Se guarda en
+    // sessionStorage para sobrevivir un recargo de página sin depender de que el link siga con
+    // el parámetro (mismo patrón que WA_ORIGIN_STORAGE_KEY, líneas arriba).
+    if (sessionParam) {
+      state.sessionToken = sessionParam.trim();
+      try { sessionStorage.setItem(MENU_SESSION_STORAGE_KEY, state.sessionToken); } catch (e) { /* no disponible */ }
+    } else {
+      try {
+        const storedSession = sessionStorage.getItem(MENU_SESSION_STORAGE_KEY);
+        if (storedSession) state.sessionToken = storedSession;
+      } catch (e) { /* no disponible */ }
+    }
 
     // Número de WhatsApp de origen (el chat desde el que el cliente llegó al menú). Solo se
     // acepta un formato de teléfono válido; el backend lo vuelve a validar contra el número
@@ -178,6 +198,7 @@
           state.branchName = b.name;
           setBranchLabels(b.name);
           showToast(`Sucursal actualizada: ${b.name}`);
+          scheduleCartSync();
         }
       });
     }
@@ -428,6 +449,7 @@
     renderCart();
     closeProductModal();
     showToast(`Agregado al pedido: ${p.title}`);
+    scheduleCartSync();
   }
 
   function renderCart() {
@@ -487,6 +509,7 @@
           if (state.cart[idx]) state.cart[idx].quantity += 1;
           persistCart();
           renderCart();
+          scheduleCartSync();
         });
       });
       list.querySelectorAll(".btn-cart-dec").forEach((b) => {
@@ -498,6 +521,7 @@
           }
           persistCart();
           renderCart();
+          scheduleCartSync();
         });
       });
       list.querySelectorAll(".btn-cart-del").forEach((b) => {
@@ -505,6 +529,7 @@
           state.cart.splice(Number(b.dataset.idx), 1);
           persistCart();
           renderCart();
+          scheduleCartSync();
         });
       });
     }
@@ -523,6 +548,81 @@
     if (el("totalSubtotal")) el("totalSubtotal").textContent = money(subtotal);
     if (el("totalDelivery")) el("totalDelivery").textContent = money(delivery);
     if (el("totalFinal")) el("totalFinal").textContent = money(finalTotal);
+  }
+
+  // ===================== SINCRONIZACIÓN DEL CARRITO CON EL PANEL =====================
+  // El panel administrativo NO puede leer localStorage/sessionStorage del navegador del
+  // cliente (son dispositivos y sesiones distintas), así que cada cambio relevante del
+  // carrito se manda al backend, que lo guarda como el "carrito activo" de esta conversación
+  // y lo retransmite por WebSocket a los agentes de la sucursal (ver PUT /api/orders/cart).
+  // Se debounce para no mandar una petición por cada tecla/click cuando el cliente hace
+  // varios cambios seguidos (agregar producto, subir cantidad, etc.).
+
+  let cartSyncTimer = null;
+  let cartSyncInFlight = false;
+  let cartSyncPendingRetry = false;
+
+  function setLiveSyncIndicator(status) {
+    // status: 'idle' | 'syncing' | 'synced' | 'offline'
+    const dot = el("cartSyncDot");
+    if (!dot) return;
+    dot.classList.remove("sync-syncing", "sync-synced", "sync-offline");
+    if (status === "syncing") dot.classList.add("sync-syncing");
+    else if (status === "synced") dot.classList.add("sync-synced");
+    else if (status === "offline") dot.classList.add("sync-offline");
+  }
+
+  function scheduleCartSync() {
+    if (!state.sessionToken) return; // Enlace viejo sin sesión: el carrito funciona local, sin sincronizar.
+    clearTimeout(cartSyncTimer);
+    cartSyncTimer = setTimeout(syncCartNow, CART_SYNC_DEBOUNCE_MS);
+  }
+
+  async function syncCartNow() {
+    if (!state.sessionToken) return;
+    if (cartSyncInFlight) { cartSyncPendingRetry = true; return; }
+
+    const branchSelect = el("branchSelect");
+    const branchCode = state.branchCode || (branchSelect ? branchSelect.value : "");
+    const deliveryAddress = el("deliveryAddress") ? el("deliveryAddress").value.trim() : "";
+
+    const payload = {
+      session: state.sessionToken,
+      branch_code: branchCode || null,
+      delivery_type: state.deliveryType,
+      delivery_address: state.deliveryType === "delivery" ? (deliveryAddress || null) : null,
+      payment_method: state.paymentMethod || null,
+      items: state.cart.map((item) => ({
+        sku: item.sku,
+        quantity: item.quantity,
+        addon_skus: item.addons.map((a) => a.sku),
+        notes: item.notes || null,
+      })),
+    };
+
+    cartSyncInFlight = true;
+    setLiveSyncIndicator("syncing");
+    try {
+      const res = await fetch("/api/orders/cart", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("cart sync failed: " + res.status);
+      setLiveSyncIndicator("synced");
+    } catch (err) {
+      // El carrito del cliente sigue funcionando aunque falle la sincronización (Punto 25):
+      // no se pierde nada, no se molesta al cliente con errores técnicos, y se reintenta en
+      // el siguiente cambio (o de inmediato si hubo cambios mientras esta petición viajaba).
+      console.warn("[menu_app] No se pudo sincronizar el carrito con el panel:", err);
+      setLiveSyncIndicator("offline");
+    } finally {
+      cartSyncInFlight = false;
+      if (cartSyncPendingRetry) {
+        cartSyncPendingRetry = false;
+        syncCartNow();
+      }
+    }
   }
 
   // ===================== EVENTOS =====================
@@ -600,13 +700,20 @@
         el("deliveryAddress").hidden = !isDelivery;
         el("deliveryAddressLabel").hidden = !isDelivery;
         updateTotals();
+        scheduleCartSync();
       });
     });
+
+    const deliveryAddressInput = el("deliveryAddress");
+    if (deliveryAddressInput) {
+      deliveryAddressInput.addEventListener("input", () => scheduleCartSync());
+    }
 
     document.querySelectorAll("#paymentOptions .option-pill").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.paymentMethod = btn.dataset.payment;
         document.querySelectorAll("#paymentOptions .option-pill").forEach((b) => b.classList.toggle("active", b === btn));
+        scheduleCartSync();
       });
     });
 

@@ -18,6 +18,7 @@ from security.auth import get_current_authorized_user
 from security.access_control import check_conversation_access, check_target_branch_valid
 from services.routing_service import RoutingService
 from services.websocket_manager import ws_manager
+from services.active_cart import expire_stale_carts_for_conversations
 
 logger = logging.getLogger("farmhouse.conversations")
 
@@ -67,7 +68,11 @@ def get_conversations(
             (Contact.name.ilike(s_term)) | (Contact.phone.ilike(s_term))
         )
 
-    return query.order_by(Conversation.updated_at.desc()).offset(skip).limit(limit).all()
+    results = query.order_by(Conversation.updated_at.desc()).offset(skip).limit(limit).all()
+    # Expiración perezosa de carritos activos abandonados (Punto 16): no hay scheduler/cron en
+    # el proyecto, así que se resuelve al leer, sin bloquear el listado con N+1 queries.
+    expire_stale_carts_for_conversations(db, [c.id for c in results])
+    return results
 
 @router.get("/{conversation_id}", response_model=ConversationResponse)
 def get_conversation(
@@ -89,6 +94,11 @@ def get_conversation(
 
     if not conv:
         raise HTTPException(status_code=404, detail="Conversación no encontrada.")
+
+    # Expiración perezosa del carrito activo si quedó abandonado (Punto 16). Se hace ANTES de
+    # devolver la respuesta para que un refresh del panel (Test 10) siempre vea el estado real.
+    expire_stale_carts_for_conversations(db, [conv.id])
+    db.refresh(conv)
 
     # Cargar últimos 50 mensajes paginados cronológicamente (excluyendo borrados lógicos)
     recent_messages = db.query(Message).filter(

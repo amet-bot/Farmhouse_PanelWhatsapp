@@ -26,5 +26,7 @@ class Conversation(Base):
     assigned_user = relationship("User", foreign_keys=[assigned_user_id], back_populates="assigned_conversations")
     deleter_user = relationship("User", foreign_keys=[deleted_by])
     messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at")
-    orders = relationship("Order", back_populates="conversation")
+    # Más reciente primero: el panel siempre debe leer orders[0] como "el pedido/carrito
+    # vigente" (confirmado o carrito activo), nunca el más antiguo.
+    orders = relationship("Order", back_populates="conversation", order_by="Order.created_at.desc()")
 

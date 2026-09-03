@@ -65,6 +65,12 @@ class PublicOrderCreate(BaseModel):
     # Nunca se confía en este valor a ciegas: el backend solo lo usa si coincide exactamente con
     # el número oficial de Farmhouse (get_official_whatsapp_number); de lo contrario se ignora.
     origin_wa: Optional[str] = Field(None, max_length=20)
+    # Token de sesión del Menú Digital (ver security.auth.create_menu_session_token). Si viene y
+    # es válido, el pedido se ata EXACTAMENTE a esa conversationId (y convierte el carrito activo
+    # ya sincronizado en el pedido confirmado, en vez de crear una fila nueva) en lugar de resolver
+    # la conversación por teléfono, que puede fallar si hay más de una conversación abierta para
+    # el mismo contacto. Opcional por compatibilidad con enlaces /menu antiguos sin `session`.
+    session: Optional[str] = Field(None, max_length=2000)
 
 
 class PublicOrderResponse(BaseModel):
@@ -74,6 +80,37 @@ class PublicOrderResponse(BaseModel):
     delivery_cost: Decimal
     total: Decimal
     whatsapp_url: str
+
+
+class CartItemIn(BaseModel):
+    sku: str = Field(..., min_length=1, max_length=60)
+    quantity: int = Field(1, ge=1, le=20)
+    addon_skus: List[str] = Field(default_factory=list, max_length=15)
+    notes: Optional[str] = Field(None, max_length=300)
+
+
+class CartSyncRequest(BaseModel):
+    """
+    Snapshot del carrito del cliente en /menu, enviado en cada cambio (agregar/quitar producto,
+    cambiar cantidad, delivery/retiro, método de pago...). `session` es obligatorio: sin un
+    token de sesión de menú válido no se sabe a qué conversación pertenece el carrito y la
+    sincronización se ignora (Punto 8: nunca confiar en un conversationId de la URL a secas).
+    """
+    session: str = Field(..., min_length=10, max_length=2000)
+    items: List[CartItemIn] = Field(default_factory=list, max_length=50)
+    delivery_type: Literal["pickup", "delivery"] = "pickup"
+    delivery_address: Optional[str] = Field(None, max_length=300)
+    payment_method: Optional[Literal["yappy", "ach", "card", "cash"]] = None
+    branch_code: Optional[str] = Field(None, max_length=20)
+
+
+class CartSyncResponse(BaseModel):
+    conversation_id: int
+    status: str
+    items: list
+    subtotal: Decimal
+    delivery_fee: Decimal
+    total: Decimal
 
 
 class OrderResponse(OrderBase):

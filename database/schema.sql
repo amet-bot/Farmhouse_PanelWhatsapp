@@ -153,6 +153,8 @@ CREATE TABLE IF NOT EXISTS `orders` (
     `items_json` TEXT NULL,
     `created_by` INT NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NULL,
+    `expires_at` DATETIME NULL,
     `deleted_at` DATETIME NULL,
     INDEX `idx_orders_code` (`order_code`),
     INDEX `idx_orders_status` (`status`),

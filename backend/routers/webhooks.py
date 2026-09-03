@@ -27,6 +27,7 @@ from services.media_storage import save_media_bytes
 from services.branch_matcher import match_branch_by_text
 from services.order_flow_matcher import match_delivery_type_text, match_payment_method_text, mentions_cash
 from services.push_service import notify_branch_new_message
+from security.auth import create_menu_session_token
 
 logger = logging.getLogger("farmhouse.webhooks")
 
@@ -209,7 +210,11 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
     except RuntimeError:
         origin_wa = None
     wa_param = f"&wa={origin_wa}" if origin_wa else ""
-    menu_url = f"{settings.PUBLIC_BASE_URL}/menu?branch={branch_code}&phone={client_phone}&name={client_name}&conv={conv.id}{wa_param}"
+    # Token firmado que asocia esta sesión del Menú Digital con conv.id de forma segura: el
+    # backend nunca confía en `?conv=` a secas (un cliente podría editarlo a mano para
+    # actualizar el carrito de OTRA conversación), solo en este token verificable.
+    session_token = create_menu_session_token(conv.id, conv.branch_id)
+    menu_url = f"{settings.PUBLIC_BASE_URL}/menu?branch={branch_code}&phone={client_phone}&name={client_name}&conv={conv.id}&session={session_token}{wa_param}"
     
     menu_text = (
         f"¡Bienvenido a Farmhouse *{branch_name}*! 🌿🥗\n\n"
