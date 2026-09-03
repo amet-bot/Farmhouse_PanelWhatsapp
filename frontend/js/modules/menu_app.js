@@ -809,14 +809,14 @@
         if (label) label.textContent = "Usar mi ubicación actual";
         let errMsg = "No se pudo obtener tu ubicación. Por favor escribe tu dirección manualmente.";
         if (err.code === 1) {
-          errMsg = "Permiso de ubicación denegado. Escribe tu dirección manual en el campo.";
+          errMsg = "Permiso de ubicación denegado en el navegador. Haz clic en el ícono de candado o ajustes junto a la barra de dirección para permitir 'Ubicación', o escribe tu dirección manual en el campo.";
         } else if (err.code === 2) {
-          errMsg = "Ubicación GPS no disponible en tu dispositivo. Escribe tu dirección manual.";
+          errMsg = "Ubicación GPS no disponible en tu dispositivo. Escribe tu dirección manual en el campo.";
         } else if (err.code === 3) {
-          errMsg = "Tiempo de espera agotado buscando el GPS. Escribe tu dirección manual.";
+          errMsg = "Tiempo de espera agotado buscando el GPS. Escribe tu dirección manual en el campo.";
         }
         if (hint) {
-          hint.textContent = errMsg;
+          hint.innerHTML = `⚠️ ${errMsg}`;
           hint.className = "delivery-gps-hint error";
           hint.hidden = false;
         }
