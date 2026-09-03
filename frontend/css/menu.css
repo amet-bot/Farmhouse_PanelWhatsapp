@@ -891,6 +891,17 @@ a:focus-visible {
 }
 .delivery-gps-hint.error {
   color: var(--fh-red);
+  background: var(--fh-red-soft);
+  border: 1px solid rgba(168, 68, 47, 0.2);
+  border-radius: var(--radius-xs);
+  padding: 8px 10px;
+}
+.delivery-gps-hint.error ol {
+  margin: 4px 0 0 16px;
+  padding: 0;
+}
+.delivery-gps-hint.error li {
+  margin-bottom: 2px;
 }
 
 .payment-pills { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }

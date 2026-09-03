@@ -96,7 +96,7 @@ async def security_and_csrf_middleware(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "geolocation=(self), camera=(), microphone=()"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=()"
     if settings.ENVIRONMENT == "production":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
