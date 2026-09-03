@@ -266,14 +266,27 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         text = msg_data.get("text", "")
 
         # 0. Pedido estructurado enviado desde la Web App de Menú (/menu). Ya trae sucursal,
-        #    entrega y pago resueltos (ver POST /api/orders/public), así que respondemos de
-        #    inmediato y pausamos el bot para que un agente tome el control, sin importar en
-        #    qué punto del flujo conversacional estaba la conversación.
+        #    entrega y pago resueltos (ver POST /api/orders/public), así que respondemos con un mensaje
+        #    cálido y empático según el tipo de entrega (Delivery o Retiro) y pausamos el bot para que
+        #    el agente de la sucursal tome el control personal de la conversación.
         if message_type == "text" and "MI PEDIDO FARMHOUSE" in text.upper():
-            confirmation_text = (
-                "¡Recibimos tu pedido con éxito! 🌿 En breve te confirmamos el tiempo estimado. "
-                "Si pagas por Yappy o ACH, por favor adjúntanos tu comprobante aquí 📸."
-            )
+            is_delivery = "DELIVERY" in text.upper() or (conv.delivery_type == "delivery")
+            branch_name = conv.branch.name if conv.branch else "Farmhouse"
+
+            if is_delivery:
+                confirmation_text = (
+                    f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado en nuestro sistema.\n\n"
+                    f"🛵 Como seleccionaste entrega a *Delivery*, nuestro agente encargado en la sucursal de *{branch_name}* "
+                    f"está revisando tu dirección en este momento para confirmarte el costo exacto del envío y el monto total final.\n\n"
+                    f"Por favor regálanos unos breves minutos de paciencia, en seguida te estaremos atendiendo personalmente con todo el gusto del mundo para coordinar tu entrega y el pago. ¡Un placer atenderte! 😊✨"
+                )
+            else:
+                confirmation_text = (
+                    f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado con éxito para *Retiro en sucursal ({branch_name})*.\n\n"
+                    f"En breve nuestro equipo te confirmará el tiempo estimado de preparación para que puedas pasar a retirarlo fresco y recién preparado.\n\n"
+                    f"Si seleccionaste pagar por Yappy o ACH, puedes compartirnos tu comprobante por este medio cuando gustes 📸. ¡Muchas gracias por tu paciencia y preferencia! 😊✨"
+                )
+
             send_res = await wa_service.send_text_message(phone, confirmation_text)
             wamid = None
             if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
@@ -301,6 +314,49 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                 "is_new_conversation": False
             })
             return
+
+        # 0.1 Atención humana solicitada explícitamente por el cliente
+        if message_type == "text":
+            text_lower = text.lower().strip()
+            human_keywords = [
+                "hablar con alguien", "hablar con una persona", "agente", "asesor",
+                "humano", "atencion humana", "persona real", "quiero que me atienda alguien",
+                "quiero hablar con un humano"
+            ]
+            if any(kw in text_lower for kw in human_keywords):
+                branch_name = conv.branch.name if conv.branch else "Farmhouse"
+                human_response = (
+                    f"¡Con mucho gusto! 🤝 Te comunicamos de inmediato con un agente de nuestro equipo en *{branch_name}*.\n\n"
+                    f"Por favor regálanos unos minutos de paciencia mientras uno de nuestros compañeros revisa tu conversación "
+                    f"para atenderte personalmente por aquí. ¡Muchas gracias por esperarnos! 😊"
+                )
+                send_res = await wa_service.send_text_message(phone, human_response)
+                wamid = None
+                if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
+                    wamid = send_res["messages"][0].get("id")
+                human_msg = Message(
+                    conversation_id=conv.id, direction="outgoing", sender_type="system",
+                    content=human_response, whatsapp_message_id=wamid, is_internal=False, status="sent"
+                )
+                db.add(human_msg)
+                conv.automation_paused = True
+                conv.updated_at = datetime.now(timezone.utc)
+                db.commit()
+                db.refresh(human_msg)
+                await ws_manager.broadcast_to_branch(conv.branch_id, {
+                    "type": "new_incoming_message",
+                    "conversation_id": conv.id,
+                    "branch_id": conv.branch_id,
+                    "contact_name": contact.name,
+                    "contact_phone": contact.phone,
+                    "message": {
+                        "id": human_msg.id, "direction": human_msg.direction,
+                        "sender_type": human_msg.sender_type, "content": human_msg.content,
+                        "status": human_msg.status, "created_at": human_msg.created_at.isoformat()
+                    },
+                    "is_new_conversation": False
+                })
+                return
 
         # 1. Descargar archivo multimedia si existe y aún no fue descargado inline
         if message_type != "text" and msg_data.get("media_id"):
@@ -465,6 +521,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                 content=closing_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
             )
             db.add(msg)
+            conv.automation_paused = True
             conv.updated_at = datetime.now(timezone.utc)
             db.commit()
             db.refresh(msg)

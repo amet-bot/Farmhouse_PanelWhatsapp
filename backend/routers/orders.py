@@ -372,7 +372,7 @@ def _build_whatsapp_order_text(order_code: str, branch_name: str, line_items: li
     if order_in.delivery_type == "delivery" and order_in.delivery_address:
         lines.append(f"Dirección: {order_in.delivery_address}")
     lines.append(f"Método de pago: {PAYMENT_METHOD_LABELS[order_in.payment_method]}")
-    lines.append(f"TOTAL: ${total:.2f}")
+    lines.append(f"TOTAL: ${total:.2f}" + (" (+ delivery por coordinar)" if order_in.delivery_type == "delivery" else ""))
     lines.append(f"Pedido: {order_code}")
     return "\n".join(lines)
 
