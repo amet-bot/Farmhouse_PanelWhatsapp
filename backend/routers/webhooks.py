@@ -3,6 +3,7 @@ import hmac
 import hashlib
 import json
 import logging
+import urllib.parse
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, Response, HTTPException, status, Query, BackgroundTasks, Depends
@@ -20,7 +21,7 @@ from services.websocket_manager import ws_manager
 from services.auto_responses import (
     WELCOME_MESSAGES, BRANCH_SELECTION_BODY, BRANCH_SELECTION_BUTTON,
     ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE,
-    get_branch_welcome_message, SIMULATED_MENU_TEXT
+    get_branch_welcome_message
 )
 from services.media_storage import save_media_bytes
 from services.branch_matcher import match_branch_by_text
@@ -194,42 +195,28 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
     branch_name = conv.branch.name if conv.branch else "Farmhouse"
     welcome_text = get_branch_welcome_message(branch_name)
 
-    # 1. Saludo de bienvenida a la sucursal seleccionada
-    await asyncio.sleep(0.5)
-    send_res = await wa_service.send_text_message(phone, welcome_text)
-    wamid1 = None
-    if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-        wamid1 = send_res["messages"][0].get("id")
-    msg1 = Message(
-        conversation_id=conv.id, direction="outgoing", sender_type="system",
-        content=welcome_text, whatsapp_message_id=wamid1, is_internal=False, status="sent"
+    # 1. Enlace personalizado al Menú Digital (/menu) con sucursal, teléfono, nombre y conversación
+    #    resueltos para que el cliente arme su orden completa (con Delivery/Retiro y Pago) en la web.
+    await asyncio.sleep(0.3)
+    branch_code = conv.branch.code if conv.branch else ""
+    client_name = urllib.parse.quote(contact.name or "")
+    client_phone = urllib.parse.quote(phone.lstrip("+"))
+    menu_url = f"{settings.PUBLIC_BASE_URL}/menu?branch={branch_code}&phone={client_phone}&name={client_name}&conv={conv.id}"
+    
+    menu_text = (
+        f"¡Bienvenido a Farmhouse *{branch_name}*! 🌿🥗\n\n"
+        f"👉 *Toca aquí para ver nuestro Menú Interactivo y hacer tu pedido:* 👇\n"
+        f"{menu_url}\n\n"
+        f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos y envíanos tu orden con Delivery o Retiro en 1 clic._"
     )
-    db.add(msg1)
-    conv.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(msg1)
-    await ws_manager.broadcast_to_branch(conv.branch_id, {
-        "type": "new_incoming_message",
-        "conversation_id": conv.id,
-        "branch_id": conv.branch_id,
-        "contact_name": contact.name,
-        "contact_phone": contact.phone,
-        "message": {
-            "id": msg1.id, "direction": msg1.direction, "sender_type": msg1.sender_type,
-            "content": msg1.content, "status": msg1.status, "created_at": msg1.created_at.isoformat()
-        },
-        "is_new_conversation": False
-    })
-
-    # 2. Menú de opciones simulado
-    await asyncio.sleep(0.5)
-    send_res_menu = await wa_service.send_text_message(phone, SIMULATED_MENU_TEXT)
+    
+    send_res_menu = await wa_service.send_text_message(phone, menu_text)
     wamid_menu = None
     if isinstance(send_res_menu, dict) and "messages" in send_res_menu and send_res_menu["messages"]:
         wamid_menu = send_res_menu["messages"][0].get("id")
     msg_menu = Message(
         conversation_id=conv.id, direction="outgoing", sender_type="system",
-        content=SIMULATED_MENU_TEXT, whatsapp_message_id=wamid_menu, is_internal=False, status="sent"
+        content=menu_text, whatsapp_message_id=wamid_menu, is_internal=False, status="sent"
     )
     db.add(msg_menu)
     conv.updated_at = datetime.now(timezone.utc)
@@ -247,17 +234,6 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
         },
         "is_new_conversation": False
     })
-
-    # 3. Pregunta interactiva de Delivery o Retiro
-    await asyncio.sleep(0.5)
-    delivery_buttons = [
-        {"id": "delivery_delivery", "title": "🛵 Delivery"},
-        {"id": "delivery_pickup", "title": "🏠 Retiro local"}
-    ]
-    await _send_interactive_buttons_message(
-        db=db, wa_service=wa_service, conv=conv, contact=contact, phone=phone,
-        body_text="¿Cómo te gustaría recibir tu pedido?", buttons=delivery_buttons
-    )
 
 async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: str, msg_data: Dict[str, Any], msg_id: int):
     """

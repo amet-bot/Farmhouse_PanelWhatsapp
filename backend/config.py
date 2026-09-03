@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     # Número real (E.164, solo dígitos) de la línea de WhatsApp Business de Farmhouse,
     # usado para construir el enlace wa.me del botón "Enviar Pedido a WhatsApp" en /menu.
     META_WA_DISPLAY_NUMBER: Optional[str] = None
+    # URL pública base del panel (sin slash final), usada para armar enlaces como el del
+    # Menú Digital que el bot manda por WhatsApp.
+    PUBLIC_BASE_URL: str = "https://farmhousepanelwhatsapp-production.up.railway.app"
 
     # Web Push (Notificaciones push del navegador vía VAPID)
     VAPID_PUBLIC_KEY: Optional[str] = None

@@ -10,25 +10,30 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/menu.css?v=1.0.2">
+  <link rel="stylesheet" href="/css/menu.css?v=1.1.0">
 </head>
 <body>
 
   <!-- ===================== HEADER ===================== -->
   <header class="menu-header">
     <div class="menu-header-top">
-      <img src="/assets/images/farmhouse-logo.png" alt="Farmhouse" class="menu-logo" onerror="this.style.display='none'">
-      <div class="menu-header-titles">
-        <h1>Farmhouse</h1>
-        <span>Menú digital &amp; pedidos</span>
+      <div class="menu-brand">
+        <img src="/assets/images/farmhouse-logo.png" alt="Farmhouse" class="menu-logo" onerror="this.style.display='none'">
+        <div class="menu-header-titles">
+          <h1>Farmhouse</h1>
+          <span>Menú digital &amp; pedidos</span>
+        </div>
       </div>
-      <select id="branchSelect" class="branch-select" aria-label="Selecciona tu sucursal">
-        <option value="">Sucursal...</option>
-      </select>
+      <div class="header-branch-pill">
+        <span id="headerBranchBadge">📍 Costa del Este</span>
+        <select id="branchSelect" class="branch-select" aria-label="Selecciona tu sucursal">
+          <option value="">Cambiar sucursal...</option>
+        </select>
+      </div>
     </div>
     <div class="menu-search-wrap">
       <svg class="menu-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input id="searchInput" class="menu-search-input" type="search" placeholder="Buscar en el menú (ej: caesar, salmón, smoothie)...">
+      <input id="searchInput" class="menu-search-input" type="search" placeholder="Buscar en el menú (ej: caesar, quinoa, smoothie)...">
     </div>
     <nav id="categoryPills" class="category-pills"></nav>
   </header>
@@ -103,7 +108,10 @@
   <div id="cartDrawerBackdrop" class="modal-backdrop" hidden>
     <div class="cart-drawer" role="dialog" aria-modal="true">
       <div class="cart-drawer-header">
-        <h2>Tu Pedido</h2>
+        <div>
+          <h2>Tu Pedido</h2>
+          <span id="cartBranchTag" class="cart-branch-tag">📍 Farmhouse</span>
+        </div>
         <button id="cartDrawerClose" class="modal-close-btn" aria-label="Cerrar">✕</button>
       </div>
 
@@ -119,7 +127,7 @@
             🛵 Delivery<span class="delivery-price">+$3.50</span>
           </button>
         </div>
-        <input id="deliveryAddress" class="text-input" type="text" placeholder="Dirección completa de entrega..." hidden>
+        <input id="deliveryAddress" class="text-input" type="text" placeholder="Dirección completa de entrega en Panamá..." hidden>
       </div>
 
       <div class="cart-section">
@@ -132,10 +140,16 @@
         </div>
       </div>
 
-      <div class="cart-section">
-        <h3>Tus Datos</h3>
-        <input id="customerName" class="text-input" type="text" placeholder="Tu nombre completo">
-        <input id="customerPhone" class="text-input" type="tel" placeholder="Tu teléfono (ej: 6000-1234)">
+      <div class="cart-section" id="customerSection">
+        <h3>Datos del Cliente</h3>
+        <div id="customerSummaryBadge" class="customer-summary-badge" hidden>
+          <span>👤 <strong id="summaryCustomerName">Cliente</strong></span>
+          <span id="summaryCustomerPhone" class="badge-sub">+507 6552-3134</span>
+        </div>
+        <div id="customerInputFields">
+          <input id="customerName" class="text-input" type="text" placeholder="Tu nombre">
+          <input id="customerPhone" class="text-input" type="tel" placeholder="Tu teléfono">
+        </div>
       </div>
 
       <div class="cart-totals">
@@ -150,6 +164,6 @@
 
   <div id="toast" class="menu-toast" hidden></div>
 
-  <script src="/js/modules/menu_app.js?v=1.0.0"></script>
+  <script src="/js/modules/menu_app.js?v=1.1.0"></script>
 </body>
 </html>

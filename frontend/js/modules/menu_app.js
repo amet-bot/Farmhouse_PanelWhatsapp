@@ -14,6 +14,11 @@
     branches: [],
     activeTabKey: null,
     searchQuery: "",
+    branchCode: null,
+    branchName: "Farmhouse",
+    customerName: "",
+    customerPhone: "",
+    conversationId: null,
     cart: loadCartFromStorage(),
     deliveryType: "pickup",
     paymentMethod: null,
@@ -45,11 +50,12 @@
   function persistCart() {
     try {
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(state.cart));
-    } catch (e) { /* almacenamiento no disponible, seguimos sin persistir */ }
+    } catch (e) { /* almacenamiento no disponible */ }
   }
 
   function showToast(message, isError = false) {
     const toast = el("toast");
+    if (!toast) return;
     toast.textContent = message;
     toast.className = "menu-toast" + (isError ? " error" : "");
     toast.hidden = false;
@@ -57,10 +63,23 @@
     showToast._t = setTimeout(() => { toast.hidden = true; }, 3200);
   }
 
+  function parseUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    const branchParam = params.get("branch") || params.get("branch_code") || params.get("branch_id");
+    const phoneParam = params.get("phone") || params.get("tel");
+    const nameParam = params.get("name") || params.get("cliente");
+    const convParam = params.get("conv") || params.get("conversation_id");
+
+    if (branchParam) state.branchCode = branchParam.trim();
+    if (phoneParam) state.customerPhone = phoneParam.trim();
+    if (nameParam) state.customerName = nameParam.trim();
+    if (convParam) state.conversationId = convParam.trim();
+  }
+
   // ===================== CARGA INICIAL =====================
 
   async function init() {
-    prefillPhoneFromUrl();
+    parseUrlParams();
     wireStaticEvents();
     renderCart();
 
@@ -74,7 +93,8 @@
       state.tabs = menuData.tabs || [];
       state.activeTabKey = state.tabs[0] ? state.tabs[0].key : null;
 
-      renderBranchSelect();
+      applyInitialBranch();
+      applyCustomerInfoUI();
       renderCategoryPills();
       renderProducts();
     } catch (err) {
@@ -83,23 +103,80 @@
     }
   }
 
-  function prefillPhoneFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const phone = params.get("phone");
-    if (phone) el("customerPhone").value = phone;
+  function applyInitialBranch() {
+    const select = el("branchSelect");
+    const badge = el("headerBranchBadge");
+    const cartTag = el("cartBranchTag");
+
+    if (state.branches.length === 0) return;
+
+    let matched = null;
+    if (state.branchCode) {
+      matched = state.branches.find(b =>
+        b.code.toUpperCase() === state.branchCode.toUpperCase() ||
+        String(b.id) === String(state.branchCode) ||
+        b.name.toLowerCase().includes(state.branchCode.toLowerCase())
+      );
+    }
+
+    if (!matched && state.branches[0]) {
+      matched = state.branches[0];
+    }
+
+    if (matched) {
+      state.branchCode = matched.code;
+      state.branchName = matched.name;
+    }
+
+    if (badge) badge.textContent = `📍 ${state.branchName}`;
+    if (cartTag) cartTag.textContent = `📍 ${state.branchName}`;
+
+    if (select) {
+      select.innerHTML = state.branches.map(
+        (b) => `<option value="${escapeHtml(b.code)}" ${b.code === state.branchCode ? "selected" : ""}>📍 ${escapeHtml(b.name)}</option>`
+      ).join("");
+
+      select.addEventListener("change", (e) => {
+        const selectedCode = e.target.value;
+        const b = state.branches.find(x => x.code === selectedCode);
+        if (b) {
+          state.branchCode = b.code;
+          state.branchName = b.name;
+          if (badge) badge.textContent = `📍 ${b.name}`;
+          if (cartTag) cartTag.textContent = `📍 ${b.name}`;
+          showToast(`Sucursal actualizada: ${b.name}`);
+        }
+      });
+    }
   }
 
-  function renderBranchSelect() {
-    const select = el("branchSelect");
-    select.innerHTML = '<option value="">Sucursal...</option>' + state.branches.map(
-      (b) => `<option value="${escapeHtml(b.code)}">${escapeHtml(b.name)}</option>`
-    ).join("");
+  function applyCustomerInfoUI() {
+    const summary = el("customerSummaryBadge");
+    const inputs = el("customerInputFields");
+    const sumName = el("summaryCustomerName");
+    const sumPhone = el("summaryCustomerPhone");
+    const inpName = el("customerName");
+    const inpPhone = el("customerPhone");
+
+    if (state.customerName || state.customerPhone) {
+      if (summary) summary.hidden = false;
+      if (inputs) inputs.style.display = "none";
+      if (sumName) sumName.textContent = state.customerName || "Cliente";
+      if (sumPhone) sumPhone.textContent = state.customerPhone ? (state.customerPhone.startsWith("+") ? state.customerPhone : `+${state.customerPhone}`) : "";
+    } else {
+      if (summary) summary.hidden = true;
+      if (inputs) inputs.style.display = "flex";
+    }
+
+    if (inpName && state.customerName) inpName.value = state.customerName;
+    if (inpPhone && state.customerPhone) inpPhone.value = state.customerPhone;
   }
 
   // ===================== CATEGORÍAS Y PRODUCTOS =====================
 
   function renderCategoryPills() {
     const nav = el("categoryPills");
+    if (!nav) return;
     nav.innerHTML = state.tabs.map((tab) => `
       <button class="category-pill ${tab.key === state.activeTabKey ? "active" : ""}" data-tab="${tab.key}">${escapeHtml(tab.label)}</button>
     `).join("");
@@ -127,26 +204,29 @@
     const grid = el("productsGrid");
     const emptyState = el("emptyState");
 
+    if (!grid) return;
+
     if (products.length === 0) {
       grid.innerHTML = "";
-      emptyState.hidden = false;
+      if (emptyState) emptyState.hidden = false;
       return;
     }
-    emptyState.hidden = true;
+    if (emptyState) emptyState.hidden = true;
 
     grid.innerHTML = products.map((p, idx) => {
       const price = p.sizes[0] ? p.sizes[0].price : 0;
       return `
-        <button class="product-card" data-idx="${idx}">
+        <button class="product-card" data-idx="${idx}" type="button">
           <div class="product-card-img-wrap">
-            <img src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.style.opacity='0.15'">
+            <img src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.style.display='none'">
+            <div class="product-card-fallback-badge">🥗</div>
           </div>
           <div class="product-card-body">
             <div class="product-card-title">${escapeHtml(p.title)}</div>
             <div class="product-card-desc">${escapeHtml(p.description)}</div>
             <div class="product-card-footer">
               <span class="product-card-price">${p.has_sizes ? "Desde " : ""}${money(price)}</span>
-              <span class="product-card-add">+</span>
+              <span class="product-card-add">+ Agregar</span>
             </div>
           </div>
         </button>
@@ -154,44 +234,44 @@
     }).join("");
 
     grid.querySelectorAll(".product-card").forEach((card) => {
-      card.addEventListener("click", () => openProductModal(products[Number(card.dataset.idx)]));
+      card.addEventListener("click", () => {
+        const idx = Number(card.dataset.idx);
+        const prod = products[idx];
+        if (prod) openProductModal(prod);
+      });
     });
   }
-
-  el("searchInput").addEventListener("input", (e) => {
-    state.searchQuery = e.target.value;
-    renderProducts();
-  });
 
   // ===================== MODAL DE PERSONALIZACIÓN =====================
 
   function openProductModal(product) {
-    const tab = state.tabs.find((t) => t.key === product._tabKey);
+    const tab = state.tabs.find((t) => t.key === (product._tabKey || state.activeTabKey));
     state.modal.product = product;
-    state.modal.tabAddons = tab ? tab.addons : { warm: [], cold: [], flat: [] };
+    state.modal.tabAddons = (tab && tab.addons) ? tab.addons : { warm: [], cold: [], flat: [] };
+    state.modal.addonMode = (tab && tab.addon_mode) ? tab.addon_mode : null;
     state.modal.selectedSizeSku = product.sizes[0] ? product.sizes[0].sku : null;
     state.modal.selectedAddonSkus = new Set();
     state.modal.quantity = 1;
-    el("productNotes").value = "";
 
-    el("productModalImg").src = product.image_url;
-    el("productModalImg").alt = product.title;
     el("productModalTitle").textContent = product.title;
     el("productModalDesc").textContent = product.description;
+    el("productModalImg").src = product.image_url || "";
+    el("productNotes").value = "";
     el("qtyValue").textContent = "1";
 
     const sizeSection = el("sizeSection");
-    if (product.has_sizes) {
+    const sizeOptions = el("sizeOptions");
+    if (product.has_sizes && product.sizes.length > 1) {
       sizeSection.hidden = false;
-      el("sizeOptions").innerHTML = product.sizes.map((s) => `
+      sizeOptions.innerHTML = product.sizes.map((s) => `
         <button type="button" class="option-pill ${s.sku === state.modal.selectedSizeSku ? "active" : ""}" data-sku="${escapeHtml(s.sku)}">
-          ${escapeHtml(s.label)} · ${money(s.price)}
+          ${escapeHtml(s.label)} (${money(s.price)})
         </button>
       `).join("");
-      el("sizeOptions").querySelectorAll(".option-pill").forEach((btn) => {
+      sizeOptions.querySelectorAll(".option-pill").forEach((btn) => {
         btn.addEventListener("click", () => {
           state.modal.selectedSizeSku = btn.dataset.sku;
-          el("sizeOptions").querySelectorAll(".option-pill").forEach((b) => b.classList.toggle("active", b === btn));
+          sizeOptions.querySelectorAll(".option-pill").forEach((b) => b.classList.toggle("active", b === btn));
           updateModalPrice();
         });
       });
@@ -199,163 +279,261 @@
       sizeSection.hidden = true;
     }
 
-    renderAddonSection("warmAddonsSection", "warmAddonsList", state.modal.tabAddons.warm);
-    renderAddonSection("coldAddonsSection", "coldAddonsList", state.modal.tabAddons.cold);
-    if (state.modal.tabAddons.flat.length) {
-      el("flatAddonsTitle").textContent = tab && tab.key === "toasties" ? "Adicionales" : (tab && tab.key === "smoothies" ? "Extras del Smoothie" : "Adicionales");
-      renderAddonSection("flatAddonsSection", "flatAddonsList", state.modal.tabAddons.flat);
-    } else {
-      el("flatAddonsSection").hidden = true;
-    }
+    renderAddonList("warmAddonsSection", "warmAddonsList", state.modal.tabAddons.warm || []);
+    renderAddonList("coldAddonsSection", "coldAddonsList", state.modal.tabAddons.cold || []);
+    renderAddonList("flatAddonsSection", "flatAddonsList", state.modal.tabAddons.flat || []);
 
     updateModalPrice();
     el("productModalBackdrop").hidden = false;
   }
 
-  function renderAddonSection(sectionId, listId, addons) {
+  function renderAddonList(sectionId, listId, addons) {
     const section = el(sectionId);
     const list = el(listId);
+    if (!section || !list) return;
+
     if (!addons || addons.length === 0) {
       section.hidden = true;
+      list.innerHTML = "";
       return;
     }
     section.hidden = false;
     list.innerHTML = addons.map((a) => `
-      <button type="button" class="addon-row" data-sku="${escapeHtml(a.sku)}">
-        <span class="addon-row-label"><span class="addon-checkbox">✓</span> ${escapeHtml(a.title)}</span>
-        <span class="addon-row-price">+${money(a.price)}</span>
-      </button>
+      <label class="addon-item">
+        <input type="checkbox" value="${escapeHtml(a.sku)}" data-price="${a.price}" data-title="${escapeHtml(a.title)}">
+        <span class="addon-name">${escapeHtml(a.title)}</span>
+        <span class="addon-price">+${money(a.price)}</span>
+      </label>
     `).join("");
-    list.querySelectorAll(".addon-row").forEach((row) => {
-      row.addEventListener("click", () => {
-        const sku = row.dataset.sku;
-        if (state.modal.selectedAddonSkus.has(sku)) {
-          state.modal.selectedAddonSkus.delete(sku);
-          row.classList.remove("active");
+
+    list.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        if (cb.checked) {
+          state.modal.selectedAddonSkus.add(cb.value);
         } else {
-          state.modal.selectedAddonSkus.add(sku);
-          row.classList.add("active");
+          state.modal.selectedAddonSkus.delete(cb.value);
         }
         updateModalPrice();
       });
     });
   }
 
-  function findAddonBySku(sku) {
-    const { warm, cold, flat } = state.modal.tabAddons;
-    return [...warm, ...cold, ...flat].find((a) => a.sku === sku);
-  }
+  function getModalCurrentUnitPrice() {
+    const p = state.modal.product;
+    if (!p) return 0;
+    const size = p.sizes.find((s) => s.sku === state.modal.selectedSizeSku) || p.sizes[0];
+    let price = size ? size.price : 0;
 
-  function getModalUnitPrice() {
-    const product = state.modal.product;
-    const sizeInfo = product.sizes.find((s) => s.sku === state.modal.selectedSizeSku) || product.sizes[0];
-    let price = sizeInfo ? sizeInfo.price : 0;
+    const allAddons = [
+      ...(state.modal.tabAddons.warm || []),
+      ...(state.modal.tabAddons.cold || []),
+      ...(state.modal.tabAddons.flat || []),
+    ];
     state.modal.selectedAddonSkus.forEach((sku) => {
-      const addon = findAddonBySku(sku);
-      if (addon) price += addon.price;
+      const a = allAddons.find((x) => x.sku === sku);
+      if (a) price += a.price;
     });
     return price;
   }
 
   function updateModalPrice() {
-    const total = getModalUnitPrice() * state.modal.quantity;
+    const unit = getModalCurrentUnitPrice();
+    const total = unit * state.modal.quantity;
     el("productModalPrice").textContent = money(total);
   }
 
-  el("qtyMinus").addEventListener("click", () => {
-    state.modal.quantity = Math.max(1, state.modal.quantity - 1);
-    el("qtyValue").textContent = state.modal.quantity;
-    updateModalPrice();
-  });
-  el("qtyPlus").addEventListener("click", () => {
-    state.modal.quantity = Math.min(20, state.modal.quantity + 1);
-    el("qtyValue").textContent = state.modal.quantity;
-    updateModalPrice();
-  });
+  function closeProductModal() {
+    el("productModalBackdrop").hidden = true;
+    state.modal.product = null;
+  }
 
-  el("productModalClose").addEventListener("click", () => { el("productModalBackdrop").hidden = true; });
-  el("productModalBackdrop").addEventListener("click", (e) => {
-    if (e.target === el("productModalBackdrop")) el("productModalBackdrop").hidden = true;
-  });
+  // ===================== CARRITO Y TOTALES =====================
 
-  el("addToOrderBtn").addEventListener("click", () => {
-    const product = state.modal.product;
-    const sizeInfo = product.sizes.find((s) => s.sku === state.modal.selectedSizeSku) || product.sizes[0];
-    const addons = [...state.modal.selectedAddonSkus].map((sku) => findAddonBySku(sku)).filter(Boolean);
-    const unitPrice = sizeInfo.price + addons.reduce((sum, a) => sum + a.price, 0);
+  function addItemFromModal() {
+    const p = state.modal.product;
+    if (!p) return;
+    const size = p.sizes.find((s) => s.sku === state.modal.selectedSizeSku) || p.sizes[0];
+    const allAddons = [
+      ...(state.modal.tabAddons.warm || []),
+      ...(state.modal.tabAddons.cold || []),
+      ...(state.modal.tabAddons.flat || []),
+    ];
+    const addons = Array.from(state.modal.selectedAddonSkus).map((sku) => {
+      const a = allAddons.find((x) => x.sku === sku);
+      return { sku: a.sku, title: a.title, price: a.price };
+    });
 
     state.cart.push({
-      cartId: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      sku: sizeInfo.sku,
-      title: product.title + (sizeInfo.label && sizeInfo.label !== "Único" ? ` (${sizeInfo.label})` : ""),
-      imageUrl: product.image_url,
-      addons: addons.map((a) => ({ sku: a.sku, title: a.title, price: a.price })),
+      uid: "item_" + Date.now() + "_" + Math.random().toString(36).substr(2, 6),
+      sku: size.sku,
+      title: p.title,
+      size_label: size.label || null,
+      unit_price: size.price,
       quantity: state.modal.quantity,
+      addons,
       notes: el("productNotes").value.trim(),
-      unitPrice,
-      lineTotal: unitPrice * state.modal.quantity,
     });
+
     persistCart();
     renderCart();
-    el("productModalBackdrop").hidden = true;
-    showToast(`✓ ${product.title} agregado al pedido`);
-  });
-
-  // ===================== CARRITO / CHECKOUT =====================
+    closeProductModal();
+    showToast(`✓ Agregado: ${p.title}`);
+  }
 
   function renderCart() {
-    const count = state.cart.reduce((sum, i) => sum + i.quantity, 0);
-    const subtotal = state.cart.reduce((sum, i) => sum + i.lineTotal, 0);
-
-    el("floatingCartBtn").hidden = count === 0;
-    el("cartCount").textContent = count;
-    el("cartSubtotal").textContent = money(subtotal);
-
     const list = el("cartItemsList");
+    const countEl = el("cartCount");
+    const subtotalEl = el("cartSubtotal");
+    const floatingBtn = el("floatingCartBtn");
+
+    const totalQty = state.cart.reduce((acc, it) => acc + it.quantity, 0);
+    const subtotal = state.cart.reduce((acc, it) => {
+      const addSum = it.addons.reduce((s, a) => s + a.price, 0);
+      return acc + (it.unit_price + addSum) * it.quantity;
+    }, 0);
+
+    if (countEl) countEl.textContent = totalQty;
+    if (subtotalEl) subtotalEl.textContent = money(subtotal);
+    if (floatingBtn) floatingBtn.hidden = totalQty === 0;
+
+    if (!list) return;
+
     if (state.cart.length === 0) {
-      list.innerHTML = `<div class="cart-empty">Tu pedido está vacío. Agrega platos desde el menú 🌿</div>`;
+      list.innerHTML = `<div class="cart-empty">Tu pedido está vacío. Elige tus platos favoritos del menú. 🥗</div>`;
     } else {
-      list.innerHTML = state.cart.map((item) => `
-        <div class="cart-item-row">
-          <div class="cart-item-details">
-            <div class="cart-item-name">${item.quantity}x ${escapeHtml(item.title)}</div>
-            ${item.addons.length ? `<div class="cart-item-meta">+ ${item.addons.map((a) => escapeHtml(a.title)).join(", ")}</div>` : ""}
-            ${item.notes ? `<div class="cart-item-meta">📝 ${escapeHtml(item.notes)}</div>` : ""}
+      list.innerHTML = state.cart.map((it, idx) => {
+        const itemAddTotal = it.addons.reduce((s, a) => s + a.price, 0);
+        const itemLineTotal = (it.unit_price + itemAddTotal) * it.quantity;
+        return `
+          <div class="cart-item">
+            <div class="cart-item-header">
+              <span class="cart-item-title">${escapeHtml(it.title)}${it.size_label ? ` (${escapeHtml(it.size_label)})` : ""}</span>
+              <span class="cart-item-price">${money(itemLineTotal)}</span>
+            </div>
+            ${it.addons.length ? `<div class="cart-item-addons">${it.addons.map((a) => `+ ${escapeHtml(a.title)} (${money(a.price)})`).join("<br>")}</div>` : ""}
+            ${it.notes ? `<div class="cart-item-notes">Nota: ${escapeHtml(it.notes)}</div>` : ""}
+            <div class="cart-item-controls">
+              <div class="qty-stepper qty-stepper-sm">
+                <button type="button" class="btn-cart-dec" data-idx="${idx}">−</button>
+                <span>${it.quantity}</span>
+                <button type="button" class="btn-cart-inc" data-idx="${idx}">+</button>
+              </div>
+              <button type="button" class="btn-cart-del" data-idx="${idx}">Eliminar</button>
+            </div>
           </div>
-          <div class="cart-item-right">
-            <span class="cart-item-price">${money(item.lineTotal)}</span>
-            <button class="cart-item-remove" data-cart-id="${item.cartId}">Quitar</button>
-          </div>
-        </div>
-      `).join("");
-      list.querySelectorAll(".cart-item-remove").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          state.cart = state.cart.filter((i) => i.cartId !== btn.dataset.cartId);
+        `;
+      }).join("");
+
+      list.querySelectorAll(".btn-cart-inc").forEach((b) => {
+        b.addEventListener("click", () => {
+          const idx = Number(b.dataset.idx);
+          if (state.cart[idx]) state.cart[idx].quantity += 1;
           persistCart();
           renderCart();
-          updateTotals();
+        });
+      });
+      list.querySelectorAll(".btn-cart-dec").forEach((b) => {
+        b.addEventListener("click", () => {
+          const idx = Number(b.dataset.idx);
+          if (state.cart[idx]) {
+            state.cart[idx].quantity -= 1;
+            if (state.cart[idx].quantity <= 0) state.cart.splice(idx, 1);
+          }
+          persistCart();
+          renderCart();
+        });
+      });
+      list.querySelectorAll(".btn-cart-del").forEach((b) => {
+        b.addEventListener("click", () => {
+          state.cart.splice(Number(b.dataset.idx), 1);
+          persistCart();
+          renderCart();
         });
       });
     }
+
     updateTotals();
   }
 
   function updateTotals() {
-    const subtotal = state.cart.reduce((sum, i) => sum + i.lineTotal, 0);
-    const deliveryCost = state.deliveryType === "delivery" ? DELIVERY_SURCHARGE : 0;
-    const total = subtotal + deliveryCost;
-    el("totalSubtotal").textContent = money(subtotal);
-    el("totalDelivery").textContent = money(deliveryCost);
-    el("totalFinal").textContent = money(total);
+    const subtotal = state.cart.reduce((acc, it) => {
+      const addSum = it.addons.reduce((s, a) => s + a.price, 0);
+      return acc + (it.unit_price + addSum) * it.quantity;
+    }, 0);
+    const delivery = state.deliveryType === "delivery" ? DELIVERY_SURCHARGE : 0;
+    const finalTotal = subtotal + delivery;
+
+    if (el("totalSubtotal")) el("totalSubtotal").textContent = money(subtotal);
+    if (el("totalDelivery")) el("totalDelivery").textContent = money(delivery);
+    if (el("totalFinal")) el("totalFinal").textContent = money(finalTotal);
   }
 
-  el("floatingCartBtn").addEventListener("click", () => { el("cartDrawerBackdrop").hidden = false; });
-  el("cartDrawerClose").addEventListener("click", () => { el("cartDrawerBackdrop").hidden = true; });
-  el("cartDrawerBackdrop").addEventListener("click", (e) => {
-    if (e.target === el("cartDrawerBackdrop")) el("cartDrawerBackdrop").hidden = true;
-  });
+  // ===================== EVENTOS =====================
 
   function wireStaticEvents() {
+    const search = el("searchInput");
+    if (search) {
+      search.addEventListener("input", (e) => {
+        state.searchQuery = e.target.value;
+        renderProducts();
+      });
+    }
+
+    const closeProd = el("productModalClose");
+    if (closeProd) closeProd.addEventListener("click", closeProductModal);
+
+    const backProd = el("productModalBackdrop");
+    if (backProd) {
+      backProd.addEventListener("click", (e) => {
+        if (e.target === backProd) closeProductModal();
+      });
+    }
+
+    const qm = el("qtyMinus");
+    const qp = el("qtyPlus");
+    if (qm) {
+      qm.addEventListener("click", () => {
+        if (state.modal.quantity > 1) {
+          state.modal.quantity -= 1;
+          el("qtyValue").textContent = String(state.modal.quantity);
+          updateModalPrice();
+        }
+      });
+    }
+    if (qp) {
+      qp.addEventListener("click", () => {
+        if (state.modal.quantity < 50) {
+          state.modal.quantity += 1;
+          el("qtyValue").textContent = String(state.modal.quantity);
+          updateModalPrice();
+        }
+      });
+    }
+
+    const addBtn = el("addToOrderBtn");
+    if (addBtn) addBtn.addEventListener("click", addItemFromModal);
+
+    const floatBtn = el("floatingCartBtn");
+    if (floatBtn) {
+      floatBtn.addEventListener("click", () => {
+        el("cartDrawerBackdrop").hidden = false;
+      });
+    }
+
+    const closeCart = el("cartDrawerClose");
+    if (closeCart) {
+      closeCart.addEventListener("click", () => {
+        el("cartDrawerBackdrop").hidden = true;
+      });
+    }
+
+    const backCart = el("cartDrawerBackdrop");
+    if (backCart) {
+      backCart.addEventListener("click", (e) => {
+        if (e.target === backCart) backCart.hidden = true;
+      });
+    }
+
     document.querySelectorAll(".delivery-option").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.deliveryType = btn.dataset.delivery;
@@ -372,21 +550,23 @@
       });
     });
 
-    el("sendOrderBtn").addEventListener("click", submitOrder);
+    const sendBtn = el("sendOrderBtn");
+    if (sendBtn) sendBtn.addEventListener("click", submitOrder);
   }
 
+  // ===================== ENVÍO DEL PEDIDO =====================
+
   async function submitOrder() {
-    const branchCode = el("branchSelect").value;
-    const customerName = el("customerName").value.trim();
-    const customerPhone = el("customerPhone").value.trim();
-    const deliveryAddress = el("deliveryAddress").value.trim();
+    const branchSelect = el("branchSelect");
+    const branchCode = state.branchCode || (branchSelect ? branchSelect.value : "");
+    const customerName = (el("customerName") && el("customerName").value.trim()) || state.customerName || "Cliente Farmhouse";
+    const customerPhone = (el("customerPhone") && el("customerPhone").value.trim()) || state.customerPhone || "507";
+    const deliveryAddress = el("deliveryAddress") ? el("deliveryAddress").value.trim() : "";
 
     if (!branchCode) return showToast("Por favor selecciona una sucursal.", true);
     if (state.cart.length === 0) return showToast("Tu pedido está vacío.", true);
     if (state.deliveryType === "delivery" && !deliveryAddress) return showToast("Por favor escribe tu dirección de entrega.", true);
     if (!state.paymentMethod) return showToast("Por favor selecciona un método de pago.", true);
-    if (!customerName || customerName.length < 2) return showToast("Por favor escribe tu nombre.", true);
-    if (!customerPhone || customerPhone.replace(/\D/g, "").length < 6) return showToast("Por favor escribe un teléfono válido.", true);
 
     const payload = {
       branch_code: branchCode,
