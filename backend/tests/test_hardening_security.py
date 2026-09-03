@@ -19,14 +19,14 @@ def test_login_inactive_user_returns_403(client, inactive_user):
     assert resp.status_code == 403
     assert "desactivada" in resp.json()["detail"].lower() or "inactiva" in resp.json()["detail"].lower()
 
-# 2. Validación de contraseñas >= 10 caracteres (Punto 12)
+# 2. Validación de contraseñas >= 4 caracteres
 def test_create_user_short_password_rejected(client, admin_user):
     headers = auth_headers_for(admin_user)
     resp = client.post("/api/users/", headers=headers, json={
         "username": "nuevo_usuario",
         "name": "Nuevo Usuario",
         "email": "nuevo@farmhouse.pa",
-        "password": "short", # < 10 caracteres
+        "password": "12", # < 4 caracteres
         "role": "agent",
         "branch_id": 1
     })

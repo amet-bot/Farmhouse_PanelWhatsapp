@@ -414,12 +414,8 @@
             <input id="addUserName" class="modal-input" placeholder="Ej: Carlos Pérez" required />
           </div>
           <div>
-            <label class="modal-label">Correo Electrónico (Opcional):</label>
-            <input type="email" id="addUserEmail" class="modal-input" placeholder="carlos@farmhouse.pa" />
-          </div>
-          <div>
             <label class="modal-label">Contraseña Inicial:</label>
-            <input type="password" id="addUserPassword" class="modal-input" placeholder="••••••••" required />
+            <input type="password" id="addUserPassword" class="modal-input" placeholder="Mínimo 4 caracteres (ej: 1234)" required />
           </div>
           <div>
             <label class="modal-label">Rol:</label>
@@ -435,9 +431,10 @@
               <!-- Llenado dinámicamente con GET /api/branches/ -->
             </select>
           </div>
+          <div id="addUserError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn-primary" style="width:100%">Guardar Usuario</button>
+          <button type="submit" id="btnSaveUser" class="btn-primary" style="width:100%">Guardar Usuario</button>
         </div>
       </form>
     </div>
@@ -465,10 +462,6 @@
             <input id="editUserName" class="modal-input" required />
           </div>
           <div>
-            <label class="modal-label">Correo Electrónico (Opcional):</label>
-            <input type="email" id="editUserEmail" class="modal-input" />
-          </div>
-          <div>
             <label class="modal-label">Rol:</label>
             <select id="editUserRole" class="modal-select" required>
               <option value="agent">Agente de Sucursal</option>
@@ -491,8 +484,9 @@
           </div>
           <div>
             <label class="modal-label">Nueva Contraseña (Opcional):</label>
-            <input type="password" id="editUserPassword" class="modal-input" placeholder="Dejar en blanco para conservar" />
+            <input type="password" id="editUserPassword" class="modal-input" placeholder="Mínimo 4 caracteres (dejar en blanco para conservar)" />
           </div>
+          <div id="editUserError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
         </div>
         <div class="modal-footer">
           <button type="submit" class="btn-primary" style="width:100%">Guardar Cambios</button>
@@ -732,16 +726,16 @@
   </div>
 
   <!-- Scripts JavaScript Modularizados y Seguros -->
-  <script src="js/utils.js?v=2.6.0"></script>
-  <script src="js/api.js?v=2.6.0"></script>
-  <script src="js/ws.js?v=2.6.0"></script>
-  <script src="js/modules/auth.js?v=2.6.0"></script>
-  <script src="js/modules/branches.js?v=2.6.0"></script>
-  <script src="js/modules/users.js?v=2.6.0"></script>
-  <script src="js/modules/devices.js?v=2.6.0"></script>
-  <script src="js/modules/conversations.js?v=2.6.0"></script>
-  <script src="js/modules/chat.js?v=2.6.0"></script>
-  <script src="js/modules/push.js?v=2.6.0"></script>
-  <script src="js/app.js?v=2.6.0"></script>
+  <script src="js/utils.js?v=2.8.0"></script>
+  <script src="js/api.js?v=2.8.0"></script>
+  <script src="js/ws.js?v=2.8.0"></script>
+  <script src="js/modules/auth.js?v=2.8.0"></script>
+  <script src="js/modules/branches.js?v=2.8.0"></script>
+  <script src="js/modules/users.js?v=2.8.0"></script>
+  <script src="js/modules/devices.js?v=2.8.0"></script>
+  <script src="js/modules/conversations.js?v=2.8.0"></script>
+  <script src="js/modules/chat.js?v=2.8.0"></script>
+  <script src="js/modules/push.js?v=2.8.0"></script>
+  <script src="js/app.js?v=2.8.0"></script>
 </body>
 </html>

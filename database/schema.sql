@@ -125,6 +125,7 @@ CREATE TABLE IF NOT EXISTS `messages` (
     `media_url` VARCHAR(500) NULL,
     `media_type` VARCHAR(20) NULL,
     `media_mime_type` VARCHAR(100) NULL,
+    `media_id` VARCHAR(100) NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `deleted_at` DATETIME NULL,
     `deleted_by` INT NULL,

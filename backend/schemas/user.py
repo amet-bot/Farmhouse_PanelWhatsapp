@@ -43,13 +43,13 @@ class UserBase(BaseModel):
         return v
 
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=10, max_length=100)
+    password: str = Field(..., min_length=4, max_length=100)
 
     @field_validator('password')
     @classmethod
     def validate_password(cls, v):
-        if not v or len(v.strip()) < 10:
-            raise ValueError("La contraseña debe tener al obligatorio al menos 10 caracteres.")
+        if not v or len(v.strip()) < 4:
+            raise ValueError("La contraseña debe tener al menos 4 caracteres.")
         return v.strip()
 
 class UserUpdate(BaseModel):
@@ -60,7 +60,7 @@ class UserUpdate(BaseModel):
     branch_id: Optional[int] = None
     avatar_url: Optional[str] = Field(None, max_length=255)
     active: Optional[bool] = None
-    password: Optional[str] = Field(None, min_length=10, max_length=100)
+    password: Optional[str] = Field(None, min_length=4, max_length=100)
 
     @field_validator('username', mode='before')
     @classmethod

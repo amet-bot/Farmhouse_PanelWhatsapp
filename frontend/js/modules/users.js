@@ -124,6 +124,8 @@ const usersModule = {
     }
 
     document.getElementById('formAddUser').reset();
+    const errBox = document.getElementById('addUserError');
+    if (errBox) errBox.style.display = 'none';
     document.getElementById('modalAddUser').classList.add('active');
   },
 
@@ -131,10 +133,15 @@ const usersModule = {
     const u = this.users.find(user => user.id === userId);
     if (!u) return;
 
+    const editErrBox = document.getElementById('editUserError');
+    if (editErrBox) editErrBox.style.display = 'none';
+
     document.getElementById('editUserId').value = u.id;
     document.getElementById('editUserUsername').value = u.username;
     document.getElementById('editUserName').value = u.name;
-    document.getElementById('editUserEmail').value = u.email || '';
+    if (document.getElementById('editUserEmail')) {
+      document.getElementById('editUserEmail').value = u.email || '';
+    }
     document.getElementById('editUserPassword').value = '';
     document.getElementById('editUserRole').value = u.role;
     document.getElementById('editUserBranch').value = u.branch_id || '';

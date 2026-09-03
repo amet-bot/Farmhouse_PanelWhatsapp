@@ -10,6 +10,12 @@ from pathlib import Path
 MEDIA_ROOT = Path(__file__).resolve().parent.parent / "media" / "incoming"
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
+# Marcador guardado en Message.error_detail (columna ya existente, reutilizada) cuando la
+# descarga de un adjunto de WhatsApp falla definitivamente (tanto el intento rápido inline como
+# el reintento en background). Permite al frontend distinguir "todavía descargando" de "falló,
+# mostrar botón Reintentar" sin agregar una columna de estado nueva.
+MEDIA_DOWNLOAD_FAILED_MARKER = "media_download_failed"
+
 def save_media_bytes(data: bytes, mime_type: str) -> str:
     ext = mimetypes.guess_extension(mime_type or "") or ""
     if ext == ".jpe":

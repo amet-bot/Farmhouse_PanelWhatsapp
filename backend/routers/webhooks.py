@@ -23,7 +23,7 @@ from services.auto_responses import (
     ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE,
     get_branch_welcome_message
 )
-from services.media_storage import save_media_bytes
+from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKER
 from services.branch_matcher import match_branch_by_text
 from services.order_flow_matcher import match_delivery_type_text, match_payment_method_text, mentions_cash
 from services.push_service import notify_branch_new_message
@@ -306,10 +306,11 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         if message_type != "text" and msg_data.get("media_id"):
             if incoming_msg and not incoming_msg.media_url:
                 media_result = await wa_service.download_media(msg_data["media_id"])
-                if media_result and incoming_msg:
+                if media_result:
                     saved_url = save_media_bytes(media_result["bytes"], media_result["mime_type"])
                     incoming_msg.media_url = saved_url
                     incoming_msg.media_mime_type = media_result["mime_type"]
+                    incoming_msg.error_detail = None
                     db.commit()
                     db.refresh(incoming_msg)
                     logger.info(f"[Media Background] Archivo guardado para conv {conv.id}: {saved_url}")
@@ -322,7 +323,28 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                         "message_id": incoming_msg.id,
                         "media_url": saved_url,
                         "media_type": incoming_msg.media_type,
-                        "media_mime_type": incoming_msg.media_mime_type
+                        "media_mime_type": incoming_msg.media_mime_type,
+                        "media_failed": False
+                    })
+                else:
+                    # La descarga inline (rápida) ya había fallado/expirado y este reintento en
+                    # background también falló: en vez de dejar el mensaje eternamente en
+                    # "Descargando..." (lo que reportó el usuario), se marca el fallo explícito
+                    # para que el panel muestre un estado de error con botón "Reintentar" (que
+                    # llama a POST /messages/{id}/retry-media reutilizando media_id).
+                    incoming_msg.error_detail = MEDIA_DOWNLOAD_FAILED_MARKER
+                    db.commit()
+                    logger.warning(f"[Media Background] No se pudo descargar media_id={msg_data['media_id']} para conv {conv.id} (mensaje {incoming_msg.id}).")
+
+                    await ws_manager.broadcast_to_branch(conv.branch_id, {
+                        "type": "message_media_updated",
+                        "conversation_id": conv.id,
+                        "branch_id": conv.branch_id,
+                        "message_id": incoming_msg.id,
+                        "media_url": None,
+                        "media_type": incoming_msg.media_type,
+                        "media_mime_type": incoming_msg.media_mime_type,
+                        "media_failed": True
                     })
 
         # 2. Si la conversación tiene automatización pausada por un agente, no responder
@@ -650,6 +672,7 @@ async def receive_webhook(
             is_internal=False,
             status="delivered",
             media_type=message_type if message_type != "text" else None,
+            media_id=msg_data.get("media_id") if message_type != "text" else None,
             media_url=media_url,
             media_mime_type=media_mime,
             created_at=now

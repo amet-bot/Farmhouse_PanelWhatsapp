@@ -294,6 +294,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           msg.media_url = data.media_url;
           msg.media_type = data.media_type;
           msg.media_mime_type = data.media_mime_type;
+          // Si el backend agotó los reintentos de descarga, `media_failed` llega en true: se
+          // refleja en error_detail (mismo campo que ya usa el renderer para decidir el estado
+          // de error/Reintentar) para no quedarse mostrando "Descargando..." para siempre.
+          if (data.media_failed) {
+            msg.error_detail = 'media_download_failed';
+          } else if (data.media_url) {
+            msg.error_detail = null;
+          }
           chatModule.renderMessages();
         }
       }
@@ -423,47 +431,104 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('formAddUser').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const saveBtn = document.getElementById('btnSaveUser');
+    const errBox = document.getElementById('addUserError');
+    if (errBox) errBox.style.display = 'none';
+
+    if (saveBtn && saveBtn.disabled) return;
+
+    const showAddError = (msg) => {
+      if (errBox) {
+        errBox.textContent = `⚠️ ${msg}`;
+        errBox.style.display = 'block';
+      }
+      utils.showToast(msg, 'error');
+    };
+
     const roleVal = document.getElementById('addUserRole').value;
     const branchVal = document.getElementById('addUserBranch').value;
     const usernameVal = document.getElementById('addUserUsername').value.trim().toLowerCase();
     const nameVal = document.getElementById('addUserName').value.trim();
-    const emailVal = document.getElementById('addUserEmail').value.trim().toLowerCase();
+    const emailInput = document.getElementById('addUserEmail');
+    const emailRaw = emailInput ? emailInput.value.trim() : '';
     const pwdVal = document.getElementById('addUserPassword').value.trim();
 
-    if (!usernameVal || !nameVal || !pwdVal) {
-      utils.showToast('Por favor completa el usuario, nombre y contraseña.', 'error');
+    if (!usernameVal || usernameVal.length < 2) {
+      showAddError('El usuario / código de empleado es obligatorio (mínimo 2 caracteres).');
       return;
     }
-
+    if (!nameVal || nameVal.length < 2) {
+      showAddError('El nombre completo es obligatorio.');
+      return;
+    }
+    if (!pwdVal || pwdVal.length < 4) {
+      showAddError('La contraseña inicial debe tener al menos 4 caracteres.');
+      return;
+    }
+    if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
+      showAddError('El correo electrónico no tiene un formato válido.');
+      return;
+    }
     if (roleVal === 'agent' && !branchVal) {
-      utils.showToast('Para un agente debes seleccionar una sucursal.', 'error');
+      showAddError('Para un agente debes seleccionar una sucursal.');
       return;
     }
 
     const data = {
       username: usernameVal,
       name: nameVal,
-      email: emailVal || null,
+      email: emailRaw ? emailRaw.toLowerCase() : null,
       password: pwdVal,
       role: roleVal,
       branch_id: (roleVal === 'agent' || branchVal) ? parseInt(branchVal) : null,
       active: true
     };
 
+    const originalBtnText = saveBtn ? saveBtn.textContent : '';
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Guardando...';
+    }
+
     try {
       await usersModule.registerUser(data);
+      if (errBox) errBox.style.display = 'none';
       document.getElementById('modalAddUser').classList.remove('active');
+      document.getElementById('formAddUser').reset();
     } catch (err) {
-      utils.showToast(`Error creando usuario: ${err.message}`, 'error');
+      showAddError(`Error creando usuario: ${err.message}`);
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = originalBtnText;
+      }
     }
   });
 
   document.getElementById('formEditUser').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const editErrBox = document.getElementById('editUserError');
+    if (editErrBox) editErrBox.style.display = 'none';
+
+    const showEditError = (msg) => {
+      if (editErrBox) {
+        editErrBox.textContent = `⚠️ ${msg}`;
+        editErrBox.style.display = 'block';
+      }
+      utils.showToast(msg, 'error');
+    };
+
     const id = document.getElementById('editUserId').value;
     const branchVal = document.getElementById('editUserBranch').value;
     const pwdVal = document.getElementById('editUserPassword').value.trim();
-    const emailVal = document.getElementById('editUserEmail').value.trim().toLowerCase();
+    const editEmailInput = document.getElementById('editUserEmail');
+    const emailVal = editEmailInput ? editEmailInput.value.trim().toLowerCase() : null;
+
+    if (pwdVal && pwdVal.length < 4) {
+      showEditError('La nueva contraseña debe tener al menos 4 caracteres.');
+      return;
+    }
+
     const data = {
       username: document.getElementById('editUserUsername').value.trim().toLowerCase(),
       name: document.getElementById('editUserName').value.trim(),
@@ -476,9 +541,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
       await usersModule.updateUser(id, data);
+      if (editErrBox) editErrBox.style.display = 'none';
       document.getElementById('modalEditUser').classList.remove('active');
     } catch (err) {
-      utils.showToast(`Error actualizando usuario: ${err.message}`, 'error');
+      showEditError(`Error actualizando usuario: ${err.message}`);
     }
   });
 

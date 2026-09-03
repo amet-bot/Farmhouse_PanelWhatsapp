@@ -36,10 +36,24 @@ const api = {
     } else if (cleanPath.startsWith('media/')) {
       cleanPath = cleanPath.replace('media/', '');
     }
-    let url = `${this.baseUrl}/api/media/${cleanPath}`;
-    const token = typeof auth !== 'undefined' ? auth.getToken() : null;
-    if (token) {
-      url += (url.includes('?') ? '&' : '?') + `token=${encodeURIComponent(token)}`;
+    // BUG histórico corregido: `this.baseUrl` YA incluye "/api" (p.ej. "/api" o
+    // "http://127.0.0.1:8000/api"), así que anteponerlo aquí producía "/api/api/media/..."
+    // (404 siempre). El endpoint de medios vive en <origen>/api/media/..., así que se arma
+    // con `mediaBaseUrl` (origen sin "/api") en vez de `baseUrl`.
+    let url = `${this.mediaBaseUrl}/api/media/${cleanPath}`;
+    // El navegador ya envía la cookie HttpOnly `access_token` automáticamente en peticiones
+    // <img>/<video>/<audio> del MISMO origen (caso de producción: panel y API en el mismo
+    // dominio) — no hace falta ningún token en la URL ahí. Solo en desarrollo, cuando el panel
+    // corre en un puerto distinto al backend (cross-origin), las cookies no viajan de forma
+    // confiable en subrecursos, así que se agrega un `?token=` de respaldo con el JWT de sesión
+    // (nunca el ticket de un solo uso de WebSocket). BUG histórico corregido: aquí se llamaba a
+    // `auth.getToken()`, un método que nunca existió (auth.js solo expone getWsToken()), lo que
+    // lanzaba un TypeError y rompía renderMessages() en cuanto CUALQUIER mensaje tenía media_url.
+    if (this.mediaBaseUrl) {
+      const token = typeof auth !== 'undefined' ? auth.getWsToken() : null;
+      if (token) {
+        url += (url.includes('?') ? '&' : '?') + `token=${encodeURIComponent(token)}`;
+      }
     }
     return url;
   },
@@ -55,6 +69,23 @@ const api = {
     } else {
       localStorage.removeItem('fh_device_id');
     }
+  },
+
+  /**
+   * Convierte el campo `detail` de un error HTTP en un mensaje legible.
+   * FastAPI/Pydantic devuelven `detail` como string en errores de negocio (400/404),
+   * pero como un arreglo de objetos {loc, msg, type} en errores de validación (422),
+   * lo que antes se mostraba al usuario como "[object Object]".
+   */
+  parseErrorDetail(detail) {
+    if (!detail) return 'Ocurrió un error en el servidor.';
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+      return detail
+        .map(e => (e && typeof e === 'object' && e.msg) ? e.msg : String(e))
+        .join(' ');
+    }
+    return 'Ocurrió un error en el servidor.';
   },
 
   async request(endpoint, options = {}) {
@@ -88,7 +119,7 @@ const api = {
           errData = { detail: `Error HTTP ${response.status}: ${response.statusText}` };
         }
 
-        const errMsg = errData.detail || 'Ocurrió un error en el servidor.';
+        const errMsg = this.parseErrorDetail(errData.detail);
 
         if (response.status === 401) {
           window.dispatchEvent(new CustomEvent('auth:unauthorized', { detail: errMsg }));

@@ -13,6 +13,7 @@ from security.auth import get_current_authorized_user
 from security.access_control import check_conversation_access
 from services.whatsapp_service import get_whatsapp_service
 from services.websocket_manager import ws_manager
+from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKER
 
 logger = logging.getLogger("farmhouse.messages")
 
@@ -166,6 +167,68 @@ async def retry_message(
         db.commit()
         db.refresh(msg)
         raise HTTPException(status_code=502, detail=f"Fallo al reintentar el envío a WhatsApp: {e}")
+
+@router.post("/{message_id}/retry-media", response_model=MessageResponse)
+async def retry_message_media(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user)
+):
+    """
+    Reintenta la descarga de un adjunto multimedia entrante que falló (imagen, video, audio,
+    documento). Reutiliza el media_id guardado del webhook original en vez de volver a parsear
+    el payload de Meta. Idempotente: si el archivo ya está disponible, no vuelve a descargarlo.
+    """
+    msg = db.query(Message).filter(Message.id == message_id, Message.deleted_at.is_(None)).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Mensaje no encontrado.")
+
+    conv = check_conversation_access(db, msg.conversation_id, current_user, action="retry_media")
+
+    if msg.direction != "incoming" or not msg.media_type:
+        raise HTTPException(status_code=400, detail="Este mensaje no tiene un adjunto multimedia entrante para reintentar.")
+
+    if msg.media_url:
+        # Ya disponible (por ejemplo otro agente ya lo reintentó exitosamente entre tanto):
+        # no volver a descargar de Meta innecesariamente.
+        return msg
+
+    if not msg.media_id:
+        raise HTTPException(status_code=400, detail="No se guardó un identificador de archivo para este mensaje; no se puede reintentar.")
+
+    wa_service = get_whatsapp_service()
+    try:
+        media_result = await wa_service.download_media(msg.media_id)
+    except Exception as e:
+        logger.error(f"[RetryMedia] Error descargando media_id={msg.media_id} (mensaje {msg.id}): {e}")
+        media_result = None
+
+    if not media_result:
+        msg.error_detail = MEDIA_DOWNLOAD_FAILED_MARKER
+        db.commit()
+        db.refresh(msg)
+        raise HTTPException(status_code=502, detail="No se pudo descargar el archivo desde WhatsApp. Intenta de nuevo en unos minutos.")
+
+    saved_url = save_media_bytes(media_result["bytes"], media_result["mime_type"])
+    msg.media_url = saved_url
+    msg.media_mime_type = media_result["mime_type"]
+    msg.error_detail = None
+    db.commit()
+    db.refresh(msg)
+    logger.info(f"[RetryMedia] Reintento exitoso para mensaje {msg.id}: {saved_url}")
+
+    await ws_manager.broadcast_to_branch(conv.branch_id, {
+        "type": "message_media_updated",
+        "conversation_id": conv.id,
+        "branch_id": conv.branch_id,
+        "message_id": msg.id,
+        "media_url": msg.media_url,
+        "media_type": msg.media_type,
+        "media_mime_type": msg.media_mime_type,
+        "media_failed": False
+    })
+
+    return msg
 
 @router.delete("/{message_id}")
 async def delete_message(

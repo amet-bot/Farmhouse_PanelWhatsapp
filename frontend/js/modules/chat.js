@@ -5,23 +5,107 @@
 
 const chatModule = {
   currentConversation: null,
+  // conversationId de la petición GET /conversations/{id} más reciente que se disparó.
+  // selectedConversationId (única fuente de verdad de "qué conversación quiere ver el
+  // agente ahora mismo") — todo lo demás (header, chat, panel de contacto, pedido actual,
+  // acciones rápidas) se deriva de currentConversation, que solo se sobreescribe cuando la
+  // respuesta que llega corresponde exactamente a esta id.
+  activeRequestConvId: null,
   isInternalNote: false,
 
   async loadConversation(convId) {
+    // 1. Se fija esta conversación como "la que el agente quiere ver" ANTES de esperar la
+    //    respuesta del servidor. Si el agente hace click en otra conversación mientras esta
+    //    petición sigue en vuelo, activeRequestConvId cambia y la comprobación de abajo
+    //    descarta la respuesta vieja en vez de sobreescribir el panel con datos de otro
+    //    contacto — esta era la causa real del bug: dos fetch concurrentes (uno por cada
+    //    click) podían resolver en cualquier orden, y el que terminaba último "ganaba"
+    //    sin importar cuál conversación estaba seleccionada en ese momento.
+    this.activeRequestConvId = convId;
+
+    // 2. Limpia inmediatamente el panel derecho y el chat central: nunca debe verse el
+    //    contacto/pedido anterior mientras carga el nuevo (Punto 5).
+    this.renderLoadingState();
+
+    let data;
     try {
-      this.currentConversation = await api.get(`/conversations/${convId}`);
-      this.renderHeader();
-      this.renderMessages();
-      this.renderOrderPanel();
-      this.setupComposer();
+      data = await api.get(`/conversations/${convId}`);
     } catch (e) {
+      if (this.activeRequestConvId !== convId) return; // ya se seleccionó otra conversación
       console.error('Error cargando conversación:', e);
       utils.showToast(`Error: ${e.message}`, 'error');
+      return;
     }
+
+    // 3. Respuesta obsoleta (llegó después de que el agente ya cambió de conversación):
+    //    se descarta por completo, sin tocar el estado ni el DOM.
+    if (this.activeRequestConvId !== convId) return;
+
+    this.currentConversation = data;
+    this.renderHeader();
+    this.renderMessages();
+    this.renderOrderPanel();
+    this.setupComposer();
+  },
+
+  renderLoadingState() {
+    // Estado transitorio mientras se resuelve loadConversation(): usa los mismos IDs de
+    // elemento que renderHeader/renderMessages/renderOrderPanel para que, en cuanto esos
+    // vuelvan a ejecutarse con datos reales, los reemplacen sin dejar rastro del contacto
+    // anterior. No es un rediseño: mismos textos/estructura, solo un valor "Cargando...".
+    const header = document.getElementById('chatHeader');
+    if (header && header.style.display !== 'none') {
+      const chatName = document.getElementById('chatName');
+      const chatPhone = document.getElementById('chatPhone');
+      if (chatName) chatName.textContent = 'Cargando...';
+      if (chatPhone) chatPhone.textContent = '';
+    }
+
+    const composer = document.getElementById('chatComposer');
+    if (composer) composer.style.display = 'none';
+
+    const messages = document.getElementById('chatMessages');
+    if (messages) {
+      messages.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">Cargando conversación...</div>';
+    }
+
+    const detailName = document.getElementById('detailName');
+    const detailPhone = document.getElementById('detailPhone');
+    const detailFirstSeen = document.getElementById('detailFirstSeen');
+    const detailLastSeen = document.getElementById('detailLastSeen');
+    const detailBranchTag = document.getElementById('detailBranchTag');
+    const detailNotes = document.getElementById('detailNotes');
+    if (detailName) detailName.textContent = 'Cargando...';
+    if (detailPhone) detailPhone.textContent = '-';
+    if (detailFirstSeen) detailFirstSeen.textContent = '-';
+    if (detailLastSeen) detailLastSeen.textContent = '-';
+    if (detailBranchTag) {
+      detailBranchTag.textContent = '-';
+      detailBranchTag.style.backgroundColor = '';
+      detailBranchTag.style.color = '';
+    }
+    if (detailNotes) detailNotes.textContent = 'Cargando...';
+
+    const orderLiveDot = document.getElementById('orderLiveDot');
+    const orderItemsWrap = document.getElementById('orderItemsWrap');
+    if (orderLiveDot) orderLiveDot.hidden = true;
+    if (orderItemsWrap) orderItemsWrap.hidden = true;
+
+    const orderFieldDefaults = {
+      orderId: 'Cargando...', orderBranch: '-', orderDeliveryType: '-', orderPaymentMethod: '-',
+      orderType: '-', orderStatus: '-', orderSubtotal: '$0.00', orderDeliveryFee: '$0.00', orderTotal: '$0.00',
+    };
+    Object.entries(orderFieldDefaults).forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    });
   },
 
   renderEmpty() {
     this.currentConversation = null;
+    // Invalida cualquier loadConversation() todavía en vuelo: si llega tarde, ya no
+    // coincidirá con activeRequestConvId y se descartará en vez de repoblar el panel.
+    this.activeRequestConvId = null;
     const header = document.getElementById('chatHeader');
     const messages = document.getElementById('chatMessages');
     const composer = document.getElementById('chatComposer');
@@ -221,32 +305,43 @@ const chatModule = {
 
         if (isImage) {
           mediaHtml = `
-            <div class="msg-media-container" style="margin-top:6px">
-              <img src="${utils.escapeHtml(mediaSrc)}" 
-                   alt="Imagen adjunta" 
-                   class="msg-media-image" 
+            <div class="msg-media-container">
+              <img src="${utils.escapeHtml(mediaSrc)}"
+                   alt="Imagen enviada por ${utils.escapeHtml(this.currentConversation.contact?.name || 'el cliente')}"
+                   class="msg-media-image"
                    loading="lazy"
-                   style="max-width:280px;max-height:280px;border-radius:8px;display:block;cursor:zoom-in;object-fit:cover;border:1px solid rgba(255,255,255,0.1);transition:transform 0.2s ease, box-shadow 0.2s ease" 
                    onclick="chatModule.openLightbox('${utils.escapeHtml(mediaSrc)}')"
-                   onerror="this.style.display='none'; if (this.nextElementSibling) this.nextElementSibling.style.display='block';"
-                   onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 8px 16px rgba(0,0,0,0.3)'"
-                   onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none'">
-              <div class="msg-media-error-badge" style="display:none;padding:6px 10px;background:rgba(255,0,0,0.1);border-radius:6px;font-size:12px;color:#ef4444;margin-top:4px;">
-                ⚠️ No se pudo cargar la vista previa. <a href="${utils.escapeHtml(mediaSrc)}" target="_blank" style="color:var(--green);text-decoration:underline;margin-left:4px;">Abrir</a>
+                   onerror="chatModule.handleMediaImgError(this, ${msg.id})">
+              <div class="msg-media-error-badge" hidden>
+                <i data-lucide="image-off"></i>
+                <span>No se pudo cargar esta imagen</span>
+                <button type="button" class="btn-retry-media" onclick="chatModule.retryMedia(${msg.id})">Reintentar</button>
               </div>
             </div>`;
         } else if (msg.media_type === 'video' || /\.(mp4|webm|mov)$/i.test(msg.media_url)) {
-          mediaHtml = `<video controls style="max-width:280px;border-radius:8px;margin-top:6px;display:block"><source src="${utils.escapeHtml(mediaSrc)}" type="${utils.escapeHtml(msg.media_mime_type || 'video/mp4')}"></video>`;
+          mediaHtml = `<video controls class="msg-media-video"><source src="${utils.escapeHtml(mediaSrc)}" type="${utils.escapeHtml(msg.media_mime_type || 'video/mp4')}"></video>`;
         } else if (msg.media_type === 'audio' || /\.(mp3|ogg|wav|m4a)$/i.test(msg.media_url)) {
-          mediaHtml = `<audio controls style="margin-top:6px;display:block"><source src="${utils.escapeHtml(mediaSrc)}" type="${utils.escapeHtml(msg.media_mime_type || 'audio/mpeg')}"></audio>`;
+          mediaHtml = `<audio controls class="msg-media-audio"><source src="${utils.escapeHtml(mediaSrc)}" type="${utils.escapeHtml(msg.media_mime_type || 'audio/mpeg')}"></audio>`;
         } else {
-          mediaHtml = `<a href="${utils.escapeHtml(mediaSrc)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:var(--green)"><i data-lucide="paperclip"></i> Descargar archivo adjunto</a>`;
+          mediaHtml = `<a href="${utils.escapeHtml(mediaSrc)}" target="_blank" rel="noopener" class="msg-media-file-link"><i data-lucide="paperclip"></i> Descargar archivo adjunto</a>`;
         }
-      } else if (msg.media_type === 'image') {
-        mediaHtml = `
-          <div class="msg-media-loading" style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;margin-top:6px;background:rgba(255,255,255,0.05);padding:8px 12px;border-radius:8px;">
-            <span>📷 Descargando imagen de WhatsApp...</span>
-          </div>`;
+      } else if (msg.media_type) {
+        const mediaTypeLabels = { image: 'imagen', video: 'video', audio: 'audio', document: 'documento', sticker: 'sticker' };
+        const label = mediaTypeLabels[msg.media_type] || 'archivo';
+        if (msg.error_detail === 'media_download_failed') {
+          mediaHtml = `
+            <div class="msg-media-error-badge">
+              <i data-lucide="image-off"></i>
+              <span>No se pudo cargar esta ${label}</span>
+              <button type="button" class="btn-retry-media" onclick="chatModule.retryMedia(${msg.id})">Reintentar</button>
+            </div>`;
+        } else {
+          mediaHtml = `
+            <div class="msg-media-skeleton" aria-live="polite">
+              <span class="msg-media-spinner"></span>
+              <span>Descargando ${label} de WhatsApp...</span>
+            </div>`;
+        }
       }
 
       const textHtml = (msg.content && (!isMediaPlaceholder || !msg.media_url))
@@ -619,6 +714,32 @@ const chatModule = {
       utils.showToast(`✓ Respuestas automáticas del bot ${state}.`, 'info');
     } catch (e) {
       utils.showToast(`Error al cambiar automatización: ${e.message}`, 'error');
+    }
+  },
+
+  handleMediaImgError(imgEl, messageId) {
+    // El archivo se descargó y se guardó en el servidor, pero el navegador no pudo cargarlo
+    // ahora (servidor reiniciado sin persistir /media, red, etc.). Se muestra el mismo estado
+    // de error + Reintentar que usamos cuando la descarga desde Meta falla, en vez de un ícono
+    // roto de navegador.
+    imgEl.style.display = 'none';
+    const badge = imgEl.nextElementSibling;
+    if (badge) badge.hidden = false;
+    utils.renderIcons();
+  },
+
+  async retryMedia(messageId) {
+    try {
+      const updatedMsg = await api.post(`/messages/${messageId}/retry-media`, {});
+      if (this.currentConversation && this.currentConversation.messages) {
+        const idx = this.currentConversation.messages.findIndex(m => m.id === messageId);
+        if (idx !== -1) {
+          this.currentConversation.messages[idx] = updatedMsg;
+          this.renderMessages();
+        }
+      }
+    } catch (e) {
+      utils.showToast('No se pudo cargar el archivo. Intenta de nuevo en unos minutos.', 'error');
     }
   },
 
