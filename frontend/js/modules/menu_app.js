@@ -37,6 +37,17 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
   const money = (n) => `$${Number(n || 0).toFixed(2)}`;
+  // Los labels de categoría llegan del backend con un emoji decorativo (ej. "🥗 Salads");
+  // la nueva identidad visual evita depender de emojis, así que se recorta aquí en el
+  // frontend sin tocar la respuesta de la API.
+  const stripLeadingEmoji = (str) => String(str ?? "").replace(/^\p{Extended_Pictographic}️?\s*/u, "").trim();
+  const FALLBACK_IMG_HTML = `<div class="product-card-fallback-badge"><img src="/assets/images/farmhouse-logo.png" alt="" class="product-card-fallback-logo"></div>`;
+
+  function syncModalOpenState() {
+    const productOpen = el("productModalBackdrop") && !el("productModalBackdrop").hidden;
+    const cartOpen = el("cartDrawerBackdrop") && !el("cartDrawerBackdrop").hidden;
+    document.body.classList.toggle("modal-open", Boolean(productOpen || cartOpen));
+  }
 
   function loadCartFromStorage() {
     try {
@@ -98,7 +109,7 @@
       renderCategoryPills();
       renderProducts();
     } catch (err) {
-      el("productsGrid").innerHTML = `<div class="menu-loading">No pudimos cargar el menú. Por favor recarga la página. 🙏</div>`;
+      el("productsGrid").innerHTML = `<div class="menu-loading">No pudimos cargar el menú. Por favor recarga la página.</div>`;
       console.error("[menu_app] Error cargando el menú:", err);
     }
   }
@@ -107,6 +118,7 @@
     const select = el("branchSelect");
     const badge = el("headerBranchBadge");
     const cartTag = el("cartBranchTag");
+    const heroLabel = el("heroBranchLabel");
 
     if (state.branches.length === 0) return;
 
@@ -128,12 +140,16 @@
       state.branchName = matched.name;
     }
 
-    if (badge) badge.textContent = `📍 ${state.branchName}`;
-    if (cartTag) cartTag.textContent = `📍 ${state.branchName}`;
+    const setBranchLabels = (name) => {
+      if (badge) badge.textContent = name;
+      if (cartTag) cartTag.textContent = name;
+      if (heroLabel) heroLabel.textContent = name;
+    };
+    setBranchLabels(state.branchName);
 
     if (select) {
       select.innerHTML = state.branches.map(
-        (b) => `<option value="${escapeHtml(b.code)}" ${b.code === state.branchCode ? "selected" : ""}>📍 ${escapeHtml(b.name)}</option>`
+        (b) => `<option value="${escapeHtml(b.code)}" ${b.code === state.branchCode ? "selected" : ""}>${escapeHtml(b.name)}</option>`
       ).join("");
 
       select.addEventListener("change", (e) => {
@@ -142,8 +158,7 @@
         if (b) {
           state.branchCode = b.code;
           state.branchName = b.name;
-          if (badge) badge.textContent = `📍 ${b.name}`;
-          if (cartTag) cartTag.textContent = `📍 ${b.name}`;
+          setBranchLabels(b.name);
           showToast(`Sucursal actualizada: ${b.name}`);
         }
       });
@@ -178,7 +193,7 @@
     const nav = el("categoryPills");
     if (!nav) return;
     nav.innerHTML = state.tabs.map((tab) => `
-      <button class="category-pill ${tab.key === state.activeTabKey ? "active" : ""}" data-tab="${tab.key}">${escapeHtml(tab.label)}</button>
+      <button class="category-pill ${tab.key === state.activeTabKey ? "active" : ""}" data-tab="${tab.key}">${escapeHtml(stripLeadingEmoji(tab.label))}</button>
     `).join("");
     nav.querySelectorAll(".category-pill").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -216,17 +231,17 @@
     grid.innerHTML = products.map((p, idx) => {
       const price = p.sizes[0] ? p.sizes[0].price : 0;
       return `
-        <button class="product-card" data-idx="${idx}" type="button">
+        <button class="product-card" data-idx="${idx}" type="button" aria-label="${escapeHtml(p.title)}, ${p.has_sizes ? "desde " : ""}${money(price)}">
           <div class="product-card-img-wrap">
-            <img src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.style.display='none'">
-            <div class="product-card-fallback-badge">🥗</div>
+            <img class="product-card-photo" src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.parentElement.classList.add('img-error')">
+            ${FALLBACK_IMG_HTML}
           </div>
           <div class="product-card-body">
             <div class="product-card-title">${escapeHtml(p.title)}</div>
             <div class="product-card-desc">${escapeHtml(p.description)}</div>
             <div class="product-card-footer">
               <span class="product-card-price">${p.has_sizes ? "Desde " : ""}${money(price)}</span>
-              <span class="product-card-add">+ Agregar</span>
+              <span class="product-card-add">Agregar</span>
             </div>
           </div>
         </button>
@@ -255,7 +270,12 @@
 
     el("productModalTitle").textContent = product.title;
     el("productModalDesc").textContent = product.description;
-    el("productModalImg").src = product.image_url || "";
+    const modalImgWrap = el("productModalImgWrap");
+    const modalImg = el("productModalImg");
+    modalImgWrap.classList.remove("img-error");
+    modalImg.onerror = () => modalImgWrap.classList.add("img-error");
+    modalImg.src = product.image_url || "";
+    modalImg.alt = product.title;
     el("productNotes").value = "";
     el("qtyValue").textContent = "1";
 
@@ -285,6 +305,7 @@
 
     updateModalPrice();
     el("productModalBackdrop").hidden = false;
+    syncModalOpenState();
   }
 
   function renderAddonList(sectionId, listId, addons) {
@@ -345,6 +366,17 @@
   function closeProductModal() {
     el("productModalBackdrop").hidden = true;
     state.modal.product = null;
+    syncModalOpenState();
+  }
+
+  function openCartDrawer() {
+    el("cartDrawerBackdrop").hidden = false;
+    syncModalOpenState();
+  }
+
+  function closeCartDrawer() {
+    el("cartDrawerBackdrop").hidden = true;
+    syncModalOpenState();
   }
 
   // ===================== CARRITO Y TOTALES =====================
@@ -377,7 +409,7 @@
     persistCart();
     renderCart();
     closeProductModal();
-    showToast(`✓ Agregado: ${p.title}`);
+    showToast(`Agregado al pedido: ${p.title}`);
   }
 
   function renderCart() {
@@ -385,6 +417,8 @@
     const countEl = el("cartCount");
     const subtotalEl = el("cartSubtotal");
     const floatingBtn = el("floatingCartBtn");
+    const headerBtn = el("headerCartBtn");
+    const headerCountEl = el("headerCartCount");
 
     const totalQty = state.cart.reduce((acc, it) => acc + it.quantity, 0);
     const subtotal = state.cart.reduce((acc, it) => {
@@ -395,11 +429,16 @@
     if (countEl) countEl.textContent = totalQty;
     if (subtotalEl) subtotalEl.textContent = money(subtotal);
     if (floatingBtn) floatingBtn.hidden = totalQty === 0;
+    if (headerCountEl) {
+      headerCountEl.textContent = totalQty > 99 ? "99+" : String(totalQty);
+      headerCountEl.hidden = totalQty === 0;
+    }
+    if (headerBtn) headerBtn.setAttribute("aria-label", `Ver pedido, ${totalQty} producto${totalQty === 1 ? "" : "s"}, ${money(subtotal)}`);
 
     if (!list) return;
 
     if (state.cart.length === 0) {
-      list.innerHTML = `<div class="cart-empty">Tu pedido está vacío. Elige tus platos favoritos del menú. 🥗</div>`;
+      list.innerHTML = `<div class="cart-empty">Tu pedido está vacío. Elige tus platos favoritos del menú.</div>`;
     } else {
       list.innerHTML = state.cart.map((it, idx) => {
         const itemAddTotal = it.addons.reduce((s, a) => s + a.price, 0);
@@ -414,11 +453,11 @@
             ${it.notes ? `<div class="cart-item-notes">Nota: ${escapeHtml(it.notes)}</div>` : ""}
             <div class="cart-item-controls">
               <div class="qty-stepper qty-stepper-sm">
-                <button type="button" class="btn-cart-dec" data-idx="${idx}">−</button>
+                <button type="button" class="btn-cart-dec" data-idx="${idx}" aria-label="Restar cantidad de ${escapeHtml(it.title)}">−</button>
                 <span>${it.quantity}</span>
-                <button type="button" class="btn-cart-inc" data-idx="${idx}">+</button>
+                <button type="button" class="btn-cart-inc" data-idx="${idx}" aria-label="Sumar cantidad de ${escapeHtml(it.title)}">+</button>
               </div>
-              <button type="button" class="btn-cart-del" data-idx="${idx}">Eliminar</button>
+              <button type="button" class="btn-cart-del" data-idx="${idx}" aria-label="Eliminar ${escapeHtml(it.title)} del pedido">Eliminar</button>
             </div>
           </div>
         `;
@@ -514,31 +553,34 @@
     if (addBtn) addBtn.addEventListener("click", addItemFromModal);
 
     const floatBtn = el("floatingCartBtn");
-    if (floatBtn) {
-      floatBtn.addEventListener("click", () => {
-        el("cartDrawerBackdrop").hidden = false;
-      });
-    }
+    if (floatBtn) floatBtn.addEventListener("click", openCartDrawer);
+
+    const headerCartBtn = el("headerCartBtn");
+    if (headerCartBtn) headerCartBtn.addEventListener("click", openCartDrawer);
 
     const closeCart = el("cartDrawerClose");
-    if (closeCart) {
-      closeCart.addEventListener("click", () => {
-        el("cartDrawerBackdrop").hidden = true;
-      });
-    }
+    if (closeCart) closeCart.addEventListener("click", closeCartDrawer);
 
     const backCart = el("cartDrawerBackdrop");
     if (backCart) {
       backCart.addEventListener("click", (e) => {
-        if (e.target === backCart) backCart.hidden = true;
+        if (e.target === backCart) closeCartDrawer();
       });
     }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (!el("productModalBackdrop").hidden) closeProductModal();
+      else if (!el("cartDrawerBackdrop").hidden) closeCartDrawer();
+    });
 
     document.querySelectorAll(".delivery-option").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.deliveryType = btn.dataset.delivery;
         document.querySelectorAll(".delivery-option").forEach((b) => b.classList.toggle("active", b === btn));
-        el("deliveryAddress").hidden = state.deliveryType !== "delivery";
+        const isDelivery = state.deliveryType === "delivery";
+        el("deliveryAddress").hidden = !isDelivery;
+        el("deliveryAddressLabel").hidden = !isDelivery;
         updateTotals();
       });
     });
@@ -584,8 +626,9 @@
     };
 
     const btn = el("sendOrderBtn");
+    const btnLabel = el("sendOrderLabel");
     btn.disabled = true;
-    btn.textContent = "Enviando...";
+    if (btnLabel) btnLabel.textContent = "Enviando...";
     try {
       const res = await fetch("/api/orders/public", {
         method: "POST",
@@ -598,14 +641,14 @@
       state.cart = [];
       persistCart();
       renderCart();
-      el("cartDrawerBackdrop").hidden = true;
-      showToast(`✓ Pedido ${data.order_code} listo. Abriendo WhatsApp...`);
+      closeCartDrawer();
+      showToast(`Pedido ${data.order_code} listo. Abriendo WhatsApp...`);
       window.location.href = data.whatsapp_url;
     } catch (err) {
       showToast(err.message || "Error enviando el pedido.", true);
     } finally {
       btn.disabled = false;
-      btn.textContent = "📲 Enviar Pedido a WhatsApp";
+      if (btnLabel) btnLabel.textContent = "Enviar pedido por WhatsApp";
     }
   }
 
