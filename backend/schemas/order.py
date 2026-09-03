@@ -61,6 +61,10 @@ class PublicOrderCreate(BaseModel):
     customer_name: str = Field(..., min_length=2, max_length=100)
     customer_phone: str = Field(..., min_length=6, max_length=20)
     items: List[PublicOrderItem] = Field(..., min_length=1, max_length=50)
+    # Número de WhatsApp de origen (parámetro ?wa= de /menu, ver webhooks._send_branch_welcome_and_menu).
+    # Nunca se confía en este valor a ciegas: el backend solo lo usa si coincide exactamente con
+    # el número oficial de Farmhouse (get_official_whatsapp_number); de lo contrario se ignora.
+    origin_wa: Optional[str] = Field(None, max_length=20)
 
 
 class PublicOrderResponse(BaseModel):

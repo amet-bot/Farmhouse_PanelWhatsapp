@@ -131,3 +131,26 @@ def mask_phone(phone: Optional[str]) -> str:
     return f"{clean[:4]}****{clean[-2:]}"
 
 settings = Settings()
+
+def get_official_whatsapp_number() -> str:
+    """
+    Número oficial de WhatsApp de Farmhouse (solo dígitos, sin '+', espacios ni guiones),
+    fuente de verdad única para cualquier enlace `wa.me` que genere el sistema (pedidos
+    del Menú Digital, mensajes del bot, etc.).
+
+    Hoy Farmhouse opera con una sola línea de WhatsApp Business para todas las sucursales
+    (un único META_WA_PHONE_NUMBER_ID/META_WA_ACCESS_TOKEN en toda la app) — si en el futuro
+    se agregan números por sucursal, este es el lugar para resolverlos.
+
+    Lanza RuntimeError si no está configurado. Es intencional: un enlace `https://wa.me/?text=`
+    sin número hace que WhatsApp muestre su selector de chats en vez de abrir la conversación
+    de Farmhouse directamente, que es exactamente el comportamiento que no queremos.
+    """
+    digits = "".join(c for c in str(settings.META_WA_DISPLAY_NUMBER or "") if c.isdigit())
+    if not digits:
+        raise RuntimeError(
+            "META_WA_DISPLAY_NUMBER no está configurado (o está vacío). Sin este número no se "
+            "puede generar un enlace wa.me válido: WhatsApp mostraría su selector de chats en "
+            "vez de abrir la conversación de Farmhouse."
+        )
+    return digits

@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import uuid
 from decimal import Decimal
 from datetime import datetime, timezone
@@ -8,7 +9,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
-from config import settings
+from config import settings, get_official_whatsapp_number
 from database import get_db
 from models.order import Order
 from models.conversation import Conversation
@@ -29,6 +30,38 @@ ITBMS_RATE = Decimal("0.07") # 7% impuesto ITBMS en Panamá
 DELIVERY_SURCHARGE = Decimal("3.50")
 
 PAYMENT_METHOD_LABELS = {"yappy": "Yappy", "ach": "ACH / Transferencia", "card": "Tarjeta", "cash": "Efectivo"}
+WA_NUMBER_RE = re.compile(r"^\d{8,15}$")
+
+
+def resolve_whatsapp_destination(origin_wa: Optional[str]) -> str:
+    """
+    Decide a qué número de WhatsApp debe apuntar el enlace `wa.me` del pedido.
+
+    Prioridad:
+      1. `origin_wa` (el `?wa=` que trae /menu, ver webhooks._send_branch_welcome_and_menu) —
+         SOLO si es un teléfono válido y coincide exactamente con el número oficial. Nunca se
+         confía en un valor arbitrario: esto es lo único que evita que alguien edite la URL del
+         menú para redirigir pedidos a otro número.
+      2. Número oficial de Farmhouse (get_official_whatsapp_number) — hoy es el único número
+         real que existe en el sistema (una sola línea de WhatsApp Business para todas las
+         sucursales), así que en la práctica esta es siempre la fuente de verdad final.
+
+    Nunca devuelve una cadena vacía: si el número oficial no está configurado, propaga la
+    excepción para que el endpoint falle con un 500 explícito en vez de generar un enlace
+    `wa.me/?text=` sin destino (que hace que WhatsApp muestre su selector de chats).
+    """
+    official_number = get_official_whatsapp_number()
+
+    candidate = "".join(c for c in str(origin_wa or "") if c.isdigit())
+    if candidate:
+        if WA_NUMBER_RE.match(candidate) and candidate == official_number:
+            return candidate
+        logger.warning(
+            f"[PublicOrder] Se recibió ?wa={candidate!r} pero no coincide con el número oficial "
+            f"configurado; se ignora y se usa el número oficial de Farmhouse."
+        )
+
+    return official_number
 
 @router.post("/public", response_model=PublicOrderResponse)
 async def create_public_order(
@@ -48,6 +81,19 @@ async def create_public_order(
 
     if order_in.delivery_type == "delivery" and not (order_in.delivery_address or "").strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La dirección de entrega es obligatoria para pedidos de delivery.")
+
+    # Resolver el número de WhatsApp destino ANTES de tocar la base de datos: si el número
+    # oficial no está configurado, es mejor fallar rápido con un 500 explícito que crear el
+    # pedido y luego devolver un enlace wa.me sin destino (WhatsApp mostraría su selector de
+    # chats en vez de abrir la conversación de Farmhouse).
+    try:
+        whatsapp_destination = resolve_whatsapp_destination(order_in.origin_wa)
+    except RuntimeError as e:
+        logger.error(f"[PublicOrder] {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="El envío de pedidos por WhatsApp no está disponible en este momento. Por favor contacta directamente a la sucursal.",
+        )
 
     # 1. Recalcular cada línea del pedido desde el catálogo (fuente de verdad de precios)
     line_items = []
@@ -153,8 +199,7 @@ async def create_public_order(
 
     # 5. Construir el mensaje estructurado que el cliente confirmará en WhatsApp
     whatsapp_text = _build_whatsapp_order_text(order_code, branch.name, line_items, order_in, delivery_cost, total)
-    display_number = "".join(c for c in str(settings.META_WA_DISPLAY_NUMBER or "") if c.isdigit())
-    whatsapp_url = f"https://wa.me/{display_number}?text={quote(whatsapp_text)}"
+    whatsapp_url = f"https://wa.me/{whatsapp_destination}?text={quote(whatsapp_text)}"
 
     logger.info(f"[PublicOrder] Comanda {order_code} creada desde /menu para conv {conv.id} (Total: ${total})")
 

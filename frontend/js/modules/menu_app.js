@@ -7,6 +7,8 @@
   "use strict";
 
   const CART_STORAGE_KEY = "fh_menu_cart_v1";
+  const WA_ORIGIN_STORAGE_KEY = "farmhouse_wa_origin";
+  const WA_NUMBER_RE = /^\d{8,15}$/;
   const DELIVERY_SURCHARGE = 3.5;
 
   const state = {
@@ -19,6 +21,7 @@
     customerName: "",
     customerPhone: "",
     conversationId: null,
+    originWaNumber: null,
     cart: loadCartFromStorage(),
     deliveryType: "pickup",
     paymentMethod: null,
@@ -80,11 +83,26 @@
     const phoneParam = params.get("phone") || params.get("tel");
     const nameParam = params.get("name") || params.get("cliente");
     const convParam = params.get("conv") || params.get("conversation_id");
+    const waParam = params.get("wa");
 
     if (branchParam) state.branchCode = branchParam.trim();
     if (phoneParam) state.customerPhone = phoneParam.trim();
     if (nameParam) state.customerName = nameParam.trim();
     if (convParam) state.conversationId = convParam.trim();
+
+    // Número de WhatsApp de origen (el chat desde el que el cliente llegó al menú). Solo se
+    // acepta un formato de teléfono válido; el backend lo vuelve a validar contra el número
+    // oficial antes de usarlo (nunca se confía en un valor de la URL para decidir el destino
+    // real del pedido). Se guarda en sessionStorage para sobrevivir un recargo de página.
+    if (waParam && WA_NUMBER_RE.test(waParam.trim())) {
+      state.originWaNumber = waParam.trim();
+      try { sessionStorage.setItem(WA_ORIGIN_STORAGE_KEY, state.originWaNumber); } catch (e) { /* no disponible */ }
+    } else {
+      try {
+        const stored = sessionStorage.getItem(WA_ORIGIN_STORAGE_KEY);
+        if (stored && WA_NUMBER_RE.test(stored)) state.originWaNumber = stored;
+      } catch (e) { /* no disponible */ }
+    }
   }
 
   // ===================== CARGA INICIAL =====================
@@ -617,6 +635,7 @@
       payment_method: state.paymentMethod,
       customer_name: customerName,
       customer_phone: customerPhone,
+      origin_wa: state.originWaNumber || null,
       items: state.cart.map((item) => ({
         sku: item.sku,
         quantity: item.quantity,

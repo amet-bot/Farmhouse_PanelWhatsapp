@@ -10,7 +10,7 @@ from fastapi import APIRouter, Request, Response, HTTPException, status, Query, 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from config import settings, mask_phone
+from config import settings, mask_phone, get_official_whatsapp_number
 from database import SessionLocal, get_db
 from models.contact import Contact
 from models.conversation import Conversation
@@ -201,7 +201,15 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
     branch_code = conv.branch.code if conv.branch else ""
     client_name = urllib.parse.quote(contact.name or "")
     client_phone = urllib.parse.quote(phone.lstrip("+"))
-    menu_url = f"{settings.PUBLIC_BASE_URL}/menu?branch={branch_code}&phone={client_phone}&name={client_name}&conv={conv.id}"
+    # Se incluye el número oficial de WhatsApp como ?wa= para que /menu sepa a qué chat debe
+    # volver al enviar el pedido (ver resolve_whatsapp_destination en routers/orders.py, que
+    # es quien valida este valor de verdad — nunca se confía en él solo por venir en la URL).
+    try:
+        origin_wa = get_official_whatsapp_number()
+    except RuntimeError:
+        origin_wa = None
+    wa_param = f"&wa={origin_wa}" if origin_wa else ""
+    menu_url = f"{settings.PUBLIC_BASE_URL}/menu?branch={branch_code}&phone={client_phone}&name={client_name}&conv={conv.id}{wa_param}"
     
     menu_text = (
         f"¡Bienvenido a Farmhouse *{branch_name}*! 🌿🥗\n\n"
