@@ -159,16 +159,16 @@ if frontend_dir.exists():
 
     @app.get("/", include_in_schema=False)
     def serve_root():
-        return FileResponse(str(frontend_dir / "index.html"))
+        return FileResponse(str(frontend_dir / "index.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     @app.get("/app", include_in_schema=False)
     def serve_frontend():
-        return FileResponse(str(frontend_dir / "index.html"))
+        return FileResponse(str(frontend_dir / "index.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     if (frontend_dir / "menu.html").exists():
         @app.get("/menu", include_in_schema=False)
         def serve_menu():
-            return FileResponse(str(frontend_dir / "menu.html"))
+            return FileResponse(str(frontend_dir / "menu.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     if (frontend_dir / "manifest.json").exists():
         @app.get("/manifest.json", include_in_schema=False)

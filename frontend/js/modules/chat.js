@@ -91,9 +91,12 @@ const chatModule = {
     if (orderLiveDot) orderLiveDot.hidden = true;
     if (orderItemsWrap) orderItemsWrap.hidden = true;
 
+    const oldDeliveryRow = document.getElementById('orderDeliveryFee')?.closest('.order-row');
+    if (oldDeliveryRow) oldDeliveryRow.remove();
+
     const orderFieldDefaults = {
       orderId: 'Cargando...', orderBranch: '-', orderDeliveryType: '-', orderPaymentMethod: '-',
-      orderType: '-', orderStatus: '-', orderSubtotal: '$0.00', orderDeliveryFee: '$0.00', orderTotal: '$0.00',
+      orderType: '-', orderStatus: '-', orderSubtotal: '$0.00', orderTotal: '$0.00',
     };
     Object.entries(orderFieldDefaults).forEach(([id, value]) => {
       const el = document.getElementById(id);
@@ -404,6 +407,9 @@ const chatModule = {
     //    o el último pedido confirmado). conv.orders ya viene ordenado del más reciente al más
     //    antiguo (ver models/conversation.py), así que orders[0] siempre es "lo vigente" — salvo
     //    que sea un carrito abandonado, en cuyo caso se busca el siguiente relevante.
+    const oldDeliveryRow = document.getElementById('orderDeliveryFee')?.closest('.order-row');
+    if (oldDeliveryRow) oldDeliveryRow.remove();
+
     const orderId = document.getElementById('orderId');
     const orderBranch = document.getElementById('orderBranch');
     const orderDeliveryType = document.getElementById('orderDeliveryType');
@@ -411,7 +417,6 @@ const chatModule = {
     const orderType = document.getElementById('orderType');
     const orderStatus = document.getElementById('orderStatus');
     const orderSubtotal = document.getElementById('orderSubtotal');
-    const orderDeliveryFee = document.getElementById('orderDeliveryFee');
     const orderTotal = document.getElementById('orderTotal');
     const orderLiveDot = document.getElementById('orderLiveDot');
     const orderItemsWrap = document.getElementById('orderItemsWrap');
@@ -452,7 +457,6 @@ const chatModule = {
       if (orderStatus) orderStatus.textContent = 'N/A';
       if (orderItemsWrap) orderItemsWrap.hidden = true;
       if (orderSubtotal) orderSubtotal.textContent = '$0.00';
-      if (orderDeliveryFee) orderDeliveryFee.textContent = '$0.00';
       if (orderTotal) orderTotal.textContent = '$0.00';
       return;
     }
@@ -514,13 +518,6 @@ const chatModule = {
     }
 
     if (orderSubtotal) orderSubtotal.textContent = `$${subtotalNum.toFixed(2)}`;
-    if (orderDeliveryFee) {
-      if (deliveryType === 'delivery') {
-        orderDeliveryFee.textContent = deliveryNum > 0 ? `$${deliveryNum.toFixed(2)}` : 'Por coordinar';
-      } else {
-        orderDeliveryFee.textContent = '$0.00';
-      }
-    }
     if (orderTotal) orderTotal.textContent = `$${totalNum.toFixed(2)}`;
   },
 
