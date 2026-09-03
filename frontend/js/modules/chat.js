@@ -228,8 +228,12 @@ const chatModule = {
                    loading="lazy"
                    style="max-width:280px;max-height:280px;border-radius:8px;display:block;cursor:zoom-in;object-fit:cover;border:1px solid rgba(255,255,255,0.1);transition:transform 0.2s ease, box-shadow 0.2s ease" 
                    onclick="chatModule.openLightbox('${utils.escapeHtml(mediaSrc)}')"
+                   onerror="this.style.display='none'; if (this.nextElementSibling) this.nextElementSibling.style.display='block';"
                    onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 8px 16px rgba(0,0,0,0.3)'"
                    onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none'">
+              <div class="msg-media-error-badge" style="display:none;padding:6px 10px;background:rgba(255,0,0,0.1);border-radius:6px;font-size:12px;color:#ef4444;margin-top:4px;">
+                ⚠️ No se pudo cargar la vista previa. <a href="${utils.escapeHtml(mediaSrc)}" target="_blank" style="color:var(--green);text-decoration:underline;margin-left:4px;">Abrir</a>
+              </div>
             </div>`;
         } else if (msg.media_type === 'video' || /\.(mp4|webm|mov)$/i.test(msg.media_url)) {
           mediaHtml = `<video controls style="max-width:280px;border-radius:8px;margin-top:6px;display:block"><source src="${utils.escapeHtml(mediaSrc)}" type="${utils.escapeHtml(msg.media_mime_type || 'video/mp4')}"></video>`;
@@ -238,6 +242,11 @@ const chatModule = {
         } else {
           mediaHtml = `<a href="${utils.escapeHtml(mediaSrc)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:var(--green)"><i data-lucide="paperclip"></i> Descargar archivo adjunto</a>`;
         }
+      } else if (msg.media_type === 'image') {
+        mediaHtml = `
+          <div class="msg-media-loading" style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;margin-top:6px;background:rgba(255,255,255,0.05);padding:8px 12px;border-radius:8px;">
+            <span>📷 Descargando imagen de WhatsApp...</span>
+          </div>`;
       }
 
       const textHtml = (msg.content && (!isMediaPlaceholder || !msg.media_url))

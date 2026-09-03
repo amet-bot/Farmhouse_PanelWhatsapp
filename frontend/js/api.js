@@ -26,8 +26,17 @@ const api = {
   resolveMediaUrl(path) {
     if (!path) return '';
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    const cleanPath = path.startsWith('/media/') ? path.replace('/media/', '') : path.replace('media/', '');
-    let url = `${this.baseUrl}/media/${cleanPath}`;
+    let cleanPath = String(path).trim();
+    if (cleanPath.startsWith('/api/media/')) {
+      cleanPath = cleanPath.replace('/api/media/', '');
+    } else if (cleanPath.startsWith('/media/')) {
+      cleanPath = cleanPath.replace('/media/', '');
+    } else if (cleanPath.startsWith('api/media/')) {
+      cleanPath = cleanPath.replace('api/media/', '');
+    } else if (cleanPath.startsWith('media/')) {
+      cleanPath = cleanPath.replace('media/', '');
+    }
+    let url = `${this.baseUrl}/api/media/${cleanPath}`;
     const token = typeof auth !== 'undefined' ? auth.getToken() : null;
     if (token) {
       url += (url.includes('?') ? '&' : '?') + `token=${encodeURIComponent(token)}`;

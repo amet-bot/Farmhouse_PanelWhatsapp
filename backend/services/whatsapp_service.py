@@ -364,11 +364,14 @@ class MetaWhatsAppService(WhatsAppService):
                 raise e
 
     async def download_media(self, media_id: str) -> Optional[Dict[str, Any]]:
-        headers = {"Authorization": f"Bearer {self.access_token}"}
-        async with httpx.AsyncClient() as client:
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "User-Agent": "curl/7.64.1"
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 # Paso 1: Meta nos da una URL temporal (caduca en minutos) + el mime_type real
-                meta_resp = await client.get(f"{self.api_url}/{media_id}", headers=headers, timeout=10.0)
+                meta_resp = await client.get(f"{self.api_url}/{media_id}", headers=headers)
                 meta_resp.raise_for_status()
                 media_info = meta_resp.json()
                 media_url = media_info.get("url")
@@ -377,10 +380,26 @@ class MetaWhatsAppService(WhatsAppService):
                     logger.error(f"[MetaWhatsAppService] Meta no devolvió URL para media_id={media_id}: {media_info}")
                     return None
 
-                # Paso 2: descargar el archivo real desde esa URL (también requiere el token)
-                file_resp = await client.get(media_url, headers=headers, timeout=20.0)
-                file_resp.raise_for_status()
-                return {"bytes": file_resp.content, "mime_type": mime_type}
+                # Paso 2: Descargar los bytes reales desde la URL temporal.
+                # Meta lookaside.fbsbx.com devuelve 302 hacia su CDN.
+                # Para evitar que httpx pierda el header Authorization o User-Agent en redirecciones cross-host,
+                # manejamos las redirecciones manualmente pasando siempre los headers de autenticación requeridos.
+                target_url = media_url
+                for redirect_hop in range(5):
+                    file_resp = await client.get(target_url, headers=headers, follow_redirects=False)
+                    if file_resp.status_code in (301, 302, 303, 307, 308):
+                        target_url = file_resp.headers.get("Location")
+                        if not target_url:
+                            logger.error(f"[MetaWhatsAppService] Redirección sin Location en salto {redirect_hop} para media_id={media_id}")
+                            return None
+                        continue
+                    file_resp.raise_for_status()
+                    if file_resp.content:
+                        logger.info(f"[MetaWhatsAppService] Media {media_id} descargado exitosamente ({len(file_resp.content)} bytes, {mime_type})")
+                        return {"bytes": file_resp.content, "mime_type": mime_type}
+                    break
+                logger.error(f"[MetaWhatsAppService] Descarga vacía o demasiadas redirecciones para media_id={media_id}")
+                return None
             except Exception as e:
                 logger.error(f"[MetaWhatsAppService] Error descargando media_id={media_id}: {e}", exc_info=True)
                 return None

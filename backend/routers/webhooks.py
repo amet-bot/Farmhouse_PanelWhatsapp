@@ -302,27 +302,28 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             })
             return
 
-        # 1. Descargar archivo multimedia si existe
+        # 1. Descargar archivo multimedia si existe y aún no fue descargado inline
         if message_type != "text" and msg_data.get("media_id"):
-            media_result = await wa_service.download_media(msg_data["media_id"])
-            if media_result and incoming_msg:
-                saved_url = save_media_bytes(media_result["bytes"], media_result["mime_type"])
-                incoming_msg.media_url = saved_url
-                incoming_msg.media_mime_type = media_result["mime_type"]
-                db.commit()
-                db.refresh(incoming_msg)
-                logger.info(f"[Media Background] Archivo guardado para conv {conv.id}: {saved_url}")
+            if incoming_msg and not incoming_msg.media_url:
+                media_result = await wa_service.download_media(msg_data["media_id"])
+                if media_result and incoming_msg:
+                    saved_url = save_media_bytes(media_result["bytes"], media_result["mime_type"])
+                    incoming_msg.media_url = saved_url
+                    incoming_msg.media_mime_type = media_result["mime_type"]
+                    db.commit()
+                    db.refresh(incoming_msg)
+                    logger.info(f"[Media Background] Archivo guardado para conv {conv.id}: {saved_url}")
 
-                # Emitir actualización en tiempo real por WebSocket
-                await ws_manager.broadcast_to_branch(conv.branch_id, {
-                    "type": "message_media_updated",
-                    "conversation_id": conv.id,
-                    "branch_id": conv.branch_id,
-                    "message_id": incoming_msg.id,
-                    "media_url": saved_url,
-                    "media_type": incoming_msg.media_type,
-                    "media_mime_type": incoming_msg.media_mime_type
-                })
+                    # Emitir actualización en tiempo real por WebSocket
+                    await ws_manager.broadcast_to_branch(conv.branch_id, {
+                        "type": "message_media_updated",
+                        "conversation_id": conv.id,
+                        "branch_id": conv.branch_id,
+                        "message_id": incoming_msg.id,
+                        "media_url": saved_url,
+                        "media_type": incoming_msg.media_type,
+                        "media_mime_type": incoming_msg.media_mime_type
+                    })
 
         # 2. Si la conversación tiene automatización pausada por un agente, no responder
         if conv.automation_paused:
@@ -623,7 +624,23 @@ async def receive_webhook(
             db.flush()
             is_new_conv = True
 
-        # 7. Insertar mensaje entrante de forma atómica
+        # 7. Descarga rápida de archivos multimedia (inline) para que el mensaje nazca ya con su imagen
+        media_url = None
+        media_mime = msg_data.get("media_mime_type")
+        if message_type != "text" and msg_data.get("media_id"):
+            try:
+                media_res = await asyncio.wait_for(
+                    wa_service.download_media(msg_data["media_id"]),
+                    timeout=3.5
+                )
+                if media_res:
+                    media_url = save_media_bytes(media_res["bytes"], media_res["mime_type"])
+                    media_mime = media_res["mime_type"]
+                    logger.info(f"[FastMedia] Media descargado inline para WAMID {wamid}: {media_url}")
+            except Exception as me:
+                logger.warning(f"[FastMedia] Descarga inline no completada (se completará en background): {me}")
+
+        # 8. Insertar mensaje entrante de forma atómica
         message = Message(
             conversation_id=conv.id,
             direction="incoming",
@@ -633,6 +650,8 @@ async def receive_webhook(
             is_internal=False,
             status="delivered",
             media_type=message_type if message_type != "text" else None,
+            media_url=media_url,
+            media_mime_type=media_mime,
             created_at=now
         )
         db.add(message)
@@ -641,7 +660,7 @@ async def receive_webhook(
         db.refresh(message)
         db.refresh(conv)
 
-        # 8. Difundir evento de nuevo mensaje inmediatamente a agentes por WebSocket
+        # 9. Difundir evento de nuevo mensaje inmediatamente a agentes por WebSocket con media_url
         await ws_manager.broadcast_to_branch(conv.branch_id, {
             "type": "new_incoming_message",
             "conversation_id": conv.id,
@@ -653,6 +672,9 @@ async def receive_webhook(
                 "direction": message.direction,
                 "sender_type": message.sender_type,
                 "content": message.content,
+                "media_url": message.media_url,
+                "media_type": message.media_type,
+                "media_mime_type": message.media_mime_type,
                 "status": message.status,
                 "created_at": message.created_at.isoformat()
             },
