@@ -88,4 +88,33 @@ class ConnectionManager:
             except Exception:
                 dead_sockets.add(connection)
 
+    async def broadcast_all(self, message: dict):
+        """
+        Emite un mensaje a TODOS los clientes WebSocket activos en el sistema (todas las sucursales,
+        agentes, supervisores y administradores). Usado para eventos globales como la
+        eliminación en tiempo real de una conversación.
+        """
+        targets: Set[WebSocket] = set()
+        for sock_set in self.active_users.values():
+            targets.update(sock_set)
+
+        dead_sockets = set()
+        text_data = json.dumps(message)
+        for connection in targets:
+            try:
+                await connection.send_text(text_data)
+            except Exception:
+                dead_sockets.add(connection)
+
+        for dead in dead_sockets:
+            for uid, sock_set in list(self.active_users.items()):
+                sock_set.discard(dead)
+                if not sock_set:
+                    self.active_users.pop(uid, None)
+            for bid, sock_set in list(self.branch_rooms.items()):
+                sock_set.discard(dead)
+                if not sock_set:
+                    self.branch_rooms.pop(bid, None)
+            self.supervisor_room.discard(dead)
+
 ws_manager = ConnectionManager()

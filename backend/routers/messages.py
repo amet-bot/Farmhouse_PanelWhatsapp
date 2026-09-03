@@ -262,11 +262,15 @@ async def delete_message(
     logger.info(f"Mensaje ID {message_id} borrado lógicamente por {current_user.role.upper()} '{current_user.name}' (@{current_user.username}).")
 
     try:
-        await ws_manager.broadcast_to_branch(branch_id, {
+        payload = {
             "type": "message_deleted",
             "message_id": message_id,
             "conversation_id": conv_id
-        })
+        }
+        if branch_id:
+            await ws_manager.broadcast_to_branch(branch_id, payload)
+        else:
+            await ws_manager.broadcast_all(payload)
     except Exception as ws_err:
         logger.error(f"Error difundiendo eliminación de mensaje por WebSocket: {ws_err}")
 

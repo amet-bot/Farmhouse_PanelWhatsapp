@@ -269,9 +269,10 @@ async def delete_conversation(
     logger.info(f"Conversación ID {conversation_id} borrada lógicamente por {current_user.role.upper()} '{current_user.name}' (@{current_user.username}).")
 
     try:
-        await ws_manager.broadcast_to_branch(branch_id, {
+        await ws_manager.broadcast_all({
             "type": "conversation_deleted",
-            "conversation_id": conversation_id
+            "conversation_id": conversation_id,
+            "branch_id": branch_id
         })
     except Exception as ws_err:
         logger.error(f"Error difundiendo eliminación de conversación por WebSocket: {ws_err}")

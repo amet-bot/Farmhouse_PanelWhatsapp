@@ -369,11 +369,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   wsClient.on('conversation_deleted', (data) => {
-    conversationsModule.loadConversations();
-    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
-      chatModule.renderEmpty();
-      utils.showToast('Esta conversación fue eliminada.', 'info');
+    const deletedId = parseInt(data.conversation_id, 10);
+
+    // 1. Si estaba seleccionada en el módulo de conversaciones, deseleccionarla
+    if (conversationsModule.selectedId === deletedId) {
+      conversationsModule.selectedId = null;
     }
+
+    // 2. Removerla inmediatamente del listado en memoria y re-renderizar para reflejo instantáneo en 0ms
+    if (Array.isArray(conversationsModule.conversations)) {
+      conversationsModule.conversations = conversationsModule.conversations.filter(c => c.id !== deletedId);
+      conversationsModule.renderList();
+    }
+    branchesModule.updateCounters();
+
+    // 3. Si algún agente o supervisor la tiene abierta en el chat en este momento, limpiar inmediatamente la vista
+    if (chatModule.currentConversation && chatModule.currentConversation.id === deletedId) {
+      chatModule.currentConversation = null;
+      chatModule.renderEmpty();
+      utils.showToast('Esta conversación fue eliminada por un administrador.', 'info');
+    }
+
+    // 4. Sincronizar listado con el servidor en segundo plano
+    conversationsModule.loadConversations();
   });
 
   wsClient.on('message_deleted', (data) => {
