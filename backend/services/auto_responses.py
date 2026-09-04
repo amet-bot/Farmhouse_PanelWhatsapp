@@ -46,9 +46,9 @@ ACH_PAYMENT_INSTRUCTIONS = (
 )
 
 CARD_PAYMENT_MESSAGE = (
-    "¡Perfecto! 💳 En un momento nuestro equipo te comparte el enlace o los datos para completar el pago con tarjeta. "
-    "Cuando lo hagas, ¿me regalas una captura del comprobante de pago? Así agilizamos tu pedido muchísimo más rápido. "
-    "¡Muchas gracias por tu paciencia! 😊"
+    "¡Perfecto! 💳 Como seleccionaste pago con tarjeta, en un momento nuestro agente de turno te enviará "
+    "por este chat el enlace de pago seguro para que puedas completar tu compra cómodamente con tu tarjeta de crédito o débito.\n\n"
+    "Por favor regálanos unos breves minutos mientras lo generamos para ti. ¡Muchas gracias por tu paciencia y preferencia! 😊✨"
 )
 
 YAPPY_PAYMENT_MESSAGE = (

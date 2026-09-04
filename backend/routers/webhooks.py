@@ -271,21 +271,37 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         #    el agente de la sucursal tome el control personal de la conversación.
         if message_type == "text" and "MI PEDIDO FARMHOUSE" in text.upper():
             is_delivery = "DELIVERY" in text.upper() or (conv.delivery_type == "delivery")
+            is_card = "TARJETA" in text.upper() or (conv.payment_method == "card")
             branch_name = conv.branch.name if conv.branch else "Farmhouse"
 
             if is_delivery:
-                confirmation_text = (
-                    f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado en nuestro sistema.\n\n"
-                    f"🛵 Como seleccionaste entrega a *Delivery*, nuestro agente encargado en la sucursal de *{branch_name}* "
-                    f"está revisando tu dirección en este momento para confirmarte el costo exacto del envío y el monto total final.\n\n"
-                    f"Por favor regálanos unos breves minutos de paciencia, en seguida te estaremos atendiendo personalmente con todo el gusto del mundo para coordinar tu entrega y el pago. ¡Un placer atenderte! 😊✨"
-                )
+                if is_card:
+                    confirmation_text = (
+                        f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado con éxito en nuestro sistema.\n\n"
+                        f"🛵 Como seleccionaste entrega a *Delivery* y método de pago con *Tarjeta*, nuestro agente encargado en la sucursal de *{branch_name}* "
+                        f"está revisando tu dirección en este momento para confirmarte el costo del envío y en seguida te compartirá por este medio el *enlace de pago seguro* para que puedas pagar cómodamente.\n\n"
+                        f"Por favor regálanos unos breves minutos de paciencia mientras te preparamos el enlace y coordinamos tu entrega. ¡Un verdadero placer atenderte! 😊💳✨"
+                    )
+                else:
+                    confirmation_text = (
+                        f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado en nuestro sistema.\n\n"
+                        f"🛵 Como seleccionaste entrega a *Delivery*, nuestro agente encargado en la sucursal de *{branch_name}* "
+                        f"está revisando tu dirección en este momento para confirmarte el costo exacto del envío y el monto total final.\n\n"
+                        f"Por favor regálanos unos breves minutos de paciencia, en seguida te estaremos atendiendo personalmente con todo el gusto del mundo para coordinar tu entrega y el pago. ¡Un placer atenderte! 😊✨"
+                    )
             else:
-                confirmation_text = (
-                    f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado con éxito para *Retiro en sucursal ({branch_name})*.\n\n"
-                    f"En breve nuestro equipo te confirmará el tiempo estimado de preparación para que puedas pasar a retirarlo fresco y recién preparado.\n\n"
-                    f"Si seleccionaste pagar por Yappy o ACH, puedes compartirnos tu comprobante por este medio cuando gustes 📸. ¡Muchas gracias por tu paciencia y preferencia! 😊✨"
-                )
+                if is_card:
+                    confirmation_text = (
+                        f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado con éxito para *Retiro en sucursal ({branch_name})*.\n\n"
+                        f"💳 Como seleccionaste pago con *Tarjeta*, en unos breves minutos nuestro agente encargado te enviará por aquí el *enlace de pago seguro* para que puedas abonarlo antes de pasar a retirarlo fresco y listo.\n\n"
+                        f"¡Muchas gracias por tu paciencia y por elegir Farmhouse! 😊💳✨"
+                    )
+                else:
+                    confirmation_text = (
+                        f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado con éxito para *Retiro en sucursal ({branch_name})*.\n\n"
+                        f"En breve nuestro equipo te confirmará el tiempo estimado de preparación para que puedas pasar a retirarlo fresco y recién preparado.\n\n"
+                        f"Si seleccionaste pagar por Yappy o ACH, puedes compartirnos tu comprobante por este medio cuando gustes 📸. ¡Muchas gracias por tu paciencia y preferencia! 😊✨"
+                    )
 
             send_res = await wa_service.send_text_message(phone, confirmation_text)
             wamid = None
