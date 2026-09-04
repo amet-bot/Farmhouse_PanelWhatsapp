@@ -73,6 +73,12 @@ const branchesModule = {
       }
     });
 
+    // En móvil, asegurarse de mostrar la columna de conversaciones al cambiar de sucursal
+    const wsContainer = document.getElementById('workspaceContainer');
+    if (wsContainer) {
+      wsContainer.classList.remove('show-chat');
+    }
+
     conversationsModule.setBranchFilter(branchId);
   },
 

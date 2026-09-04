@@ -25,6 +25,13 @@ const conversationsModule = {
         e.currentTarget.classList.add('active');
         this.activeTab = e.currentTarget.dataset.tab;
         this.currentPage = 0;
+
+        // En móvil, asegurarse de mostrar la columna de conversaciones
+        const wsContainer = document.getElementById('workspaceContainer');
+        if (wsContainer) {
+          wsContainer.classList.remove('show-chat');
+        }
+
         this.loadConversations();
       });
     });
@@ -63,6 +70,12 @@ const conversationsModule = {
           p.classList.toggle('active', p.dataset.tab === this.activeTab);
         });
 
+        // En móvil, asegurarse de mostrar la columna de conversaciones al cambiar de sección
+        const wsContainer = document.getElementById('workspaceContainer');
+        if (wsContainer) {
+          wsContainer.classList.remove('show-chat');
+        }
+
         this.currentPage = 0;
         this.loadConversations();
       });
@@ -72,6 +85,13 @@ const conversationsModule = {
   setBranchFilter(branchId) {
     this.activeBranchId = branchId;
     this.currentPage = 0;
+
+    // En móvil, asegurarse de mostrar la columna de conversaciones
+    const wsContainer = document.getElementById('workspaceContainer');
+    if (wsContainer) {
+      wsContainer.classList.remove('show-chat');
+    }
+
     this.loadConversations();
   },
 

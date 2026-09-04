@@ -52,10 +52,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   btnHamburger?.addEventListener('click', openSidebarDrawer);
   btnSidebarClose?.addEventListener('click', closeSidebarDrawer);
   sidebarBackdrop?.addEventListener('click', closeSidebarDrawer);
-  // Al elegir cualquier opción del menú en celular, se cierra solo (no afecta escritorio)
+  // Al elegir cualquier opción del menú en celular, se cierra solo y regresa a la vista de lista
   sidebarEl?.addEventListener('click', (e) => {
     if (e.target.closest('.nav-btn') || e.target.closest('.branch-btn')) {
       closeSidebarDrawer();
+      document.getElementById('workspaceContainer')?.classList.remove('show-chat');
     }
   });
 

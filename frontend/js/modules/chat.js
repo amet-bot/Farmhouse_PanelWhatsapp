@@ -14,18 +14,14 @@ const chatModule = {
   isInternalNote: false,
 
   async loadConversation(convId) {
-    // 1. Se fija esta conversación como "la que el agente quiere ver" ANTES de esperar la
-    //    respuesta del servidor. Si el agente hace click en otra conversación mientras esta
-    //    petición sigue en vuelo, activeRequestConvId cambia y la comprobación de abajo
-    //    descarta la respuesta vieja en vez de sobreescribir el panel con datos de otro
-    //    contacto — esta era la causa real del bug: dos fetch concurrentes (uno por cada
-    //    click) podían resolver en cualquier orden, y el que terminaba último "ganaba"
-    //    sin importar cuál conversación estaba seleccionada en ese momento.
     this.activeRequestConvId = convId;
-
-    // 2. Limpia inmediatamente el panel derecho y el chat central: nunca debe verse el
-    //    contacto/pedido anterior mientras carga el nuevo (Punto 5).
     this.renderLoadingState();
+
+    // En móvil, cambiar a la vista de chat
+    const wsContainer = document.getElementById('workspaceContainer');
+    if (wsContainer) {
+      wsContainer.classList.add('show-chat');
+    }
 
     let data;
     try {
@@ -156,6 +152,13 @@ const chatModule = {
       `;
     }
     if (composer) composer.style.display = 'none';
+
+    // En móvil, regresar a la lista de conversaciones
+    const wsContainer = document.getElementById('workspaceContainer');
+    if (wsContainer) {
+      wsContainer.classList.remove('show-chat');
+    }
+
     utils.renderIcons();
   },
 

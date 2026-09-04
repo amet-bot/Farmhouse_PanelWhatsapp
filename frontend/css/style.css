@@ -2682,11 +2682,19 @@ input:-webkit-autofill:focus {
     display: none;
   }
   /* La campana de notificaciones debe quedar siempre visible sin desplazar la
-     barra superior: se ocultan el indicador "En línea", el badge de dispositivo
-     y el selector de sucursal (accesible igual desde el menú lateral). */
+     barra superior: se ocultan el badge de dispositivo y el selector de sucursal (accesibles igual desde el menú lateral). */
   .status-indicator,
   .top-select-group {
     display: none !important;
+  }
+  .sound-toggle-btn .btn-text {
+    display: none;
+  }
+  .sound-toggle-btn {
+    padding: 6px 8px;
+    min-width: 36px;
+    min-height: 36px;
+    justify-content: center;
   }
   .workspace.show-chat .panel-conversations {
     display: none !important;
