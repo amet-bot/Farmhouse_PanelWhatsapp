@@ -28,7 +28,12 @@ self.addEventListener('push', (event) => {
     badge: '/assets/images/farmhouse-logo.png',
     tag: payload.conversation_id ? `fh-conv-${payload.conversation_id}` : undefined,
     renotify: !!payload.conversation_id,
-    data: { url: payload.url || '/' }
+    vibrate: [250, 100, 250, 100, 250],
+    requireInteraction: true,
+    data: { url: payload.url || '/' },
+    actions: [
+      { action: 'open', title: 'Abrir chat' }
+    ]
   };
 
   event.waitUntil(self.registration.showNotification(payload.title, options));

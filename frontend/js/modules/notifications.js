@@ -235,6 +235,10 @@ const notificationModule = {
       container.id = 'floatingNotificationStack';
       container.className = 'floating-notif-stack';
       document.body.appendChild(container);
+    } else {
+      // Mantener solo la notificación más reciente para no tapar la pantalla del celular
+      const existingCards = container.querySelectorAll('.floating-notif-card');
+      existingCards.forEach((c) => c.remove());
     }
 
     const card = document.createElement('div');

@@ -40,7 +40,45 @@ const pushModule = {
     // Si el usuario ya había concedido el permiso antes, re-sincroniza la suscripción en silencio.
     if (Notification.permission === 'granted') {
       await this.subscribe();
+    } else if (Notification.permission === 'default') {
+      // Mostrar banner amistoso para invitar a activar notificaciones en celular
+      setTimeout(() => this.showMobilePromptBanner(), 2000);
     }
+  },
+
+  showMobilePromptBanner() {
+    if (document.getElementById('mobilePushPromptBanner')) return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'default') return;
+
+    const banner = document.createElement('div');
+    banner.id = 'mobilePushPromptBanner';
+    banner.className = 'mobile-push-prompt-banner';
+    banner.innerHTML = `
+      <div class="prompt-icon"><i data-lucide="bell-ring"></i></div>
+      <div class="prompt-content">
+        <strong>¿Recibir avisos con la pantalla apagada?</strong>
+        <p>Activa las notificaciones push para no perderte ningún pedido o mensaje de WhatsApp.</p>
+        <div class="prompt-actions">
+          <button class="btn-prompt-activate" id="btnPromptActivatePush">Activar Notificaciones</button>
+          <button class="btn-prompt-dismiss" id="btnPromptDismissPush">Más tarde</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(banner);
+    utils.renderIcons();
+
+    document.getElementById('btnPromptActivatePush')?.addEventListener('click', async () => {
+      banner.remove();
+      const ok = await this.requestPermissionAndSubscribe();
+      if (ok && typeof updateNotifBellIcon === 'function') {
+        updateNotifBellIcon();
+      }
+    });
+
+    document.getElementById('btnPromptDismissPush')?.addEventListener('click', () => {
+      banner.remove();
+    });
   },
 
   /**
@@ -57,7 +95,21 @@ const pushModule = {
       utils.showToast('No se activaron las notificaciones (permiso denegado).', 'warning');
       return false;
     }
-    return this.subscribe();
+    const subscribed = await this.subscribe();
+    if (subscribed) {
+      utils.showToast('🔔 Notificaciones push del celular activadas con éxito.', 'success');
+      const btn = document.getElementById('btnEnableNotifications');
+      if (btn) {
+        btn.classList.add('notif-active');
+        btn.title = 'Notificaciones push activadas';
+      }
+      const iconSlot = document.getElementById('notifBellIconSlot');
+      if (iconSlot) {
+        iconSlot.innerHTML = '<i data-lucide="bell-ring"></i>';
+      }
+      utils.renderIcons();
+    }
+    return subscribed;
   },
 
   async subscribe() {

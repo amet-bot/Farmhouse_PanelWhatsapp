@@ -139,6 +139,25 @@ def mask_phone(phone: Optional[str]) -> str:
 
 settings = Settings()
 
+def _ensure_vapid_keys():
+    if not settings.VAPID_PUBLIC_KEY or not settings.VAPID_PRIVATE_KEY:
+        try:
+            from cryptography.hazmat.primitives.asymmetric import ec
+            from cryptography.hazmat.primitives import serialization
+            import base64
+            pk = ec.generate_private_key(ec.SECP256R1())
+            priv_bytes = pk.private_numbers().private_value.to_bytes(32, "big")
+            pub_bytes = pk.public_key().public_bytes(
+                serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
+            )
+            settings.VAPID_PRIVATE_KEY = base64.urlsafe_b64encode(priv_bytes).decode().rstrip("=")
+            settings.VAPID_PUBLIC_KEY = base64.urlsafe_b64encode(pub_bytes).decode().rstrip("=")
+            logging.getLogger("farmhouse.config").info("[Config] Claves VAPID auto-inicializadas para Web Push.")
+        except Exception as e:
+            logging.getLogger("farmhouse.config").warning(f"[Config] No se pudieron auto-generar claves VAPID: {e}")
+
+_ensure_vapid_keys()
+
 def get_official_whatsapp_number() -> str:
     """
     Número oficial de WhatsApp de Farmhouse (solo dígitos, sin '+', espacios ni guiones),
