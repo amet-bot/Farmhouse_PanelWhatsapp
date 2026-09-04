@@ -49,12 +49,22 @@ const wsClient = {
     }
 
     console.log('[WS] Conectando a sala en tiempo real...');
-    this.socket = new WebSocket(wsUrl);
-
+    this.updateStatus('connecting');
+    try {
+      this.socket = new WebSocket(wsUrl);
+    } catch (err) {
+      console.error('[WS] Error instanciando WebSocket:', err);
+      this.updateStatus('disconnected');
+      if (auth.isAuthenticated()) {
+        setTimeout(() => this.connect(), this.reconnectInterval);
+      }
+      return;
+    }
 
     this.socket.onopen = () => {
       console.log('[WS] Conexión WebSocket establecida.');
       this.lastPongAt = Date.now();
+      this.updateStatus('connected');
       this.startPing();
       this.emit('connected');
     };
@@ -82,13 +92,34 @@ const wsClient = {
     this.socket.onclose = (event) => {
       console.log(`[WS] Conexión cerrada (código: ${event.code}).`);
       this.stopPing();
+      this.updateStatus('disconnected');
       this.emit('disconnected');
 
-      // 1008 = Policy Violation (Dispositivo no autorizado o token inválido)
-      if (event.code !== 1008 && auth.isAuthenticated()) {
-        setTimeout(() => this.connect(), this.reconnectInterval);
+      if (auth.isAuthenticated()) {
+        const delay = event.code === 1008 ? 5000 : this.reconnectInterval;
+        setTimeout(() => this.connect(), delay);
       }
     };
+  },
+
+  updateStatus(status) {
+    const dot = document.getElementById('topLiveDot');
+    const text = document.getElementById('topLiveText');
+    const badge = document.getElementById('topLiveBadge');
+    if (dot && text) {
+      dot.className = `status-circle live-dot ${status}`;
+      if (status === 'connected') {
+        text.textContent = 'En vivo';
+        if (badge) badge.title = '🟢 Conexión en tiempo real activa';
+      } else if (status === 'connecting') {
+        text.textContent = 'Reconectando...';
+        if (badge) badge.title = '🟡 Reconectando a tiempo real...';
+      } else {
+        text.textContent = 'Desconectado';
+        if (badge) badge.title = '🔴 Sin conexión en tiempo real (usando sincronización periódica)';
+      }
+    }
+    this.emit('status_changed', status);
   },
 
   disconnect() {

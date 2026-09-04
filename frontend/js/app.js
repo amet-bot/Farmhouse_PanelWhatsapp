@@ -207,11 +207,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     await devicesModule.init();
     wsClient.connect();
     await conversationsModule.init();
+    notificationModule.init();
     utils.renderIcons();
 
     // Notificaciones Push (silencioso: solo re-sincroniza si el permiso ya fue concedido antes)
     pushModule.init();
     updateNotifBellIcon();
+
+    // Sincronizador de Respaldo Silencioso en Tiempo Real (cada 6 segundos)
+    // Garantiza que ningún mensaje o conversación quede estancado si el WebSocket se reconecta
+    setInterval(() => {
+      if (typeof auth !== 'undefined' && auth.isAuthenticated()) {
+        if (chatModule.currentConversation && chatModule.currentConversation.id) {
+          chatModule.syncCurrentMessagesSilently();
+        }
+        conversationsModule.loadConversations();
+      }
+    }, 6000);
 
     // Si la app fue abierta desde una notificación push (nueva pestaña), abrir esa conversación
     const urlParams = new URLSearchParams(window.location.search);
@@ -268,35 +280,53 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 5. Conexión y Eventos en Tiempo Real (WebSockets)
-  wsClient.on('new_incoming_message', (data) => {
+  wsClient.on('connected', () => {
+    if (chatModule.currentConversation && chatModule.currentConversation.id) {
+      chatModule.syncCurrentMessagesSilently();
+    }
     conversationsModule.loadConversations();
-    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
+    branchesModule.updateCounters();
+  });
+
+  wsClient.on('new_incoming_message', (data) => {
+    // 1. Notificación multi-sensorial destacada (Sonido + Desktop + Tarjeta interactiva + Flash pestaña)
+    notificationModule.notifyIncomingMessage(data);
+
+    // 2. Resaltar conversación en el listado y recargar lista
+    conversationsModule.loadConversations();
+    conversationsModule.highlightConversation(data.conversation_id);
+    branchesModule.updateCounters();
+
+    // 3. Si es la conversación activa, actualizar mensajes al instante
+    const currentConvId = chatModule.currentConversation ? Number(chatModule.currentConversation.id) : null;
+    const incomingConvId = Number(data.conversation_id);
+
+    if (currentConvId && currentConvId === incomingConvId) {
       if (!chatModule.currentConversation.messages) chatModule.currentConversation.messages = [];
-      const yaExiste = chatModule.currentConversation.messages.some(m => m.id === data.message.id);
-      if (!yaExiste) {
+      const yaExiste = chatModule.currentConversation.messages.some(m => m.id === data.message?.id);
+      if (!yaExiste && data.message) {
         chatModule.currentConversation.messages.push(data.message);
         chatModule.renderMessages();
       }
       // Si el mensaje es una comanda del menú o trae datos de orden, recargar la conversación para actualizar el panel de Pedido Actual
       const content = String(data.message?.content || '');
       if (content.includes('MI PEDIDO FARMHOUSE') || content.includes('Pedido: FH-')) {
-        chatModule.loadConversation(data.conversation_id);
+        chatModule.loadConversation(incomingConvId);
       }
     }
-    utils.showToast(`Nuevo mensaje de ${data.contact_name}`, 'info');
   });
 
   wsClient.on('message_media_updated', (data) => {
-    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
+    const currentConvId = chatModule.currentConversation ? Number(chatModule.currentConversation.id) : null;
+    const targetConvId = Number(data.conversation_id);
+
+    if (currentConvId && currentConvId === targetConvId) {
       if (chatModule.currentConversation.messages) {
         const msg = chatModule.currentConversation.messages.find(m => m.id === data.message_id);
         if (msg) {
           msg.media_url = data.media_url;
           msg.media_type = data.media_type;
           msg.media_mime_type = data.media_mime_type;
-          // Si el backend agotó los reintentos de descarga, `media_failed` llega en true: se
-          // refleja en error_detail (mismo campo que ya usa el renderer para decidir el estado
-          // de error/Reintentar) para no quedarse mostrando "Descargando..." para siempre.
           if (data.media_failed) {
             msg.error_detail = 'media_download_failed';
           } else if (data.media_url) {
@@ -311,11 +341,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   wsClient.on('new_outgoing_message', (data) => {
     conversationsModule.loadConversations();
-    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
+    const currentConvId = chatModule.currentConversation ? Number(chatModule.currentConversation.id) : null;
+    const targetConvId = Number(data.conversation_id);
+
+    if (currentConvId && currentConvId === targetConvId) {
       if (!chatModule.currentConversation.messages) chatModule.currentConversation.messages = [];
-      // Evitar duplicar el mensaje si esta misma pestaña fue la que lo mandó
-      const yaExiste = chatModule.currentConversation.messages.some(m => m.id === data.message.id);
-      if (!yaExiste) {
+      const yaExiste = chatModule.currentConversation.messages.some(m => m.id === data.message?.id);
+      if (!yaExiste && data.message) {
         chatModule.currentConversation.messages.push(data.message);
         chatModule.renderMessages();
       }
@@ -323,9 +355,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   wsClient.on('cart_update', (data) => {
-    // El cliente está armando el pedido en /menu ahora mismo (Punto 5): se actualiza el panel
-    // de "Pedido actual" sin recargar toda la conversación, para que se sienta instantáneo.
-    if (!chatModule.currentConversation || chatModule.currentConversation.id !== data.conversation_id) return;
+    const currentConvId = chatModule.currentConversation ? Number(chatModule.currentConversation.id) : null;
+    const targetConvId = Number(data.conversation_id);
+
+    if (!currentConvId || currentConvId !== targetConvId) return;
     const conv = chatModule.currentConversation;
     if (!conv.orders) conv.orders = [];
 
@@ -352,19 +385,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   wsClient.on('order_created', (data) => {
+    notificationModule.notifyNewOrder(data);
     conversationsModule.loadConversations();
+    conversationsModule.highlightConversation(data.conversation_id);
     branchesModule.updateCounters();
-    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
-      chatModule.loadConversation(data.conversation_id);
+
+    const currentConvId = chatModule.currentConversation ? Number(chatModule.currentConversation.id) : null;
+    const targetConvId = Number(data.conversation_id);
+    if (currentConvId && currentConvId === targetConvId) {
+      chatModule.loadConversation(targetConvId);
     }
-    utils.showToast(`🧾 Nuevo pedido de ${data.contact_name}: ${data.order.order_code}`, 'success');
   });
 
   wsClient.on('conversation_transferred', (data) => {
     conversationsModule.loadConversations();
     branchesModule.updateCounters();
-    if (chatModule.currentConversation && chatModule.currentConversation.id === data.conversation_id) {
-      chatModule.loadConversation(data.conversation_id);
+    const currentConvId = chatModule.currentConversation ? Number(chatModule.currentConversation.id) : null;
+    const targetConvId = Number(data.conversation_id);
+    if (currentConvId && currentConvId === targetConvId) {
+      chatModule.loadConversation(targetConvId);
     }
   });
 

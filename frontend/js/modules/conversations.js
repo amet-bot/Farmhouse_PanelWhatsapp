@@ -144,9 +144,24 @@ const conversationsModule = {
         statusHtml = '<span class="status-badge status-pending">Pendiente</span>';
       }
 
-      // Preview seguro contra XSS
-      const previewText = conv.assigned_user ? `Atendido por: ${conv.assigned_user.name}` : (contactPhone || 'Conversación activa');
+      // Preview seguro contra XSS (muestra el último mensaje real si existe)
+      let previewText = '';
+      if (conv.messages && conv.messages.length > 0) {
+        const lastM = conv.messages[conv.messages.length - 1];
+        if (lastM.is_internal) {
+          previewText = `🔒 Nota: ${lastM.content}`;
+        } else if (lastM.direction === 'outgoing') {
+          previewText = `Tú: ${lastM.content}`;
+        } else {
+          previewText = lastM.content || 'Mensaje multimedia';
+        }
+      } else if (conv.assigned_user) {
+        previewText = `Atendido por: ${conv.assigned_user.name}`;
+      } else {
+        previewText = contactPhone || 'Conversación iniciada';
+      }
 
+      item.dataset.id = conv.id;
       item.innerHTML = `
         <div class="conv-avatar" style="border-left: 3px solid ${utils.escapeHtml(branchColor)}; background:${avatarColor}22; color:${avatarColor}">
           ${utils.escapeHtml(initials)}
@@ -156,7 +171,7 @@ const conversationsModule = {
             <span class="conv-name">${utils.escapeHtml(contactName)}</span>
             <span class="conv-time">${utils.escapeHtml(timeStr)}</span>
           </div>
-          <div class="conv-preview">${utils.escapeHtml(previewText)}</div>
+          <div class="conv-preview" title="${utils.escapeHtml(previewText)}">${utils.escapeHtml(previewText)}</div>
           <div class="conv-meta">
             <span class="conv-branch-tag" style="color:${utils.escapeHtml(branchColor)}">● ${utils.escapeHtml(branchName)}</span>
             ${statusHtml}
@@ -199,5 +214,17 @@ const conversationsModule = {
     }
 
     chatModule.loadConversation(convId);
+  },
+
+  highlightConversation(convId) {
+    if (!convId) return;
+    const item = document.querySelector(`.conv-item[data-id="${convId}"]`);
+    if (item) {
+      item.classList.remove('conv-pulse-alert');
+      // Trigger reflow to restart animation
+      void item.offsetWidth;
+      item.classList.add('conv-pulse-alert');
+      setTimeout(() => item.classList.remove('conv-pulse-alert'), 5000);
+    }
   }
 };

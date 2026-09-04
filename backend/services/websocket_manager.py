@@ -60,16 +60,20 @@ class ConnectionManager:
     async def broadcast_to_branch(self, branch_id: int, message: dict):
         """
         Emite a los agentes de la sucursal indicada Y a todos los supervisores/admins conectados.
-        NO se emite a agentes de otras sucursales.
+        Si branch_id es None (conversación sin sucursal asignada), emite a todos los usuarios
+        conectados para que la entrada de nuevas conversaciones sea visible en tiempo real.
         """
         targets: Set[WebSocket] = set()
         
-        # Agentes de la sucursal
         if branch_id and branch_id in self.branch_rooms:
             targets.update(self.branch_rooms[branch_id])
             
-        # Supervisores globales
         targets.update(self.supervisor_room)
+
+        # Si no tiene sucursal asignada aún, notificar a todos los usuarios conectados
+        if not branch_id:
+            for sock_set in self.active_users.values():
+                targets.update(sock_set)
 
         dead_sockets = set()
         text_data = json.dumps(message)

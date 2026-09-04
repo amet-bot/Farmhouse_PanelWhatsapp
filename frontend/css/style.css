@@ -2160,6 +2160,273 @@ input:-webkit-autofill:focus {
 }
 
 /* ----------------------------------------------------------------------------
+   NOTIFICACIONES PROMINENTES Y EN TIEMPO REAL
+   ---------------------------------------------------------------------------- */
+.floating-notif-stack {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 380px;
+  width: calc(100vw - 32px);
+  pointer-events: none;
+}
+
+.floating-notif-card {
+  pointer-events: auto;
+  position: relative;
+  background: var(--bg-surface);
+  border: 1px solid var(--line-light);
+  border-left: 4px solid var(--primary-color, #16a34a);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.22), 0 4px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  animation: slideInNotifCard 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+}
+
+.floating-notif-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px -4px rgba(0, 0, 0, 0.28);
+}
+
+.floating-notif-card.dismissed {
+  opacity: 0;
+  transform: translateX(60px) scale(0.95);
+  pointer-events: none;
+}
+
+.floating-notif-card.notif-type-order {
+  border-left-color: #f59e0b;
+}
+
+.floating-notif-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.floating-notif-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.floating-notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.floating-notif-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.floating-notif-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.floating-notif-close:hover {
+  color: var(--text-main);
+}
+
+.floating-notif-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.floating-notif-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-notif-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--primary-light, #dcfce7);
+  color: var(--primary-color, #16a34a);
+  border: 1px solid var(--primary-color, #16a34a);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-notif-open:hover {
+  background: var(--primary-color, #16a34a);
+  color: #ffffff;
+}
+
+.floating-notif-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--primary-color, #16a34a);
+  width: 100%;
+  animation: notifProgressBar 6s linear forwards;
+}
+
+.floating-notif-card.notif-type-order .floating-notif-progress {
+  background: #f59e0b;
+}
+
+@keyframes slideInNotifCard {
+  from {
+    transform: translateX(100%) scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes notifProgressBar {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+/* Estado de Conexión en Tiempo Real */
+.live-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 20px;
+  background: var(--bg-surface-soft, rgba(0, 0, 0, 0.04));
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background-color: #94a3b8;
+  transition: background-color 0.3s ease;
+}
+
+.live-dot.connected {
+  background-color: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  animation: pulseLiveDot 2s infinite;
+}
+
+.live-dot.connecting {
+  background-color: #f59e0b;
+  animation: blinkLiveDot 1s infinite;
+}
+
+.live-dot.disconnected {
+  background-color: #ef4444;
+}
+
+@keyframes pulseLiveDot {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+@keyframes blinkLiveDot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Botón de control de sonido */
+.sound-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--bg-surface-soft, transparent);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sound-toggle-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.sound-toggle-btn.active {
+  color: var(--primary-color, #16a34a);
+  border-color: var(--primary-color, #16a34a);
+  background: var(--primary-light, rgba(22, 163, 74, 0.08));
+}
+
+/* Resaltado de conversación al recibir mensaje */
+.conv-item.conv-pulse-alert {
+  animation: convPulseGlow 1.2s ease-in-out 3;
+  border-left: 3px solid #22c55e !important;
+}
+
+@keyframes convPulseGlow {
+  0% {
+    background-color: inherit;
+  }
+  50% {
+    background-color: rgba(34, 197, 94, 0.18);
+  }
+  100% {
+    background-color: inherit;
+  }
+}
+
+/* ----------------------------------------------------------------------------
    ÍCONOS SVG Y COMPONENTES VISUALES
    ---------------------------------------------------------------------------- */
 .lucide,

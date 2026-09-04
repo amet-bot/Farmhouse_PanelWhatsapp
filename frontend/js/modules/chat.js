@@ -48,6 +48,35 @@ const chatModule = {
     this.setupComposer();
   },
 
+  async syncCurrentMessagesSilently() {
+    if (!this.currentConversation || !this.currentConversation.id) return;
+    const convId = Number(this.currentConversation.id);
+    if (this.activeRequestConvId && Number(this.activeRequestConvId) !== convId) return;
+
+    try {
+      const data = await api.get(`/conversations/${convId}`);
+      if (!this.currentConversation || Number(this.currentConversation.id) !== convId) return;
+
+      const oldMessages = this.currentConversation.messages || [];
+      const newMessages = data.messages || [];
+
+      // Detectar cambios en cantidad o estado de mensajes
+      const hasChanges = newMessages.length !== oldMessages.length ||
+        newMessages.some((nm, idx) => {
+          const om = oldMessages[idx];
+          return !om || om.id !== nm.id || om.status !== nm.status || om.media_url !== nm.media_url;
+        });
+
+      if (hasChanges) {
+        this.currentConversation = data;
+        this.renderMessages();
+        this.renderOrderPanel();
+      }
+    } catch (e) {
+      // Ignorar errores en sincronización silenciosa de fondo
+    }
+  },
+
   renderLoadingState() {
     // Estado transitorio mientras se resuelve loadConversation(): usa los mismos IDs de
     // elemento que renderHeader/renderMessages/renderOrderPanel para que, en cuanto esos
@@ -273,7 +302,7 @@ const chatModule = {
       const timeStr = utils.formatTime(msg.created_at);
       const senderLabel = isInternal
         ? '<i data-lucide="lock" style="width:12px;height:12px;display:inline-block;vertical-align:middle"></i> Nota Interna de Agente'
-        : (isOutgoing ? 'Farmhouse Panamá' : (this.currentConversation.contact?.name || 'Cliente'));
+        : (isOutgoing ? 'Farmhouse Panamá' : utils.escapeHtml(this.currentConversation.contact?.name || 'Cliente'));
 
       let statusBadge = '';
       if (isOutgoing && !isInternal) {

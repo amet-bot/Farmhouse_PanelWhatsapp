@@ -86,9 +86,9 @@
           <i data-lucide="menu"></i>
         </button>
 
-        <div class="status-indicator">
-          <span class="status-circle"></span>
-          <span class="status-text">En línea</span>
+        <div class="status-indicator live-status-badge" id="topLiveBadge" title="Conexión en tiempo real activa">
+          <span class="status-circle live-dot connected" id="topLiveDot"></span>
+          <span class="status-text" id="topLiveText">En vivo</span>
         </div>
 
         <!-- Indicador de Dispositivo Activo -->
@@ -115,6 +115,12 @@
         <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
           <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
           <span class="theme-label">Oscuro</span>
+        </button>
+
+        <!-- Botón de Control de Sonido -->
+        <button class="sound-toggle-btn active" id="btnToggleSound" aria-label="Sonido de notificaciones" title="Sonido activado (clic para silenciar)">
+          <span class="nav-icon"><i data-lucide="volume-2"></i></span>
+          <span class="btn-text">Sonido</span>
         </button>
 
         <button class="notif-bell" id="btnEnableNotifications" aria-label="Notificaciones" title="Activar notificaciones push">
@@ -722,16 +728,17 @@
   </div>
 
   <!-- Scripts JavaScript Modularizados y Seguros -->
-  <script src="js/utils.js?v=3.3.1"></script>
-  <script src="js/api.js?v=3.3.1"></script>
-  <script src="js/ws.js?v=3.3.1"></script>
-  <script src="js/modules/auth.js?v=3.3.1"></script>
-  <script src="js/modules/branches.js?v=3.3.1"></script>
-  <script src="js/modules/users.js?v=3.3.1"></script>
-  <script src="js/modules/devices.js?v=3.3.1"></script>
-  <script src="js/modules/conversations.js?v=3.3.1"></script>
-  <script src="js/modules/chat.js?v=3.3.1"></script>
-  <script src="js/modules/push.js?v=3.3.1"></script>
-  <script src="js/app.js?v=3.3.1"></script>
+  <script src="js/utils.js?v=3.4.0"></script>
+  <script src="js/api.js?v=3.4.0"></script>
+  <script src="js/ws.js?v=3.4.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/modules/branches.js?v=3.4.0"></script>
+  <script src="js/modules/users.js?v=3.4.0"></script>
+  <script src="js/modules/devices.js?v=3.4.0"></script>
+  <script src="js/modules/conversations.js?v=3.4.0"></script>
+  <script src="js/modules/chat.js?v=3.4.0"></script>
+  <script src="js/modules/push.js?v=3.4.0"></script>
+  <script src="js/modules/notifications.js?v=3.4.0"></script>
+  <script src="js/app.js?v=3.4.0"></script>
 </body>
 </html>
