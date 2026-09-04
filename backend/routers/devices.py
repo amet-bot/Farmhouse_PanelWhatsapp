@@ -10,7 +10,7 @@ from models.device import Device
 from models.branch import Branch
 from models.user import User
 from schemas.device import DeviceResponse, DeviceCreate, DeviceUpdate
-from security.auth import get_current_authorized_user, require_role
+from security.auth import get_current_user, get_current_authorized_user, require_role
 from security.access_control import check_target_branch_valid
 from services.device_access import check_device_authorized
 
@@ -27,7 +27,13 @@ def get_devices(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_authorized_user)
+    # Deliberadamente solo requiere sesión autenticada (NO get_current_authorized_user):
+    # este es el endpoint que el frontend usa para descubrir/auto-vincular un dispositivo
+    # autorizado. Si exigiera un dispositivo ya autorizado para poder listarlos, un agente
+    # o supervisor sin dispositivo vinculado (o con uno viejo/revocado en localStorage)
+    # quedaría bloqueado para siempre: no podría ver la lista de dispositivos válidos de
+    # su sucursal ni auto-vincularse a ninguno, aunque el admin ya los haya registrado.
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(Device)
 

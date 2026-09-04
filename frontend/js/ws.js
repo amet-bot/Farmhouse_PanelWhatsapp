@@ -6,6 +6,7 @@ const wsClient = {
   socket: null,
   reconnectInterval: 4000,
   pingTimer: null,
+  lastPongAt: null,
   listeners: {},
 
   async connect() {
@@ -53,12 +54,16 @@ const wsClient = {
 
     this.socket.onopen = () => {
       console.log('[WS] Conexión WebSocket establecida.');
+      this.lastPongAt = Date.now();
       this.startPing();
       this.emit('connected');
     };
 
     this.socket.onmessage = (event) => {
-      if (event.data === 'pong') return;
+      if (event.data === 'pong') {
+        this.lastPongAt = Date.now();
+        return;
+      }
       try {
         const data = JSON.parse(event.data);
         this.emit('message', data);
@@ -97,9 +102,20 @@ const wsClient = {
   startPing() {
     this.stopPing();
     this.pingTimer = setInterval(() => {
-      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-        this.socket.send('ping');
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+
+      // Detección de socket "zombi" (Punto móvil): al volver de segundo plano en un
+      // celular, el sistema operativo suele cortar la conexión TCP subyacente sin avisar
+      // a la pestaña — el navegador sigue reportando readyState === OPEN aunque el socket
+      // ya no reciba nada. Si hace más de dos ciclos de ping que no llega un "pong", se
+      // asume muerto y se fuerza una reconexión en vez de esperar indefinidamente.
+      if (this.lastPongAt && Date.now() - this.lastPongAt > 55000) {
+        console.warn('[WS] Sin respuesta "pong" reciente: la conexión parece muerta (zombi). Forzando reconexión.');
+        this.disconnect();
+        this.connect();
+        return;
       }
+      this.socket.send('ping');
     }, 25000);
   },
 
@@ -108,6 +124,21 @@ const wsClient = {
       clearInterval(this.pingTimer);
       this.pingTimer = null;
     }
+  },
+
+  // Se llama al volver la pestaña a primer plano, recuperar el foco o recuperar red
+  // (Punto móvil): en celular es habitual que el sistema operativo cierre el socket
+  // mientras la app está en segundo plano (cambio de app, pantalla bloqueada, cambio
+  // de WiFi a datos móviles) sin disparar 'onclose' de inmediato. Sin esta verificación
+  // activa, el usuario no recibe mensajes nuevos hasta refrescar o volver a iniciar
+  // sesión manualmente.
+  ensureConnected() {
+    if (typeof auth === 'undefined' || !auth.isAuthenticated()) return;
+    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+    console.log('[WS] Verificación de reconexión (visibilidad/foco/red): reconectando...');
+    this.connect();
   },
 
   on(event, callback) {
@@ -127,3 +158,13 @@ const wsClient = {
     });
   }
 };
+
+// Reconexión activa al volver del segundo plano (Punto móvil, ver ensureConnected arriba).
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    wsClient.ensureConnected();
+  }
+});
+window.addEventListener('pageshow', () => wsClient.ensureConnected());
+window.addEventListener('online', () => wsClient.ensureConnected());
+window.addEventListener('focus', () => wsClient.ensureConnected());

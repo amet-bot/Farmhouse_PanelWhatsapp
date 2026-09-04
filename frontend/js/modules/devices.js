@@ -10,9 +10,13 @@ const devicesModule = {
   async init() {
     await this.loadDevices();
 
-    // Auto-vincular al primer dispositivo activo de la sucursal del agente si no hay uno válido
+    // Auto-vincular al primer dispositivo activo de la sucursal si no hay uno válido.
+    // Aplica tanto a agentes como a supervisores de sucursal (ambos requieren dispositivo
+    // autorizado para conectar por WebSocket, ver check_device_authorized): antes solo se
+    // auto-vinculaba al rol 'agent', dejando a los supervisores sin tiempo real cada sesión
+    // hasta que entraran manualmente al panel de Dispositivos y presionaran "Conectar".
     const user = auth.getUser();
-    if (user && user.role === 'agent' && user.branch_id) {
+    if (user && (user.role === 'agent' || user.role === 'supervisor') && user.branch_id) {
       const currentDevId = api.getDeviceId();
       const activeBranchDevs = this.devices.filter(d => d.status === 'active' && d.branch_id === user.branch_id);
       const isCurrentValid = activeBranchDevs.some(d => d.device_id === currentDevId);
