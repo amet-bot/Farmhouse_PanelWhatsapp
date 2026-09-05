@@ -134,8 +134,8 @@
 
     try {
       const [menuRes, branchesRes] = await Promise.all([
-        fetch("/api/menu/items"),
-        fetch("/api/branches/"),
+        fetch("/api/menu/items?t=" + Date.now()),
+        fetch("/api/branches/?t=" + Date.now()),
       ]);
       const menuData = await menuRes.json();
       state.branches = branchesRes.ok ? await branchesRes.json() : [];
