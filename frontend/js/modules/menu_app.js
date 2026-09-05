@@ -226,74 +226,183 @@
     if (inpPhone && state.customerPhone) inpPhone.value = state.customerPhone;
   }
 
-  // ===================== CATEGORÍAS Y PRODUCTOS =====================
+  // ===================== CATEGORÍAS Y PRODUCTOS (SCROLL CONTINUO) =====================
+
+  let scrollObserver = null;
+
+  function setupScrollSpy() {
+    if (scrollObserver) {
+      scrollObserver.disconnect();
+    }
+    const sections = document.querySelectorAll(".menu-category-section[data-tab]");
+    if (!sections.length || !("IntersectionObserver" in window)) return;
+
+    scrollObserver = new IntersectionObserver((entries) => {
+      const visible = entries.filter((e) => e.isIntersecting);
+      if (visible.length > 0) {
+        visible.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        const activeTabKey = visible[0].target.dataset.tab;
+        if (activeTabKey && activeTabKey !== state.activeTabKey) {
+          state.activeTabKey = activeTabKey;
+          updateActivePillUI(activeTabKey);
+        }
+      }
+    }, {
+      root: null,
+      rootMargin: "-120px 0px -60% 0px",
+      threshold: 0
+    });
+
+    sections.forEach((sec) => scrollObserver.observe(sec));
+  }
+
+  function updateActivePillUI(tabKey) {
+    const nav = el("categoryPills");
+    if (!nav) return;
+    nav.querySelectorAll(".category-pill").forEach((btn) => {
+      const isActive = btn.dataset.tab === tabKey;
+      btn.classList.toggle("active", isActive);
+      if (isActive) {
+        btn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      }
+    });
+  }
 
   function renderCategoryPills() {
     const nav = el("categoryPills");
     if (!nav) return;
     nav.innerHTML = state.tabs.map((tab) => `
-      <button class="category-pill ${tab.key === state.activeTabKey ? "active" : ""}" data-tab="${tab.key}">${escapeHtml(stripLeadingEmoji(tab.label))}</button>
+      <button type="button" class="category-pill ${tab.key === state.activeTabKey ? "active" : ""}" data-tab="${tab.key}">
+        ${escapeHtml(stripLeadingEmoji(tab.label))}
+      </button>
     `).join("");
+
     nav.querySelectorAll(".category-pill").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        state.activeTabKey = btn.dataset.tab;
-        renderCategoryPills();
-        renderProducts();
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const tabKey = btn.dataset.tab;
+        state.activeTabKey = tabKey;
+        updateActivePillUI(tabKey);
+
+        if (state.searchQuery) {
+          state.searchQuery = "";
+          const searchInp = el("searchInput");
+          if (searchInp) searchInp.value = "";
+          renderProducts();
+        }
+
+        const sec = el(`section-${tabKey}`);
+        if (sec) {
+          const headerOffset = 135;
+          const elementPosition = sec.getBoundingClientRect().top;
+          const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: "smooth"
+          });
+        }
       });
     });
   }
 
-  function getVisibleProducts() {
-    const query = state.searchQuery.trim().toLowerCase();
-    if (query) {
-      const all = state.tabs.flatMap((t) => t.products.map((p) => ({ ...p, _tabKey: t.key })));
-      return all.filter((p) => p.title.toLowerCase().includes(query) || (p.description || "").toLowerCase().includes(query));
-    }
-    const tab = state.tabs.find((t) => t.key === state.activeTabKey);
-    return tab ? tab.products.map((p) => ({ ...p, _tabKey: tab.key })) : [];
+  function renderProductCardHtml(p, tabKey, globalIdx) {
+    const price = p.sizes[0] ? p.sizes[0].price : 0;
+    return `
+      <button class="product-card" data-idx="${globalIdx}" data-tab="${tabKey}" type="button" aria-label="${escapeHtml(p.title)}, ${p.has_sizes ? "desde " : ""}${money(price)}">
+        <div class="product-card-img-wrap">
+          <img class="product-card-photo" src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.parentElement.classList.add('img-error')">
+          ${FALLBACK_IMG_HTML}
+        </div>
+        <div class="product-card-body">
+          <div class="product-card-title">${escapeHtml(p.title)}</div>
+          <div class="product-card-desc">${escapeHtml(p.description)}</div>
+          <div class="product-card-footer">
+            <span class="product-card-price">${p.has_sizes ? "Desde " : ""}${money(price)}</span>
+            <span class="product-card-add">Agregar</span>
+          </div>
+        </div>
+      </button>
+    `;
   }
 
   function renderProducts() {
-    const products = getVisibleProducts();
     const grid = el("productsGrid");
     const emptyState = el("emptyState");
-
     if (!grid) return;
 
-    if (products.length === 0) {
-      grid.innerHTML = "";
-      if (emptyState) emptyState.hidden = false;
+    const query = state.searchQuery.trim().toLowerCase();
+
+    // Modo búsqueda
+    if (query) {
+      if (scrollObserver) scrollObserver.disconnect();
+      const all = state.tabs.flatMap((t) => t.products.map((p) => ({ ...p, _tabKey: t.key })));
+      const filtered = all.filter((p) => p.title.toLowerCase().includes(query) || (p.description || "").toLowerCase().includes(query));
+
+      if (filtered.length === 0) {
+        grid.innerHTML = "";
+        if (emptyState) emptyState.hidden = false;
+        return;
+      }
+      if (emptyState) emptyState.hidden = true;
+
+      grid.innerHTML = `
+        <div class="menu-category-section search-results-section">
+          <div class="menu-category-header">
+            <h2 class="menu-category-title">Resultados de búsqueda</h2>
+            <span class="menu-category-count">${filtered.length} producto${filtered.length === 1 ? "" : "s"}</span>
+          </div>
+          <div class="category-products-grid">
+            ${filtered.map((p, idx) => renderProductCardHtml(p, p._tabKey, idx)).join("")}
+          </div>
+        </div>
+      `;
+
+      grid.querySelectorAll(".product-card").forEach((card) => {
+        card.addEventListener("click", () => {
+          const idx = Number(card.dataset.idx);
+          const prod = filtered[idx];
+          if (prod) openProductModal(prod);
+        });
+      });
       return;
     }
-    if (emptyState) emptyState.hidden = true;
 
-    grid.innerHTML = products.map((p, idx) => {
-      const price = p.sizes[0] ? p.sizes[0].price : 0;
+    // Modo Scroll Continuo por Categorías
+    if (emptyState) emptyState.hidden = true;
+    const allProductsFlat = [];
+
+    const sectionsHtml = state.tabs.map((tab) => {
+      if (!tab.products || tab.products.length === 0) return "";
+      const cardsHtml = tab.products.map((p) => {
+        const globalIdx = allProductsFlat.length;
+        allProductsFlat.push({ ...p, _tabKey: tab.key });
+        return renderProductCardHtml(p, tab.key, globalIdx);
+      }).join("");
+
       return `
-        <button class="product-card" data-idx="${idx}" type="button" aria-label="${escapeHtml(p.title)}, ${p.has_sizes ? "desde " : ""}${money(price)}">
-          <div class="product-card-img-wrap">
-            <img class="product-card-photo" src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.parentElement.classList.add('img-error')">
-            ${FALLBACK_IMG_HTML}
+        <section class="menu-category-section" id="section-${tab.key}" data-tab="${tab.key}">
+          <div class="menu-category-header">
+            <h2 class="menu-category-title">${escapeHtml(stripLeadingEmoji(tab.label))}</h2>
+            <span class="menu-category-count">${tab.products.length} producto${tab.products.length === 1 ? "" : "s"}</span>
           </div>
-          <div class="product-card-body">
-            <div class="product-card-title">${escapeHtml(p.title)}</div>
-            <div class="product-card-desc">${escapeHtml(p.description)}</div>
-            <div class="product-card-footer">
-              <span class="product-card-price">${p.has_sizes ? "Desde " : ""}${money(price)}</span>
-              <span class="product-card-add">Agregar</span>
-            </div>
+          <div class="category-products-grid">
+            ${cardsHtml}
           </div>
-        </button>
+        </section>
       `;
     }).join("");
+
+    grid.innerHTML = sectionsHtml;
 
     grid.querySelectorAll(".product-card").forEach((card) => {
       card.addEventListener("click", () => {
         const idx = Number(card.dataset.idx);
-        const prod = products[idx];
+        const prod = allProductsFlat[idx];
         if (prod) openProductModal(prod);
       });
     });
+
+    setupScrollSpy();
   }
 
   // ===================== MODAL DE PERSONALIZACIÓN =====================

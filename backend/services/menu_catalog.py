@@ -26,7 +26,7 @@ TAB_DEFINITIONS = [
     {"key": "byo", "label": "🥣 Build Your Own", "categories": ["Build Your Own"], "addon_category": "Premiums"},
     {"key": "toasties", "label": "🥪 Toasties", "categories": ["Toasties"], "addon_category": "Toastie Add-ons"},
     {"key": "smoothies", "label": "🥤 Smoothies", "categories": ["Classic Smoothies", "Signature Smoothies"], "addon_category": "Smoothie Extras"},
-    {"key": "drinks", "label": "🥤 Drinks & Vitrina", "categories": ["Drinks", "Vitrina"], "addon_category": None},
+    {"key": "drinks", "label": "🥤 Drinks & Vitrina", "categories": ["Drinks", "Vitrina", "Merch"], "addon_category": None},
 ]
 
 _cache: Dict[str, Any] = {"mtime": None, "rows": None}

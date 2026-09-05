@@ -341,24 +341,57 @@ a:focus-visible {
   color: var(--fh-on-green);
 }
 
-/* ===================== GRID DE PRODUCTOS ===================== */
+/* ===================== CONTENEDOR Y SECCIONES DEL MENÚ ===================== */
 .products-grid {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 var(--space-4) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.menu-category-section {
+  scroll-margin-top: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.menu-category-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: var(--space-3);
+  border-bottom: 2px solid var(--fh-line);
+}
+
+.menu-category-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--fh-green);
+  letter-spacing: -0.01em;
+}
+
+.menu-category-count {
+  font-size: 13px;
+  color: var(--fh-text-muted);
+  font-weight: 500;
+}
+
+.category-products-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--space-4);
-  padding: 0 var(--space-4) var(--space-6);
-  max-width: 1180px;
-  margin: 0 auto;
 }
 @media (min-width: 640px) {
-  .products-grid { grid-template-columns: repeat(3, 1fr); gap: var(--space-5); }
+  .category-products-grid { grid-template-columns: repeat(3, 1fr); gap: var(--space-5); }
 }
 @media (min-width: 960px) {
-  .products-grid { grid-template-columns: repeat(4, 1fr); }
+  .category-products-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
 .menu-loading, .empty-state {
-  grid-column: 1 / -1;
   text-align: center;
   color: var(--fh-text-muted);
   padding: 64px 20px;
@@ -367,8 +400,20 @@ a:focus-visible {
 .empty-state p { max-width: 320px; margin: 0 auto; line-height: 1.5; }
 
 /* Skeletons de carga */
+.skeletons-wrapper {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .skeletons-wrapper { grid-template-columns: repeat(3, 1fr); gap: var(--space-5); }
+}
+@media (min-width: 960px) {
+  .skeletons-wrapper { grid-template-columns: repeat(4, 1fr); }
+}
+
 .skeleton-card {
-  grid-column: span 1;
   height: 268px;
   border-radius: var(--radius-md);
   border: 1px solid var(--fh-line);
