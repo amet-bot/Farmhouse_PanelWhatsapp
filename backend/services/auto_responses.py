@@ -3,23 +3,24 @@ Farmhouse WhatsApp Center - Mensajes de Respuesta Automática
 Configuración centralizada de mensajes y saludos automáticos del sistema.
 """
 
-MAIN_WELCOME_BODY = "Hola Bienvenido a farmhouse, como te podemos ayudar hoy?"
-MAIN_MENU_BUTTON = "Ver opciones"
-
-MAIN_MENU_OPTIONS = [
-    {"id": "opt_visit", "title": "1. Visitar sucursal", "description": "Ubicaciones y horarios"},
-    {"id": "opt_delivery", "title": "2. Pedido a domicilio", "description": "Delivery a tu dirección"},
-    {"id": "opt_pickup", "title": "3. Retirar en local", "description": "Pide y pasa a retirar"},
-    {"id": "opt_corporate", "title": "4. Evento/Corporativo", "description": "Pedidos corporativos y eventos"},
-]
-
-MAIN_MENU_TEXT_FALLBACK = (
+MAIN_WELCOME_BODY = (
     "Hola Bienvenido a farmhouse, como te podemos ayudar hoy?\n\n"
     "(1) Quiero visitarlos a una de su sucursales\n"
     "(2) Quiero hacer un pedido a domicilio\n"
     "(3) Quiero hacer un pedio para retirar en local\n"
     "(4) Quiero coordinar un pedido coorporativo u organizar un evento."
 )
+
+MAIN_MENU_BUTTON = "Ver opciones"
+
+MAIN_MENU_OPTIONS = [
+    {"id": "opt_visit", "title": "(1) Visitar sucursales", "description": "Quiero visitarlos a una de su sucursales"},
+    {"id": "opt_delivery", "title": "(2) Pedido a domicilio", "description": "Quiero hacer un pedido a domicilio"},
+    {"id": "opt_pickup", "title": "(3) Retiro en local", "description": "Quiero hacer un pedio para retirar en local"},
+    {"id": "opt_corporate", "title": "(4) Evento / Corporativo", "description": "Quiero coordinar un pedido coorporativo u organizar un evento."},
+]
+
+MAIN_MENU_TEXT_FALLBACK = MAIN_WELCOME_BODY
 
 WELCOME_MESSAGES = [
     MAIN_WELCOME_BODY,

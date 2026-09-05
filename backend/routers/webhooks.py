@@ -121,7 +121,7 @@ async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, c
     if isinstance(menu_res, dict) and "messages" in menu_res and menu_res["messages"]:
         menu_wamid = menu_res["messages"][0].get("id")
 
-    msg_content = f"🌿 {MAIN_WELCOME_BODY}\n\n1️⃣ Visitar sucursales\n2️⃣ Pedido a domicilio\n3️⃣ Retirar en local\n4️⃣ Pedido corporativo / eventos"
+    msg_content = MAIN_WELCOME_BODY
     menu_msg = Message(
         conversation_id=conv.id, direction="outgoing", sender_type="system",
         content=msg_content, whatsapp_message_id=menu_wamid, is_internal=False, status="sent"
