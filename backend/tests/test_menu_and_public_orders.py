@@ -18,7 +18,7 @@ def test_menu_items_returns_expected_tabs(client):
     assert resp.status_code == 200
     data = resp.json()
     tab_keys = {t["key"] for t in data["tabs"]}
-    assert {"salads", "bowls", "wraps", "byo", "toasties", "smoothies", "drinks"} == tab_keys
+    assert {"salads", "bowls", "wraps", "byo", "toasties", "smoothies", "drinks", "vitrina", "merch"} == tab_keys
 
     salads_tab = next(t for t in data["tabs"] if t["key"] == "salads")
     assert len(salads_tab["products"]) > 0

@@ -21,12 +21,14 @@ ADDON_CATEGORIES = {"Premiums", "Toastie Add-ons", "Smoothie Extras"}
 # Agrupación de categorías del CSV en las pestañas (pills) del menú digital.
 TAB_DEFINITIONS = [
     {"key": "salads", "label": "🥗 Salads", "categories": ["Salads"], "addon_category": "Premiums"},
-    {"key": "bowls", "label": "🍚 Bowls", "categories": ["Bowls"], "addon_category": "Premiums"},
+    {"key": "bowls", "label": "🍚 Bowls & Açaí", "categories": ["Bowls"], "addon_category": "Premiums"},
     {"key": "wraps", "label": "🌯 Wraps", "categories": ["Wraps"], "addon_category": None},
     {"key": "byo", "label": "🥣 Build Your Own", "categories": ["Build Your Own"], "addon_category": "Premiums"},
     {"key": "toasties", "label": "🥪 Toasties", "categories": ["Toasties"], "addon_category": "Toastie Add-ons"},
     {"key": "smoothies", "label": "🥤 Smoothies", "categories": ["Classic Smoothies", "Signature Smoothies"], "addon_category": "Smoothie Extras"},
-    {"key": "drinks", "label": "🥤 Drinks & Vitrina", "categories": ["Drinks", "Vitrina", "Merch"], "addon_category": None},
+    {"key": "drinks", "label": "☕ Cafetería & Bebidas", "categories": ["Drinks"], "addon_category": None},
+    {"key": "vitrina", "label": "🍪 Sweets & Vitrina", "categories": ["Vitrina"], "addon_category": None},
+    {"key": "merch", "label": "🛍️ Merch", "categories": ["Merch"], "addon_category": None},
 ]
 
 _cache: Dict[str, Any] = {"mtime": None, "rows": None}
