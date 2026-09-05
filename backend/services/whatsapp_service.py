@@ -122,7 +122,9 @@ class MockWhatsAppService(WhatsAppService):
             elif msg_type == "interactive":
                 interactive_obj = msg.get("interactive", {})
                 interactive_type = interactive_obj.get("type")  # "list_reply" o "button_reply"
-                reply_obj = interactive_obj.get(interactive_type, {}) if interactive_type else {}
+                reply_obj = interactive_obj.get(interactive_type, {}) if interactive_type else (
+                    interactive_obj.get("list_reply") or interactive_obj.get("button_reply") or {}
+                )
                 result["interactive_id"] = reply_obj.get("id")
                 result["interactive_title"] = reply_obj.get("title")
                 result["text"] = reply_obj.get("title", "")

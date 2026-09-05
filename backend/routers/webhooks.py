@@ -19,13 +19,17 @@ from models.branch import Branch
 from services.whatsapp_service import get_whatsapp_service
 from services.websocket_manager import ws_manager
 from services.auto_responses import (
-    WELCOME_MESSAGES, BRANCH_SELECTION_BODY, BRANCH_SELECTION_BUTTON,
-    ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE,
-    get_branch_welcome_message
+    MAIN_WELCOME_BODY, MAIN_MENU_BUTTON, MAIN_MENU_OPTIONS, MAIN_MENU_TEXT_FALLBACK,
+    BRANCH_SELECTION_BODY, BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY,
+    BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON, CORPORATE_WELCOME_MESSAGE,
+    get_branch_visit_message, get_branch_welcome_message,
+    ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE
 )
 from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKER
 from services.branch_matcher import match_branch_by_text
-from services.order_flow_matcher import match_delivery_type_text, match_payment_method_text, mentions_cash
+from services.order_flow_matcher import (
+    match_main_option, match_delivery_type_text, match_payment_method_text, mentions_cash
+)
 from services.push_service import notify_branch_new_message
 from security.auth import create_menu_session_token
 
@@ -104,10 +108,47 @@ async def _assign_conversation_branch(db: Session, conv: Conversation, branch: B
                 "branch_id": conv.branch_id
             })
 
-async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, intro_text: Optional[str] = None) -> None:
+async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Envía el menú principal de bienvenida de Farmhouse con las 4 opciones interactivas."""
+    await asyncio.sleep(0.3)
+    menu_res = await wa_service.send_interactive_list(
+        phone,
+        MAIN_WELCOME_BODY,
+        MAIN_MENU_BUTTON,
+        MAIN_MENU_OPTIONS
+    )
+    menu_wamid = None
+    if isinstance(menu_res, dict) and "messages" in menu_res and menu_res["messages"]:
+        menu_wamid = menu_res["messages"][0].get("id")
+
+    msg_content = f"🌿 {MAIN_WELCOME_BODY}\n\n1️⃣ Visitar sucursales\n2️⃣ Pedido a domicilio\n3️⃣ Retirar en local\n4️⃣ Pedido corporativo / eventos"
+    menu_msg = Message(
+        conversation_id=conv.id, direction="outgoing", sender_type="system",
+        content=msg_content, whatsapp_message_id=menu_wamid, is_internal=False, status="sent"
+    )
+    db.add(menu_msg)
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(menu_msg)
+    await ws_manager.broadcast_to_branch(conv.branch_id, {
+        "type": "new_incoming_message",
+        "conversation_id": conv.id,
+        "branch_id": conv.branch_id,
+        "contact_name": contact.name,
+        "contact_phone": contact.phone,
+        "message": {
+            "id": menu_msg.id, "direction": menu_msg.direction, "sender_type": menu_msg.sender_type,
+            "content": menu_msg.content, "status": menu_msg.status, "created_at": menu_msg.created_at.isoformat()
+        },
+        "is_new_conversation": False
+    })
+    logger.info(f"[MainMenu] Menú principal de 4 opciones enviado a {mask_phone(phone)} para Conv ID {conv.id}.")
+
+async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, intro_text: Optional[str] = None, prompt_body: Optional[str] = None) -> None:
     """Envía (opcionalmente) un mensaje introductorio y luego la lista interactiva de sucursales activas."""
+    body_text = prompt_body or BRANCH_SELECTION_BODY
     if intro_text:
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.3)
         send_res = await wa_service.send_text_message(phone, intro_text)
         intro_wamid = None
         if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
@@ -133,18 +174,21 @@ async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversatio
             "is_new_conversation": False
         })
 
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.3)
     active_branches = db.query(Branch).filter(Branch.active == True).order_by(Branch.name).all()
     if not active_branches:
         return
-    rows = [{"id": f"branch_{b.id}", "title": b.name[:24]} for b in active_branches[:10]]
-    menu_res = await wa_service.send_interactive_list(phone, BRANCH_SELECTION_BODY, BRANCH_SELECTION_BUTTON, rows)
+    rows = [{"id": f"branch_{b.id}", "title": b.name[:24], "description": f"Sucursal {b.name}"[:72]} for b in active_branches if b.code != "CAT"][:10]
+    if not rows:
+        rows = [{"id": f"branch_{b.id}", "title": b.name[:24]} for b in active_branches[:10]]
+
+    menu_res = await wa_service.send_interactive_list(phone, body_text, BRANCH_SELECTION_BUTTON, rows)
     menu_wamid = None
     if isinstance(menu_res, dict) and "messages" in menu_res and menu_res["messages"]:
         menu_wamid = menu_res["messages"][0].get("id")
     menu_msg = Message(
         conversation_id=conv.id, direction="outgoing", sender_type="system",
-        content=f"📋 {BRANCH_SELECTION_BODY}", whatsapp_message_id=menu_wamid, is_internal=False, status="sent"
+        content=f"📋 {body_text}", whatsapp_message_id=menu_wamid, is_internal=False, status="sent"
     )
     db.add(menu_msg)
     conv.updated_at = datetime.now(timezone.utc)
@@ -192,36 +236,71 @@ async def _send_interactive_buttons_message(db: Session, wa_service, conv: Conve
     })
 
 async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
-    """Envía el saludo específico de la sucursal y el menú simulado de opciones."""
+    """Envía la información de visita o el enlace del Menú Digital según el tipo de atención."""
     branch_name = conv.branch.name if conv.branch else "Farmhouse"
-    welcome_text = get_branch_welcome_message(branch_name)
-
-    # 1. Enlace personalizado al Menú Digital (/menu) con sucursal, teléfono, nombre y conversación
-    #    resueltos para que el cliente arme su orden completa (con Delivery/Retiro y Pago) en la web.
-    await asyncio.sleep(0.3)
     branch_code = conv.branch.code if conv.branch else ""
+
+    if conv.delivery_type == "visit":
+        visit_text = get_branch_visit_message(branch_code, branch_name)
+        send_res = await wa_service.send_text_message(phone, visit_text)
+        wamid = None
+        if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
+            wamid = send_res["messages"][0].get("id")
+        msg = Message(
+            conversation_id=conv.id, direction="outgoing", sender_type="system",
+            content=visit_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
+        )
+        db.add(msg)
+        conv.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(msg)
+        await ws_manager.broadcast_to_branch(conv.branch_id, {
+            "type": "new_incoming_message",
+            "conversation_id": conv.id,
+            "branch_id": conv.branch_id,
+            "contact_name": contact.name,
+            "contact_phone": contact.phone,
+            "message": {
+                "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
+                "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
+            },
+            "is_new_conversation": False
+        })
+        return
+
+    # Enlace personalizado al Menú Digital (/menu)
+    await asyncio.sleep(0.3)
     client_name = urllib.parse.quote(contact.name or "")
     client_phone = urllib.parse.quote(phone.lstrip("+"))
-    # Se incluye el número de WhatsApp de la sucursal como ?wa= para que /menu sepa a qué chat
-    # debe volver al enviar el pedido (ver resolve_whatsapp_destination en routers/orders.py,
-    # que es quien valida este valor de verdad — nunca se confía en él solo por venir en la URL).
     try:
         origin_wa = get_whatsapp_number_for_branch(branch_code)
     except RuntimeError:
         origin_wa = None
     wa_param = f"&wa={origin_wa}" if origin_wa else ""
-    # Token firmado que asocia esta sesión del Menú Digital con conv.id de forma segura: el
-    # backend nunca confía en `?conv=` a secas (un cliente podría editarlo a mano para
-    # actualizar el carrito de OTRA conversación), solo en este token verificable.
     session_token = create_menu_session_token(conv.id, conv.branch_id)
     menu_url = f"{settings.PUBLIC_BASE_URL}/menu?branch={branch_code}&phone={client_phone}&name={client_name}&conv={conv.id}&session={session_token}{wa_param}"
     
-    menu_text = (
-        f"¡Bienvenido a Farmhouse *{branch_name}*! 🌿🥗\n\n"
-        f"👉 *Toca aquí para ver nuestro Menú Interactivo y hacer tu pedido:* 👇\n"
-        f"{menu_url}\n\n"
-        f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos y envíanos tu orden con Delivery o Retiro en 1 clic._"
-    )
+    if conv.delivery_type == "delivery":
+        menu_text = (
+            f"¡Excelente! 🛵 Aquí tienes nuestro Menú Digital para pedir a domicilio desde Farmhouse *{branch_name}*:\n\n"
+            f"👉 *Toca aquí para ver nuestro Menú y hacer tu pedido:* 👇\n"
+            f"{menu_url}\n\n"
+            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos, ingresa tu dirección y envíanos tu orden en 1 clic._"
+        )
+    elif conv.delivery_type == "pickup":
+        menu_text = (
+            f"¡Perfecto! 🛍️ Aquí tienes nuestro Menú Digital para retirar en Farmhouse *{branch_name}*:\n\n"
+            f"👉 *Toca aquí para ver nuestro Menú y hacer tu pedido:* 👇\n"
+            f"{menu_url}\n\n"
+            f"_Elige tus platillos favoritos y te lo tendremos fresco y listo cuando pases a retirarlo._"
+        )
+    else:
+        menu_text = (
+            f"¡Bienvenido a Farmhouse *{branch_name}*! 🌿🥗\n\n"
+            f"👉 *Toca aquí para ver nuestro Menú Interactivo y hacer tu pedido:* 👇\n"
+            f"{menu_url}\n\n"
+            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos y envíanos tu orden con Delivery o Retiro en 1 clic._"
+        )
     
     send_res_menu = await wa_service.send_text_message(phone, menu_text)
     wamid_menu = None
@@ -424,51 +503,114 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             logger.info(f"[AutoResponse] Automatización pausada para conv {conv.id}. Omitiendo bot.")
             return
 
-        # 3. Detección de sucursal si aún no tiene asignada
+        # 3. Detección de opción del Menú Principal (1. Visitar, 2. Delivery, 3. Retiro, 4. Corporativo)
+        interactive_id = str(msg_data.get("interactive_id") or "")
+        main_option_matched = None
+        if interactive_id == "opt_visit":
+            main_option_matched = "visit"
+        elif interactive_id == "opt_delivery":
+            main_option_matched = "delivery"
+        elif interactive_id == "opt_pickup":
+            main_option_matched = "pickup"
+        elif interactive_id == "opt_corporate":
+            main_option_matched = "corporate"
+        elif message_type == "text":
+            main_option_matched = match_main_option(text)
+
+        # 3.1 Opción 4: Pedido Corporativo / Evento
+        if main_option_matched == "corporate":
+            cat_branch = db.query(Branch).filter((Branch.code == "CAT") | (Branch.name.ilike("%catering%"))).first()
+            if cat_branch:
+                await _assign_conversation_branch(db, conv, cat_branch, "cliente seleccionó Pedido Corporativo / Evento")
+
+            send_res = await wa_service.send_text_message(phone, CORPORATE_WELCOME_MESSAGE)
+            wamid = None
+            if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
+                wamid = send_res["messages"][0].get("id")
+            corp_msg = Message(
+                conversation_id=conv.id, direction="outgoing", sender_type="system",
+                content=CORPORATE_WELCOME_MESSAGE, whatsapp_message_id=wamid, is_internal=False, status="sent"
+            )
+            db.add(corp_msg)
+            conv.automation_paused = True
+            conv.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(corp_msg)
+            await ws_manager.broadcast_to_branch(conv.branch_id, {
+                "type": "new_incoming_message",
+                "conversation_id": conv.id,
+                "branch_id": conv.branch_id,
+                "contact_name": contact.name,
+                "contact_phone": contact.phone,
+                "message": {
+                    "id": corp_msg.id, "direction": corp_msg.direction, "sender_type": corp_msg.sender_type,
+                    "content": corp_msg.content, "status": corp_msg.status, "created_at": corp_msg.created_at.isoformat()
+                },
+                "is_new_conversation": False
+            })
+            return
+
+        # 3.2 Actualizar delivery_type si se seleccionó opción 1, 2 o 3
+        if main_option_matched in ["visit", "delivery", "pickup"]:
+            conv.delivery_type = main_option_matched
+            conv.updated_at = datetime.now(timezone.utc)
+            db.commit()
+
+        # 4. Detección de sucursal si el cliente seleccionó una sucursal
         branch_matched_now = False
         matched_via = None
-        if conv.branch_id is None:
-            matched_branch = None
-            interactive_id = msg_data.get("interactive_id", "")
-            if message_type == "interactive" and interactive_id.startswith("branch_"):
-                try:
-                    selected_branch_id = int(interactive_id.replace("branch_", ""))
-                    matched_branch = db.query(Branch).filter(Branch.id == selected_branch_id, Branch.active == True).first()
-                except Exception:
-                    pass
-                matched_via = "interactive"
-            elif message_type == "text":
-                active_branches = db.query(Branch).filter(Branch.active == True).all()
-                matched_branch = match_branch_by_text(text, active_branches)
-                matched_via = "text"
+        matched_branch = None
+        if interactive_id.startswith("branch_"):
+            try:
+                selected_branch_id = int(interactive_id.replace("branch_", ""))
+                matched_branch = db.query(Branch).filter(Branch.id == selected_branch_id, Branch.active == True).first()
+            except Exception:
+                pass
+            matched_via = "interactive"
+        elif message_type == "text":
+            active_branches = db.query(Branch).filter(Branch.active == True).all()
+            matched_branch = match_branch_by_text(text, active_branches)
+            matched_via = "text"
 
-            if matched_branch:
-                motivo = "el cliente tocó el menú" if matched_via == "interactive" else "el cliente escribió el nombre en texto"
-                await _assign_conversation_branch(db, conv, matched_branch, motivo)
-                branch_matched_now = True
+        if matched_branch and (conv.branch_id != matched_branch.id or branch_matched_now):
+            motivo = "el cliente tocó el menú de sucursales" if matched_via == "interactive" else "el cliente escribió el nombre de la sucursal"
+            await _assign_conversation_branch(db, conv, matched_branch, motivo)
+            branch_matched_now = True
 
-        # 4. Flujo conversacional estructurado
-        resolved_this_turn = branch_matched_now
-        if conv.branch_id is not None and conv.delivery_type is None and not branch_matched_now:
-            matched_delivery = None
-            interactive_id = msg_data.get("interactive_id", "") if message_type == "interactive" else ""
-            if interactive_id == "delivery_delivery":
-                matched_delivery = "delivery"
-            elif interactive_id == "delivery_pickup":
-                matched_delivery = "pickup"
-            elif message_type == "text":
-                matched_delivery = match_delivery_type_text(text)
+        # 5. Si se seleccionó o tiene delivery_type (visit, delivery, pickup) pero falta sucursal:
+        if conv.delivery_type in ["visit", "delivery", "pickup"] and conv.branch_id is None:
+            if conv.delivery_type == "visit":
+                prompt_text = BRANCH_SELECTION_VISIT_BODY
+            elif conv.delivery_type == "delivery":
+                prompt_text = BRANCH_SELECTION_DELIVERY_BODY
+            else:
+                prompt_text = BRANCH_SELECTION_PICKUP_BODY
+            await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_body=prompt_text)
+            return
 
-            if matched_delivery:
-                conv.delivery_type = matched_delivery
-                conv.updated_at = datetime.now(timezone.utc)
+        # 6. Si la sucursal fue elegida en este turno o acaba de completar delivery_type + sucursal:
+        if (branch_matched_now or (main_option_matched in ["visit", "delivery", "pickup"] and conv.branch_id is not None)):
+            await _send_branch_welcome_and_menu(db, wa_service, conv, contact, phone)
+            return
+
+        # 7. Si no tiene delivery_type y no tiene sucursal, mostrar el Menú Principal inicial de 4 opciones:
+        if conv.delivery_type is None and conv.branch_id is None:
+            now = datetime.now(timezone.utc)
+            should_prompt = True
+            if conv.last_branch_prompt_at:
+                elapsed = (now - conv.last_branch_prompt_at.replace(tzinfo=timezone.utc)).total_seconds() if conv.last_branch_prompt_at.tzinfo else (datetime.utcnow() - conv.last_branch_prompt_at).total_seconds()
+                if elapsed < 180 and not (message_type == "text" and any(k in text.lower() for k in ["hola", "menu", "opciones", "buenas", "ayuda", "1", "2", "3", "4"])):
+                    should_prompt = False
+
+            if should_prompt:
+                await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+                conv.last_branch_prompt_at = now
                 db.commit()
-                resolved_this_turn = True
-                logger.info(f"[DeliverySelection] Conv ID {conv.id}: Tipo de entrega '{matched_delivery}' detectado.")
+            return
 
-        elif conv.branch_id is not None and conv.delivery_type is not None and conv.payment_method is None:
+        # 8. Flujo de selección de pago (si aplica dentro del chat)
+        if conv.branch_id is not None and conv.delivery_type in ["delivery", "pickup"] and conv.payment_method is None:
             matched_payment = None
-            interactive_id = msg_data.get("interactive_id", "") if message_type == "interactive" else ""
             if interactive_id.startswith("pay_"):
                 matched_payment = interactive_id.replace("pay_", "")
             elif message_type == "text":
@@ -478,81 +620,43 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                 conv.payment_method = matched_payment
                 conv.updated_at = datetime.now(timezone.utc)
                 db.commit()
-                resolved_this_turn = True
-                logger.info(f"[PaymentSelection] Conv ID {conv.id}: Método de pago '{matched_payment}' detectado.")
 
-        # 5. Respuestas automáticas correspondientes
-        if conv.branch_id is None:
-            now = datetime.now(timezone.utc)
-            should_prompt = True
-            if conv.last_branch_prompt_at:
-                elapsed = (now - conv.last_branch_prompt_at.replace(tzinfo=timezone.utc)).total_seconds() if conv.last_branch_prompt_at.tzinfo else (datetime.utcnow() - conv.last_branch_prompt_at).total_seconds()
-                if elapsed < 180 and not (message_type == "text" and any(k in text.lower() for k in ["hola", "menu", "sucursal", "buenas"])):
-                    should_prompt = False
-
-            if should_prompt:
-                intro = WELCOME_MESSAGES[0]
-                await _send_branch_selection_menu(db, wa_service, conv, contact, phone, intro_text=intro)
-                conv.last_branch_prompt_at = now
+                payment_closing_messages = {
+                    "ach": ACH_PAYMENT_INSTRUCTIONS,
+                    "card": CARD_PAYMENT_MESSAGE,
+                    "yappy": YAPPY_PAYMENT_MESSAGE,
+                    "cash": CASH_PAYMENT_MESSAGE,
+                }
+                closing_text = payment_closing_messages.get(
+                    conv.payment_method,
+                    "¡Genial! Ya tenemos todo listo para arrancar 😊 En un momento alguien de nuestro equipo te atiende para tomar los detalles de tu pedido. ¡Gracias por tu paciencia!"
+                )
+                send_res = await wa_service.send_text_message(phone, closing_text)
+                wamid = None
+                if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
+                    wamid = send_res["messages"][0].get("id")
+                msg = Message(
+                    conversation_id=conv.id, direction="outgoing", sender_type="system",
+                    content=closing_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
+                )
+                db.add(msg)
+                conv.automation_paused = True
+                conv.updated_at = datetime.now(timezone.utc)
                 db.commit()
-            return
-
-        if branch_matched_now:
-            await _send_branch_welcome_and_menu(db, wa_service, conv, contact, phone)
-            return
-
-        if conv.delivery_type is not None and conv.payment_method is None and resolved_this_turn:
-            payment_rows = [
-                {"id": "pay_yappy", "title": "📱 Yappy"},
-                {"id": "pay_card", "title": "💳 Tarjeta (Link)"},
-                {"id": "pay_ach", "title": "🏦 Transferencia ACH"},
-                {"id": "pay_cash", "title": "💵 Efectivo"},
-            ]
-            await asyncio.sleep(0.5)
-            await wa_service.send_interactive_list(
-                phone,
-                "¿Cómo te gustaría pagar tu pedido?",
-                "Ver métodos de pago",
-                payment_rows
-            )
-            return
-
-        if resolved_this_turn and conv.payment_method is not None:
-            payment_closing_messages = {
-                "ach": ACH_PAYMENT_INSTRUCTIONS,
-                "card": CARD_PAYMENT_MESSAGE,
-                "yappy": YAPPY_PAYMENT_MESSAGE,
-                "cash": CASH_PAYMENT_MESSAGE,
-            }
-            closing_text = payment_closing_messages.get(
-                conv.payment_method,
-                "¡Genial! Ya tenemos todo listo para arrancar 😊 En un momento alguien de nuestro equipo te atiende para tomar los detalles de tu pedido. ¡Gracias por tu paciencia!"
-            )
-            send_res = await wa_service.send_text_message(phone, closing_text)
-            wamid = None
-            if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-                wamid = send_res["messages"][0].get("id")
-            msg = Message(
-                conversation_id=conv.id, direction="outgoing", sender_type="system",
-                content=closing_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
-            )
-            db.add(msg)
-            conv.automation_paused = True
-            conv.updated_at = datetime.now(timezone.utc)
-            db.commit()
-            db.refresh(msg)
-            await ws_manager.broadcast_to_branch(conv.branch_id, {
-                "type": "new_incoming_message",
-                "conversation_id": conv.id,
-                "branch_id": conv.branch_id,
-                "contact_name": contact.name,
-                "contact_phone": contact.phone,
-                "message": {
-                    "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
-                    "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
-                },
-                "is_new_conversation": False
-            })
+                db.refresh(msg)
+                await ws_manager.broadcast_to_branch(conv.branch_id, {
+                    "type": "new_incoming_message",
+                    "conversation_id": conv.id,
+                    "branch_id": conv.branch_id,
+                    "contact_name": contact.name,
+                    "contact_phone": contact.phone,
+                    "message": {
+                        "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
+                        "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
+                    },
+                    "is_new_conversation": False
+                })
+                return
     except Exception as e:
         logger.error(f"[AutoResponse Background Error] Conv ID {conv_id}: {e}", exc_info=True)
     finally:

@@ -22,9 +22,11 @@ def match_delivery_type_text(customer_text: str) -> Optional[str]:
     return None
 
 
-def match_payment_method_text(customer_text: str, allowed: List[str]) -> Optional[str]:
+def match_payment_method_text(customer_text: str, allowed: Optional[List[str]] = None) -> Optional[str]:
     if not customer_text:
         return None
+    if allowed is None:
+        allowed = ["card", "yappy", "cash", "ach"]
     normalized = normalize_text(customer_text)
     if "card" in allowed and any(kw in normalized for kw in CARD_KEYWORDS):
         return "card"
@@ -34,6 +36,39 @@ def match_payment_method_text(customer_text: str, allowed: List[str]) -> Optiona
         return "cash"
     if "ach" in allowed and any(kw in normalized for kw in ACH_KEYWORDS):
         return "ach"
+    return None
+
+
+MAIN_OPTION_VISIT_KEYWORDS = ["1", "visitar", "visita", "visitar sucursal", "visitar sucursales", "ubicacion", "ubicaciones", "horario", "horarios", "direccion", "donde estan", "donde queda"]
+MAIN_OPTION_DELIVERY_KEYWORDS = ["2", "delivery", "domicilio", "a domicilio", "pedido a domicilio", "a mi casa", "llevar", "traer", "envio"]
+MAIN_OPTION_PICKUP_KEYWORDS = ["3", "retiro", "retirar", "pickup", "recoger", "recojo", "retirar en local", "en el local", "pasar a buscar", "pasar a recoger"]
+MAIN_OPTION_CORPORATE_KEYWORDS = ["4", "corporativo", "coorporativo", "evento", "eventos", "catering", "empresa", "reunion", "organizar un evento", "pedido corporativo"]
+
+
+def match_main_option(customer_text: str) -> Optional[str]:
+    if not customer_text:
+        return None
+    normalized = normalize_text(customer_text)
+    
+    # Exact numeric choices
+    if normalized in ["1", "opcion 1", "opt 1", "1 visitar", "1 visitar sucursal"]:
+        return "visit"
+    if normalized in ["2", "opcion 2", "opt 2", "2 delivery", "2 domicilio", "2 pedido a domicilio"]:
+        return "delivery"
+    if normalized in ["3", "opcion 3", "opt 3", "3 retiro", "3 pickup", "3 retirar en local"]:
+        return "pickup"
+    if normalized in ["4", "opcion 4", "opt 4", "4 corporativo", "4 evento", "4 eventos"]:
+        return "corporate"
+
+    if any(kw in normalized for kw in MAIN_OPTION_CORPORATE_KEYWORDS if kw != "4"):
+        return "corporate"
+    if any(kw in normalized for kw in MAIN_OPTION_VISIT_KEYWORDS if kw != "1"):
+        return "visit"
+    if any(kw in normalized for kw in MAIN_OPTION_PICKUP_KEYWORDS if kw != "3"):
+        return "pickup"
+    if any(kw in normalized for kw in MAIN_OPTION_DELIVERY_KEYWORDS if kw != "2"):
+        return "delivery"
+
     return None
 
 
