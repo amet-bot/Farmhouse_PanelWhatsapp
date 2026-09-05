@@ -28,7 +28,7 @@ WELCOME_MESSAGES = [
 ]
 
 BRANCH_SELECTION_BODY = "¿Cuál de nuestras sucursales te gustaría contactar?"
-BRANCH_SELECTION_VISIT_BODY = "¡Nos encantará recibirte! 🌿✨ ¿Cuál de nuestras sucursales te gustaría visitar?"
+BRANCH_SELECTION_VISIT_BODY = "Excelente elije unas de nuestras sucursales"
 BRANCH_SELECTION_DELIVERY_BODY = "¡Excelente! 🛵 ¿Para cuál de nuestras sucursales deseas solicitar tu delivery?"
 BRANCH_SELECTION_PICKUP_BODY = "¡Perfecto! 🛍️ ¿En cuál de nuestras sucursales deseas retirar tu pedido?"
 BRANCH_SELECTION_BUTTON = "Ver sucursales"
