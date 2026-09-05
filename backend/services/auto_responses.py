@@ -77,20 +77,29 @@ BRANCH_VISIT_INFO = {
     }
 }
 
+MANAGER_HELP_QUESTION = "Te podemos ayudar en algo mas?"
+MANAGER_HELP_BUTTONS = [
+    {"id": "manager_yes", "title": "Hablar con gerente"},
+    {"id": "manager_no", "title": "Nos vemos pronto"},
+]
+MANAGER_HELP_OPTIONS = [
+    {"id": "manager_yes", "title": "(1) Hablar con gerente", "description": "Si me encataria hablar con un gerente"},
+    {"id": "manager_no", "title": "(2) Nos vemos pronto", "description": "No gracias nos vemos pronto"},
+]
+
 def get_branch_visit_message(branch_code: str, branch_name: str) -> str:
-    info = BRANCH_VISIT_INFO.get(branch_code.upper() if branch_code else "")
-    if info:
-        return (
-            f"¡Te esperamos con los brazos abiertos en Farmhouse *{info['name']}*! 🌿🥗✨\n\n"
-            f"📍 *Dirección:* {info['address']}\n"
-            f"⏰ *Horario:* {info['hours']}\n"
-            f"🗺️ *Cómo llegar:* {info['maps_url']}\n\n"
-            f"Si necesitas asistencia para llegar o tienes alguna consulta, un agente de turno te atenderá en seguida por este chat. ¡Nos vemos pronto! 😊"
-        )
+    return f"Excelente te esperamos en la sucursal de {branch_name}"
+
+def get_manager_assigned_message(branch_name: str) -> str:
     return (
-        f"¡Te esperamos con los brazos abiertos en Farmhouse *{branch_name}*! 🌿🥗✨\n\n"
-        f"⏰ *Horario de atención:* Lunes a Domingo: 10:30 AM - 9:30 PM\n\n"
-        f"Si necesitas asistencia para llegar o tienes alguna consulta, un agente de turno te atenderá en seguida por este chat. ¡Nos vemos pronto! 😊"
+        f"¡Con mucho gusto! 🤝 Te comunicamos de inmediato con el gerente de nuestra sucursal de *{branch_name}*.\n\n"
+        f"En un momento te estará atendiendo personalmente por aquí. ¡Muchas gracias por tu paciencia! 😊"
+    )
+
+def get_manager_declined_message(branch_name: str) -> str:
+    return (
+        f"¡Perfecto! Muchas gracias por escribirnos. ¡Te esperamos pronto en Farmhouse *{branch_name}*! "
+        f"Que tengas un excelente día 🌿✨"
     )
 
 def get_branch_welcome_message(branch_name: str) -> str:

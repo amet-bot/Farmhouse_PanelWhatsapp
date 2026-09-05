@@ -8,6 +8,7 @@ from models.message import Message
 from models.branch import Branch
 from services.auto_responses import (
     MAIN_WELCOME_BODY, MAIN_MENU_OPTIONS, CORPORATE_WELCOME_MESSAGE,
+    MANAGER_HELP_QUESTION, get_manager_assigned_message, get_manager_declined_message,
     BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY, BRANCH_SELECTION_PICKUP_BODY,
     get_branch_visit_message
 )
@@ -45,10 +46,10 @@ def test_initial_any_message_triggers_main_welcome_menu(client, clayton_branch, 
 
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
     assert len(msgs) >= 1
-    assert MAIN_WELCOME_BODY in msgs[-1].content
+    assert "Hola Bienvenido a farmhouse, como te podemos ayudar hoy?" in msgs[-1].content
 
 
-def test_option_1_visit_branches_flow(client, clayton_branch, db_session):
+def test_option_1_visit_branches_and_manager_yes_flow(client, clayton_branch, db_session):
     # Paso 1: Cliente escribe '1' o 'visitar'
     payload_opt1 = {
         "object": "whatsapp_business_account",
@@ -90,9 +91,61 @@ def test_option_1_visit_branches_flow(client, clayton_branch, db_session):
     assert conv.branch_id == clayton_branch.id
 
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
-    last_msg = msgs[-1].content
-    assert "Clayton" in last_msg
-    assert "Dirección:" in last_msg or "Horario" in last_msg
+    assert any("Excelente te esperamos en la sucursal de Clayton" in m.content for m in msgs)
+    assert any("Te podemos ayudar en algo mas?" in m.content for m in msgs)
+
+    # Paso 3: Cliente elige hablar con gerente (1)
+    payload_manager = {
+        "object": "whatsapp_business_account",
+        "entry": [{
+            "id": "WABA_ID",
+            "changes": [{
+                "value": {"messaging_product": "whatsapp", "messages": [
+                    {"from": "50769992222", "id": "wamid.TEST03_B", "timestamp": "1725500020", "interactive": {"button_reply": {"id": "manager_yes", "title": "Hablar con gerente"}}, "type": "interactive"}
+                ]},
+                "field": "messages"
+            }]
+        }]
+    }
+    resp3 = client.post("/api/webhooks/whatsapp", json=payload_manager)
+    assert resp3.status_code == 200
+
+    db_session.refresh(conv)
+    assert conv.automation_paused is True
+
+    msgs_after = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
+    assert any("gerente de nuestra sucursal de *Clayton*" in m.content for m in msgs_after)
+
+
+def test_option_1_visit_branches_and_manager_no_flow(client, clayton_branch, db_session):
+    # Cliente selecciona Clayton y luego responde que no necesita nada más
+    contact = Contact(name="Cliente No Gerente", phone="+50769992233")
+    db_session.add(contact)
+    db_session.commit()
+    conv = Conversation(customer_id=contact.id, branch_id=clayton_branch.id, delivery_type="visit", status="open")
+    db_session.add(conv)
+    db_session.commit()
+
+    payload_no = {
+        "object": "whatsapp_business_account",
+        "entry": [{
+            "id": "WABA_ID",
+            "changes": [{
+                "value": {"messaging_product": "whatsapp", "messages": [
+                    {"from": "50769992233", "id": "wamid.TEST_NO", "timestamp": "1725500020", "text": {"body": "No gracias nos vemos pronto"}, "type": "text"}
+                ]},
+                "field": "messages"
+            }]
+        }]
+    }
+    resp = client.post("/api/webhooks/whatsapp", json=payload_no)
+    assert resp.status_code == 200
+
+    db_session.refresh(conv)
+    assert conv.automation_paused is False
+
+    msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
+    assert any("Que tengas un excelente día" in m.content for m in msgs)
 
 
 def test_option_2_delivery_flow(client, clayton_branch, db_session):

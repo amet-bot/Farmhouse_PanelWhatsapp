@@ -72,6 +72,25 @@ def match_main_option(customer_text: str) -> Optional[str]:
     return None
 
 
+def match_manager_help(customer_text: str) -> Optional[str]:
+    if not customer_text:
+        return None
+    normalized = normalize_text(customer_text)
+    
+    # Exact numeric choices in this context
+    if normalized in ["1", "opcion 1", "opt 1", "si", "si por favor"]:
+        return "yes"
+    if normalized in ["2", "opcion 2", "opt 2", "no", "no gracias"]:
+        return "no"
+
+    if any(kw in normalized for kw in ["gerente", "hablar con gerente", "hablar con un gerente", "encataria", "encantaria", "hablar"]):
+        return "yes"
+    if any(kw in normalized for kw in ["nos vemos pronto", "nos vemos", "no gracias", "hasta luego"]):
+        return "no"
+
+    return None
+
+
 def mentions_cash(customer_text: str) -> bool:
     """Para detectar cuando alguien pide efectivo aunque no esté permitido (ej. en delivery)."""
     if not customer_text:

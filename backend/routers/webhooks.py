@@ -22,13 +22,16 @@ from services.auto_responses import (
     MAIN_WELCOME_BODY, MAIN_MENU_BUTTON, MAIN_MENU_OPTIONS, MAIN_MENU_TEXT_FALLBACK,
     BRANCH_SELECTION_BODY, BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY,
     BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON, CORPORATE_WELCOME_MESSAGE,
-    get_branch_visit_message, get_branch_welcome_message,
+    MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS, MANAGER_HELP_OPTIONS,
+    get_branch_visit_message, get_manager_assigned_message, get_manager_declined_message,
+    get_branch_welcome_message,
     ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE
 )
 from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKER
 from services.branch_matcher import match_branch_by_text
 from services.order_flow_matcher import (
-    match_main_option, match_delivery_type_text, match_payment_method_text, mentions_cash
+    match_main_option, match_delivery_type_text, match_payment_method_text,
+    match_manager_help, mentions_cash
 )
 from services.push_service import notify_branch_new_message
 from security.auth import create_menu_session_token
@@ -263,6 +266,33 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
             "message": {
                 "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
                 "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
+            },
+            "is_new_conversation": False
+        })
+
+        await asyncio.sleep(0.3)
+        btn_res = await wa_service.send_interactive_buttons(phone, MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS)
+        btn_wamid = None
+        if isinstance(btn_res, dict) and "messages" in btn_res and btn_res["messages"]:
+            btn_wamid = btn_res["messages"][0].get("id")
+        btn_msg = Message(
+            conversation_id=conv.id, direction="outgoing", sender_type="system",
+            content=f"{MANAGER_HELP_QUESTION}\n\n(1) Si me encataria hablar con un gerente\n(2) No gracias nos vemos pronto",
+            whatsapp_message_id=btn_wamid, is_internal=False, status="sent"
+        )
+        db.add(btn_msg)
+        conv.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(btn_msg)
+        await ws_manager.broadcast_to_branch(conv.branch_id, {
+            "type": "new_incoming_message",
+            "conversation_id": conv.id,
+            "branch_id": conv.branch_id,
+            "contact_name": contact.name,
+            "contact_phone": contact.phone,
+            "message": {
+                "id": btn_msg.id, "direction": btn_msg.direction, "sender_type": btn_msg.sender_type,
+                "content": btn_msg.content, "status": btn_msg.status, "created_at": btn_msg.created_at.isoformat()
             },
             "is_new_conversation": False
         })
@@ -505,6 +535,74 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
 
         # 3. Detección de opción del Menú Principal (1. Visitar, 2. Delivery, 3. Retiro, 4. Corporativo)
         interactive_id = str(msg_data.get("interactive_id") or "")
+        
+        # 3.0 Detección de respuesta a "¿Te podemos ayudar en algo más?"
+        manager_choice = None
+        if interactive_id == "manager_yes":
+            manager_choice = "yes"
+        elif interactive_id == "manager_no":
+            manager_choice = "no"
+        elif conv.delivery_type == "visit" and message_type == "text":
+            manager_choice = match_manager_help(text)
+
+        if manager_choice == "yes":
+            branch_name = conv.branch.name if conv.branch else "Farmhouse"
+            ans_text = get_manager_assigned_message(branch_name)
+            send_res = await wa_service.send_text_message(phone, ans_text)
+            wamid = None
+            if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
+                wamid = send_res["messages"][0].get("id")
+            ans_msg = Message(
+                conversation_id=conv.id, direction="outgoing", sender_type="system",
+                content=ans_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
+            )
+            db.add(ans_msg)
+            conv.automation_paused = True
+            conv.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(ans_msg)
+            await ws_manager.broadcast_to_branch(conv.branch_id, {
+                "type": "new_incoming_message",
+                "conversation_id": conv.id,
+                "branch_id": conv.branch_id,
+                "contact_name": contact.name,
+                "contact_phone": contact.phone,
+                "message": {
+                    "id": ans_msg.id, "direction": ans_msg.direction, "sender_type": ans_msg.sender_type,
+                    "content": ans_msg.content, "status": ans_msg.status, "created_at": ans_msg.created_at.isoformat()
+                },
+                "is_new_conversation": False
+            })
+            return
+        elif manager_choice == "no":
+            branch_name = conv.branch.name if conv.branch else "Farmhouse"
+            ans_text = get_manager_declined_message(branch_name)
+            send_res = await wa_service.send_text_message(phone, ans_text)
+            wamid = None
+            if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
+                wamid = send_res["messages"][0].get("id")
+            ans_msg = Message(
+                conversation_id=conv.id, direction="outgoing", sender_type="system",
+                content=ans_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
+            )
+            db.add(ans_msg)
+            conv.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(ans_msg)
+            await ws_manager.broadcast_to_branch(conv.branch_id, {
+                "type": "new_incoming_message",
+                "conversation_id": conv.id,
+                "branch_id": conv.branch_id,
+                "contact_name": contact.name,
+                "contact_phone": contact.phone,
+                "message": {
+                    "id": ans_msg.id, "direction": ans_msg.direction, "sender_type": ans_msg.sender_type,
+                    "content": ans_msg.content, "status": ans_msg.status, "created_at": ans_msg.created_at.isoformat()
+                },
+                "is_new_conversation": False
+            })
+            return
+
         main_option_matched = None
         if interactive_id == "opt_visit":
             main_option_matched = "visit"
