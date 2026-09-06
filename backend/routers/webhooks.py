@@ -23,8 +23,8 @@ from services.auto_responses import (
     BRANCH_SELECTION_BODY, BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY,
     BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON, CORPORATE_WELCOME_MESSAGE,
     MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS, MANAGER_HELP_OPTIONS,
-    get_branch_visit_message, get_branch_pickup_info_message, get_manager_assigned_message,
-    get_manager_declined_message, get_branch_welcome_message,
+    get_main_welcome_body, get_branch_visit_message, get_branch_pickup_info_message,
+    get_manager_assigned_message, get_manager_declined_message, get_branch_welcome_message,
     ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE
 )
 from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKER
@@ -116,11 +116,13 @@ async def _assign_conversation_branch(db: Session, conv: Conversation, branch: B
             })
 
 async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
-    """Envía el menú principal de bienvenida de Farmhouse con las 4 opciones interactivas."""
-    await asyncio.sleep(0.3)
+    """Envía el menú principal de bienvenida de Farmhouse con las 4 opciones interactivas,
+    personalizado con el nombre de WhatsApp del cliente cuando se conoce."""
+    welcome_body = get_main_welcome_body(contact.name)
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
     menu_res = await wa_service.send_interactive_list(
         phone,
-        MAIN_WELCOME_BODY,
+        welcome_body,
         MAIN_MENU_BUTTON,
         MAIN_MENU_OPTIONS
     )
@@ -128,7 +130,7 @@ async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, c
     if isinstance(menu_res, dict) and "messages" in menu_res and menu_res["messages"]:
         menu_wamid = menu_res["messages"][0].get("id")
 
-    msg_content = MAIN_WELCOME_BODY
+    msg_content = welcome_body
     menu_msg = Message(
         conversation_id=conv.id, direction="outgoing", sender_type="system",
         content=msg_content, whatsapp_message_id=menu_wamid, is_internal=False, status="sent"
@@ -415,12 +417,20 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         if not conv or not contact:
             return
 
+        wa_service = get_whatsapp_service()
+
+        # Marca el mensaje como leído y muestra "escribiendo..." en el chat del cliente MIENTRAS
+        # dura la pausa humana de abajo, para que la espera se sienta como alguien leyendo y
+        # redactando la respuesta, no como un silencio. Efecto puramente cosmético: nunca lanza.
+        incoming_wamid = msg_data.get("wamid")
+        if incoming_wamid:
+            await wa_service.send_typing_indicator(incoming_wamid)
+
         # Pausa antes de que el bot "empiece a escribir": evita que la respuesta llegue de forma
         # instantánea y poco natural. Configurable (0 en tests) vía settings.BOT_RESPONSE_DELAY_SECONDS.
         if settings.BOT_RESPONSE_DELAY_SECONDS > 0:
             await asyncio.sleep(settings.BOT_RESPONSE_DELAY_SECONDS)
 
-        wa_service = get_whatsapp_service()
         message_type = msg_data.get("message_type", "text")
         text = msg_data.get("text", "")
 

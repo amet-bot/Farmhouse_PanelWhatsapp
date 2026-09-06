@@ -49,6 +49,62 @@ def test_initial_any_message_triggers_main_welcome_menu(client, clayton_branch, 
     assert MAIN_WELCOME_BODY in msgs[-1].content
 
 
+def test_initial_message_greets_customer_by_whatsapp_name(client, clayton_branch, db_session):
+    # Cuando Meta manda el perfil de contacto (nombre real de WhatsApp), el saludo se
+    # personaliza en vez de usar el genérico "¡Hola! Bienvenido a farmhouse."
+    payload = {
+        "object": "whatsapp_business_account",
+        "entry": [{
+            "id": "WABA_ID",
+            "changes": [{
+                "value": {
+                    "messaging_product": "whatsapp",
+                    "contacts": [{"profile": {"name": "Ana"}, "wa_id": "50769998888"}],
+                    "messages": [
+                        {"from": "50769998888", "id": "wamid.TEST_NAME", "timestamp": "1725500000", "text": {"body": "Hola"}, "type": "text"}
+                    ]
+                },
+                "field": "messages"
+            }]
+        }]
+    }
+    resp = client.post("/api/webhooks/whatsapp", json=payload)
+    assert resp.status_code == 200
+
+    contact = db_session.query(Contact).filter(Contact.phone.contains("69998888")).first()
+    conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
+    msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
+    assert any("¡Hola, Ana! Bienvenido a farmhouse." in m.content for m in msgs)
+
+
+def test_typing_indicator_shown_before_bot_responds(client, clayton_branch, db_session, monkeypatch):
+    # El bot marca el mensaje como leído y muestra "escribiendo..." antes de contestar (Punto de
+    # "sentirse humano"): verificamos que se llame con el wamid del mensaje entrante correcto.
+    from services.whatsapp_service import MockWhatsAppService
+    calls = []
+
+    async def fake_typing_indicator(self, wamid):
+        calls.append(wamid)
+
+    monkeypatch.setattr(MockWhatsAppService, "send_typing_indicator", fake_typing_indicator)
+
+    payload = {
+        "object": "whatsapp_business_account",
+        "entry": [{
+            "id": "WABA_ID",
+            "changes": [{
+                "value": {"messaging_product": "whatsapp", "messages": [
+                    {"from": "50769997777", "id": "wamid.TEST_TYPING", "timestamp": "1725500000", "text": {"body": "Hola"}, "type": "text"}
+                ]},
+                "field": "messages"
+            }]
+        }]
+    }
+    resp = client.post("/api/webhooks/whatsapp", json=payload)
+    assert resp.status_code == 200
+    assert calls == ["wamid.TEST_TYPING"]
+
+
 def test_option_1_visit_branches_and_manager_yes_flow(client, clayton_branch, db_session):
     # Paso 1: Cliente escribe '1' o 'visitar'
     payload_opt1 = {

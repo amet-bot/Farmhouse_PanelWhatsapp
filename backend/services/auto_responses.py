@@ -2,15 +2,30 @@
 Farmhouse WhatsApp Center - Mensajes de Respuesta Automática
 Configuración centralizada de mensajes y saludos automáticos del sistema.
 """
+from typing import Optional
 
-MAIN_WELCOME_BODY = (
-    "¡Hola! Bienvenido a farmhouse.\n\n"
-    "¿Cómo te podemos ayudar hoy?\n\n"
-    "(1) Quiero visitarlos en una de sus sucursales\n"
-    "(2) Quiero hacer un pedido a domicilio\n"
-    "(3) Quiero hacer un pedido para retirar en el local\n"
-    "(4) Quiero coordinar un pedido corporativo u organizar un evento."
-)
+# Nombre de respaldo que usa parse_incoming_message cuando Meta no manda un perfil de contacto
+# (ver services/whatsapp_service.py). Nunca se usa como saludo personalizado, se trata como
+# "no sabemos el nombre".
+GENERIC_CONTACT_NAMES = {"cliente whatsapp"}
+
+
+def get_main_welcome_body(customer_name: Optional[str] = None) -> str:
+    """Saludo inicial del bot, personalizado con el nombre real de WhatsApp del cliente cuando
+    se conoce (y no es el nombre genérico de respaldo), para que se sienta menos robótico."""
+    name = (customer_name or "").strip()
+    saludo = f"¡Hola, {name}! Bienvenido a farmhouse." if name and name.lower() not in GENERIC_CONTACT_NAMES else "¡Hola! Bienvenido a farmhouse."
+    return (
+        f"{saludo}\n\n"
+        "¿Cómo te podemos ayudar hoy?\n\n"
+        "(1) Quiero visitarlos en una de sus sucursales\n"
+        "(2) Quiero hacer un pedido a domicilio\n"
+        "(3) Quiero hacer un pedido para retirar en el local\n"
+        "(4) Quiero coordinar un pedido corporativo u organizar un evento."
+    )
+
+
+MAIN_WELCOME_BODY = get_main_welcome_body(None)
 
 MAIN_MENU_BUTTON = "Ver opciones"
 

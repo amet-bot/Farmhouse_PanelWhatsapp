@@ -49,6 +49,14 @@ class WhatsAppService(ABC):
         """Envía un mensaje de lista de productos (Multi-Product Message) desde el catálogo de Meta."""
         pass
 
+    @abstractmethod
+    async def send_typing_indicator(self, wamid: str) -> None:
+        """Marca el mensaje entrante como leído y muestra el indicador "escribiendo..." en el
+        chat del cliente (dura hasta 25s o hasta que llegue el próximo mensaje nuestro, lo que
+        pase primero). Es un efecto secundario puramente cosmético: nunca debe interrumpir el
+        flujo de respuesta si falla, por eso no propaga excepciones."""
+        pass
+
 class MockWhatsAppService(WhatsAppService):
     async def send_text_message(self, to_phone: str, text: str) -> Dict[str, Any]:
         wamid = f"wamid.HBgL{uuid.uuid4().hex[:16].upper()}"
@@ -84,6 +92,9 @@ class MockWhatsAppService(WhatsAppService):
         total_items = sum(len(s.get("product_items", [])) for s in sections)
         logger.info(f"[MockWhatsAppService] Lista de productos enviada a {to_phone}: {len(sections)} secciones, {total_items} productos (WAMID: {wamid})")
         return {"messaging_product": "whatsapp", "messages": [{"id": wamid}]}
+
+    async def send_typing_indicator(self, wamid: str) -> None:
+        logger.info(f"[MockWhatsAppService] Simulando 'escribiendo...' para wamid={wamid}")
 
     def parse_incoming_message(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
@@ -364,6 +375,29 @@ class MetaWhatsAppService(WhatsAppService):
             except httpx.HTTPStatusError as e:
                 logger.error(f"[MetaWhatsAppService] Error HTTP {e.response.status_code} de Meta al enviar lista de productos a '{to_phone_clean}': {e.response.text}")
                 raise e
+
+    async def send_typing_indicator(self, wamid: str) -> None:
+        if not wamid:
+            return
+        url = f"{self.api_url}/{self.phone_number_id}/messages"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "messaging_product": "whatsapp",
+            "status": "read",
+            "message_id": wamid,
+            "typing_indicator": {"type": "text"}
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(url, headers=headers, json=data, timeout=10.0)
+                response.raise_for_status()
+            except Exception as e:
+                # Puramente cosmético (Punto de "sentirse humano"): si Meta lo rechaza (wamid ya
+                # expiró, límite de la cuenta, etc.) el bot igual debe seguir y responder normal.
+                logger.warning(f"[MetaWhatsAppService] No se pudo mostrar 'escribiendo...' para wamid={wamid}: {e}")
 
     async def download_media(self, media_id: str) -> Optional[Dict[str, Any]]:
         auth_headers = {
