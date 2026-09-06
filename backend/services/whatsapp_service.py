@@ -50,6 +50,12 @@ class WhatsAppService(ABC):
         pass
 
     @abstractmethod
+    async def send_cta_url_message(self, to_phone: str, body_text: str, button_text: str, url: str) -> Dict[str, Any]:
+        """Envía un mensaje interactivo con un botón que abre una URL externa (CTA URL button),
+        en vez de mostrar el link como texto plano dentro del mensaje."""
+        pass
+
+    @abstractmethod
     async def send_typing_indicator(self, wamid: str) -> None:
         """Marca el mensaje entrante como leído y muestra el indicador "escribiendo..." en el
         chat del cliente (dura hasta 25s o hasta que llegue el próximo mensaje nuestro, lo que
@@ -91,6 +97,11 @@ class MockWhatsAppService(WhatsAppService):
         wamid = f"wamid.HBgL{uuid.uuid4().hex[:16].upper()}"
         total_items = sum(len(s.get("product_items", [])) for s in sections)
         logger.info(f"[MockWhatsAppService] Lista de productos enviada a {to_phone}: {len(sections)} secciones, {total_items} productos (WAMID: {wamid})")
+        return {"messaging_product": "whatsapp", "messages": [{"id": wamid}]}
+
+    async def send_cta_url_message(self, to_phone: str, body_text: str, button_text: str, url: str) -> Dict[str, Any]:
+        wamid = f"wamid.HBgL{uuid.uuid4().hex[:16].upper()}"
+        logger.info(f"[MockWhatsAppService] Botón CTA '{button_text}' -> {url} enviado a {to_phone} (WAMID: {wamid})")
         return {"messaging_product": "whatsapp", "messages": [{"id": wamid}]}
 
     async def send_typing_indicator(self, wamid: str) -> None:
@@ -374,6 +385,36 @@ class MetaWhatsAppService(WhatsAppService):
                 return response.json()
             except httpx.HTTPStatusError as e:
                 logger.error(f"[MetaWhatsAppService] Error HTTP {e.response.status_code} de Meta al enviar lista de productos a '{to_phone_clean}': {e.response.text}")
+                raise e
+
+    async def send_cta_url_message(self, to_phone: str, body_text: str, button_text: str, url: str) -> Dict[str, Any]:
+        url_endpoint = f"{self.api_url}/{self.phone_number_id}/messages"
+        to_phone_clean = "".join(c for c in str(to_phone) if c.isdigit())
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to_phone_clean,
+            "type": "interactive",
+            "interactive": {
+                "type": "cta_url",
+                "body": {"text": body_text},
+                "action": {
+                    "name": "cta_url",
+                    "parameters": {"display_text": button_text[:20], "url": url}
+                }
+            }
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(url_endpoint, headers=headers, json=data, timeout=10.0)
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"[MetaWhatsAppService] Error HTTP {e.response.status_code} de Meta al enviar botón CTA URL a '{to_phone_clean}': {e.response.text}")
                 raise e
 
     async def send_typing_indicator(self, wamid: str) -> None:

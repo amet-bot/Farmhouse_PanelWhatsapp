@@ -288,34 +288,34 @@ async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, c
     menu_url = f"{settings.PUBLIC_BASE_URL}/menu?branch={branch_code}&phone={client_phone}&name={client_name}&conv={conv.id}&session={session_token}{wa_param}"
 
     if conv.delivery_type == "delivery":
-        menu_text = (
-            f"🍽️ Aquí tienes nuestro Menú Digital para armar tu pedido a domicilio desde Farmhouse *{branch_name}*:\n\n"
-            f"👉 *Toca aquí para ver nuestro Menú y hacer tu pedido:* 👇\n"
-            f"{menu_url}\n\n"
+        body_text = (
+            f"🍽️ Aquí tienes nuestro Menú Digital para armar tu pedido a domicilio desde Farmhouse *{branch_name}*.\n\n"
             f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos, ingresa tu dirección y envíanos tu orden en 1 clic._"
         )
+        button_text = "Ver menú y pedir"
     elif conv.delivery_type == "pickup":
-        menu_text = (
-            f"🍽️ ¡Échale un vistazo a nuestro Menú Digital y arma tu pedido para retirar en Farmhouse *{branch_name}*!\n\n"
-            f"👉 *Toca aquí para ver el Menú y hacer tu pedido:* 👇\n"
-            f"{menu_url}\n\n"
+        body_text = (
+            f"🍽️ Échale un vistazo a nuestro Menú Digital y arma tu pedido para retirar en Farmhouse *{branch_name}*.\n\n"
             f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos y te lo tendremos fresco y listo cuando pases a retirarlo._"
         )
+        button_text = "Ver menú y pedir"
     else:
-        menu_text = (
-            f"🍽️ ¡Aquí tienes nuestro Menú Digital de Farmhouse *{branch_name}*!\n\n"
-            f"👉 *Tócalo para ver todos nuestros Bowls, Ensaladas, Toasties y Smoothies:* 👇\n"
-            f"{menu_url}\n\n"
+        body_text = (
+            f"🍽️ Aquí tienes nuestro Menú Digital de Farmhouse *{branch_name}*.\n\n"
             f"_Así vas viendo qué se te antoja antes de llegar, o si prefieres, también puedes hacer tu pedido desde aquí mismo._"
         )
+        button_text = "Ver menú"
 
-    send_res_menu = await wa_service.send_text_message(phone, menu_text)
+    send_res_menu = await wa_service.send_cta_url_message(phone, body_text, button_text, menu_url)
     wamid_menu = None
     if isinstance(send_res_menu, dict) and "messages" in send_res_menu and send_res_menu["messages"]:
         wamid_menu = send_res_menu["messages"][0].get("id")
+    # El botón CTA no muestra el link como texto en WhatsApp, pero se guarda igual en el
+    # registro interno para que el panel del agente pueda verlo/copiarlo si hace falta.
+    stored_content = f"{body_text}\n\n[Botón: {button_text}] → {menu_url}"
     msg_menu = Message(
         conversation_id=conv.id, direction="outgoing", sender_type="system",
-        content=menu_text, whatsapp_message_id=wamid_menu, is_internal=False, status="sent"
+        content=stored_content, whatsapp_message_id=wamid_menu, is_internal=False, status="sent"
     )
     db.add(msg_menu)
     conv.updated_at = datetime.now(timezone.utc)
