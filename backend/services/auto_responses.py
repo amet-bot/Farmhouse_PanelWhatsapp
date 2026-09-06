@@ -4,20 +4,21 @@ Configuración centralizada de mensajes y saludos automáticos del sistema.
 """
 
 MAIN_WELCOME_BODY = (
-    "Hola Bienvenido a farmhouse, como te podemos ayudar hoy?\n\n"
-    "(1) Quiero visitarlos a una de su sucursales\n"
+    "¡Hola! Bienvenido a farmhouse.\n\n"
+    "¿Cómo te podemos ayudar hoy?\n\n"
+    "(1) Quiero visitarlos en una de sus sucursales\n"
     "(2) Quiero hacer un pedido a domicilio\n"
-    "(3) Quiero hacer un pedio para retirar en local\n"
-    "(4) Quiero coordinar un pedido coorporativo u organizar un evento."
+    "(3) Quiero hacer un pedido para retirar en el local\n"
+    "(4) Quiero coordinar un pedido corporativo u organizar un evento."
 )
 
 MAIN_MENU_BUTTON = "Ver opciones"
 
 MAIN_MENU_OPTIONS = [
-    {"id": "opt_visit", "title": "(1) Visitar sucursales", "description": "Quiero visitarlos a una de su sucursales"},
+    {"id": "opt_visit", "title": "(1) Visitar sucursales", "description": "Quiero visitarlos en una de sus sucursales"},
     {"id": "opt_delivery", "title": "(2) Pedido a domicilio", "description": "Quiero hacer un pedido a domicilio"},
-    {"id": "opt_pickup", "title": "(3) Retiro en local", "description": "Quiero hacer un pedio para retirar en local"},
-    {"id": "opt_corporate", "title": "(4) Evento / Corporativo", "description": "Quiero coordinar un pedido coorporativo u organizar un evento."},
+    {"id": "opt_pickup", "title": "(3) Retiro en el local", "description": "Quiero hacer un pedido para retirar en el local"},
+    {"id": "opt_corporate", "title": "(4) Evento / Corporativo", "description": "Quiero coordinar un pedido corporativo u organizar un evento"},
 ]
 
 MAIN_MENU_TEXT_FALLBACK = MAIN_WELCOME_BODY
@@ -28,7 +29,7 @@ WELCOME_MESSAGES = [
 ]
 
 BRANCH_SELECTION_BODY = "¿Cuál de nuestras sucursales te gustaría contactar?"
-BRANCH_SELECTION_VISIT_BODY = "Excelente elije unas de nuestras sucursales"
+BRANCH_SELECTION_VISIT_BODY = "¡Excelente! Elige una de nuestras sucursales:"
 BRANCH_SELECTION_DELIVERY_BODY = "¡Excelente! 🛵 ¿Para cuál de nuestras sucursales deseas solicitar tu delivery?"
 BRANCH_SELECTION_PICKUP_BODY = "¡Perfecto! 🛍️ ¿En cuál de nuestras sucursales deseas retirar tu pedido?"
 BRANCH_SELECTION_BUTTON = "Ver sucursales"
@@ -77,18 +78,29 @@ BRANCH_VISIT_INFO = {
     }
 }
 
-MANAGER_HELP_QUESTION = "Te podemos ayudar en algo mas?"
+MANAGER_HELP_QUESTION = "¿Te podemos ayudar en algo más?"
 MANAGER_HELP_BUTTONS = [
     {"id": "manager_yes", "title": "Hablar con gerente"},
     {"id": "manager_no", "title": "Nos vemos pronto"},
 ]
 MANAGER_HELP_OPTIONS = [
-    {"id": "manager_yes", "title": "(1) Hablar con gerente", "description": "Si me encataria hablar con un gerente"},
-    {"id": "manager_no", "title": "(2) Nos vemos pronto", "description": "No gracias nos vemos pronto"},
+    {"id": "manager_yes", "title": "(1) Hablar con gerente", "description": "Sí, me encantaría hablar con un gerente"},
+    {"id": "manager_no", "title": "(2) Nos vemos pronto", "description": "No, gracias, nos vemos pronto"},
 ]
 
 def get_branch_visit_message(branch_code: str, branch_name: str) -> str:
-    return f"Excelente te esperamos en la sucursal de {branch_name}"
+    info = BRANCH_VISIT_INFO.get(branch_code)
+    message = f"¡Excelente! Te esperamos en la sucursal de *{branch_name}*."
+    if not info:
+        return message
+    lines = [message]
+    if info.get("address"):
+        lines.append(f"📍 {info['address']}")
+    if info.get("hours"):
+        lines.append(f"🕒 {info['hours']}")
+    if info.get("maps_url"):
+        lines.append(f"🗺️ Ubícanos en Google Maps: {info['maps_url']}")
+    return "\n".join(lines)
 
 def get_manager_assigned_message(branch_name: str) -> str:
     return (

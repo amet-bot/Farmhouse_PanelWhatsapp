@@ -277,7 +277,7 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
             btn_wamid = btn_res["messages"][0].get("id")
         btn_msg = Message(
             conversation_id=conv.id, direction="outgoing", sender_type="system",
-            content=f"{MANAGER_HELP_QUESTION}\n\n(1) Si me encataria hablar con un gerente\n(2) No gracias nos vemos pronto",
+            content=f"{MANAGER_HELP_QUESTION}\n\n(1) Sí, me encantaría hablar con un gerente\n(2) No, gracias, nos vemos pronto",
             whatsapp_message_id=btn_wamid, is_internal=False, status="sent"
         )
         db.add(btn_msg)

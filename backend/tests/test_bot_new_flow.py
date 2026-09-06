@@ -46,7 +46,7 @@ def test_initial_any_message_triggers_main_welcome_menu(client, clayton_branch, 
 
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
     assert len(msgs) >= 1
-    assert "Hola Bienvenido a farmhouse, como te podemos ayudar hoy?" in msgs[-1].content
+    assert MAIN_WELCOME_BODY in msgs[-1].content
 
 
 def test_option_1_visit_branches_and_manager_yes_flow(client, clayton_branch, db_session):
@@ -91,8 +91,9 @@ def test_option_1_visit_branches_and_manager_yes_flow(client, clayton_branch, db
     assert conv.branch_id == clayton_branch.id
 
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
-    assert any("Excelente te esperamos en la sucursal de Clayton" in m.content for m in msgs)
-    assert any("Te podemos ayudar en algo mas?" in m.content for m in msgs)
+    assert any("Te esperamos en la sucursal de *Clayton*" in m.content for m in msgs)
+    assert any("maps.google.com" in m.content for m in msgs)
+    assert any(MANAGER_HELP_QUESTION in m.content for m in msgs)
 
     # Paso 3: Cliente elige hablar con gerente (1)
     payload_manager = {
