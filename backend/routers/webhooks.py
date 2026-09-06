@@ -24,7 +24,8 @@ from services.auto_responses import (
     BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON, CORPORATE_WELCOME_MESSAGE,
     MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS, MANAGER_HELP_OPTIONS,
     get_main_welcome_body, get_branch_visit_message, get_branch_pickup_info_message,
-    get_manager_assigned_message, get_manager_declined_message, get_branch_welcome_message,
+    get_branch_delivery_info_message, get_manager_assigned_message,
+    get_manager_declined_message, get_branch_welcome_message,
     ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE
 )
 from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKER
@@ -288,7 +289,7 @@ async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, c
 
     if conv.delivery_type == "delivery":
         menu_text = (
-            f"¡Excelente! 🛵 Aquí tienes nuestro Menú Digital para pedir a domicilio desde Farmhouse *{branch_name}*:\n\n"
+            f"🍽️ Aquí tienes nuestro Menú Digital para armar tu pedido a domicilio desde Farmhouse *{branch_name}*:\n\n"
             f"👉 *Toca aquí para ver nuestro Menú y hacer tu pedido:* 👇\n"
             f"{menu_url}\n\n"
             f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos, ingresa tu dirección y envíanos tu orden en 1 clic._"
@@ -333,74 +334,60 @@ async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, c
         "is_new_conversation": False
     })
 
+async def _send_branch_info_text(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, text: str) -> None:
+    """Envía un mensaje de texto plano (ej. dirección/horario/maps de una sucursal), lo guarda y lo difunde por WebSocket."""
+    send_res = await wa_service.send_text_message(phone, text)
+    wamid = None
+    if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
+        wamid = send_res["messages"][0].get("id")
+    msg = Message(
+        conversation_id=conv.id, direction="outgoing", sender_type="system",
+        content=text, whatsapp_message_id=wamid, is_internal=False, status="sent"
+    )
+    db.add(msg)
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(msg)
+    await ws_manager.broadcast_to_branch(conv.branch_id, {
+        "type": "new_incoming_message",
+        "conversation_id": conv.id,
+        "branch_id": conv.branch_id,
+        "contact_name": contact.name,
+        "contact_phone": contact.phone,
+        "message": {
+            "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
+            "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
+        },
+        "is_new_conversation": False
+    })
+
 async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
-    """Envía la información de la sucursal (visita o retiro) y/o el enlace del Menú Digital según el tipo de atención."""
+    """Envía la información de la sucursal (visita, retiro o domicilio) y/o el enlace del Menú Digital según el tipo de atención."""
     branch_name = conv.branch.name if conv.branch else "Farmhouse"
     branch_code = conv.branch.code if conv.branch else ""
 
     if conv.delivery_type == "visit":
         visit_text = get_branch_visit_message(branch_code, branch_name)
-        send_res = await wa_service.send_text_message(phone, visit_text)
-        wamid = None
-        if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-            wamid = send_res["messages"][0].get("id")
-        msg = Message(
-            conversation_id=conv.id, direction="outgoing", sender_type="system",
-            content=visit_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
-        )
-        db.add(msg)
-        conv.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(msg)
-        await ws_manager.broadcast_to_branch(conv.branch_id, {
-            "type": "new_incoming_message",
-            "conversation_id": conv.id,
-            "branch_id": conv.branch_id,
-            "contact_name": contact.name,
-            "contact_phone": contact.phone,
-            "message": {
-                "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
-                "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
-            },
-            "is_new_conversation": False
-        })
-
+        await _send_branch_info_text(db, wa_service, conv, contact, phone, visit_text)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
         return
 
     if conv.delivery_type == "pickup":
         pickup_info_text = get_branch_pickup_info_message(branch_code, branch_name)
-        send_res = await wa_service.send_text_message(phone, pickup_info_text)
-        wamid = None
-        if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-            wamid = send_res["messages"][0].get("id")
-        msg = Message(
-            conversation_id=conv.id, direction="outgoing", sender_type="system",
-            content=pickup_info_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
-        )
-        db.add(msg)
-        conv.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(msg)
-        await ws_manager.broadcast_to_branch(conv.branch_id, {
-            "type": "new_incoming_message",
-            "conversation_id": conv.id,
-            "branch_id": conv.branch_id,
-            "contact_name": contact.name,
-            "contact_phone": contact.phone,
-            "message": {
-                "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
-                "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
-            },
-            "is_new_conversation": False
-        })
-
+        await _send_branch_info_text(db, wa_service, conv, contact, phone, pickup_info_text)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_digital_menu_link(db, wa_service, conv, contact, phone)
         return
 
-    # Delivery (u otro caso genérico): directo al enlace del Menú Digital
+    if conv.delivery_type == "delivery":
+        delivery_info_text = get_branch_delivery_info_message(branch_code, branch_name)
+        await _send_branch_info_text(db, wa_service, conv, contact, phone, delivery_info_text)
+        await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        await _send_digital_menu_link(db, wa_service, conv, contact, phone)
+        return
+
+    # Caso genérico (no debería alcanzarse: delivery_type siempre es visit/pickup/delivery aquí)
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
     await _send_digital_menu_link(db, wa_service, conv, contact, phone)
 

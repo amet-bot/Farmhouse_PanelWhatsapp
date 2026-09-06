@@ -245,6 +245,8 @@ def test_option_2_delivery_flow(client, clayton_branch, db_session):
     assert conv.branch_id == clayton_branch.id
 
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
+    assert any("Tu pedido a domicilio saldrá de nuestra sucursal de *Clayton*" in m.content for m in msgs)
+    assert any("maps.google.com" in m.content for m in msgs)
     assert any("/menu?" in m.content for m in msgs)
 
 

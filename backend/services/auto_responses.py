@@ -124,6 +124,9 @@ def get_branch_visit_message(branch_code: str, branch_name: str) -> str:
 def get_branch_pickup_info_message(branch_code: str, branch_name: str) -> str:
     return get_branch_info_message(branch_name, branch_code, f"¡Perfecto! 🛍️ Retirarás tu pedido en nuestra sucursal de *{branch_name}*.")
 
+def get_branch_delivery_info_message(branch_code: str, branch_name: str) -> str:
+    return get_branch_info_message(branch_name, branch_code, f"¡Excelente! 🛵 Tu pedido a domicilio saldrá de nuestra sucursal de *{branch_name}*.")
+
 def get_manager_assigned_message(branch_name: str) -> str:
     return (
         f"¡Con mucho gusto! 🤝 Te comunicamos de inmediato con el gerente de nuestra sucursal de *{branch_name}*.\n\n"
