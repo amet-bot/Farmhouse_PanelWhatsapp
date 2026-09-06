@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
+from config import settings
 from database import Base, get_db
 from main import app
 from models.branch import Branch
@@ -19,6 +20,11 @@ from models.device import Device
 from models.contact import Contact
 from models.conversation import Conversation
 from security.auth import get_password_hash, create_access_token
+
+@pytest.fixture(autouse=True)
+def _no_bot_response_delay(monkeypatch):
+    """Evita que la pausa 'humana' del bot (BOT_RESPONSE_DELAY_SECONDS) ralentice los tests."""
+    monkeypatch.setattr(settings, "BOT_RESPONSE_DELAY_SECONDS", 0)
 
 # Base de datos SQLite en memoria para tests aislados
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"

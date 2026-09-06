@@ -76,13 +76,17 @@ def match_manager_help(customer_text: str) -> Optional[str]:
     if not customer_text:
         return None
     normalized = normalize_text(customer_text)
-    
-    # Exact numeric choices in this context
+
+    # Exact numeric/opción choices en este contexto (1=gerente, 2=ver menú, 3=no gracias)
     if normalized in ["1", "opcion 1", "opt 1", "si", "si por favor"]:
         return "yes"
-    if normalized in ["2", "opcion 2", "opt 2", "no", "no gracias"]:
+    if normalized in ["2", "opcion 2", "opt 2"]:
+        return "menu"
+    if normalized in ["3", "opcion 3", "opt 3", "no", "no gracias"]:
         return "no"
 
+    if any(kw in normalized for kw in ["ver menu", "ver el menu", "quiero ver el menu", "mostrar menu", "el menu"]):
+        return "menu"
     if any(kw in normalized for kw in ["gerente", "hablar con gerente", "hablar con un gerente", "encataria", "encantaria", "hablar"]):
         return "yes"
     if any(kw in normalized for kw in ["nos vemos pronto", "nos vemos", "no gracias", "hasta luego"]):

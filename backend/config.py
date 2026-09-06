@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     # Menú Digital que el bot manda por WhatsApp.
     PUBLIC_BASE_URL: str = "https://farmhousepanelwhatsapp-production.up.railway.app"
 
+    # Pausa (en segundos) antes de que el bot responda, para que la conversación se sienta
+    # escrita por una persona y no como una respuesta instantánea. Se puede poner en 0 en tests.
+    BOT_RESPONSE_DELAY_SECONDS: float = 3.0
+
     # Web Push (Notificaciones push del navegador vía VAPID)
     VAPID_PUBLIC_KEY: Optional[str] = None
     VAPID_PRIVATE_KEY: Optional[str] = None

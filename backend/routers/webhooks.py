@@ -23,8 +23,8 @@ from services.auto_responses import (
     BRANCH_SELECTION_BODY, BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY,
     BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON, CORPORATE_WELCOME_MESSAGE,
     MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS, MANAGER_HELP_OPTIONS,
-    get_branch_visit_message, get_manager_assigned_message, get_manager_declined_message,
-    get_branch_welcome_message,
+    get_branch_visit_message, get_branch_pickup_info_message, get_manager_assigned_message,
+    get_manager_declined_message, get_branch_welcome_message,
     ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE
 )
 from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKER
@@ -39,6 +39,10 @@ from security.auth import create_menu_session_token
 logger = logging.getLogger("farmhouse.webhooks")
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks Meta WhatsApp"])
+
+# Pausa breve entre las burbujas de un mismo turno del bot (una vez que ya "empezó a escribir"),
+# distinta de settings.BOT_RESPONSE_DELAY_SECONDS que es la pausa inicial antes de la primera respuesta.
+BUBBLE_PACE_DELAY_SECONDS = 0.6
 
 def verify_meta_signature(raw_body: bytes, signature_header: Optional[str]) -> bool:
     """
@@ -238,8 +242,97 @@ async def _send_interactive_buttons_message(db: Session, wa_service, conv: Conve
         "is_new_conversation": False
     })
 
+async def _send_manager_help_prompt(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Envía el prompt de '¿Algo más?' (hablar con gerente / ver el menú / despedida) tras la info de sucursal."""
+    btn_res = await wa_service.send_interactive_buttons(phone, MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS)
+    btn_wamid = None
+    if isinstance(btn_res, dict) and "messages" in btn_res and btn_res["messages"]:
+        btn_wamid = btn_res["messages"][0].get("id")
+    btn_msg = Message(
+        conversation_id=conv.id, direction="outgoing", sender_type="system",
+        content=f"{MANAGER_HELP_QUESTION}\n\n(1) Sí, me encantaría hablar con un gerente\n(2) Quiero ver el menú\n(3) No, gracias, nos vemos pronto",
+        whatsapp_message_id=btn_wamid, is_internal=False, status="sent"
+    )
+    db.add(btn_msg)
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(btn_msg)
+    await ws_manager.broadcast_to_branch(conv.branch_id, {
+        "type": "new_incoming_message",
+        "conversation_id": conv.id,
+        "branch_id": conv.branch_id,
+        "contact_name": contact.name,
+        "contact_phone": contact.phone,
+        "message": {
+            "id": btn_msg.id, "direction": btn_msg.direction, "sender_type": btn_msg.sender_type,
+            "content": btn_msg.content, "status": btn_msg.status, "created_at": btn_msg.created_at.isoformat()
+        },
+        "is_new_conversation": False
+    })
+
+async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Envía el enlace personalizado al Menú Digital (/menu), con copy según el tipo de atención."""
+    branch_name = conv.branch.name if conv.branch else "Farmhouse"
+    branch_code = conv.branch.code if conv.branch else ""
+    client_name = urllib.parse.quote(contact.name or "")
+    client_phone = urllib.parse.quote(phone.lstrip("+"))
+    try:
+        origin_wa = get_whatsapp_number_for_branch(branch_code)
+    except RuntimeError:
+        origin_wa = None
+    wa_param = f"&wa={origin_wa}" if origin_wa else ""
+    session_token = create_menu_session_token(conv.id, conv.branch_id)
+    menu_url = f"{settings.PUBLIC_BASE_URL}/menu?branch={branch_code}&phone={client_phone}&name={client_name}&conv={conv.id}&session={session_token}{wa_param}"
+
+    if conv.delivery_type == "delivery":
+        menu_text = (
+            f"¡Excelente! 🛵 Aquí tienes nuestro Menú Digital para pedir a domicilio desde Farmhouse *{branch_name}*:\n\n"
+            f"👉 *Toca aquí para ver nuestro Menú y hacer tu pedido:* 👇\n"
+            f"{menu_url}\n\n"
+            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos, ingresa tu dirección y envíanos tu orden en 1 clic._"
+        )
+    elif conv.delivery_type == "pickup":
+        menu_text = (
+            f"🍽️ ¡Échale un vistazo a nuestro Menú Digital y arma tu pedido para retirar en Farmhouse *{branch_name}*!\n\n"
+            f"👉 *Toca aquí para ver el Menú y hacer tu pedido:* 👇\n"
+            f"{menu_url}\n\n"
+            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos y te lo tendremos fresco y listo cuando pases a retirarlo._"
+        )
+    else:
+        menu_text = (
+            f"🍽️ ¡Aquí tienes nuestro Menú Digital de Farmhouse *{branch_name}*!\n\n"
+            f"👉 *Tócalo para ver todos nuestros Bowls, Ensaladas, Toasties y Smoothies:* 👇\n"
+            f"{menu_url}\n\n"
+            f"_Así vas viendo qué se te antoja antes de llegar, o si prefieres, también puedes hacer tu pedido desde aquí mismo._"
+        )
+
+    send_res_menu = await wa_service.send_text_message(phone, menu_text)
+    wamid_menu = None
+    if isinstance(send_res_menu, dict) and "messages" in send_res_menu and send_res_menu["messages"]:
+        wamid_menu = send_res_menu["messages"][0].get("id")
+    msg_menu = Message(
+        conversation_id=conv.id, direction="outgoing", sender_type="system",
+        content=menu_text, whatsapp_message_id=wamid_menu, is_internal=False, status="sent"
+    )
+    db.add(msg_menu)
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(msg_menu)
+    await ws_manager.broadcast_to_branch(conv.branch_id, {
+        "type": "new_incoming_message",
+        "conversation_id": conv.id,
+        "branch_id": conv.branch_id,
+        "contact_name": contact.name,
+        "contact_phone": contact.phone,
+        "message": {
+            "id": msg_menu.id, "direction": msg_menu.direction, "sender_type": msg_menu.sender_type,
+            "content": msg_menu.content, "status": msg_menu.status, "created_at": msg_menu.created_at.isoformat()
+        },
+        "is_new_conversation": False
+    })
+
 async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
-    """Envía la información de visita o el enlace del Menú Digital según el tipo de atención."""
+    """Envía la información de la sucursal (visita o retiro) y/o el enlace del Menú Digital según el tipo de atención."""
     branch_name = conv.branch.name if conv.branch else "Farmhouse"
     branch_code = conv.branch.code if conv.branch else ""
 
@@ -270,20 +363,24 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
             "is_new_conversation": False
         })
 
-        await asyncio.sleep(0.3)
-        btn_res = await wa_service.send_interactive_buttons(phone, MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS)
-        btn_wamid = None
-        if isinstance(btn_res, dict) and "messages" in btn_res and btn_res["messages"]:
-            btn_wamid = btn_res["messages"][0].get("id")
-        btn_msg = Message(
+        await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
+        return
+
+    if conv.delivery_type == "pickup":
+        pickup_info_text = get_branch_pickup_info_message(branch_code, branch_name)
+        send_res = await wa_service.send_text_message(phone, pickup_info_text)
+        wamid = None
+        if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
+            wamid = send_res["messages"][0].get("id")
+        msg = Message(
             conversation_id=conv.id, direction="outgoing", sender_type="system",
-            content=f"{MANAGER_HELP_QUESTION}\n\n(1) Sí, me encantaría hablar con un gerente\n(2) No, gracias, nos vemos pronto",
-            whatsapp_message_id=btn_wamid, is_internal=False, status="sent"
+            content=pickup_info_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
         )
-        db.add(btn_msg)
+        db.add(msg)
         conv.updated_at = datetime.now(timezone.utc)
         db.commit()
-        db.refresh(btn_msg)
+        db.refresh(msg)
         await ws_manager.broadcast_to_branch(conv.branch_id, {
             "type": "new_incoming_message",
             "conversation_id": conv.id,
@@ -291,71 +388,19 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
             "contact_name": contact.name,
             "contact_phone": contact.phone,
             "message": {
-                "id": btn_msg.id, "direction": btn_msg.direction, "sender_type": btn_msg.sender_type,
-                "content": btn_msg.content, "status": btn_msg.status, "created_at": btn_msg.created_at.isoformat()
+                "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
+                "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
             },
             "is_new_conversation": False
         })
+
+        await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        await _send_digital_menu_link(db, wa_service, conv, contact, phone)
         return
 
-    # Enlace personalizado al Menú Digital (/menu)
-    await asyncio.sleep(0.3)
-    client_name = urllib.parse.quote(contact.name or "")
-    client_phone = urllib.parse.quote(phone.lstrip("+"))
-    try:
-        origin_wa = get_whatsapp_number_for_branch(branch_code)
-    except RuntimeError:
-        origin_wa = None
-    wa_param = f"&wa={origin_wa}" if origin_wa else ""
-    session_token = create_menu_session_token(conv.id, conv.branch_id)
-    menu_url = f"{settings.PUBLIC_BASE_URL}/menu?branch={branch_code}&phone={client_phone}&name={client_name}&conv={conv.id}&session={session_token}{wa_param}"
-    
-    if conv.delivery_type == "delivery":
-        menu_text = (
-            f"¡Excelente! 🛵 Aquí tienes nuestro Menú Digital para pedir a domicilio desde Farmhouse *{branch_name}*:\n\n"
-            f"👉 *Toca aquí para ver nuestro Menú y hacer tu pedido:* 👇\n"
-            f"{menu_url}\n\n"
-            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos, ingresa tu dirección y envíanos tu orden en 1 clic._"
-        )
-    elif conv.delivery_type == "pickup":
-        menu_text = (
-            f"¡Perfecto! 🛍️ Aquí tienes nuestro Menú Digital para retirar en Farmhouse *{branch_name}*:\n\n"
-            f"👉 *Toca aquí para ver nuestro Menú y hacer tu pedido:* 👇\n"
-            f"{menu_url}\n\n"
-            f"_Elige tus platillos favoritos y te lo tendremos fresco y listo cuando pases a retirarlo._"
-        )
-    else:
-        menu_text = (
-            f"¡Bienvenido a Farmhouse *{branch_name}*! 🌿🥗\n\n"
-            f"👉 *Toca aquí para ver nuestro Menú Interactivo y hacer tu pedido:* 👇\n"
-            f"{menu_url}\n\n"
-            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos y envíanos tu orden con Delivery o Retiro en 1 clic._"
-        )
-    
-    send_res_menu = await wa_service.send_text_message(phone, menu_text)
-    wamid_menu = None
-    if isinstance(send_res_menu, dict) and "messages" in send_res_menu and send_res_menu["messages"]:
-        wamid_menu = send_res_menu["messages"][0].get("id")
-    msg_menu = Message(
-        conversation_id=conv.id, direction="outgoing", sender_type="system",
-        content=menu_text, whatsapp_message_id=wamid_menu, is_internal=False, status="sent"
-    )
-    db.add(msg_menu)
-    conv.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(msg_menu)
-    await ws_manager.broadcast_to_branch(conv.branch_id, {
-        "type": "new_incoming_message",
-        "conversation_id": conv.id,
-        "branch_id": conv.branch_id,
-        "contact_name": contact.name,
-        "contact_phone": contact.phone,
-        "message": {
-            "id": msg_menu.id, "direction": msg_menu.direction, "sender_type": msg_menu.sender_type,
-            "content": msg_menu.content, "status": msg_menu.status, "created_at": msg_menu.created_at.isoformat()
-        },
-        "is_new_conversation": False
-    })
+    # Delivery (u otro caso genérico): directo al enlace del Menú Digital
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+    await _send_digital_menu_link(db, wa_service, conv, contact, phone)
 
 async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: str, msg_data: Dict[str, Any], msg_id: int):
     """
@@ -369,6 +414,11 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         incoming_msg = db.query(Message).filter(Message.id == msg_id).first()
         if not conv or not contact:
             return
+
+        # Pausa antes de que el bot "empiece a escribir": evita que la respuesta llegue de forma
+        # instantánea y poco natural. Configurable (0 en tests) vía settings.BOT_RESPONSE_DELAY_SECONDS.
+        if settings.BOT_RESPONSE_DELAY_SECONDS > 0:
+            await asyncio.sleep(settings.BOT_RESPONSE_DELAY_SECONDS)
 
         wa_service = get_whatsapp_service()
         message_type = msg_data.get("message_type", "text")
@@ -542,6 +592,8 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             manager_choice = "yes"
         elif interactive_id == "manager_no":
             manager_choice = "no"
+        elif interactive_id == "view_menu":
+            manager_choice = "menu"
         elif conv.delivery_type == "visit" and message_type == "text":
             manager_choice = match_manager_help(text)
 
@@ -601,6 +653,11 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                 },
                 "is_new_conversation": False
             })
+            return
+        elif manager_choice == "menu":
+            await _send_digital_menu_link(db, wa_service, conv, contact, phone)
+            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+            await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
             return
 
         main_option_matched = None

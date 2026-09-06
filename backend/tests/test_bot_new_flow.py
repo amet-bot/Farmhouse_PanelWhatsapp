@@ -232,7 +232,41 @@ def test_option_3_pickup_flow(client, obarrio_branch, db_session):
     assert conv.branch_id == obarrio_branch.id
 
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
+    assert any("Retirarás tu pedido en nuestra sucursal de *Obarrio*" in m.content for m in msgs)
+    assert any("maps.google.com" in m.content for m in msgs)
     assert any("/menu?" in m.content for m in msgs)
+
+
+def test_option_1_visit_view_menu_flow(client, clayton_branch, db_session):
+    # Cliente selecciona Clayton para visitar y luego pide ver el menú antes de decidir algo más
+    contact = Contact(name="Cliente Ve Menu", phone="+50769992244")
+    db_session.add(contact)
+    db_session.commit()
+    conv = Conversation(customer_id=contact.id, branch_id=clayton_branch.id, delivery_type="visit", status="open")
+    db_session.add(conv)
+    db_session.commit()
+
+    payload_view_menu = {
+        "object": "whatsapp_business_account",
+        "entry": [{
+            "id": "WABA_ID",
+            "changes": [{
+                "value": {"messaging_product": "whatsapp", "messages": [
+                    {"from": "50769992244", "id": "wamid.TEST_VIEW_MENU", "timestamp": "1725500020", "interactive": {"button_reply": {"id": "view_menu", "title": "Ver el menú"}}, "type": "interactive"}
+                ]},
+                "field": "messages"
+            }]
+        }]
+    }
+    resp = client.post("/api/webhooks/whatsapp", json=payload_view_menu)
+    assert resp.status_code == 200
+
+    db_session.refresh(conv)
+    assert conv.automation_paused is False
+
+    msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
+    assert any("/menu?" in m.content for m in msgs)
+    assert any(MANAGER_HELP_QUESTION in m.content for m in msgs)
 
 
 def test_option_4_corporate_flow(client, clayton_branch, db_session):

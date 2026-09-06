@@ -31,7 +31,7 @@ WELCOME_MESSAGES = [
 BRANCH_SELECTION_BODY = "¿Cuál de nuestras sucursales te gustaría contactar?"
 BRANCH_SELECTION_VISIT_BODY = "¡Excelente! Elige una de nuestras sucursales:"
 BRANCH_SELECTION_DELIVERY_BODY = "¡Excelente! 🛵 ¿Para cuál de nuestras sucursales deseas solicitar tu delivery?"
-BRANCH_SELECTION_PICKUP_BODY = "¡Perfecto! 🛍️ ¿En cuál de nuestras sucursales deseas retirar tu pedido?"
+BRANCH_SELECTION_PICKUP_BODY = "¡Excelente! 🛍️ Elige la sucursal en la que quieres hacer tu pedido:"
 BRANCH_SELECTION_BUTTON = "Ver sucursales"
 
 CORPORATE_WELCOME_MESSAGE = (
@@ -81,26 +81,33 @@ BRANCH_VISIT_INFO = {
 MANAGER_HELP_QUESTION = "¿Te podemos ayudar en algo más?"
 MANAGER_HELP_BUTTONS = [
     {"id": "manager_yes", "title": "Hablar con gerente"},
+    {"id": "view_menu", "title": "Ver el menú"},
     {"id": "manager_no", "title": "Nos vemos pronto"},
 ]
 MANAGER_HELP_OPTIONS = [
     {"id": "manager_yes", "title": "(1) Hablar con gerente", "description": "Sí, me encantaría hablar con un gerente"},
-    {"id": "manager_no", "title": "(2) Nos vemos pronto", "description": "No, gracias, nos vemos pronto"},
+    {"id": "view_menu", "title": "(2) Ver el menú", "description": "Quiero ver el menú"},
+    {"id": "manager_no", "title": "(3) Nos vemos pronto", "description": "No, gracias, nos vemos pronto"},
 ]
 
-def get_branch_visit_message(branch_code: str, branch_name: str) -> str:
+def get_branch_info_message(branch_name: str, branch_code: str, opening_line: str) -> str:
+    """Arma un único mensaje con la dirección, el horario y el link de Maps de una sucursal (Punto de venta físico)."""
     info = BRANCH_VISIT_INFO.get(branch_code)
-    message = f"¡Excelente! Te esperamos en la sucursal de *{branch_name}*."
-    if not info:
-        return message
-    lines = [message]
-    if info.get("address"):
-        lines.append(f"📍 {info['address']}")
-    if info.get("hours"):
-        lines.append(f"🕒 {info['hours']}")
-    if info.get("maps_url"):
-        lines.append(f"🗺️ Ubícanos en Google Maps: {info['maps_url']}")
+    lines = [opening_line]
+    if info:
+        if info.get("address"):
+            lines.append(f"📍 {info['address']}")
+        if info.get("hours"):
+            lines.append(f"🕒 {info['hours']}")
+        if info.get("maps_url"):
+            lines.append(f"🗺️ Ubícanos en Google Maps: {info['maps_url']}")
     return "\n".join(lines)
+
+def get_branch_visit_message(branch_code: str, branch_name: str) -> str:
+    return get_branch_info_message(branch_name, branch_code, f"¡Excelente! Te esperamos en la sucursal de *{branch_name}*.")
+
+def get_branch_pickup_info_message(branch_code: str, branch_name: str) -> str:
+    return get_branch_info_message(branch_name, branch_code, f"¡Perfecto! 🛍️ Retirarás tu pedido en nuestra sucursal de *{branch_name}*.")
 
 def get_manager_assigned_message(branch_name: str) -> str:
     return (
