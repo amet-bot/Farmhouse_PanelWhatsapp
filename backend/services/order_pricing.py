@@ -45,14 +45,26 @@ def price_cart_items(items: List) -> Tuple[list, Decimal]:
         if not catalog_item:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Producto no encontrado en el catálogo: {raw_item.sku}")
 
+        # El frontend manda un SKU de adicional repetido una vez por cada unidad elegida (ej.
+        # 2x Extra Queso = ese SKU dos veces en la lista) en vez de mandar la cantidad aparte,
+        # así que aquí se agrupan las ocurrencias para saber cuántas unidades pidió de cada uno.
+        addon_qty_by_sku: dict = {}
+        for addon_sku in raw_item.addon_skus:
+            addon_qty_by_sku[addon_sku] = addon_qty_by_sku.get(addon_sku, 0) + 1
+
         addons = []
         addons_total = Decimal("0.00")
-        for addon_sku in raw_item.addon_skus:
+        for addon_sku, addon_qty in addon_qty_by_sku.items():
             addon_item = get_item_by_sku(addon_sku)
             if not addon_item:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Adicional no encontrado en el catálogo: {addon_sku}")
-            addons.append({"sku": addon_item["sku"], "title": clean_item_title(addon_item["title"]), "price": float(addon_item["price"])})
-            addons_total += addon_item["price"]
+            addons.append({
+                "sku": addon_item["sku"],
+                "title": clean_item_title(addon_item["title"]),
+                "price": float(addon_item["price"]),
+                "quantity": addon_qty,
+            })
+            addons_total += addon_item["price"] * addon_qty
 
         unit_price = catalog_item["price"] + addons_total
         line_total = (unit_price * raw_item.quantity).quantize(Decimal("0.01"))

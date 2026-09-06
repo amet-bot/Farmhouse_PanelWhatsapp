@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/menu.css?v=2.5.0">
+  <link rel="stylesheet" href="/css/menu.css?v=2.6.0">
 </head>
 <body>
 
@@ -162,13 +162,17 @@
         </div>
         <div id="deliveryAddressSection" class="delivery-address-section" hidden>
           <div class="delivery-address-header">
-            <label class="field-label delivery-address-label" for="deliveryAddress" id="deliveryAddressLabel">Dirección de entrega</label>
+            <label class="field-label delivery-address-label" for="deliveryAddress" id="deliveryAddressLabel">Ubicación de entrega</label>
             <button type="button" id="btnDetectGps" class="btn-detect-gps" title="Detectar mi ubicación actual por GPS">
               <span class="gps-icon">📍</span> <span id="btnDetectGpsLabel">Usar mi ubicación actual</span>
             </button>
           </div>
           <input id="deliveryAddress" class="text-input delivery-address-input" type="text" placeholder="Dirección manual o pulsa el botón de ubicación...">
           <div id="deliveryGpsHint" class="delivery-gps-hint" hidden></div>
+          <div class="delivery-reference-field">
+            <label class="field-label" for="deliveryReference">Referencia (opcional)</label>
+            <input id="deliveryReference" class="text-input" type="text" placeholder="Ej: Edificio Torre Azul, apto 4B, portón negro...">
+          </div>
         </div>
       </div>
 
@@ -180,14 +184,11 @@
           <button type="button" class="option-pill" data-payment="card">Tarjeta</button>
           <button type="button" class="option-pill" data-payment="cash">Efectivo</button>
         </div>
+        <p class="payment-method-hint">El cobro se coordina directamente con el agente de la sucursal por este mismo chat.</p>
       </div>
 
       <div class="cart-section" id="customerSection">
         <h3>Datos del cliente</h3>
-        <div id="customerSummaryBadge" class="customer-summary-badge" hidden>
-          <span><strong id="summaryCustomerName">Cliente</strong></span>
-          <span id="summaryCustomerPhone" class="badge-sub"></span>
-        </div>
         <div id="customerInputFields">
           <div>
             <label class="field-label" for="customerName">Tu nombre</label>
@@ -197,6 +198,7 @@
             <label class="field-label" for="customerPhone">Tu teléfono</label>
             <input id="customerPhone" class="text-input" type="tel" placeholder="Ej: 6000-1234">
           </div>
+          <p class="customer-fields-hint">Tomamos tu nombre y teléfono de WhatsApp, pero puedes cambiarlos si quieres.</p>
         </div>
       </div>
 
@@ -214,6 +216,6 @@
 
   <div id="toast" class="menu-toast" hidden role="status" aria-live="polite"></div>
 
-  <script src="/js/modules/menu_app.js?v=2.5.0"></script>
+  <script src="/js/modules/menu_app.js?v=2.6.0"></script>
 </body>
 </html>

@@ -360,7 +360,9 @@ def _build_whatsapp_order_text(order_code: str, branch_name: str, line_items: li
     for item in line_items:
         lines.append(f"• {item['quantity']}x {item['title']} - ${item['line_total']:.2f}")
         for addon in item["addons"]:
-            lines.append(f"   + {addon['title']} (${addon['price']:.2f})")
+            addon_qty = addon.get("quantity", 1)
+            qty_prefix = f"{addon_qty}x " if addon_qty > 1 else ""
+            lines.append(f"   + {qty_prefix}{addon['title']} (${addon['price'] * addon_qty:.2f})")
         if item.get("notes"):
             lines.append(f"   Nota: {item['notes']}")
 

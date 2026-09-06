@@ -512,7 +512,7 @@ const chatModule = {
               <span>${it.quantity}x ${utils.escapeHtml(it.title || '')}</span>
               <span>$${Number(it.line_total || 0).toFixed(2)}</span>
             </div>
-            ${(it.addons && it.addons.length) ? `<div class="order-item-addons">${it.addons.map((a) => `+ ${utils.escapeHtml(a.title || '')}`).join('<br>')}</div>` : ''}
+            ${(it.addons && it.addons.length) ? `<div class="order-item-addons">${it.addons.map((a) => `+ ${a.quantity > 1 ? `${a.quantity}x ` : ''}${utils.escapeHtml(a.title || '')}`).join('<br>')}</div>` : ''}
             ${it.notes ? `<div class="order-item-addons">Nota: ${utils.escapeHtml(it.notes)}</div>` : ''}
           </div>
         `).join('');

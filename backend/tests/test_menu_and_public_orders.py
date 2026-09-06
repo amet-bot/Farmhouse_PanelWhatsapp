@@ -72,6 +72,37 @@ def test_public_order_recalculates_price_and_ignores_client_total(client, clayto
     assert contact.phone == "+65523134"
 
 
+def test_public_order_addon_quantity_aggregates_repeated_sku(client, clayton_branch, db_session):
+    # El frontend manda el mismo SKU de adicional repetido una vez por cada unidad elegida
+    # (ver services/order_pricing.price_cart_items); aquí 2x "Pollo Spiced" en un solo Caesar.
+    payload = {
+        "branch_code": "CLY",
+        "delivery_type": "pickup",
+        "payment_method": "cash",
+        "customer_name": "Cliente Prueba Addon",
+        "customer_phone": "6000-2222",
+        "items": [
+            {"sku": "SAL_CAESAR_LRG", "quantity": 1, "addon_skus": ["PRM_POLLO_SPICED", "PRM_POLLO_SPICED"]},
+        ],
+    }
+    resp = client.post(
+        "/api/orders/public",
+        json=payload,
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+
+    # 13.95 (large) + 2x 4.00 (pollo spiced) = 21.95
+    assert data["subtotal"] == "21.95"
+
+    import json
+    order = db_session.query(Order).filter(Order.order_code == data["order_code"]).first()
+    items = json.loads(order.items_json)["items"]
+    assert len(items[0]["addons"]) == 1
+    assert items[0]["addons"][0]["quantity"] == 2
+
+
 def test_public_order_rejects_unknown_sku(client, clayton_branch):
     payload = {
         "branch_code": "CLY",

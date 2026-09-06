@@ -33,7 +33,7 @@
       tabAddons: { warm: [], cold: [], flat: [] },
       addonMode: null, // 'premiums' | 'flat'
       selectedSizeSku: null,
-      selectedAddonSkus: new Set(),
+      selectedAddonQty: new Map(), // sku -> cantidad de ese adicional (0 = no seleccionado)
       quantity: 1,
     },
   };
@@ -43,6 +43,19 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
   const money = (n) => `$${Number(n || 0).toFixed(2)}`;
+  // El backend cuenta ocurrencias repetidas del mismo SKU en addon_skus para saber la cantidad
+  // de ese adicional (ver services/order_pricing.price_cart_items), así que un adicional con
+  // quantity=2 se manda como ese SKU repetido 2 veces en la lista plana.
+  const flattenAddonSkus = (addons) => addons.flatMap((a) => Array(a.quantity || 1).fill(a.sku));
+  // La ubicación (GPS o escrita a mano) y la referencia (edificio, apto, piso...) son dos campos
+  // separados en la UI, pero el backend solo tiene una columna de texto libre para la dirección,
+  // así que aquí se combinan en un único string antes de mandarlos.
+  function getCombinedDeliveryAddress() {
+    const main = el("deliveryAddress") ? el("deliveryAddress").value.trim() : "";
+    const reference = el("deliveryReference") ? el("deliveryReference").value.trim() : "";
+    if (!reference) return main;
+    return main ? `${main} — Referencia: ${reference}` : `Referencia: ${reference}`;
+  }
   // Los labels de categoría llegan del backend con un emoji decorativo (ej. "🥗 Salads");
   // la nueva identidad visual evita depender de emojis, así que se recorta aquí en el
   // frontend sin tocar la respuesta de la API.
@@ -205,23 +218,11 @@
   }
 
   function applyCustomerInfoUI() {
-    const summary = el("customerSummaryBadge");
-    const inputs = el("customerInputFields");
-    const sumName = el("summaryCustomerName");
-    const sumPhone = el("summaryCustomerPhone");
+    // El nombre/teléfono llegan pre-rellenados desde WhatsApp (query params de la URL), pero el
+    // campo siempre queda editable: el cliente puede corregirlos si el pedido es para otra persona
+    // o si su nombre de WhatsApp no es el que quiere usar.
     const inpName = el("customerName");
     const inpPhone = el("customerPhone");
-
-    if (state.customerName || state.customerPhone) {
-      if (summary) summary.hidden = false;
-      if (inputs) inputs.style.display = "none";
-      if (sumName) sumName.textContent = state.customerName || "Cliente";
-      if (sumPhone) sumPhone.textContent = state.customerPhone ? (state.customerPhone.startsWith("+") ? state.customerPhone : `+${state.customerPhone}`) : "";
-    } else {
-      if (summary) summary.hidden = true;
-      if (inputs) inputs.style.display = "flex";
-    }
-
     if (inpName && state.customerName) inpName.value = state.customerName;
     if (inpPhone && state.customerPhone) inpPhone.value = state.customerPhone;
   }
@@ -413,7 +414,7 @@
     state.modal.tabAddons = (tab && tab.addons) ? tab.addons : { warm: [], cold: [], flat: [] };
     state.modal.addonMode = (tab && tab.addon_mode) ? tab.addon_mode : null;
     state.modal.selectedSizeSku = product.sizes[0] ? product.sizes[0].sku : null;
-    state.modal.selectedAddonSkus = new Set();
+    state.modal.selectedAddonQty = new Map();
     state.modal.quantity = 1;
 
     el("productModalTitle").textContent = product.title;
@@ -456,6 +457,8 @@
     syncModalOpenState();
   }
 
+  const MAX_ADDON_QTY = 10;
+
   function renderAddonList(sectionId, listId, addons) {
     const section = el(sectionId);
     const list = el(listId);
@@ -468,22 +471,50 @@
     }
     section.hidden = false;
     list.innerHTML = addons.map((a) => `
-      <label class="addon-item">
-        <input type="checkbox" value="${escapeHtml(a.sku)}" data-price="${a.price}" data-title="${escapeHtml(a.title)}">
-        <span class="addon-name">${escapeHtml(a.title)}</span>
-        <span class="addon-price">+${money(a.price)}</span>
-      </label>
+      <div class="addon-item" data-sku="${escapeHtml(a.sku)}">
+        <div class="addon-item-info">
+          <span class="addon-name">${escapeHtml(a.title)}</span>
+          <span class="addon-price">+${money(a.price)} c/u</span>
+        </div>
+        <div class="qty-stepper qty-stepper-sm">
+          <button type="button" class="btn-addon-dec" data-sku="${escapeHtml(a.sku)}" aria-label="Restar ${escapeHtml(a.title)}">−</button>
+          <span class="addon-qty-value" data-sku="${escapeHtml(a.sku)}">0</span>
+          <button type="button" class="btn-addon-inc" data-sku="${escapeHtml(a.sku)}" aria-label="Sumar ${escapeHtml(a.title)}">+</button>
+        </div>
+      </div>
     `).join("");
 
-    list.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-      cb.addEventListener("change", () => {
-        if (cb.checked) {
-          state.modal.selectedAddonSkus.add(cb.value);
-        } else {
-          state.modal.selectedAddonSkus.delete(cb.value);
-        }
+    list.querySelectorAll(".btn-addon-inc").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const sku = btn.dataset.sku;
+        const current = state.modal.selectedAddonQty.get(sku) || 0;
+        if (current >= MAX_ADDON_QTY) return;
+        state.modal.selectedAddonQty.set(sku, current + 1);
+        updateAddonQtyUI(list, sku);
         updateModalPrice();
       });
+    });
+    list.querySelectorAll(".btn-addon-dec").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const sku = btn.dataset.sku;
+        const current = state.modal.selectedAddonQty.get(sku) || 0;
+        if (current <= 0) return;
+        const next = current - 1;
+        if (next <= 0) state.modal.selectedAddonQty.delete(sku);
+        else state.modal.selectedAddonQty.set(sku, next);
+        updateAddonQtyUI(list, sku);
+        updateModalPrice();
+      });
+    });
+  }
+
+  function updateAddonQtyUI(list, sku) {
+    const qty = state.modal.selectedAddonQty.get(sku) || 0;
+    list.querySelectorAll(".addon-qty-value").forEach((valueEl) => {
+      if (valueEl.dataset.sku === sku) valueEl.textContent = String(qty);
+    });
+    list.querySelectorAll(".addon-item").forEach((item) => {
+      if (item.dataset.sku === sku) item.classList.toggle("active", qty > 0);
     });
   }
 
@@ -498,9 +529,9 @@
       ...(state.modal.tabAddons.cold || []),
       ...(state.modal.tabAddons.flat || []),
     ];
-    state.modal.selectedAddonSkus.forEach((sku) => {
+    state.modal.selectedAddonQty.forEach((qty, sku) => {
       const a = allAddons.find((x) => x.sku === sku);
-      if (a) price += a.price;
+      if (a) price += a.price * qty;
     });
     return price;
   }
@@ -538,9 +569,9 @@
       ...(state.modal.tabAddons.cold || []),
       ...(state.modal.tabAddons.flat || []),
     ];
-    const addons = Array.from(state.modal.selectedAddonSkus).map((sku) => {
+    const addons = Array.from(state.modal.selectedAddonQty.entries()).map(([sku, qty]) => {
       const a = allAddons.find((x) => x.sku === sku);
-      return { sku: a.sku, title: a.title, price: a.price };
+      return { sku: a.sku, title: a.title, price: a.price, quantity: qty };
     });
 
     state.cart.push({
@@ -571,7 +602,7 @@
 
     const totalQty = state.cart.reduce((acc, it) => acc + it.quantity, 0);
     const subtotal = state.cart.reduce((acc, it) => {
-      const addSum = it.addons.reduce((s, a) => s + a.price, 0);
+      const addSum = it.addons.reduce((s, a) => s + a.price * (a.quantity || 1), 0);
       return acc + (it.unit_price + addSum) * it.quantity;
     }, 0);
 
@@ -590,7 +621,7 @@
       list.innerHTML = `<div class="cart-empty">Tu pedido está vacío. Elige tus platos favoritos del menú.</div>`;
     } else {
       list.innerHTML = state.cart.map((it, idx) => {
-        const itemAddTotal = it.addons.reduce((s, a) => s + a.price, 0);
+        const itemAddTotal = it.addons.reduce((s, a) => s + a.price * (a.quantity || 1), 0);
         const itemLineTotal = (it.unit_price + itemAddTotal) * it.quantity;
         return `
           <div class="cart-item">
@@ -598,7 +629,7 @@
               <span class="cart-item-title">${escapeHtml(it.title)}${it.size_label ? ` (${escapeHtml(it.size_label)})` : ""}</span>
               <span class="cart-item-price">${money(itemLineTotal)}</span>
             </div>
-            ${it.addons.length ? `<div class="cart-item-addons">${it.addons.map((a) => `+ ${escapeHtml(a.title)} (${money(a.price)})`).join("<br>")}</div>` : ""}
+            ${it.addons.length ? `<div class="cart-item-addons">${it.addons.map((a) => `+ ${a.quantity > 1 ? `${a.quantity}x ` : ""}${escapeHtml(a.title)} (${money(a.price * (a.quantity || 1))})`).join("<br>")}</div>` : ""}
             ${it.notes ? `<div class="cart-item-notes">Nota: ${escapeHtml(it.notes)}</div>` : ""}
             <div class="cart-item-controls">
               <div class="qty-stepper qty-stepper-sm">
@@ -648,7 +679,7 @@
 
   function updateTotals() {
     const subtotal = state.cart.reduce((acc, it) => {
-      const addSum = it.addons.reduce((s, a) => s + a.price, 0);
+      const addSum = it.addons.reduce((s, a) => s + a.price * (a.quantity || 1), 0);
       return acc + (it.unit_price + addSum) * it.quantity;
     }, 0);
     const isDelivery = state.deliveryType === "delivery";
@@ -694,7 +725,7 @@
 
     const branchSelect = el("branchSelect");
     const branchCode = state.branchCode || (branchSelect ? branchSelect.value : "");
-    const deliveryAddress = el("deliveryAddress") ? el("deliveryAddress").value.trim() : "";
+    const deliveryAddress = getCombinedDeliveryAddress();
 
     const payload = {
       session: state.sessionToken,
@@ -705,7 +736,7 @@
       items: state.cart.map((item) => ({
         sku: item.sku,
         quantity: item.quantity,
-        addon_skus: item.addons.map((a) => a.sku),
+        addon_skus: flattenAddonSkus(item.addons),
         notes: item.notes || null,
       })),
     };
@@ -824,6 +855,11 @@
     const deliveryAddressInput = el("deliveryAddress");
     if (deliveryAddressInput) {
       deliveryAddressInput.addEventListener("input", () => scheduleCartSync());
+    }
+
+    const deliveryReferenceInput = el("deliveryReference");
+    if (deliveryReferenceInput) {
+      deliveryReferenceInput.addEventListener("input", () => scheduleCartSync());
     }
 
     document.querySelectorAll("#paymentOptions .option-pill").forEach((btn) => {
@@ -986,11 +1022,12 @@
     const branchCode = state.branchCode || (branchSelect ? branchSelect.value : "");
     const customerName = (el("customerName") && el("customerName").value.trim()) || state.customerName || "Cliente Farmhouse";
     const customerPhone = (el("customerPhone") && el("customerPhone").value.trim()) || state.customerPhone || "507";
-    const deliveryAddress = el("deliveryAddress") ? el("deliveryAddress").value.trim() : "";
+    const deliveryAddressMain = el("deliveryAddress") ? el("deliveryAddress").value.trim() : "";
+    const deliveryAddress = getCombinedDeliveryAddress();
 
     if (!branchCode) return showToast("Por favor selecciona una sucursal.", true);
     if (state.cart.length === 0) return showToast("Tu pedido está vacío.", true);
-    if (state.deliveryType === "delivery" && !deliveryAddress) return showToast("Por favor escribe tu dirección de entrega.", true);
+    if (state.deliveryType === "delivery" && !deliveryAddressMain) return showToast("Por favor indica tu ubicación de entrega.", true);
     if (!state.paymentMethod) return showToast("Por favor selecciona un método de pago.", true);
 
     const payload = {
@@ -1004,7 +1041,7 @@
       items: state.cart.map((item) => ({
         sku: item.sku,
         quantity: item.quantity,
-        addon_skus: item.addons.map((a) => a.sku),
+        addon_skus: flattenAddonSkus(item.addons),
         notes: item.notes || null,
       })),
     };
