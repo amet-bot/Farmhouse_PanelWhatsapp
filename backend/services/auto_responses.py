@@ -127,6 +127,10 @@ def get_branch_pickup_info_message(branch_code: str, branch_name: str) -> str:
 def get_branch_delivery_info_message(branch_code: str, branch_name: str) -> str:
     return get_branch_info_message(branch_name, branch_code, f"¡Excelente! 🛵 Tu pedido a domicilio saldrá de nuestra sucursal de *{branch_name}*.")
 
+# Cierre cálido tras mandar el botón del Menú Digital en delivery/pickup: deja la puerta abierta
+# sin forzar otra decisión de botones (el bot ya detecta por texto libre si piden un humano).
+MENU_LINK_WARM_CLOSING = "Cualquier duda que tengas mientras armas tu pedido, aquí estamos para ayudarte con todo gusto 😊"
+
 def get_manager_assigned_message(branch_name: str) -> str:
     return (
         f"¡Con mucho gusto! 🤝 Te comunicamos de inmediato con el gerente de nuestra sucursal de *{branch_name}*.\n\n"

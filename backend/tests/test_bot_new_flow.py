@@ -10,7 +10,7 @@ from services.auto_responses import (
     MAIN_WELCOME_BODY, MAIN_MENU_OPTIONS, CORPORATE_WELCOME_MESSAGE,
     MANAGER_HELP_QUESTION, get_manager_assigned_message, get_manager_declined_message,
     BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY, BRANCH_SELECTION_PICKUP_BODY,
-    get_branch_visit_message
+    get_branch_visit_message, MENU_LINK_WARM_CLOSING
 )
 
 @pytest.fixture(autouse=True)
@@ -248,6 +248,7 @@ def test_option_2_delivery_flow(client, clayton_branch, db_session):
     assert any("Tu pedido a domicilio saldrá de nuestra sucursal de *Clayton*" in m.content for m in msgs)
     assert any("maps.google.com" in m.content for m in msgs)
     assert any("/menu?" in m.content for m in msgs)
+    assert any(MENU_LINK_WARM_CLOSING in m.content for m in msgs)
 
 
 def test_option_3_pickup_flow(client, obarrio_branch, db_session):
@@ -293,6 +294,7 @@ def test_option_3_pickup_flow(client, obarrio_branch, db_session):
     assert any("Retirarás tu pedido en nuestra sucursal de *Obarrio*" in m.content for m in msgs)
     assert any("maps.google.com" in m.content for m in msgs)
     assert any("/menu?" in m.content for m in msgs)
+    assert any(MENU_LINK_WARM_CLOSING in m.content for m in msgs)
 
 
 def test_option_1_visit_view_menu_flow(client, clayton_branch, db_session):

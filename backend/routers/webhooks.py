@@ -24,7 +24,7 @@ from services.auto_responses import (
     BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON, CORPORATE_WELCOME_MESSAGE,
     MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS, MANAGER_HELP_OPTIONS,
     get_main_welcome_body, get_branch_visit_message, get_branch_pickup_info_message,
-    get_branch_delivery_info_message, get_manager_assigned_message,
+    get_branch_delivery_info_message, MENU_LINK_WARM_CLOSING, get_manager_assigned_message,
     get_manager_declined_message, get_branch_welcome_message,
     ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE
 )
@@ -334,7 +334,13 @@ async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, c
         "is_new_conversation": False
     })
 
-async def _send_branch_info_text(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, text: str) -> None:
+    # Cierre cálido en delivery/pickup: deja la puerta abierta sin forzar otro botón de decisión
+    # (en "visitar sucursal" no aplica porque ese flujo ya vuelve a preguntar "¿algo más?").
+    if conv.delivery_type in ("delivery", "pickup"):
+        await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, MENU_LINK_WARM_CLOSING)
+
+async def _send_plain_text_message(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, text: str) -> None:
     """Envía un mensaje de texto plano (ej. dirección/horario/maps de una sucursal), lo guarda y lo difunde por WebSocket."""
     send_res = await wa_service.send_text_message(phone, text)
     wamid = None
@@ -368,21 +374,21 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
 
     if conv.delivery_type == "visit":
         visit_text = get_branch_visit_message(branch_code, branch_name)
-        await _send_branch_info_text(db, wa_service, conv, contact, phone, visit_text)
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, visit_text)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
         return
 
     if conv.delivery_type == "pickup":
         pickup_info_text = get_branch_pickup_info_message(branch_code, branch_name)
-        await _send_branch_info_text(db, wa_service, conv, contact, phone, pickup_info_text)
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, pickup_info_text)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_digital_menu_link(db, wa_service, conv, contact, phone)
         return
 
     if conv.delivery_type == "delivery":
         delivery_info_text = get_branch_delivery_info_message(branch_code, branch_name)
-        await _send_branch_info_text(db, wa_service, conv, contact, phone, delivery_info_text)
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, delivery_info_text)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_digital_menu_link(db, wa_service, conv, contact, phone)
         return
