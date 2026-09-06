@@ -21,7 +21,12 @@ from services.websocket_manager import ws_manager
 from services.auto_responses import (
     MAIN_WELCOME_BODY, MAIN_MENU_BUTTON, MAIN_MENU_OPTIONS, MAIN_MENU_TEXT_FALLBACK,
     BRANCH_SELECTION_BODY, BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY,
-    BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON, CORPORATE_WELCOME_MESSAGE,
+    BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON,
+    CORPORATE_INTAKE_INTRO, CORPORATE_EVENT_TYPE_QUESTION, CORPORATE_EVENT_TYPE_BUTTONS,
+    CORPORATE_EVENT_TYPE_LABELS, CORPORATE_HEADCOUNT_QUESTION, CORPORATE_HEADCOUNT_RETRY,
+    CORPORATE_DATE_QUESTION, CORPORATE_DATE_RETRY, CORPORATE_LOCATION_QUESTION,
+    CORPORATE_LOCATION_BUTTONS, CORPORATE_LOCATION_LABELS, CORPORATE_INVALID_OPTION_RETRY,
+    CORPORATE_INTAKE_CLOSING_MESSAGE, get_corporate_intake_summary,
     MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS, MANAGER_HELP_OPTIONS,
     get_main_welcome_body, get_branch_visit_message, get_branch_pickup_info_message,
     get_branch_delivery_info_message, MENU_LINK_WARM_CLOSING, get_manager_assigned_message,
@@ -32,7 +37,7 @@ from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKE
 from services.branch_matcher import match_branch_by_text
 from services.order_flow_matcher import (
     match_main_option, match_delivery_type_text, match_payment_method_text,
-    match_manager_help, mentions_cash
+    match_manager_help, match_event_type, match_event_location, mentions_cash
 )
 from services.push_service import notify_branch_new_message
 from security.auth import create_menu_session_token
@@ -397,6 +402,117 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
     await _send_digital_menu_link(db, wa_service, conv, contact, phone)
 
+def _append_corporate_note(conv: Conversation, line: str) -> None:
+    """Acumula una línea más al resumen de respuestas del flujo Corporativo/Evento."""
+    conv.corporate_intake_notes = f"{conv.corporate_intake_notes}\n{line}" if conv.corporate_intake_notes else line
+
+async def _send_corporate_event_type_question(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    await _send_interactive_buttons_message(db, wa_service, conv, contact, phone, CORPORATE_EVENT_TYPE_QUESTION, CORPORATE_EVENT_TYPE_BUTTONS)
+
+async def _send_corporate_location_question(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    await _send_interactive_buttons_message(db, wa_service, conv, contact, phone, CORPORATE_LOCATION_QUESTION, CORPORATE_LOCATION_BUTTONS)
+
+async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, interactive_id: str, message_type: str, text: str) -> None:
+    """Procesa la respuesta del cliente a una de las 4 preguntas guiadas del Pedido
+    Corporativo/Evento (opción 4), antes de pasarle la conversación a Sol."""
+    step = conv.corporate_intake_step
+
+    if step == 1:
+        event_type = None
+        if interactive_id == "event_type_meeting":
+            event_type = "meeting"
+        elif interactive_id == "event_type_celebration":
+            event_type = "celebration"
+        elif interactive_id == "event_type_other":
+            event_type = "other"
+        elif message_type == "text":
+            event_type = match_event_type(text)
+
+        if not event_type:
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_INVALID_OPTION_RETRY)
+            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+            await _send_corporate_event_type_question(db, wa_service, conv, contact, phone)
+            return
+
+        _append_corporate_note(conv, f"Tipo de evento: {CORPORATE_EVENT_TYPE_LABELS[event_type]}")
+        conv.corporate_intake_step = 2
+        conv.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_HEADCOUNT_QUESTION)
+        return
+
+    if step == 2:
+        if message_type != "text" or not text.strip():
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_HEADCOUNT_RETRY)
+            return
+        _append_corporate_note(conv, f"Cantidad de personas: {text.strip()}")
+        conv.corporate_intake_step = 3
+        conv.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_DATE_QUESTION)
+        return
+
+    if step == 3:
+        if message_type != "text" or not text.strip():
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_DATE_RETRY)
+            return
+        _append_corporate_note(conv, f"Fecha y hora: {text.strip()}")
+        conv.corporate_intake_step = 4
+        conv.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        await _send_corporate_location_question(db, wa_service, conv, contact, phone)
+        return
+
+    if step == 4:
+        location = None
+        if interactive_id == "event_loc_pickup":
+            location = "pickup"
+        elif interactive_id == "event_loc_delivery":
+            location = "delivery"
+        elif interactive_id == "event_loc_undecided":
+            location = "undecided"
+        elif message_type == "text":
+            location = match_event_location(text)
+
+        if not location:
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_INVALID_OPTION_RETRY)
+            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+            await _send_corporate_location_question(db, wa_service, conv, contact, phone)
+            return
+
+        _append_corporate_note(conv, f"Lugar de entrega: {CORPORATE_LOCATION_LABELS[location]}")
+        conv.corporate_intake_step = None
+        conv.updated_at = datetime.now(timezone.utc)
+        db.commit()
+
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_INTAKE_CLOSING_MESSAGE)
+
+        # Resumen interno (solo visible en el panel, nunca se manda al cliente) para que Sol vea
+        # de un vistazo lo ya conversado sin desplazarse por todo el historial del chat.
+        summary_msg = Message(
+            conversation_id=conv.id, direction="outgoing", sender_type="system",
+            content=get_corporate_intake_summary(conv.corporate_intake_notes or ""),
+            is_internal=True, status="sent"
+        )
+        db.add(summary_msg)
+        conv.automation_paused = True
+        conv.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(summary_msg)
+        await ws_manager.broadcast_to_branch(conv.branch_id, {
+            "type": "new_incoming_message",
+            "conversation_id": conv.id,
+            "branch_id": conv.branch_id,
+            "contact_name": contact.name,
+            "contact_phone": contact.phone,
+            "message": {
+                "id": summary_msg.id, "direction": summary_msg.direction, "sender_type": summary_msg.sender_type,
+                "content": summary_msg.content, "status": summary_msg.status, "created_at": summary_msg.created_at.isoformat()
+            },
+            "is_new_conversation": False
+        })
+        return
+
 async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: str, msg_data: Dict[str, Any], msg_id: int):
     """
     Procesador en segundo plano para descargas de medios, lógica de estados y respuestas automáticas (Puntos 5 y 17).
@@ -588,7 +704,13 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
 
         # 3. Detección de opción del Menú Principal (1. Visitar, 2. Delivery, 3. Retiro, 4. Corporativo)
         interactive_id = str(msg_data.get("interactive_id") or "")
-        
+
+        # 2.5 Si hay una pregunta guiada de Corporativo/Evento pendiente, esta respuesta es
+        # justo eso (no pasa por el resto del árbol de decisión hasta que se completen las 4).
+        if conv.corporate_intake_step:
+            await _handle_corporate_intake_step(db, wa_service, conv, contact, phone, interactive_id, message_type, text)
+            return
+
         # 3.0 Detección de respuesta a "¿Te podemos ayudar en algo más?"
         manager_choice = None
         if interactive_id == "manager_yes":
@@ -675,37 +797,22 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         elif message_type == "text":
             main_option_matched = match_main_option(text)
 
-        # 3.1 Opción 4: Pedido Corporativo / Evento
+        # 3.1 Opción 4: Pedido Corporativo / Evento — inicia las 4 preguntas guiadas antes de
+        # pasarle la conversación a Sol (el bot NO se pausa todavía, faltan las respuestas).
         if main_option_matched == "corporate":
             cat_branch = db.query(Branch).filter((Branch.code == "CAT") | (Branch.name.ilike("%catering%"))).first()
             if cat_branch:
                 await _assign_conversation_branch(db, conv, cat_branch, "cliente seleccionó Pedido Corporativo / Evento")
 
-            send_res = await wa_service.send_text_message(phone, CORPORATE_WELCOME_MESSAGE)
-            wamid = None
-            if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-                wamid = send_res["messages"][0].get("id")
-            corp_msg = Message(
-                conversation_id=conv.id, direction="outgoing", sender_type="system",
-                content=CORPORATE_WELCOME_MESSAGE, whatsapp_message_id=wamid, is_internal=False, status="sent"
-            )
-            db.add(corp_msg)
-            conv.automation_paused = True
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_INTAKE_INTRO)
+            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+
+            conv.corporate_intake_step = 1
+            conv.corporate_intake_notes = None
             conv.updated_at = datetime.now(timezone.utc)
             db.commit()
-            db.refresh(corp_msg)
-            await ws_manager.broadcast_to_branch(conv.branch_id, {
-                "type": "new_incoming_message",
-                "conversation_id": conv.id,
-                "branch_id": conv.branch_id,
-                "contact_name": contact.name,
-                "contact_phone": contact.phone,
-                "message": {
-                    "id": corp_msg.id, "direction": corp_msg.direction, "sender_type": corp_msg.sender_type,
-                    "content": corp_msg.content, "status": corp_msg.status, "created_at": corp_msg.created_at.isoformat()
-                },
-                "is_new_conversation": False
-            })
+
+            await _send_corporate_event_type_question(db, wa_service, conv, contact, phone)
             return
 
         # 3.2 Actualizar delivery_type si se seleccionó opción 1, 2 o 3

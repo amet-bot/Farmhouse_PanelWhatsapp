@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from database import Base
@@ -15,6 +15,12 @@ class Conversation(Base):
     payment_method = Column(String(20), nullable=True)
     last_branch_prompt_at = Column(DateTime, nullable=True)
     automation_paused = Column(Boolean, default=False, nullable=False)
+    # Preguntas guiadas del Pedido Corporativo/Evento (opción 4) antes de pasarle el chat a Sol:
+    # corporate_intake_step = 1..4 mientras se espera la respuesta a esa pregunta, None si no
+    # aplica o ya terminó. corporate_intake_notes acumula las respuestas en texto legible para
+    # el resumen interno que ve Sol al recibir la conversación.
+    corporate_intake_step = Column(Integer, nullable=True)
+    corporate_intake_notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
     deleted_at = Column(DateTime, nullable=True)

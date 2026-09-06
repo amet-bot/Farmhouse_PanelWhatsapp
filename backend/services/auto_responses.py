@@ -49,16 +49,50 @@ BRANCH_SELECTION_DELIVERY_BODY = "¡Excelente! 🛵 ¿Para cuál de nuestras suc
 BRANCH_SELECTION_PICKUP_BODY = "¡Excelente! 🛍️ Elige la sucursal en la que quieres hacer tu pedido:"
 BRANCH_SELECTION_BUTTON = "Ver sucursales"
 
-CORPORATE_WELCOME_MESSAGE = (
-    "¡Qué gran noticia! 🎉🥗 En Farmhouse nos encanta atender pedidos corporativos, reuniones de oficina, catering y eventos especiales con opciones saludables, deliciosas y frescas.\n\n"
-    "En un momento nuestro coordinador de eventos y cuentas corporativas te atenderá por este chat para brindarte atención personalizada y cotizar tu requerimiento.\n\n"
-    "Si gustas, puedes ir dejándonos los siguientes detalles:\n"
-    "• Tipo de evento o motivo\n"
-    "• Fecha y hora estimada\n"
-    "• Cantidad aproximada de personas\n"
-    "• Lugar de entrega o sucursal de preferencia\n\n"
-    "¡Muchas gracias por elegirnos! 😊✨"
+CORPORATE_INTAKE_INTRO = (
+    "¡Qué gran noticia! 🎉 En Farmhouse nos encanta atender pedidos corporativos, reuniones de oficina, catering y eventos especiales.\n\n"
+    "Para armarte la mejor propuesta, te hago unas preguntas rápidas antes de comunicarte con Sol, nuestra encargada de eventos y cuentas corporativas 😊"
 )
+
+CORPORATE_EVENT_TYPE_QUESTION = "¿Qué tipo de evento tienes en mente?"
+CORPORATE_EVENT_TYPE_BUTTONS = [
+    {"id": "event_type_meeting", "title": "Reunión corporativa"},
+    {"id": "event_type_celebration", "title": "Evento especial"},
+    {"id": "event_type_other", "title": "Otro"},
+]
+CORPORATE_EVENT_TYPE_LABELS = {
+    "meeting": "Reunión corporativa / oficina",
+    "celebration": "Celebración o evento especial",
+    "other": "Otro",
+}
+
+CORPORATE_HEADCOUNT_QUESTION = "¡Perfecto! ¿Para cuántas personas sería, aproximadamente?"
+CORPORATE_HEADCOUNT_RETRY = "¿Me confirmas para cuántas personas sería, aproximadamente?"
+
+CORPORATE_DATE_QUESTION = "¡Genial! ¿Tienes fecha y hora en mente?"
+CORPORATE_DATE_RETRY = "¿Me compartes la fecha y hora que tienes en mente?"
+
+CORPORATE_LOCATION_QUESTION = "Última pregunta: ¿dónde te gustaría recibir el pedido?"
+CORPORATE_LOCATION_BUTTONS = [
+    {"id": "event_loc_pickup", "title": "Retiro en sucursal"},
+    {"id": "event_loc_delivery", "title": "Entrega en mi lugar"},
+    {"id": "event_loc_undecided", "title": "Aún no lo sé"},
+]
+CORPORATE_LOCATION_LABELS = {
+    "pickup": "Retiro en una de nuestras sucursales",
+    "delivery": "Entrega en su oficina o el lugar del evento",
+    "undecided": "Aún no lo sabe, se coordina con Sol",
+}
+
+CORPORATE_INVALID_OPTION_RETRY = "No entendí bien, ¿me eliges una de estas opciones?"
+
+CORPORATE_INTAKE_CLOSING_MESSAGE = (
+    "¡Listo! 🎉 Ya tengo todo lo que Sol necesita para armarte una propuesta. En un momento te comunico con ella por este mismo chat. "
+    "¡Gracias por pensar en Farmhouse para tu evento! 😊"
+)
+
+def get_corporate_intake_summary(notes: str) -> str:
+    return f"📋 Resumen para Sol (Pedido Corporativo / Evento):\n{notes}"
 
 BRANCH_VISIT_INFO = {
     "CDE": {

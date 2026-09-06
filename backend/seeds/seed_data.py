@@ -77,6 +77,29 @@ def seed_database():
                 db.commit()
             logger.info(f"  [OK] Usuario Administrador verificado y activo (contraseña preservada): @{admin.username} (ID: {admin.id})")
 
+        # 3. USUARIO DE SOL (encargada de Pedidos Corporativos / Eventos, sucursal Catering)
+        # Datos FICTICIOS a propósito: el cliente pidió dejarlos así por ahora y reemplazarlos
+        # por los reales de Sol más adelante (username, email y password deben actualizarse).
+        sol_username = "sol.eventos"
+        cat_branch = db.query(Branch).filter(Branch.code == "CAT").first()
+        sol = db.query(User).filter(User.username == sol_username).first()
+        if not sol and cat_branch:
+            sol = User(
+                username=sol_username,
+                name="Sol (Eventos y Corporativo)",
+                email="sol.eventos@farmhouse.pa",
+                password_hash=get_password_hash(os.environ.get("SOL_INITIAL_PASSWORD", "CambiarSol123!")),
+                role="agent",
+                branch_id=cat_branch.id,
+                active=True
+            )
+            db.add(sol)
+            db.commit()
+            db.refresh(sol)
+            logger.info(f"  [OK] Usuario ficticio de Sol creado: @{sol.username} (ID: {sol.id}) — actualizar con sus datos reales.")
+        elif sol:
+            logger.debug(f"  [OK] Usuario de Sol existente: @{sol.username} (ID: {sol.id})")
+
         logger.info("[SEED] Proceso de seed completado exitosamente.")
     except Exception as e:
         db.rollback()

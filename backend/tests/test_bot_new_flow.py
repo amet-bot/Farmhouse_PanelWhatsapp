@@ -7,7 +7,7 @@ from models.contact import Contact
 from models.message import Message
 from models.branch import Branch
 from services.auto_responses import (
-    MAIN_WELCOME_BODY, MAIN_MENU_OPTIONS, CORPORATE_WELCOME_MESSAGE,
+    MAIN_WELCOME_BODY, MAIN_MENU_OPTIONS, CORPORATE_INTAKE_CLOSING_MESSAGE,
     MANAGER_HELP_QUESTION, get_manager_assigned_message, get_manager_declined_message,
     BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY, BRANCH_SELECTION_PICKUP_BODY,
     get_branch_visit_message, MENU_LINK_WARM_CLOSING
@@ -330,29 +330,84 @@ def test_option_1_visit_view_menu_flow(client, clayton_branch, db_session):
 
 
 def test_option_4_corporate_flow(client, clayton_branch, db_session):
+    # El flujo de "Pedido Corporativo / Evento" hace 4 preguntas guiadas (tipo de evento,
+    # cantidad de personas, fecha, lugar) antes de asignar la conversación a Sol y pausar el bot.
     cat_branch = Branch(id=10, code="CAT", name="Catering", color="#e11d48", active=True)
     db_session.add(cat_branch)
     db_session.commit()
 
-    payload_opt4 = {
-        "object": "whatsapp_business_account",
-        "entry": [{
-            "id": "WABA_ID",
-            "changes": [{
-                "value": {"messaging_product": "whatsapp", "messages": [
-                    {"from": "50769994444", "id": "wamid.TEST06", "timestamp": "1725500000", "text": {"body": "Quiero organizar un evento corporativo"}, "type": "text"}
-                ]},
-                "field": "messages"
+    def post_text(body, wamid):
+        return client.post("/api/webhooks/whatsapp", json={
+            "object": "whatsapp_business_account",
+            "entry": [{
+                "id": "WABA_ID",
+                "changes": [{
+                    "value": {"messaging_product": "whatsapp", "messages": [
+                        {"from": "50769994444", "id": wamid, "timestamp": "1725500000", "text": {"body": body}, "type": "text"}
+                    ]},
+                    "field": "messages"
+                }]
             }]
-        }]
-    }
-    resp = client.post("/api/webhooks/whatsapp", json=payload_opt4)
+        })
+
+    def post_button(button_id, title, wamid):
+        return client.post("/api/webhooks/whatsapp", json={
+            "object": "whatsapp_business_account",
+            "entry": [{
+                "id": "WABA_ID",
+                "changes": [{
+                    "value": {"messaging_product": "whatsapp", "messages": [
+                        {"from": "50769994444", "id": wamid, "timestamp": "1725500000", "interactive": {"button_reply": {"id": button_id, "title": title}}, "type": "interactive"}
+                    ]},
+                    "field": "messages"
+                }]
+            }]
+        })
+
+    # Paso 0: elige la opción 4 -> se asigna a Catering y arranca la pregunta 1
+    resp = post_text("Quiero organizar un evento corporativo", "wamid.CORP01")
     assert resp.status_code == 200
 
     contact = db_session.query(Contact).filter(Contact.phone.contains("69994444")).first()
     conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
-    assert conv.automation_paused is True
     assert conv.branch_id == cat_branch.id
+    assert conv.corporate_intake_step == 1
+    assert conv.automation_paused is False
 
-    msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
-    assert CORPORATE_WELCOME_MESSAGE in msgs[-1].content
+    # Paso 1: tipo de evento (botón)
+    resp = post_button("event_type_meeting", "Reunión corporativa", "wamid.CORP02")
+    assert resp.status_code == 200
+    db_session.refresh(conv)
+    assert conv.corporate_intake_step == 2
+    assert "Tipo de evento" in conv.corporate_intake_notes
+
+    # Paso 2: cantidad de personas (texto libre)
+    resp = post_text("25 personas", "wamid.CORP03")
+    assert resp.status_code == 200
+    db_session.refresh(conv)
+    assert conv.corporate_intake_step == 3
+    assert "Cantidad de personas: 25 personas" in conv.corporate_intake_notes
+
+    # Paso 3: fecha y hora (texto libre)
+    resp = post_text("El viernes 12 a las 12pm", "wamid.CORP04")
+    assert resp.status_code == 200
+    db_session.refresh(conv)
+    assert conv.corporate_intake_step == 4
+    assert "Fecha y hora: El viernes 12 a las 12pm" in conv.corporate_intake_notes
+
+    # Paso 4: lugar de entrega (botón) -> termina el intake, pausa el bot, deja resumen interno
+    resp = post_button("event_loc_delivery", "Entrega en mi lugar", "wamid.CORP05")
+    assert resp.status_code == 200
+    db_session.refresh(conv)
+    assert conv.corporate_intake_step is None
+    assert conv.automation_paused is True
+    assert "Lugar de entrega" in conv.corporate_intake_notes
+
+    msgs = db_session.query(Message).filter(Message.conversation_id == conv.id).all()
+    assert any(CORPORATE_INTAKE_CLOSING_MESSAGE in m.content for m in msgs if not m.is_internal)
+    internal_summary = next((m for m in msgs if m.is_internal and "Resumen para Sol" in m.content), None)
+    assert internal_summary is not None
+    assert "Tipo de evento" in internal_summary.content
+    assert "Cantidad de personas" in internal_summary.content
+    assert "Fecha y hora" in internal_summary.content
+    assert "Lugar de entrega" in internal_summary.content

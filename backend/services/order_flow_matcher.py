@@ -95,6 +95,61 @@ def match_manager_help(customer_text: str) -> Optional[str]:
     return None
 
 
+EVENT_TYPE_MEETING_KEYWORDS = ["reunion", "reunion corporativa", "oficina", "corporativa", "corporativo", "empresa"]
+EVENT_TYPE_CELEBRATION_KEYWORDS = ["celebracion", "cumpleanos", "fiesta", "especial", "evento especial", "aniversario"]
+
+
+def match_event_type(customer_text: str) -> Optional[str]:
+    """Para la pregunta guiada '¿Qué tipo de evento tienes en mente?' del flujo Corporativo/Evento."""
+    if not customer_text:
+        return None
+    normalized = normalize_text(customer_text)
+
+    if normalized in ["1", "opcion 1", "opt 1"]:
+        return "meeting"
+    if normalized in ["2", "opcion 2", "opt 2"]:
+        return "celebration"
+    if normalized in ["3", "opcion 3", "opt 3"]:
+        return "other"
+
+    if any(kw in normalized for kw in EVENT_TYPE_MEETING_KEYWORDS):
+        return "meeting"
+    if any(kw in normalized for kw in EVENT_TYPE_CELEBRATION_KEYWORDS):
+        return "celebration"
+    if "otro" in normalized:
+        return "other"
+
+    return None
+
+
+EVENT_LOCATION_PICKUP_KEYWORDS = ["retiro", "retirar", "recoger", "recojo", "sucursal", "pasar a buscar"]
+EVENT_LOCATION_DELIVERY_KEYWORDS = ["entrega", "mi oficina", "mi lugar", "domicilio", "en el evento", "en mi empresa"]
+EVENT_LOCATION_UNDECIDED_KEYWORDS = ["no se", "no lo se", "aun no", "coordinar", "despues lo vemos"]
+
+
+def match_event_location(customer_text: str) -> Optional[str]:
+    """Para la pregunta guiada '¿Dónde te gustaría recibir el pedido?' del flujo Corporativo/Evento."""
+    if not customer_text:
+        return None
+    normalized = normalize_text(customer_text)
+
+    if normalized in ["1", "opcion 1", "opt 1"]:
+        return "pickup"
+    if normalized in ["2", "opcion 2", "opt 2"]:
+        return "delivery"
+    if normalized in ["3", "opcion 3", "opt 3"]:
+        return "undecided"
+
+    if any(kw in normalized for kw in EVENT_LOCATION_UNDECIDED_KEYWORDS):
+        return "undecided"
+    if any(kw in normalized for kw in EVENT_LOCATION_PICKUP_KEYWORDS):
+        return "pickup"
+    if any(kw in normalized for kw in EVENT_LOCATION_DELIVERY_KEYWORDS):
+        return "delivery"
+
+    return None
+
+
 def mentions_cash(customer_text: str) -> bool:
     """Para detectar cuando alguien pide efectivo aunque no esté permitido (ej. en delivery)."""
     if not customer_text:
