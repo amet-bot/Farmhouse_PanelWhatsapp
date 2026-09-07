@@ -3,6 +3,7 @@ import hmac
 import hashlib
 import json
 import logging
+import re
 import urllib.parse
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
@@ -20,6 +21,7 @@ from services.whatsapp_service import get_whatsapp_service
 from services.websocket_manager import ws_manager
 from services.auto_responses import (
     MAIN_WELCOME_BODY, MAIN_MENU_BUTTON, MAIN_MENU_OPTIONS, MAIN_MENU_TEXT_FALLBACK,
+    MAIN_MENU_BUTTONS, ORDER_TYPE_QUESTION, ORDER_TYPE_BUTTONS,
     BRANCH_SELECTION_BODY, BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY,
     BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON,
     CORPORATE_INTAKE_INTRO, CORPORATE_EVENT_TYPE_QUESTION, CORPORATE_EVENT_TYPE_BUTTONS,
@@ -31,13 +33,18 @@ from services.auto_responses import (
     get_main_welcome_body, get_branch_visit_message, get_branch_pickup_info_message,
     get_branch_delivery_info_message, MENU_LINK_WARM_CLOSING, get_manager_assigned_message,
     get_manager_declined_message, get_branch_welcome_message,
-    ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE
+    ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE,
+    UNKNOWN_MAIN_MESSAGE, UNKNOWN_ORDER_MESSAGE, UNKNOWN_BRANCH_MESSAGE,
+    AFTER_MENU_HELP_QUESTION, AFTER_MENU_HELP_BUTTONS, RESTART_MESSAGE, CANCEL_MESSAGE,
+    CHANGE_ORDER_TYPE_MESSAGE, CHANGE_BRANCH_MESSAGE, get_human_handoff_message,
+    get_customer_first_name
 )
 from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKER
 from services.branch_matcher import match_branch_by_text
 from services.order_flow_matcher import (
     match_main_option, match_delivery_type_text, match_payment_method_text,
-    match_manager_help, match_event_type, match_event_location, mentions_cash
+    match_manager_help, match_event_type, match_event_location, mentions_cash,
+    match_entry_intent, match_navigation_intent
 )
 from services.push_service import notify_branch_new_message
 from security.auth import create_menu_session_token
@@ -126,12 +133,7 @@ async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, c
     personalizado con el nombre de WhatsApp del cliente cuando se conoce."""
     welcome_body = get_main_welcome_body(contact.name)
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-    menu_res = await wa_service.send_interactive_list(
-        phone,
-        welcome_body,
-        MAIN_MENU_BUTTON,
-        MAIN_MENU_OPTIONS
-    )
+    menu_res = await wa_service.send_interactive_buttons(phone, welcome_body, MAIN_MENU_BUTTONS)
     menu_wamid = None
     if isinstance(menu_res, dict) and "messages" in menu_res and menu_res["messages"]:
         menu_wamid = menu_res["messages"][0].get("id")
@@ -157,7 +159,28 @@ async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, c
         },
         "is_new_conversation": False
     })
-    logger.info(f"[MainMenu] Menú principal de 4 opciones enviado a {mask_phone(phone)} para Conv ID {conv.id}.")
+    logger.info(f"[MainMenu] Menú principal de 3 acciones rápidas enviado a {mask_phone(phone)} para Conv ID {conv.id}.")
+
+async def _send_order_type_prompt(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, body_text: Optional[str] = None) -> None:
+    """Segundo nivel del menú: una sola decisión corta, con texto libre permitido."""
+    await _send_interactive_buttons_message(
+        db, wa_service, conv, contact, phone,
+        body_text or ORDER_TYPE_QUESTION,
+        ORDER_TYPE_BUTTONS,
+    )
+
+async def _reset_bot_context(db: Session, conv: Conversation, *, clear_branch: bool = True) -> None:
+    """Reinicia únicamente el contexto del bot; no elimina mensajes ni pedidos históricos."""
+    conv.delivery_type = None
+    conv.payment_method = None
+    conv.corporate_intake_step = None
+    conv.corporate_intake_notes = None
+    if clear_branch:
+        conv.branch_id = None
+        conv.assigned_user_id = None
+        conv.status = "unassigned"
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
 
 async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, intro_text: Optional[str] = None, prompt_body: Optional[str] = None) -> None:
     """Envía (opcionalmente) un mensaje introductorio y luego la lista interactiva de sucursales activas."""
@@ -372,6 +395,62 @@ async def _send_plain_text_message(db: Session, wa_service, conv: Conversation, 
         "is_new_conversation": False
     })
 
+def _conversation_context_summary(conv: Conversation) -> str:
+    """Resumen breve para el equipo cuando el cliente pide atención humana."""
+    delivery_labels = {"visit": "Consulta/visita", "delivery": "Delivery", "pickup": "Retiro"}
+    payment_labels = {"card": "Tarjeta", "yappy": "Yappy", "cash": "Efectivo", "ach": "ACH"}
+    lines = ["📋 Contexto recopilado por el asistente:"]
+    lines.append(f"• Necesidad: {delivery_labels.get(conv.delivery_type, 'Aún no definida')}")
+    lines.append(f"• Sucursal: {conv.branch.name if conv.branch else 'Aún no definida'}")
+    if conv.payment_method:
+        lines.append(f"• Pago: {payment_labels.get(conv.payment_method, conv.payment_method)}")
+    if conv.corporate_intake_notes:
+        lines.append(f"• Evento/empresa:\n{conv.corporate_intake_notes}")
+    return "\n".join(lines)
+
+async def _handoff_to_human(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, customer_text: Optional[str] = None) -> None:
+    """Responde, deja contexto interno y pausa el bot sin hacer repetir al cliente."""
+    branch_name = conv.branch.name if conv.branch else None
+    await _send_plain_text_message(
+        db, wa_service, conv, contact, phone,
+        customer_text or get_human_handoff_message(branch_name),
+    )
+    summary_msg = Message(
+        conversation_id=conv.id,
+        direction="outgoing",
+        sender_type="system",
+        content=_conversation_context_summary(conv),
+        is_internal=True,
+        status="sent",
+    )
+    db.add(summary_msg)
+    conv.automation_paused = True
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(summary_msg)
+    await ws_manager.broadcast_to_branch(conv.branch_id, {
+        "type": "new_incoming_message",
+        "conversation_id": conv.id,
+        "branch_id": conv.branch_id,
+        "contact_name": contact.name,
+        "contact_phone": contact.phone,
+        "message": {
+            "id": summary_msg.id, "direction": summary_msg.direction,
+            "sender_type": summary_msg.sender_type, "content": summary_msg.content,
+            "status": summary_msg.status, "created_at": summary_msg.created_at.isoformat(),
+            "is_internal": True,
+        },
+        "is_new_conversation": False,
+    })
+
+def _last_public_bot_text(db: Session, conv_id: int) -> str:
+    msg = db.query(Message).filter(
+        Message.conversation_id == conv_id,
+        Message.direction == "outgoing",
+        Message.is_internal == False,
+    ).order_by(Message.created_at.desc(), Message.id.desc()).first()
+    return msg.content if msg else ""
+
 async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
     """Envía la información de la sucursal (visita, retiro o domicilio) y/o el enlace del Menú Digital según el tipo de atención."""
     branch_name = conv.branch.name if conv.branch else "Farmhouse"
@@ -445,11 +524,36 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
         if message_type != "text" or not text.strip():
             await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_HEADCOUNT_RETRY)
             return
-        _append_corporate_note(conv, f"Cantidad de personas: {text.strip()}")
-        conv.corporate_intake_step = 3
+        answer = text.strip()
+        _append_corporate_note(conv, f"Cantidad de personas: {answer}")
+
+        # Si la persona respondió cantidad y fecha en la misma frase, aprovechamos esa
+        # información y evitamos una pregunta redundante. Si solo dio la cantidad, el flujo
+        # clásico sigue funcionando y pregunta por la fecha a continuación.
+        normalized_answer = answer.lower()
+        date_words = (
+            "lunes", "martes", "miércoles", "miercoles", "jueves", "viernes", "sábado", "sabado", "domingo",
+            "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
+            "octubre", "noviembre", "diciembre", "mañana", "manana", "hoy", "mediodía", "mediodia",
+        )
+        has_date_or_time = (
+            any(word in normalized_answer for word in date_words)
+            or bool(re.search(r"\b\d{1,2}[:/]\d{1,2}(?:[/]\d{2,4})?\b", normalized_answer))
+            or bool(re.search(r"\b\d{1,2}\s*(?:am|pm|a\.?\s*m\.?|p\.?\s*m\.?)\b", normalized_answer))
+        )
+        if has_date_or_time:
+            _append_corporate_note(conv, f"Fecha y hora (respuesta conjunta): {answer}")
+            conv.corporate_intake_step = 4
+        else:
+            conv.corporate_intake_step = 3
         conv.updated_at = datetime.now(timezone.utc)
         db.commit()
-        await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_DATE_QUESTION)
+        if has_date_or_time:
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, "Gracias, con eso ya entiendo mucho mejor lo que necesitas 🙌")
+            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+            await _send_corporate_location_question(db, wa_service, conv, contact, phone)
+        else:
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_DATE_QUESTION)
         return
 
     if step == 3:
@@ -527,6 +631,8 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             return
 
         wa_service = get_whatsapp_service()
+        message_type = msg_data.get("message_type", "text")
+        text = msg_data.get("text", "")
 
         # Marca el mensaje como leído y muestra "escribiendo..." en el chat del cliente MIENTRAS
         # dura la pausa humana de abajo, para que la espera se sienta como alguien leyendo y
@@ -538,10 +644,10 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         # Pausa antes de que el bot "empiece a escribir": evita que la respuesta llegue de forma
         # instantánea y poco natural. Configurable (0 en tests) vía settings.BOT_RESPONSE_DELAY_SECONDS.
         if settings.BOT_RESPONSE_DELAY_SECONDS > 0:
-            await asyncio.sleep(settings.BOT_RESPONSE_DELAY_SECONDS)
-
-        message_type = msg_data.get("message_type", "text")
-        text = msg_data.get("text", "")
+            # Una frase larga tarda ligeramente más que un "hola", con un tope bajo para no
+            # perjudicar la experiencia. En tests el delay base es 0 y no añade espera.
+            reading_time = min(len(text or "") * 0.015, 1.2)
+            await asyncio.sleep(settings.BOT_RESPONSE_DELAY_SECONDS + reading_time)
 
         # 0. Pedido estructurado enviado desde la Web App de Menú (/menu). Ya trae sucursal,
         #    entrega y pago resueltos (ver POST /api/orders/public), así que respondemos con un mensaje
@@ -551,35 +657,27 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             is_delivery = "DELIVERY" in text.upper() or (conv.delivery_type == "delivery")
             is_card = "TARJETA" in text.upper() or (conv.payment_method == "card")
             branch_name = conv.branch.name if conv.branch else "Farmhouse"
-
-            if is_delivery:
-                if is_card:
-                    confirmation_text = (
-                        f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado con éxito en nuestro sistema.\n\n"
-                        f"🛵 Como seleccionaste entrega a *Delivery* y método de pago con *Tarjeta*, nuestro agente encargado en la sucursal de *{branch_name}* "
-                        f"está revisando tu dirección en este momento para confirmarte el costo del envío y en seguida te compartirá por este medio el *enlace de pago seguro* para que puedas pagar cómodamente.\n\n"
-                        f"Por favor regálanos unos breves minutos de paciencia mientras te preparamos el enlace y coordinamos tu entrega. ¡Un verdadero placer atenderte! 😊💳✨"
-                    )
-                else:
-                    confirmation_text = (
-                        f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado en nuestro sistema.\n\n"
-                        f"🛵 Como seleccionaste entrega a *Delivery*, nuestro agente encargado en la sucursal de *{branch_name}* "
-                        f"está revisando tu dirección en este momento para confirmarte el costo exacto del envío y el monto total final.\n\n"
-                        f"Por favor regálanos unos breves minutos de paciencia, en seguida te estaremos atendiendo personalmente con todo el gusto del mundo para coordinar tu entrega y el pago. ¡Un placer atenderte! 😊✨"
-                    )
-            else:
-                if is_card:
-                    confirmation_text = (
-                        f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado con éxito para *Retiro en sucursal ({branch_name})*.\n\n"
-                        f"💳 Como seleccionaste pago con *Tarjeta*, en unos breves minutos nuestro agente encargado te enviará por aquí el *enlace de pago seguro* para que puedas abonarlo antes de pasar a retirarlo fresco y listo.\n\n"
-                        f"¡Muchas gracias por tu paciencia y por elegir Farmhouse! 😊💳✨"
-                    )
-                else:
-                    confirmation_text = (
-                        f"¡Hola! Muchas gracias por tu pedido 🌿🥗 Ya lo tenemos registrado con éxito para *Retiro en sucursal ({branch_name})*.\n\n"
-                        f"En breve nuestro equipo te confirmará el tiempo estimado de preparación para que puedas pasar a retirarlo fresco y recién preparado.\n\n"
-                        f"Si seleccionaste pagar por Yappy o ACH, puedes compartirnos tu comprobante por este medio cuando gustes 📸. ¡Muchas gracias por tu paciencia y preferencia! 😊✨"
-                    )
+            first_name = get_customer_first_name(contact.name)
+            greeting = f"¡Gracias por tu pedido, {first_name}!" if first_name else "¡Gracias por tu pedido!"
+            payment_labels = {"card": "Tarjeta", "yappy": "Yappy", "ach": "ACH / transferencia", "cash": "Efectivo"}
+            payment_label = payment_labels.get(conv.payment_method, "Por confirmar")
+            delivery_label = "Delivery" if is_delivery else "Retiro en sucursal"
+            next_step = (
+                "El equipo revisará tu dirección, te confirmará el costo de entrega"
+                + (" y te enviará el enlace de pago seguro." if is_card else " y coordinará el pago contigo.")
+                if is_delivery else
+                ("El equipo te enviará el enlace de pago y confirmará cuándo estará listo."
+                 if is_card else "El equipo te confirmará cuándo estará listo para retirar.")
+            )
+            confirmation_text = (
+                f"{greeting} Ya lo tenemos registrado 🌿\n\n"
+                f"*Resumen*\n"
+                f"• {delivery_label}\n"
+                f"• Farmhouse {branch_name}\n"
+                f"• Pago: {payment_label}\n\n"
+                f"{next_step}\n\n"
+                "Si ves algo que quieras corregir, escríbelo aquí; la persona que continúe contigo podrá ver todo este contexto."
+            )
 
             send_res = await wa_service.send_text_message(phone, confirmation_text)
             wamid = None
@@ -611,45 +709,8 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
 
         # 0.1 Atención humana solicitada explícitamente por el cliente
         if message_type == "text":
-            text_lower = text.lower().strip()
-            human_keywords = [
-                "hablar con alguien", "hablar con una persona", "agente", "asesor",
-                "humano", "atencion humana", "persona real", "quiero que me atienda alguien",
-                "quiero hablar con un humano"
-            ]
-            if any(kw in text_lower for kw in human_keywords):
-                branch_name = conv.branch.name if conv.branch else "Farmhouse"
-                human_response = (
-                    f"¡Con mucho gusto! 🤝 Te comunicamos de inmediato con un agente de nuestro equipo en *{branch_name}*.\n\n"
-                    f"Por favor regálanos unos minutos de paciencia mientras uno de nuestros compañeros revisa tu conversación "
-                    f"para atenderte personalmente por aquí. ¡Muchas gracias por esperarnos! 😊"
-                )
-                send_res = await wa_service.send_text_message(phone, human_response)
-                wamid = None
-                if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-                    wamid = send_res["messages"][0].get("id")
-                human_msg = Message(
-                    conversation_id=conv.id, direction="outgoing", sender_type="system",
-                    content=human_response, whatsapp_message_id=wamid, is_internal=False, status="sent"
-                )
-                db.add(human_msg)
-                conv.automation_paused = True
-                conv.updated_at = datetime.now(timezone.utc)
-                db.commit()
-                db.refresh(human_msg)
-                await ws_manager.broadcast_to_branch(conv.branch_id, {
-                    "type": "new_incoming_message",
-                    "conversation_id": conv.id,
-                    "branch_id": conv.branch_id,
-                    "contact_name": contact.name,
-                    "contact_phone": contact.phone,
-                    "message": {
-                        "id": human_msg.id, "direction": human_msg.direction,
-                        "sender_type": human_msg.sender_type, "content": human_msg.content,
-                        "status": human_msg.status, "created_at": human_msg.created_at.isoformat()
-                    },
-                    "is_new_conversation": False
-                })
+            if match_entry_intent(text) == "human":
+                await _handoff_to_human(db, wa_service, conv, contact, phone)
                 return
 
         # 1. Descargar archivo multimedia si existe y aún no fue descargado inline
@@ -702,8 +763,81 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             logger.info(f"[AutoResponse] Automatización pausada para conv {conv.id}. Omitiendo bot.")
             return
 
-        # 3. Detección de opción del Menú Principal (1. Visitar, 2. Delivery, 3. Retiro, 4. Corporativo)
+        # 3. Botones e intenciones universales. Funcionan aunque el cliente se salga del
+        # camino lineal: volver, cancelar, cambiar sucursal/tipo o pedir una persona.
         interactive_id = str(msg_data.get("interactive_id") or "")
+
+        if interactive_id == "main_human":
+            await _handoff_to_human(db, wa_service, conv, contact, phone)
+            return
+
+        navigation_intent = match_navigation_intent(text) if message_type == "text" else None
+        if interactive_id == "change_branch":
+            navigation_intent = "change_branch"
+
+        if navigation_intent in ("restart", "cancel"):
+            await _reset_bot_context(db, conv)
+            await _send_plain_text_message(
+                db, wa_service, conv, contact, phone,
+                RESTART_MESSAGE if navigation_intent == "restart" else CANCEL_MESSAGE,
+            )
+            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+            await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+            return
+
+        if navigation_intent == "change_branch":
+            conv.branch_id = None
+            conv.assigned_user_id = None
+            conv.payment_method = None
+            conv.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, CHANGE_BRANCH_MESSAGE)
+            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+            if conv.delivery_type in ("visit", "delivery", "pickup"):
+                prompt = {
+                    "visit": BRANCH_SELECTION_VISIT_BODY,
+                    "delivery": BRANCH_SELECTION_DELIVERY_BODY,
+                    "pickup": BRANCH_SELECTION_PICKUP_BODY,
+                }[conv.delivery_type]
+                await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_body=prompt)
+            else:
+                await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+            return
+
+        if navigation_intent in ("change_order_type", "back"):
+            # Dentro del intake corporativo, "volver" retrocede una pregunta conservando
+            # las respuestas anteriores; fuera de él vuelve a Delivery/Retiro/Evento.
+            if navigation_intent == "back" and conv.corporate_intake_step:
+                if conv.corporate_intake_step <= 1:
+                    await _reset_bot_context(db, conv)
+                    await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+                else:
+                    conv.corporate_intake_step -= 1
+                    note_lines = (conv.corporate_intake_notes or "").splitlines()
+                    conv.corporate_intake_notes = "\n".join(note_lines[:-1]) or None
+                    db.commit()
+                    previous_questions = {
+                        1: (CORPORATE_EVENT_TYPE_QUESTION, CORPORATE_EVENT_TYPE_BUTTONS),
+                        2: (CORPORATE_HEADCOUNT_QUESTION, None),
+                        3: (CORPORATE_DATE_QUESTION, None),
+                    }
+                    question, buttons = previous_questions[conv.corporate_intake_step]
+                    if buttons:
+                        await _send_interactive_buttons_message(db, wa_service, conv, contact, phone, question, buttons)
+                    else:
+                        await _send_plain_text_message(db, wa_service, conv, contact, phone, f"Claro, corrijámoslo. {question}")
+                return
+
+            desired_type = match_delivery_type_text(text) if message_type == "text" else None
+            await _reset_bot_context(db, conv)
+            if desired_type:
+                conv.delivery_type = desired_type
+                db.commit()
+                prompt = BRANCH_SELECTION_DELIVERY_BODY if desired_type == "delivery" else BRANCH_SELECTION_PICKUP_BODY
+                await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_body=prompt)
+            else:
+                await _send_order_type_prompt(db, wa_service, conv, contact, phone, CHANGE_ORDER_TYPE_MESSAGE)
+            return
 
         # 2.5 Si hay una pregunta guiada de Corporativo/Evento pendiente, esta respuesta es
         # justo eso (no pasa por el resto del árbol de decisión hasta que se completen las 4).
@@ -725,31 +859,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         if manager_choice == "yes":
             branch_name = conv.branch.name if conv.branch else "Farmhouse"
             ans_text = get_manager_assigned_message(branch_name)
-            send_res = await wa_service.send_text_message(phone, ans_text)
-            wamid = None
-            if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-                wamid = send_res["messages"][0].get("id")
-            ans_msg = Message(
-                conversation_id=conv.id, direction="outgoing", sender_type="system",
-                content=ans_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
-            )
-            db.add(ans_msg)
-            conv.automation_paused = True
-            conv.updated_at = datetime.now(timezone.utc)
-            db.commit()
-            db.refresh(ans_msg)
-            await ws_manager.broadcast_to_branch(conv.branch_id, {
-                "type": "new_incoming_message",
-                "conversation_id": conv.id,
-                "branch_id": conv.branch_id,
-                "contact_name": contact.name,
-                "contact_phone": contact.phone,
-                "message": {
-                    "id": ans_msg.id, "direction": ans_msg.direction, "sender_type": ans_msg.sender_type,
-                    "content": ans_msg.content, "status": ans_msg.status, "created_at": ans_msg.created_at.isoformat()
-                },
-                "is_new_conversation": False
-            })
+            await _handoff_to_human(db, wa_service, conv, contact, phone, ans_text)
             return
         elif manager_choice == "no":
             branch_name = conv.branch.name if conv.branch else "Farmhouse"
@@ -786,16 +896,23 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             return
 
         main_option_matched = None
-        if interactive_id == "opt_visit":
+        entry_intent = match_entry_intent(text) if message_type == "text" else None
+        if interactive_id in ("opt_visit", "main_visit"):
             main_option_matched = "visit"
-        elif interactive_id == "opt_delivery":
+        elif interactive_id in ("opt_delivery", "order_delivery"):
             main_option_matched = "delivery"
-        elif interactive_id == "opt_pickup":
+        elif interactive_id in ("opt_pickup", "order_pickup"):
             main_option_matched = "pickup"
-        elif interactive_id == "opt_corporate":
+        elif interactive_id in ("opt_corporate", "order_corporate"):
             main_option_matched = "corporate"
         elif message_type == "text":
             main_option_matched = match_main_option(text)
+
+        # Si la persona ya dijo "a domicilio" o "retiro", respetamos esa información y
+        # saltamos la pregunta redundante. Solo "quiero hacer un pedido" abre el submenú.
+        if (interactive_id == "main_order" or entry_intent == "order") and not main_option_matched:
+            await _send_order_type_prompt(db, wa_service, conv, contact, phone)
+            return
 
         # 3.1 Opción 4: Pedido Corporativo / Evento — inicia las 4 preguntas guiadas antes de
         # pasarle la conversación a Sol (el bot NO se pausa todavía, faltan las respuestas).
@@ -858,7 +975,8 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             await _send_branch_welcome_and_menu(db, wa_service, conv, contact, phone)
             return
 
-        # 7. Si no tiene delivery_type y no tiene sucursal, mostrar el Menú Principal inicial de 4 opciones:
+        # 7. Si aún no hay contexto, mostrar entrada o recuperación contextual. Nunca se
+        # omite una respuesta solo por haber mostrado el menú hace menos de tres minutos.
         if conv.delivery_type is None and conv.branch_id is None:
             now = datetime.now(timezone.utc)
             should_prompt = True
@@ -867,10 +985,19 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                 if elapsed < 180 and not (message_type == "text" and any(k in text.lower() for k in ["hola", "menu", "opciones", "buenas", "ayuda", "1", "2", "3", "4"])):
                     should_prompt = False
 
-            if should_prompt:
+            last_bot_text = _last_public_bot_text(db, conv.id)
+            if ORDER_TYPE_QUESTION in last_bot_text or CHANGE_ORDER_TYPE_MESSAGE in last_bot_text or UNKNOWN_ORDER_MESSAGE in last_bot_text:
+                await _send_order_type_prompt(db, wa_service, conv, contact, phone, UNKNOWN_ORDER_MESSAGE)
+            elif should_prompt:
                 await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
                 conv.last_branch_prompt_at = now
                 db.commit()
+            else:
+                await _send_interactive_buttons_message(
+                    db, wa_service, conv, contact, phone,
+                    UNKNOWN_MAIN_MESSAGE,
+                    MAIN_MENU_BUTTONS,
+                )
             return
 
         # 8. Flujo de selección de pago (si aplica dentro del chat)
@@ -896,32 +1023,46 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                     conv.payment_method,
                     "¡Genial! Ya tenemos todo listo para arrancar 😊 En un momento alguien de nuestro equipo te atiende para tomar los detalles de tu pedido. ¡Gracias por tu paciencia!"
                 )
-                send_res = await wa_service.send_text_message(phone, closing_text)
-                wamid = None
-                if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-                    wamid = send_res["messages"][0].get("id")
-                msg = Message(
-                    conversation_id=conv.id, direction="outgoing", sender_type="system",
-                    content=closing_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
-                )
-                db.add(msg)
-                conv.automation_paused = True
-                conv.updated_at = datetime.now(timezone.utc)
-                db.commit()
-                db.refresh(msg)
-                await ws_manager.broadcast_to_branch(conv.branch_id, {
-                    "type": "new_incoming_message",
-                    "conversation_id": conv.id,
-                    "branch_id": conv.branch_id,
-                    "contact_name": contact.name,
-                    "contact_phone": contact.phone,
-                    "message": {
-                        "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
-                        "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
-                    },
-                    "is_new_conversation": False
-                })
+                await _handoff_to_human(db, wa_service, conv, contact, phone, closing_text)
                 return
+
+        # 8.1 Archivos/comprobantes: acusar recibo y entregarlos a una persona. Antes este
+        # camino podía terminar sin ninguna respuesta visible para el cliente.
+        if message_type not in ("text", "interactive"):
+            await _handoff_to_human(
+                db, wa_service, conv, contact, phone,
+                "Recibí tu archivo, gracias 📎 Ya se lo compartí al equipo para que lo revise y continúe contigo por aquí.",
+            )
+            return
+
+        # 9. Recuperación contextual. Todo mensaje obtiene una salida útil: repetir la
+        # decisión pertinente, ofrecer acciones o volver al inicio, nunca quedarse en silencio.
+        if conv.delivery_type == "visit" and conv.branch_id is not None:
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, "Quiero asegurarme de ayudarte bien 😊")
+            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+            await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
+            return
+
+        if conv.delivery_type in ("delivery", "pickup") and conv.branch_id is not None:
+            await _send_interactive_buttons_message(
+                db, wa_service, conv, contact, phone,
+                AFTER_MENU_HELP_QUESTION,
+                AFTER_MENU_HELP_BUTTONS,
+            )
+            return
+
+        last_bot_text = _last_public_bot_text(db, conv.id)
+        if ORDER_TYPE_QUESTION in last_bot_text or CHANGE_ORDER_TYPE_MESSAGE in last_bot_text:
+            await _send_order_type_prompt(db, wa_service, conv, contact, phone, UNKNOWN_ORDER_MESSAGE)
+        elif conv.delivery_type in ("visit", "delivery", "pickup"):
+            await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_body=UNKNOWN_BRANCH_MESSAGE)
+        else:
+            await _send_interactive_buttons_message(
+                db, wa_service, conv, contact, phone,
+                UNKNOWN_MAIN_MESSAGE,
+                MAIN_MENU_BUTTONS,
+            )
+        return
     except Exception as e:
         logger.error(f"[AutoResponse Background Error] Conv ID {conv_id}: {e}", exc_info=True)
     finally:

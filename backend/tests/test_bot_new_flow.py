@@ -17,7 +17,7 @@ from services.auto_responses import (
 def setup_webhook_env(monkeypatch):
     monkeypatch.setattr(settings, "WHATSAPP_MODE", "mock")
     monkeypatch.setattr("routers.webhooks.SessionLocal", TestingSessionLocal)
-    async def mock_push(*args, **kwargs):
+    def mock_push(*args, **kwargs):
         pass
     monkeypatch.setattr("routers.webhooks.notify_branch_new_message", mock_push)
 
@@ -74,7 +74,140 @@ def test_initial_message_greets_customer_by_whatsapp_name(client, clayton_branch
     contact = db_session.query(Contact).filter(Contact.phone.contains("69998888")).first()
     conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
-    assert any("¡Hola, Ana! Bienvenido a farmhouse." in m.content for m in msgs)
+    assert any("¡Hola, Ana! 👋 Soy el asistente de Farmhouse" in m.content for m in msgs)
+
+
+def _post_bot_message(client, phone, wamid, *, text=None, button_id=None, button_title=None):
+    if button_id:
+        message = {
+            "from": phone, "id": wamid, "timestamp": "1725500000", "type": "interactive",
+            "interactive": {"button_reply": {"id": button_id, "title": button_title or button_id}},
+        }
+    else:
+        message = {
+            "from": phone, "id": wamid, "timestamp": "1725500000", "type": "text",
+            "text": {"body": text or ""},
+        }
+    return client.post("/api/webhooks/whatsapp", json={
+        "object": "whatsapp_business_account",
+        "entry": [{"id": "WABA_ID", "changes": [{
+            "value": {"messaging_product": "whatsapp", "messages": [message]},
+            "field": "messages",
+        }]}],
+    })
+
+
+def test_quick_order_button_opens_delivery_pickup_corporate_choices(client, clayton_branch, db_session):
+    phone = "50769990011"
+    assert _post_bot_message(
+        client, phone, "wamid.NATURAL01", button_id="main_order", button_title="Hacer un pedido"
+    ).status_code == 200
+
+    contact = db_session.query(Contact).filter(Contact.phone.contains("69990011")).first()
+    conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
+    assert conv.delivery_type is None
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert any("¿Cómo quieres recibir tu pedido?" in msg.content for msg in outgoing)
+
+    assert _post_bot_message(
+        client, phone, "wamid.NATURAL02", button_id="order_delivery", button_title="Delivery"
+    ).status_code == 200
+    db_session.refresh(conv)
+    assert conv.delivery_type == "delivery"
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert any("Delivery, entendido" in msg.content for msg in outgoing)
+
+
+def test_customer_can_change_branch_in_natural_language(client, clayton_branch, db_session):
+    phone = "50769990012"
+    contact = Contact(name="Ana Cambio", phone=f"+{phone}")
+    db_session.add(contact)
+    db_session.commit()
+    conv = Conversation(
+        customer_id=contact.id, branch_id=clayton_branch.id,
+        delivery_type="delivery", status="open",
+    )
+    db_session.add(conv)
+    db_session.commit()
+
+    assert _post_bot_message(client, phone, "wamid.NATURAL03", text="Quiero cambiar de sucursal").status_code == 200
+    db_session.refresh(conv)
+    assert conv.branch_id is None
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert any("puedes elegir otra sucursal" in msg.content for msg in outgoing)
+    assert any("¿Desde cuál sucursal deseas pedir?" in msg.content for msg in outgoing)
+
+
+def test_unknown_message_after_menu_never_leaves_customer_without_answer(client, clayton_branch, db_session):
+    phone = "50769990013"
+    contact = Contact(name="Cliente Duda", phone=f"+{phone}")
+    db_session.add(contact)
+    db_session.commit()
+    conv = Conversation(
+        customer_id=contact.id, branch_id=clayton_branch.id,
+        delivery_type="pickup", status="open",
+    )
+    db_session.add(conv)
+    db_session.commit()
+
+    assert _post_bot_message(client, phone, "wamid.NATURAL04", text="Tengo una pregunta rara").status_code == 200
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert any("Mientras ves el menú" in msg.content for msg in outgoing)
+
+
+def test_human_handoff_adds_internal_context_summary(client, clayton_branch, db_session):
+    phone = "50769990014"
+    contact = Contact(name="Cliente Humano", phone=f"+{phone}")
+    db_session.add(contact)
+    db_session.commit()
+    conv = Conversation(
+        customer_id=contact.id, branch_id=clayton_branch.id,
+        delivery_type="delivery", payment_method="card", status="open",
+    )
+    db_session.add(conv)
+    db_session.commit()
+
+    assert _post_bot_message(client, phone, "wamid.NATURAL05", text="Quiero hablar con una persona").status_code == 200
+    db_session.refresh(conv)
+    assert conv.automation_paused is True
+    internal = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.is_internal == True
+    ).all()
+    assert any("Contexto recopilado" in msg.content and "Delivery" in msg.content and "Tarjeta" in msg.content for msg in internal)
+
+
+def test_corporate_customer_can_answer_people_and_date_in_one_message(client, clayton_branch, db_session):
+    cat_branch = Branch(id=21, code="CAT", name="Catering", color="#e11d48", active=True)
+    db_session.add(cat_branch)
+    db_session.commit()
+    phone = "50769990015"
+
+    assert _post_bot_message(client, phone, "wamid.NATURAL06", text="Necesito un evento para mi empresa").status_code == 200
+    assert _post_bot_message(
+        client, phone, "wamid.NATURAL07", button_id="event_type_meeting", button_title="Reunión corporativa"
+    ).status_code == 200
+    assert _post_bot_message(
+        client, phone, "wamid.NATURAL08", text="25 personas, este viernes a las 12pm"
+    ).status_code == 200
+
+    contact = db_session.query(Contact).filter(Contact.phone.contains("69990015")).first()
+    conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
+    assert conv.corporate_intake_step == 4
+    assert "Cantidad de personas" in conv.corporate_intake_notes
+    assert "Fecha y hora (respuesta conjunta)" in conv.corporate_intake_notes
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert any("entiendo mucho mejor" in msg.content for msg in outgoing)
+    assert any("¿dónde te gustaría recibir" in msg.content for msg in outgoing)
 
 
 def test_typing_indicator_shown_before_bot_responds(client, clayton_branch, db_session, monkeypatch):

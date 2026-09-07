@@ -72,6 +72,49 @@ def match_main_option(customer_text: str) -> Optional[str]:
     return None
 
 
+def match_entry_intent(customer_text: str) -> Optional[str]:
+    """Intenciones de entrada previas al menú detallado.
+
+    Se mantienen separadas de match_main_option para no confundir "hacer un pedido"
+    (todavía falta escoger Delivery/Retiro) con un tipo de entrega concreto.
+    """
+    if not customer_text:
+        return None
+    normalized = normalize_text(customer_text)
+    if any(kw in normalized for kw in [
+        "hablar con alguien", "hablar con una persona", "persona real", "atencion humana",
+        "quiero un agente", "quiero un asesor", "quiero hablar con un humano", "humano",
+    ]):
+        return "human"
+    if any(kw in normalized for kw in [
+        "hacer un pedido", "quiero pedir", "quiero ordenar", "realizar un pedido",
+        "comprar comida", "pedir comida",
+    ]):
+        return "order"
+    return None
+
+
+def match_navigation_intent(customer_text: str) -> Optional[str]:
+    """Acciones que deben funcionar en cualquier punto del flujo automático."""
+    if not customer_text:
+        return None
+    normalized = normalize_text(customer_text)
+    if normalized in ["menu principal", "inicio", "empezar de nuevo", "reiniciar", "volver al inicio"]:
+        return "restart"
+    if normalized in ["cancelar", "cancela", "cancelar proceso", "olvidalo", "dejalo"]:
+        return "cancel"
+    if any(kw in normalized for kw in ["cambiar sucursal", "cambiar de sucursal", "otra sucursal", "cambio de sucursal"]):
+        return "change_branch"
+    if any(kw in normalized for kw in [
+        "cambiar a delivery", "cambiar a retiro", "cambiar tipo de entrega",
+        "mejor delivery", "mejor retiro", "cambiar entrega",
+    ]):
+        return "change_order_type"
+    if normalized in ["volver", "atras", "regresar"]:
+        return "back"
+    return None
+
+
 def match_manager_help(customer_text: str) -> Optional[str]:
     if not customer_text:
         return None

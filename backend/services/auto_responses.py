@@ -10,24 +10,40 @@ from typing import Optional
 GENERIC_CONTACT_NAMES = {"cliente whatsapp"}
 
 
+def get_customer_first_name(customer_name: Optional[str] = None) -> str:
+    name = (customer_name or "").strip()
+    if not name or name.lower() in GENERIC_CONTACT_NAMES:
+        return ""
+    return name.split()[0]
+
+
 def get_main_welcome_body(customer_name: Optional[str] = None) -> str:
     """Saludo inicial del bot, personalizado con el nombre real de WhatsApp del cliente cuando
     se conoce (y no es el nombre genérico de respaldo), para que se sienta menos robótico."""
     name = (customer_name or "").strip()
-    saludo = f"¡Hola, {name}! Bienvenido a farmhouse." if name and name.lower() not in GENERIC_CONTACT_NAMES else "¡Hola! Bienvenido a farmhouse."
-    return (
-        f"{saludo}\n\n"
-        "¿Cómo te podemos ayudar hoy?\n\n"
-        "(1) Quiero visitarlos en una de sus sucursales\n"
-        "(2) Quiero hacer un pedido a domicilio\n"
-        "(3) Quiero hacer un pedido para retirar en el local\n"
-        "(4) Quiero coordinar un pedido corporativo u organizar un evento."
-    )
+    first_name = get_customer_first_name(name)
+    saludo = f"¡Hola, {first_name}! 👋" if first_name else "¡Hola! 👋"
+    return f"{saludo} Soy el asistente de Farmhouse 🌿\n\n¿Qué te gustaría hacer hoy? También puedes escribirme con tus propias palabras."
 
 
 MAIN_WELCOME_BODY = get_main_welcome_body(None)
 
 MAIN_MENU_BUTTON = "Ver opciones"
+
+# WhatsApp admite un máximo de tres respuestas rápidas. Las decisiones principales se
+# muestran de inmediato; Delivery / Retiro / Corporativo aparecen al tocar "Hacer un pedido".
+MAIN_MENU_BUTTONS = [
+    {"id": "main_order", "title": "Hacer un pedido"},
+    {"id": "main_visit", "title": "Ver sucursales"},
+    {"id": "main_human", "title": "Hablar con alguien"},
+]
+
+ORDER_TYPE_QUESTION = "¡Claro! ¿Cómo quieres recibir tu pedido?"
+ORDER_TYPE_BUTTONS = [
+    {"id": "order_delivery", "title": "Delivery"},
+    {"id": "order_pickup", "title": "Retiro en local"},
+    {"id": "order_corporate", "title": "Evento / empresa"},
+]
 
 MAIN_MENU_OPTIONS = [
     {"id": "opt_visit", "title": "(1) Visitar sucursales", "description": "Quiero visitarlos en una de sus sucursales"},
@@ -44,9 +60,9 @@ WELCOME_MESSAGES = [
 ]
 
 BRANCH_SELECTION_BODY = "¿Cuál de nuestras sucursales te gustaría contactar?"
-BRANCH_SELECTION_VISIT_BODY = "¡Excelente! Elige una de nuestras sucursales:"
-BRANCH_SELECTION_DELIVERY_BODY = "¡Excelente! 🛵 ¿Para cuál de nuestras sucursales deseas solicitar tu delivery?"
-BRANCH_SELECTION_PICKUP_BODY = "¡Excelente! 🛍️ Elige la sucursal en la que quieres hacer tu pedido:"
+BRANCH_SELECTION_VISIT_BODY = "¿Cuál sucursal quieres consultar? Te mostraré su dirección y horario."
+BRANCH_SELECTION_DELIVERY_BODY = "Delivery, entendido 🛵 ¿Desde cuál sucursal deseas pedir?"
+BRANCH_SELECTION_PICKUP_BODY = "Listo, sería para retirar 🛍️ ¿En cuál sucursal?"
 BRANCH_SELECTION_BUTTON = "Ver sucursales"
 
 CORPORATE_INTAKE_INTRO = (
@@ -66,7 +82,10 @@ CORPORATE_EVENT_TYPE_LABELS = {
     "other": "Otro",
 }
 
-CORPORATE_HEADCOUNT_QUESTION = "¡Perfecto! ¿Para cuántas personas sería, aproximadamente?"
+CORPORATE_HEADCOUNT_QUESTION = (
+    "Cuéntame un poco más: ¿para cuántas personas sería y qué fecha/hora tienes en mente? "
+    "Puedes responderme todo junto, por ejemplo: “25 personas, viernes 12 al mediodía”."
+)
 CORPORATE_HEADCOUNT_RETRY = "¿Me confirmas para cuántas personas sería, aproximadamente?"
 
 CORPORATE_DATE_QUESTION = "¡Genial! ¿Tienes fecha y hora en mente?"
@@ -127,7 +146,7 @@ BRANCH_VISIT_INFO = {
     }
 }
 
-MANAGER_HELP_QUESTION = "¿Te podemos ayudar en algo más?"
+MANAGER_HELP_QUESTION = "¿Qué más te gustaría hacer?"
 MANAGER_HELP_BUTTONS = [
     {"id": "manager_yes", "title": "Hablar con gerente"},
     {"id": "view_menu", "title": "Ver el menú"},
@@ -164,6 +183,30 @@ def get_branch_delivery_info_message(branch_code: str, branch_name: str) -> str:
 # Cierre cálido tras mandar el botón del Menú Digital en delivery/pickup: deja la puerta abierta
 # sin forzar otra decisión de botones (el bot ya detecta por texto libre si piden un humano).
 MENU_LINK_WARM_CLOSING = "Cualquier duda que tengas mientras armas tu pedido, aquí estamos para ayudarte con todo gusto 😊"
+
+# Recuperación contextual: evita silencios cuando una frase no coincide con una palabra clave.
+UNKNOWN_MAIN_MESSAGE = "No estoy completamente seguro de haber entendido 😅 ¿Cuál de estas opciones se parece más a lo que necesitas?"
+UNKNOWN_ORDER_MESSAGE = "Quiero ayudarte bien 😊 ¿Buscas delivery, retiro en una sucursal o un pedido para evento/empresa?"
+UNKNOWN_BRANCH_MESSAGE = "No logré identificar la sucursal. Elígela aquí o escríbeme su nombre."
+AFTER_MENU_HELP_QUESTION = "Mientras ves el menú, ¿hay algo más en lo que pueda ayudarte?"
+AFTER_MENU_HELP_BUTTONS = [
+    {"id": "view_menu", "title": "Abrir el menú"},
+    {"id": "change_branch", "title": "Cambiar sucursal"},
+    {"id": "main_human", "title": "Hablar con alguien"},
+]
+
+RESTART_MESSAGE = "Claro, empezamos de nuevo. No pasa nada 😊"
+CANCEL_MESSAGE = "Listo, dejé a un lado esa selección. ¿Qué te gustaría hacer ahora?"
+CHANGE_ORDER_TYPE_MESSAGE = "Sin problema. ¿Cómo prefieres recibir el pedido?"
+CHANGE_BRANCH_MESSAGE = "Claro, puedes elegir otra sucursal."
+
+def get_human_handoff_message(branch_name: Optional[str] = None) -> str:
+    place = f" de *{branch_name}*" if branch_name and branch_name != "Farmhouse" else ""
+    return (
+        f"Claro 🤝 Ya compartí tu solicitud con nuestro equipo{place}. "
+        "Una persona continuará contigo por este mismo chat y podrá ver lo que ya conversamos, "
+        "así que no tendrás que repetirlo."
+    )
 
 def get_manager_assigned_message(branch_name: str) -> str:
     return (
