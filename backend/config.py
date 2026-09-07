@@ -62,6 +62,15 @@ class Settings(BaseSettings):
     # Menú Digital que el bot manda por WhatsApp.
     PUBLIC_BASE_URL: str = "https://farmhousepanelwhatsapp-production.up.railway.app"
 
+    # Yappy Comercial - Botón de Pago V2. Las credenciales se generan en el portal de
+    # Yappy Comercial; nunca se incluyen en el frontend ni en los enlaces de WhatsApp.
+    YAPPY_ENABLED: bool = False
+    YAPPY_MERCHANT_ID: Optional[str] = None
+    YAPPY_SECRET_KEY: Optional[str] = None
+    YAPPY_DOMAIN: Optional[str] = None
+    YAPPY_API_BASE_URL: str = "https://apipagosbg.bgeneral.cloud"
+    YAPPY_BUTTON_CDN_URL: str = "https://bt-cdn.yappy.cloud/v1/cdn/web-component-btn-yappy.js"
+
     # Pausa (en segundos) antes de que el bot responda, para que la conversación se sienta
     # escrita por una persona y no como una respuesta instantánea. Se puede poner en 0 en tests.
     BOT_RESPONSE_DELAY_SECONDS: float = 3.0
@@ -123,6 +132,16 @@ class Settings(BaseSettings):
                 log.warning("[Config Warning] WHATSAPP_MODE=meta pero META_WA_ACCESS_TOKEN no está configurado.")
             if not self.META_APP_SECRET or not self.META_APP_SECRET.strip():
                 log.warning("[Config Warning] META_APP_SECRET no está configurado. La validación de firma de webhooks funcionará en modo desarrollo/tolerante.")
+
+        if self.YAPPY_ENABLED:
+            missing = [name for name, value in (
+                ("YAPPY_MERCHANT_ID", self.YAPPY_MERCHANT_ID),
+                ("YAPPY_SECRET_KEY", self.YAPPY_SECRET_KEY),
+            ) if not str(value or "").strip()]
+            if missing:
+                logging.getLogger("farmhouse.config").warning(
+                    "[Config Warning] Yappy está habilitado pero faltan: %s", ", ".join(missing)
+                )
 
 def mask_secret(secret: Optional[str], keep_chars: int = 4) -> str:
     """Enmascara cadenas sensibles para que no se filtren en logs."""

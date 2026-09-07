@@ -57,7 +57,14 @@ class PublicOrderCreate(BaseModel):
     branch_code: str = Field(..., min_length=1, max_length=20)
     delivery_type: Literal["pickup", "delivery"]
     delivery_address: Optional[str] = Field(None, max_length=500)
-    payment_method: Literal["yappy", "ach", "card", "cash"]
+    delivery_building: Optional[str] = Field(None, max_length=150)
+    delivery_unit: Optional[str] = Field(None, max_length=100)
+    delivery_reference: Optional[str] = Field(None, max_length=300)
+    delivery_latitude: Optional[float] = Field(None, ge=-90, le=90)
+    delivery_longitude: Optional[float] = Field(None, ge=-180, le=180)
+    payment_method: Literal["yappy", "ach", "card"]
+    fulfillment_type: Literal["asap", "scheduled"] = "asap"
+    scheduled_for: Optional[datetime] = None
     customer_name: str = Field(..., min_length=2, max_length=100)
     customer_phone: str = Field(..., min_length=6, max_length=20)
     items: List[PublicOrderItem] = Field(..., min_length=1, max_length=50)
@@ -78,8 +85,10 @@ class PublicOrderResponse(BaseModel):
     conversation_id: int
     subtotal: Decimal
     delivery_cost: Decimal
+    delivery_distance_km: Optional[Decimal] = None
     total: Decimal
     whatsapp_url: str
+    payment_url: Optional[str] = None
 
 
 class CartItemIn(BaseModel):
@@ -100,7 +109,14 @@ class CartSyncRequest(BaseModel):
     items: List[CartItemIn] = Field(default_factory=list, max_length=50)
     delivery_type: Literal["pickup", "delivery"] = "pickup"
     delivery_address: Optional[str] = Field(None, max_length=500)
-    payment_method: Optional[Literal["yappy", "ach", "card", "cash"]] = None
+    delivery_building: Optional[str] = Field(None, max_length=150)
+    delivery_unit: Optional[str] = Field(None, max_length=100)
+    delivery_reference: Optional[str] = Field(None, max_length=300)
+    delivery_latitude: Optional[float] = Field(None, ge=-90, le=90)
+    delivery_longitude: Optional[float] = Field(None, ge=-180, le=180)
+    payment_method: Optional[Literal["yappy", "ach", "card"]] = None
+    fulfillment_type: Literal["asap", "scheduled"] = "asap"
+    scheduled_for: Optional[datetime] = None
     branch_code: Optional[str] = Field(None, max_length=20)
 
 
@@ -110,6 +126,7 @@ class CartSyncResponse(BaseModel):
     items: list
     subtotal: Decimal
     delivery_fee: Decimal
+    delivery_distance_km: Optional[Decimal] = None
     total: Decimal
 
 
@@ -119,8 +136,10 @@ class OrderResponse(OrderBase):
     conversation_id: int
     branch_id: int
     status: str
+    payment_status: str = "pending"
+    payment_reference: Optional[str] = None
+    payment_confirmation_number: Optional[str] = None
     created_by: Optional[int] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-

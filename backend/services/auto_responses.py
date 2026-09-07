@@ -116,33 +116,33 @@ def get_corporate_intake_summary(notes: str) -> str:
 BRANCH_VISIT_INFO = {
     "CDE": {
         "name": "Costa del Este",
-        "address": "Costa del Este, Plaza Real, Planta Baja",
+        "address": "Torre MMG, Planta Baja, Costa del Este",
         "hours": "Lunes a Domingo: 10:30 AM - 9:30 PM",
-        "maps_url": "https://maps.google.com/?q=Farmhouse+Costa+del+Este"
+        "maps_url": "https://maps.google.com/?q=9.0083064,-79.4773394"
     },
     "SF": {
         "name": "San Francisco",
-        "address": "Calle 74 Este, San Francisco",
+        "address": "Plaza 76, San Francisco",
         "hours": "Lunes a Domingo: 10:30 AM - 9:30 PM",
-        "maps_url": "https://maps.google.com/?q=Farmhouse+San+Francisco+Panama"
+        "maps_url": "https://maps.google.com/?q=8.9912804,-79.5031756"
     },
     "CLY": {
         "name": "Clayton",
         "address": "Clayton Mall, Local #4",
         "hours": "Lunes a Domingo: 10:30 AM - 9:30 PM",
-        "maps_url": "https://maps.google.com/?q=Farmhouse+Clayton+Panama"
+        "maps_url": "https://maps.google.com/?q=9.003859,-79.573043"
     },
     "OBR": {
         "name": "Obarrio",
-        "address": "Calle 57 Este, Obarrio",
+        "address": "Adison House, Calle Abel Bravo, Obarrio",
         "hours": "Lunes a Domingo: 10:30 AM - 9:30 PM",
-        "maps_url": "https://maps.google.com/?q=Farmhouse+Obarrio+Panama"
+        "maps_url": "https://maps.google.com/?q=8.9863531,-79.5196357"
     },
     "VP": {
         "name": "Vía Porras",
-        "address": "Vía Porras, San Francisco",
+        "address": "Vía Porras, Parque Omar",
         "hours": "Lunes a Domingo: 10:30 AM - 9:30 PM",
-        "maps_url": "https://maps.google.com/?q=Farmhouse+Via+Porras+Panama"
+        "maps_url": "https://maps.google.com/?q=8.9967623,-79.5065669"
     }
 }
 
@@ -241,13 +241,7 @@ CARD_PAYMENT_MESSAGE = (
 )
 
 YAPPY_PAYMENT_MESSAGE = (
-    "¡Perfecto! 📱 En un momento nuestro equipo te comparte el número para pagar por Yappy. "
-    "Cuando hagas el pago, ¿me regalas una captura del comprobante? Así agilizamos tu pedido muchísimo más rápido. "
-    "¡Muchas gracias por tu paciencia! 😊"
-)
-
-CASH_PAYMENT_MESSAGE = (
-    "¡Perfecto! 💵 Puedes pagar en efectivo cuando recibas tu pedido (o cuando lo retires en el local). "
-    "En un momento alguien de nuestro equipo te atiende para tomar los detalles de tu pedido. "
-    "¡Gracias por tu paciencia! 😊"
+    "¡Perfecto! 📱 Elegiste pagar con Yappy. Cuando confirmes el pedido te enviaremos por este mismo chat "
+    "un botón con el monto exacto. Solo tendrás que abrirlo y aprobar la solicitud en tu aplicación Yappy. "
+    "Nunca te pediremos tu PIN ni contraseña. 😊"
 )

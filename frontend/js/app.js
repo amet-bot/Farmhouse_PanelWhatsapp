@@ -398,6 +398,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  wsClient.on('order_payment_updated', (data) => {
+    conversationsModule.loadConversations();
+    const currentConvId = chatModule.currentConversation ? Number(chatModule.currentConversation.id) : null;
+    if (currentConvId && currentConvId === Number(data.conversation_id)) {
+      chatModule.loadConversation(currentConvId);
+    }
+  });
+
   wsClient.on('conversation_transferred', (data) => {
     conversationsModule.loadConversations();
     branchesModule.updateCounters();

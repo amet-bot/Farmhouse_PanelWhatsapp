@@ -7,6 +7,10 @@ class BranchBase(BaseModel):
     code: str = Field(..., min_length=2, max_length=50)
     color: Optional[str] = Field("#16a34a", pattern="^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$")
     active: Optional[bool] = True
+    address: Optional[str] = Field(None, max_length=255)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    accepts_delivery: bool = True
 
 class BranchCreate(BranchBase):
     pass

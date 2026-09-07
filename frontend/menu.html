@@ -10,7 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/menu.css?v=2.6.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/css/menu.css?v=3.1.0">
 </head>
 <body>
 
@@ -142,54 +143,96 @@
       <button id="cartDrawerClose" class="modal-close-btn" aria-label="Cerrar">✕</button>
       <div class="cart-drawer-header">
         <div>
-          <h2 id="cartDrawerTitle">Tu pedido</h2>
+          <span class="checkout-eyebrow">CHECKOUT FARMHOUSE</span>
+          <h2 id="cartDrawerTitle">Finalizar pedido</h2>
           <span id="cartBranchTag" class="cart-branch-tag">Farmhouse</span>
           <span id="cartSyncDot" class="cart-sync-dot" title="Sincronizando con el restaurante"></span>
         </div>
       </div>
 
-      <div id="cartItemsList" class="cart-items-list"></div>
+      <div class="checkout-progress" aria-label="Progreso del pedido">
+        <span id="checkoutProgressBar"></span>
+      </div>
 
-      <div class="cart-section">
-        <h3>Tipo de entrega</h3>
-        <div class="delivery-toggle">
-          <button type="button" class="delivery-option active" data-delivery="pickup">
-            Retiro en sucursal<span class="delivery-price">$0.00</span>
-          </button>
-          <button type="button" class="delivery-option" data-delivery="delivery">
-            Delivery<span class="delivery-price">A coordinar</span>
-          </button>
-        </div>
-        <div id="deliveryAddressSection" class="delivery-address-section" hidden>
+      <div class="checkout-layout">
+        <div class="checkout-form-column">
+      <details class="checkout-step" data-step="1" open>
+        <summary><span class="step-number">1</span><span>Dirección y ubicación<small>Marca el punto exacto en el mapa</small></span></summary>
+        <div class="checkout-step-body">
           <div class="delivery-address-header">
-            <label class="field-label delivery-address-label" for="deliveryAddress" id="deliveryAddressLabel">Ubicación de entrega</label>
+            <label class="field-label delivery-address-label" for="deliveryAddress" id="deliveryAddressLabel">Dirección</label>
             <button type="button" id="btnDetectGps" class="btn-detect-gps" title="Detectar mi ubicación actual por GPS">
               <span class="gps-icon">📍</span> <span id="btnDetectGpsLabel">Usar mi ubicación actual</span>
             </button>
           </div>
-          <input id="deliveryAddress" class="text-input delivery-address-input" type="text" placeholder="Dirección manual o pulsa el botón de ubicación...">
+          <div class="address-search-row">
+            <input id="deliveryAddress" class="text-input delivery-address-input" type="text" placeholder="Busca una dirección o mueve el pin...">
+            <button type="button" id="btnSearchAddress" class="btn-address-search">Buscar</button>
+          </div>
+          <div id="deliveryMap" class="delivery-map" aria-label="Mapa para seleccionar ubicación"></div>
+          <p class="map-attribution-note">Toca el mapa o arrastra el pin verde. Las sucursales aparecen identificadas.</p>
           <div id="deliveryGpsHint" class="delivery-gps-hint" hidden></div>
+          <div class="address-details-grid">
+            <div>
+              <label class="field-label" for="deliveryBuilding">Edificio o casa</label>
+              <input id="deliveryBuilding" class="text-input" type="text" placeholder="Ej: Torre Azul o Casa 24">
+            </div>
+            <div>
+              <label class="field-label" for="deliveryUnit">Piso / número</label>
+              <input id="deliveryUnit" class="text-input" type="text" placeholder="Ej: Piso 4, apto. 4B">
+            </div>
+          </div>
           <div class="delivery-reference-field">
-            <label class="field-label" for="deliveryReference">Referencia (opcional)</label>
-            <input id="deliveryReference" class="text-input" type="text" placeholder="Ej: Edificio Torre Azul, apto 4B, portón negro...">
+            <label class="field-label" for="deliveryReference">Referencia</label>
+            <input id="deliveryReference" class="text-input" type="text" placeholder="Ej: Portón negro, frente al parque">
           </div>
         </div>
-      </div>
+      </details>
 
-      <div class="cart-section">
-        <h3>Método de pago</h3>
-        <div id="paymentOptions" class="option-pills payment-pills">
-          <button type="button" class="option-pill" data-payment="yappy">Yappy</button>
-          <button type="button" class="option-pill" data-payment="ach">ACH / Transferencia</button>
-          <button type="button" class="option-pill" data-payment="card">Tarjeta</button>
-          <button type="button" class="option-pill" data-payment="cash">Efectivo</button>
+      <details class="checkout-step" data-step="2">
+        <summary><span class="step-number">2</span><span>Tipo de entrega<small>Retiro gratis o delivery calculado</small></span></summary>
+        <div class="checkout-step-body">
+          <div class="delivery-toggle">
+            <button type="button" class="delivery-option" data-delivery="pickup">
+              Retiro en sucursal<span class="delivery-price">$0.00</span>
+            </button>
+            <button type="button" class="delivery-option active" data-delivery="delivery">
+              Delivery<span id="deliveryOptionPrice" class="delivery-price">Selecciona tu pin</span>
+            </button>
+          </div>
+          <div id="deliveryQuote" class="delivery-quote">Selecciona una ubicación para ver la sucursal más cercana y el costo.</div>
         </div>
-        <p class="payment-method-hint">El cobro se coordina directamente con el agente de la sucursal por este mismo chat.</p>
-      </div>
+      </details>
 
-      <div class="cart-section" id="customerSection">
-        <h3>Datos del cliente</h3>
-        <div id="customerInputFields">
+      <details class="checkout-step" data-step="3">
+        <summary><span class="step-number">3</span><span>¿Para cuándo?<small>Ahora o programa una hora</small></span></summary>
+        <div class="checkout-step-body">
+          <div class="delivery-toggle fulfillment-toggle">
+            <button type="button" class="fulfillment-option active" data-fulfillment="asap">Lo antes posible</button>
+            <button type="button" class="fulfillment-option" data-fulfillment="scheduled">Programar</button>
+          </div>
+          <div id="scheduledTimeWrap" hidden>
+            <label class="field-label" for="scheduledFor">Fecha y hora</label>
+            <input id="scheduledFor" class="text-input" type="datetime-local">
+          </div>
+        </div>
+      </details>
+
+      <details class="checkout-step" data-step="4">
+        <summary><span class="step-number">4</span><span>Método de pago<small>Elige cómo deseas pagar</small></span></summary>
+        <div class="checkout-step-body">
+          <div id="paymentOptions" class="option-pills payment-pills">
+            <button type="button" class="option-pill" data-payment="yappy">Yappy</button>
+            <button type="button" class="option-pill" data-payment="ach">ACH / Transferencia</button>
+            <button type="button" class="option-pill" data-payment="card">Tarjeta</button>
+          </div>
+          <p class="payment-method-hint">Si eliges Yappy, recibirás por WhatsApp un enlace con el monto exacto del pedido.</p>
+        </div>
+      </details>
+
+      <details class="checkout-step" data-step="5" id="customerSection">
+        <summary><span class="step-number">5</span><span>Datos del cliente<small>Para identificar y confirmar tu pedido</small></span></summary>
+        <div class="checkout-step-body" id="customerInputFields">
           <div>
             <label class="field-label" for="customerName">Tu nombre</label>
             <input id="customerName" class="text-input" type="text" placeholder="Nombre completo">
@@ -200,22 +243,37 @@
           </div>
           <p class="customer-fields-hint">Tomamos tu nombre y teléfono de WhatsApp, pero puedes cambiarlos si quieres.</p>
         </div>
-      </div>
+      </details>
+        </div>
 
-      <div class="cart-totals">
-        <div class="totals-row"><span>Subtotal</span><span id="totalSubtotal">$0.00</span></div>
-        <div class="totals-row totals-final"><span>Total</span><span id="totalFinal">$0.00</span></div>
-      </div>
+        <aside class="checkout-summary" aria-labelledby="checkoutSummaryTitle">
+          <div class="summary-heading-row">
+            <h3 id="checkoutSummaryTitle">Resumen</h3>
+            <span id="summaryItemCount">0 productos</span>
+          </div>
+          <div id="cartItemsList" class="cart-items-list"></div>
+          <div class="cart-totals">
+            <div class="totals-row"><span>Subtotal</span><span id="totalSubtotal">$0.00</span></div>
+            <div class="totals-row"><span>Entrega</span><span id="totalDelivery">$0.00</span></div>
+            <div class="totals-row totals-final"><span>Total a pagar</span><span id="totalFinal">$0.00</span></div>
+          </div>
 
-      <button id="sendOrderBtn" class="btn-send-order">
-        <svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 6.32A8.86 8.86 0 0 0 12.03 4C7.18 4 3.24 7.94 3.24 12.79c0 1.62.44 3.13 1.2 4.44L3.2 21l3.9-1.2a8.7 8.7 0 0 0 4.93 1.5h.01c4.85 0 8.79-3.94 8.79-8.79a8.7 8.7 0 0 0-3.23-6.19zm-5.57 13.5a7.3 7.3 0 0 1-3.72-1.02l-.27-.16-2.77.85.86-2.7-.18-.28a7.29 7.29 0 0 1-1.12-3.9c0-4.05 3.3-7.35 7.36-7.35a7.32 7.32 0 0 1 7.34 7.35c0 4.06-3.3 7.36-7.35 7.36zm4.03-5.5c-.22-.11-1.3-.64-1.5-.71-.2-.07-.35-.11-.5.11-.15.22-.57.71-.7.86-.13.15-.26.16-.48.05-.22-.11-.94-.35-1.79-1.11-.66-.59-1.11-1.31-1.24-1.53-.13-.22-.01-.34.1-.45.1-.1.22-.26.33-.39.11-.13.15-.22.22-.37.07-.15.04-.28-.02-.39-.06-.11-.5-1.2-.68-1.65-.18-.43-.36-.37-.5-.38h-.43c-.15 0-.39.06-.6.28-.2.22-.78.76-.78 1.85s.8 2.15.91 2.3c.11.15 1.57 2.4 3.81 3.36.53.23.95.37 1.27.47.53.17 1.02.15 1.4.09.43-.06 1.3-.53 1.48-1.04.18-.51.18-.94.13-1.04-.05-.09-.2-.15-.42-.26z"/></svg>
-        <span id="sendOrderLabel">Enviar pedido por WhatsApp</span>
-      </button>
+          <button id="sendOrderBtn" class="btn-send-order" disabled>
+            <svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 6.32A8.86 8.86 0 0 0 12.03 4C7.18 4 3.24 7.94 3.24 12.79c0 1.62.44 3.13 1.2 4.44L3.2 21l3.9-1.2a8.7 8.7 0 0 0 4.93 1.5h.01c4.85 0 8.79-3.94 8.79-8.79a8.7 8.7 0 0 0-3.23-6.19zm-5.57 13.5a7.3 7.3 0 0 1-3.72-1.02l-.27-.16-2.77.85.86-2.7-.18-.28a7.29 7.29 0 0 1-1.12-3.9c0-4.05 3.3-7.35 7.36-7.35a7.32 7.32 0 0 1 7.34 7.35c0 4.06-3.3 7.36-7.35 7.36zm4.03-5.5c-.22-.11-1.3-.64-1.5-.71-.2-.07-.35-.11-.5.11-.15.22-.57.71-.7.86-.13.15-.26.16-.48.05-.22-.11-.94-.35-1.79-1.11-.66-.59-1.11-1.31-1.24-1.53-.13-.22-.01-.34.1-.45.1-.1.22-.26.33-.39.11-.13.15-.22.22-.37.07-.15.04-.28-.02-.39-.06-.11-.5-1.2-.68-1.65-.18-.43-.36-.37-.5-.38h-.43c-.15 0-.39.06-.6.28-.2.22-.78.76-.78 1.85s.8 2.15.91 2.3c.11.15 1.57 2.4 3.81 3.36.53.23.95.37 1.27.47.53.17 1.02.15 1.4.09.43-.06 1.3-.53 1.48-1.04.18-.51.18-.94.13-1.04-.05-.09-.2-.15-.42-.26z"/></svg>
+            <span id="sendOrderLabel">Completa tus datos para continuar</span>
+          </button>
+          <div id="checkoutMissingHint" class="checkout-missing-hint" role="status">Empieza indicando tu dirección o ubicación.</div>
+          <div class="checkout-trust-row">
+            <span>✓ Pedido revisado</span><span>✓ Confirmación por WhatsApp</span>
+          </div>
+        </aside>
+      </div>
     </div>
   </div>
 
   <div id="toast" class="menu-toast" hidden role="status" aria-live="polite"></div>
 
-  <script src="/js/modules/menu_app.js?v=2.6.0"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/js/modules/menu_app.js?v=3.1.0"></script>
 </body>
 </html>

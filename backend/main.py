@@ -20,7 +20,8 @@ from routers import (
     websocket,
     webhooks,
     push,
-    menu
+    menu,
+    payments,
 )
 
 logging.basicConfig(
@@ -125,6 +126,7 @@ app.include_router(media.router, prefix=settings.API_V1_STR)
 app.include_router(media.router)
 app.include_router(push.router, prefix=settings.API_V1_STR)
 app.include_router(menu.router, prefix=settings.API_V1_STR)
+app.include_router(payments.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router)
 app.include_router(websocket.router)
@@ -169,6 +171,11 @@ if frontend_dir.exists():
         @app.get("/menu", include_in_schema=False)
         def serve_menu():
             return FileResponse(str(frontend_dir / "menu.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+    if (frontend_dir / "yappy_payment.html").exists():
+        @app.get("/pago-yappy", include_in_schema=False)
+        def serve_yappy_payment():
+            return FileResponse(str(frontend_dir / "yappy_payment.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     if (frontend_dir / "manifest.json").exists():
         @app.get("/manifest.json", include_in_schema=False)

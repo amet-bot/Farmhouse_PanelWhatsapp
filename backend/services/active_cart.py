@@ -92,6 +92,9 @@ def upsert_active_cart(
     delivery_type: str,
     delivery_address: Optional[str],
     payment_method: Optional[str],
+    delivery_data: Optional[dict] = None,
+    fulfillment_type: str = "asap",
+    scheduled_for: Optional[datetime] = None,
 ) -> Order:
     """Crea o actualiza LA (única) fila de carrito activo de esta conversación."""
     cart = db.query(Order).filter(
@@ -104,7 +107,15 @@ def upsert_active_cart(
     items_payload = json.dumps({
         "items": line_items,
         "delivery_address": delivery_address,
+        "delivery_building": (delivery_data or {}).get("building"),
+        "delivery_unit": (delivery_data or {}).get("unit"),
+        "delivery_reference": (delivery_data or {}).get("reference"),
+        "delivery_latitude": (delivery_data or {}).get("latitude"),
+        "delivery_longitude": (delivery_data or {}).get("longitude"),
+        "delivery_distance_km": (delivery_data or {}).get("distance_km"),
         "payment_method": payment_method,
+        "fulfillment_type": fulfillment_type,
+        "scheduled_for": scheduled_for.isoformat() if scheduled_for else None,
         "source": "menu_web_cart",
     }, ensure_ascii=False)
 
@@ -113,6 +124,11 @@ def upsert_active_cart(
         cart.order_type = "takeout" if delivery_type == "pickup" else "delivery"
         cart.subtotal = subtotal
         cart.delivery_cost = delivery_fee
+        cart.delivery_distance_km = (delivery_data or {}).get("distance_km")
+        cart.delivery_latitude = (delivery_data or {}).get("latitude")
+        cart.delivery_longitude = (delivery_data or {}).get("longitude")
+        cart.fulfillment_type = fulfillment_type
+        cart.scheduled_for = scheduled_for
         cart.total = total
         cart.items_json = items_payload
         cart.updated_at = now
@@ -126,6 +142,11 @@ def upsert_active_cart(
             status=CART_STATUS,
             subtotal=subtotal,
             delivery_cost=delivery_fee,
+            delivery_distance_km=(delivery_data or {}).get("distance_km"),
+            delivery_latitude=(delivery_data or {}).get("latitude"),
+            delivery_longitude=(delivery_data or {}).get("longitude"),
+            fulfillment_type=fulfillment_type,
+            scheduled_for=scheduled_for,
             tax=Decimal("0.00"),
             total=total,
             items_json=items_payload,
@@ -173,7 +194,15 @@ def cart_to_dict(cart: Optional[Order]) -> dict:
         "order_type": cart.order_type,
         "items": items_data.get("items", []),
         "delivery_address": items_data.get("delivery_address"),
+        "delivery_building": items_data.get("delivery_building"),
+        "delivery_unit": items_data.get("delivery_unit"),
+        "delivery_reference": items_data.get("delivery_reference"),
+        "delivery_latitude": items_data.get("delivery_latitude"),
+        "delivery_longitude": items_data.get("delivery_longitude"),
+        "delivery_distance_km": items_data.get("delivery_distance_km"),
         "payment_method": items_data.get("payment_method"),
+        "fulfillment_type": items_data.get("fulfillment_type", "asap"),
+        "scheduled_for": items_data.get("scheduled_for"),
         "subtotal": str(cart.subtotal),
         "delivery_fee": str(cart.delivery_cost),
         "total": str(cart.total),

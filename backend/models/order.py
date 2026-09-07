@@ -14,8 +14,16 @@ class Order(Base):
     status = Column(String(50), nullable=False, default="en_proceso") # "en_proceso", "en_cocina", "en_delivery", "entregado", "cancelado"
     subtotal = Column(Numeric(10, 2), nullable=False, default=0.00) # Subtotal sin delivery ni impuesto
     delivery_cost = Column(Numeric(10, 2), nullable=False, default=0.00)
+    delivery_distance_km = Column(Numeric(8, 2), nullable=True)
+    delivery_latitude = Column(Numeric(10, 7), nullable=True)
+    delivery_longitude = Column(Numeric(10, 7), nullable=True)
+    fulfillment_type = Column(String(20), nullable=False, default="asap")
+    scheduled_for = Column(DateTime, nullable=True)
     tax = Column(Numeric(10, 2), nullable=False, default=0.00) # ITBMS (7%)
     total = Column(Numeric(10, 2), nullable=False, default=0.00)
+    payment_status = Column(String(30), nullable=False, default="pending")
+    payment_reference = Column(String(100), nullable=True)
+    payment_confirmation_number = Column(String(100), nullable=True)
     items_json = Column(Text, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -29,4 +37,3 @@ class Order(Base):
     conversation = relationship("Conversation", back_populates="orders")
     branch = relationship("Branch", back_populates="orders")
     creator_user = relationship("User", foreign_keys=[created_by])
-

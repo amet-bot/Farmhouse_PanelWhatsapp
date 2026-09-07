@@ -120,7 +120,7 @@ const chatModule = {
     if (oldDeliveryRow) oldDeliveryRow.remove();
 
     const orderFieldDefaults = {
-      orderId: 'Cargando...', orderBranch: '-', orderDeliveryType: '-', orderPaymentMethod: '-',
+      orderId: 'Cargando...', orderBranch: '-', orderDeliveryType: '-', orderPaymentMethod: '-', orderPaymentStatus: '-',
       orderType: '-', orderStatus: '-', orderSubtotal: '$0.00', orderTotal: '$0.00',
     };
     Object.entries(orderFieldDefaults).forEach(([id, value]) => {
@@ -446,6 +446,8 @@ const chatModule = {
     const orderBranch = document.getElementById('orderBranch');
     const orderDeliveryType = document.getElementById('orderDeliveryType');
     const orderPaymentMethod = document.getElementById('orderPaymentMethod');
+    const orderPaymentStatus = document.getElementById('orderPaymentStatus');
+    const orderPaymentStatusRow = document.getElementById('orderPaymentStatusRow');
     const orderType = document.getElementById('orderType');
     const orderStatus = document.getElementById('orderStatus');
     const orderSubtotal = document.getElementById('orderSubtotal');
@@ -460,6 +462,10 @@ const chatModule = {
     const STATUS_LABELS = {
       carrito_activo: 'Armando pedido', en_proceso: 'En proceso', en_cocina: 'En cocina',
       en_delivery: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado', abandonado: 'Carrito abandonado',
+    };
+    const PAYMENT_STATUS_LABELS = {
+      pending: 'Pendiente', awaiting_customer: 'Esperando al cliente', paid: 'Pagado',
+      rejected: 'Rechazado', cancelled: 'Cancelado', expired: 'Expirado', unknown: 'Por verificar',
     };
 
     const orders = conv.orders || [];
@@ -481,6 +487,8 @@ const chatModule = {
 
     if (orderDeliveryType) orderDeliveryType.textContent = deliveryType ? (DELIVERY_LABELS[deliveryType] || deliveryType) : '-';
     if (orderPaymentMethod) orderPaymentMethod.textContent = paymentMethod ? (PAYMENT_LABELS[paymentMethod] || paymentMethod) : '-';
+    if (orderPaymentStatusRow) orderPaymentStatusRow.hidden = paymentMethod !== 'yappy' || !current;
+    if (orderPaymentStatus) orderPaymentStatus.textContent = current ? (PAYMENT_STATUS_LABELS[current.payment_status] || current.payment_status || 'Pendiente') : '-';
 
     if (!current) {
       if (orderId) orderId.textContent = 'Sin pedido activo';
@@ -812,5 +820,4 @@ const chatModule = {
     }
   }
 };
-
 

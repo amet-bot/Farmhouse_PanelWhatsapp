@@ -104,7 +104,7 @@ def test_checkout_confirms_the_same_cart_row_instead_of_creating_a_new_order(cli
     checkout_payload = {
         "branch_code": "CLY",
         "delivery_type": "pickup",
-        "payment_method": "cash",
+        "payment_method": "card",
         "customer_name": "Amet",
         "customer_phone": "50765523134",
         "items": [{"sku": "DRK_AGUA", "quantity": 1, "addon_skus": []}],

@@ -6,7 +6,7 @@ from models.contact import Contact
 BASE_ORDER_PAYLOAD = {
     "branch_code": "CLY",
     "delivery_type": "pickup",
-    "payment_method": "cash",
+    "payment_method": "card",
     "customer_name": "Cliente WhatsApp",
     "customer_phone": "6000-1111",
     "items": [{"sku": "DRK_AGUA", "quantity": 1, "addon_skus": []}],
@@ -35,6 +35,8 @@ def test_public_order_recalculates_price_and_ignores_client_total(client, clayto
         "branch_code": "CLY",
         "delivery_type": "delivery",
         "delivery_address": "Av. Paseo del Mar, PH Mystic",
+        "delivery_latitude": 9.005,
+        "delivery_longitude": -79.565,
         "payment_method": "yappy",
         "customer_name": "Cliente de Prueba",
         "customer_phone": "6552-3134",
@@ -51,16 +53,16 @@ def test_public_order_recalculates_price_and_ignores_client_total(client, clayto
     assert resp.status_code == 200, resp.text
     data = resp.json()
 
-    # 13.95 (large) + 4.00 (pollo spiced) + 9.00 (smoothie) = 26.95 ; delivery a coordinar (0.00 en menú) = 26.95
+    # 13.95 + 4.00 + 9.00 = 26.95; menos de 2 km desde Clayton = 5.00 de delivery.
     assert data["subtotal"] == "26.95"
-    assert data["delivery_cost"] == "0.00"
-    assert data["total"] == "26.95"
+    assert data["delivery_cost"] == "5.00"
+    assert data["total"] == "31.95"
     assert data["whatsapp_url"].startswith("https://wa.me/")
     assert data["order_code"].startswith("FH-")
 
     order = db_session.query(Order).filter(Order.order_code == data["order_code"]).first()
     assert order is not None
-    assert str(order.total) == "26.95"
+    assert str(order.total) == "31.95"
     assert order.branch_id == clayton_branch.id
 
     conv = db_session.query(Conversation).filter(Conversation.id == order.conversation_id).first()
@@ -78,7 +80,7 @@ def test_public_order_addon_quantity_aggregates_repeated_sku(client, clayton_bra
     payload = {
         "branch_code": "CLY",
         "delivery_type": "pickup",
-        "payment_method": "cash",
+        "payment_method": "card",
         "customer_name": "Cliente Prueba Addon",
         "customer_phone": "6000-2222",
         "items": [
@@ -107,7 +109,7 @@ def test_public_order_rejects_unknown_sku(client, clayton_branch):
     payload = {
         "branch_code": "CLY",
         "delivery_type": "pickup",
-        "payment_method": "cash",
+        "payment_method": "card",
         "customer_name": "Cliente",
         "customer_phone": "6000-0000",
         "items": [{"sku": "SKU_QUE_NO_EXISTE", "quantity": 1, "addon_skus": []}],
@@ -120,7 +122,7 @@ def test_public_order_requires_delivery_address_when_delivery(client, clayton_br
     payload = {
         "branch_code": "CLY",
         "delivery_type": "delivery",
-        "payment_method": "cash",
+        "payment_method": "card",
         "customer_name": "Cliente",
         "customer_phone": "6000-0000",
         "items": [{"sku": "DRK_AGUA", "quantity": 1, "addon_skus": []}],
@@ -216,7 +218,7 @@ def test_public_order_rejects_invalid_branch(client):
     payload = {
         "branch_code": "NOPE",
         "delivery_type": "pickup",
-        "payment_method": "cash",
+        "payment_method": "card",
         "customer_name": "Cliente",
         "customer_phone": "6000-0000",
         "items": [{"sku": "DRK_AGUA", "quantity": 1, "addon_skus": []}],

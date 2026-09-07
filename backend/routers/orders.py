@@ -9,12 +9,13 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
-from config import settings, get_official_whatsapp_number, get_whatsapp_number_for_branch, get_all_official_whatsapp_numbers
+from config import get_all_official_whatsapp_numbers, get_whatsapp_number_for_branch
 from database import get_db
 from models.order import Order
 from models.conversation import Conversation
 from models.contact import Contact
 from models.branch import Branch
+from models.message import Message
 from models.user import User
 from schemas.order import (
     OrderResponse, OrderCreate, OrderUpdate, PublicOrderCreate, PublicOrderResponse,
@@ -23,8 +24,11 @@ from schemas.order import (
 from security.auth import get_current_authorized_user, decode_menu_session_token
 from security.access_control import check_order_access, check_conversation_access, check_target_branch_valid
 from services.order_pricing import price_cart_items, compute_delivery_fee
+from services.delivery_geo import distance_km, is_in_panama_city
 from services.active_cart import get_active_cart, upsert_active_cart, clear_active_cart, cart_to_dict
 from services.websocket_manager import ws_manager
+from services.whatsapp_service import get_whatsapp_service
+from services.yappy_payment import build_yappy_payment_url, is_yappy_configured
 
 logger = logging.getLogger("farmhouse.orders")
 
@@ -32,8 +36,39 @@ router = APIRouter(prefix="/orders", tags=["Pedidos"])
 
 ITBMS_RATE = Decimal("0.07") # 7% impuesto ITBMS en Panamá
 
-PAYMENT_METHOD_LABELS = {"yappy": "Yappy", "ach": "ACH / Transferencia", "card": "Tarjeta", "cash": "Efectivo"}
+PAYMENT_METHOD_LABELS = {"yappy": "Yappy", "ach": "ACH / Transferencia", "card": "Tarjeta"}
 WA_NUMBER_RE = re.compile(r"^\d{8,15}$")
+
+
+def _delivery_quote(branch: Branch, delivery_type: str, latitude: Optional[float], longitude: Optional[float], *, require_pin: bool) -> tuple[Optional[Decimal], Decimal]:
+    if delivery_type != "delivery":
+        return None, Decimal("0.00")
+    if latitude is None or longitude is None:
+        if require_pin:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selecciona el punto exacto de entrega en el mapa.")
+        return None, Decimal("0.00")
+    if not branch.accepts_delivery or branch.latitude is None or branch.longitude is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La sucursal seleccionada no opera delivery.")
+    if not is_in_panama_city(float(latitude), float(longitude)):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Lamentablemente no hacemos entregas fuera de Ciudad de Panamá. Puedes elegir retiro gratis en cualquiera de nuestras sucursales.",
+        )
+    distance = distance_km(float(branch.latitude), float(branch.longitude), float(latitude), float(longitude))
+    return distance, compute_delivery_fee(delivery_type, distance)
+
+
+def _scheduled_value(fulfillment_type: str, scheduled_for: Optional[datetime], *, require_time: bool = True) -> Optional[datetime]:
+    if fulfillment_type != "scheduled":
+        return None
+    if scheduled_for is None:
+        if require_time:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selecciona la fecha y hora del pedido programado.")
+        return None
+    value = scheduled_for.astimezone(timezone.utc).replace(tzinfo=None) if scheduled_for.tzinfo else scheduled_for
+    if value <= datetime.now(timezone.utc).replace(tzinfo=None):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La fecha programada debe ser posterior a la hora actual.")
+    return value
 
 
 def resolve_whatsapp_destination(branch_code: str, origin_wa: Optional[str]) -> str:
@@ -81,9 +116,16 @@ async def create_public_order(
     branch = db.query(Branch).filter(Branch.code == order_in.branch_code, Branch.active == True).first()
     if not branch:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sucursal inválida o inactiva.")
+    if branch.latitude is None or branch.longitude is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La sucursal seleccionada no está disponible en el Menú Digital.")
 
     if order_in.delivery_type == "delivery" and not (order_in.delivery_address or "").strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La dirección de entrega es obligatoria para pedidos de delivery.")
+
+    delivery_distance, delivery_cost = _delivery_quote(
+        branch, order_in.delivery_type, order_in.delivery_latitude, order_in.delivery_longitude, require_pin=True
+    )
+    scheduled_for = _scheduled_value(order_in.fulfillment_type, order_in.scheduled_for)
 
     # Resolver el número de WhatsApp destino ANTES de tocar la base de datos: si el número
     # oficial no está configurado, es mejor fallar rápido con un 500 explícito que crear el
@@ -101,7 +143,6 @@ async def create_public_order(
     # 1. Recalcular cada línea del pedido desde el catálogo (fuente de verdad de precios,
     #    compartida con PUT /orders/cart y con el mensaje de WhatsApp — services.order_pricing).
     line_items, subtotal = price_cart_items(order_in.items)
-    delivery_cost = compute_delivery_fee(order_in.delivery_type)
     total = (subtotal + delivery_cost).quantize(Decimal("0.01"))
 
     # 2. Contacto: mismo formato "+<digitos>" que usa el webhook de Meta, para que ambos
@@ -123,6 +164,14 @@ async def create_public_order(
             contact.deleted_at = None
         if order_in.customer_name.strip():
             contact.name = order_in.customer_name.strip()
+
+    if order_in.delivery_type == "delivery":
+        contact.address = (order_in.delivery_address or "").strip() or None
+        contact.building_or_house = (order_in.delivery_building or "").strip() or None
+        contact.floor_or_unit = (order_in.delivery_unit or "").strip() or None
+        contact.address_reference = (order_in.delivery_reference or "").strip() or None
+        contact.latitude = order_in.delivery_latitude
+        contact.longitude = order_in.delivery_longitude
 
     # 3. Conversación: si el carrito trae un token de sesión válido (generado por el bot al
     #    mandar el enlace de /menu, ver webhooks._send_branch_welcome_and_menu), se usa ESA
@@ -181,7 +230,15 @@ async def create_public_order(
     items_payload = json.dumps({
         "items": line_items,
         "delivery_address": order_in.delivery_address,
+        "delivery_building": order_in.delivery_building,
+        "delivery_unit": order_in.delivery_unit,
+        "delivery_reference": order_in.delivery_reference,
+        "delivery_latitude": order_in.delivery_latitude,
+        "delivery_longitude": order_in.delivery_longitude,
+        "delivery_distance_km": float(delivery_distance) if delivery_distance is not None else None,
         "payment_method": order_in.payment_method,
+        "fulfillment_type": order_in.fulfillment_type,
+        "scheduled_for": scheduled_for.isoformat() if scheduled_for else None,
         "source": "menu_web",
     }, ensure_ascii=False)
 
@@ -193,6 +250,11 @@ async def create_public_order(
         order.status = "en_proceso"
         order.subtotal = subtotal
         order.delivery_cost = delivery_cost
+        order.delivery_distance_km = delivery_distance
+        order.delivery_latitude = order_in.delivery_latitude
+        order.delivery_longitude = order_in.delivery_longitude
+        order.fulfillment_type = order_in.fulfillment_type
+        order.scheduled_for = scheduled_for
         order.total = total
         order.items_json = items_payload
         order.updated_at = now
@@ -206,6 +268,11 @@ async def create_public_order(
             status="en_proceso",
             subtotal=subtotal,
             delivery_cost=delivery_cost,
+            delivery_distance_km=delivery_distance,
+            delivery_latitude=order_in.delivery_latitude,
+            delivery_longitude=order_in.delivery_longitude,
+            fulfillment_type=order_in.fulfillment_type,
+            scheduled_for=scheduled_for,
             tax=Decimal("0.00"),
             total=total,
             items_json=items_payload,
@@ -219,9 +286,46 @@ async def create_public_order(
     db.refresh(order)
     db.refresh(conv)
 
-    # 5. Construir el mensaje estructurado que el cliente confirmará en WhatsApp
+    # 5. Construir el mensaje estructurado que el cliente confirmará en WhatsApp. Si Yappy
+    # está activo, el mismo enlace también llega como botón desde la cuenta de Farmhouse.
+    payment_url = None
+    if order_in.payment_method == "yappy" and is_yappy_configured():
+        payment_url = build_yappy_payment_url(order_code)
     whatsapp_text = _build_whatsapp_order_text(order_code, branch.name, line_items, order_in, delivery_cost, total)
+    if payment_url:
+        whatsapp_text += f"\nPagar con Yappy: {payment_url}"
     whatsapp_url = f"https://wa.me/{whatsapp_destination}?text={quote(whatsapp_text)}"
+
+    if payment_url:
+        payment_message = (
+            f"Tu pedido {order_code} por ${total:.2f} está listo para pagar con Yappy. "
+            "Toca el botón para recibir y aprobar la solicitud en tu aplicación Yappy."
+        )
+        wamid = None
+        message_status = "sent"
+        error_detail = None
+        try:
+            send_result = await get_whatsapp_service().send_cta_url_message(
+                contact.phone, payment_message, "Pagar con Yappy", payment_url
+            )
+            if isinstance(send_result, dict) and send_result.get("messages"):
+                wamid = send_result["messages"][0].get("id")
+        except Exception as exc:
+            message_status = "failed"
+            error_detail = str(exc)[:500]
+            logger.error("[PublicOrder] No se pudo enviar el enlace Yappy del pedido %s: %s", order_code, exc)
+        db.add(Message(
+            conversation_id=conv.id,
+            direction="outgoing",
+            sender_type="system",
+            content=f"{payment_message}\n{payment_url}",
+            is_internal=False,
+            whatsapp_message_id=wamid,
+            status=message_status,
+            error_detail=error_detail,
+            created_at=now,
+        ))
+        db.commit()
 
     logger.info(f"[PublicOrder] Comanda {order_code} creada desde /menu para conv {conv.id} (Total: ${total})")
 
@@ -248,8 +352,10 @@ async def create_public_order(
         conversation_id=conv.id,
         subtotal=subtotal,
         delivery_cost=delivery_cost,
+        delivery_distance_km=delivery_distance,
         total=total,
         whatsapp_url=whatsapp_url,
+        payment_url=payment_url,
     )
 
 
@@ -308,7 +414,10 @@ async def sync_cart(
         )
 
     line_items, subtotal = price_cart_items(cart_in.items)
-    delivery_fee = compute_delivery_fee(cart_in.delivery_type)
+    delivery_distance, delivery_fee = _delivery_quote(
+        branch, cart_in.delivery_type, cart_in.delivery_latitude, cart_in.delivery_longitude, require_pin=False
+    )
+    scheduled_for = _scheduled_value(cart_in.fulfillment_type, cart_in.scheduled_for, require_time=False)
     total = (subtotal + delivery_fee).quantize(Decimal("0.01"))
 
     now = datetime.now(timezone.utc)
@@ -329,6 +438,16 @@ async def sync_cart(
         delivery_type=cart_in.delivery_type,
         delivery_address=cart_in.delivery_address,
         payment_method=cart_in.payment_method,
+        delivery_data={
+            "building": cart_in.delivery_building,
+            "unit": cart_in.delivery_unit,
+            "reference": cart_in.delivery_reference,
+            "latitude": cart_in.delivery_latitude,
+            "longitude": cart_in.delivery_longitude,
+            "distance_km": float(delivery_distance) if delivery_distance is not None else None,
+        },
+        fulfillment_type=cart_in.fulfillment_type,
+        scheduled_for=scheduled_for,
     )
     db.commit()
 
@@ -345,6 +464,7 @@ async def sync_cart(
         items=line_items,
         subtotal=subtotal,
         delivery_fee=delivery_fee,
+        delivery_distance_km=delivery_distance,
         total=total,
     )
 
@@ -367,14 +487,26 @@ def _build_whatsapp_order_text(order_code: str, branch_name: str, line_items: li
             lines.append(f"   Nota: {item['notes']}")
 
     if order_in.delivery_type == "delivery":
-        entrega_label = "Delivery" + (f" (+${delivery_cost:.2f})" if delivery_cost else " (Costo por coordinar con la sucursal)")
+        entrega_label = f"Delivery (+${delivery_cost:.2f})"
     else:
         entrega_label = "Retiro en Sucursal"
     lines.append(f"Entrega: {entrega_label}")
     if order_in.delivery_type == "delivery" and order_in.delivery_address:
         lines.append(f"Dirección: {order_in.delivery_address}")
+        if order_in.delivery_building:
+            lines.append(f"Edificio/Casa: {order_in.delivery_building}")
+        if order_in.delivery_unit:
+            lines.append(f"Piso/Número: {order_in.delivery_unit}")
+        if order_in.delivery_reference:
+            lines.append(f"Referencia: {order_in.delivery_reference}")
+        if order_in.delivery_latitude is not None and order_in.delivery_longitude is not None:
+            lines.append(f"Pin: https://maps.google.com/?q={order_in.delivery_latitude},{order_in.delivery_longitude}")
+    if order_in.fulfillment_type == "scheduled" and order_in.scheduled_for:
+        lines.append(f"Para: {order_in.scheduled_for.strftime('%d/%m/%Y %I:%M %p')}")
+    else:
+        lines.append("Para: Lo antes posible")
     lines.append(f"Método de pago: {PAYMENT_METHOD_LABELS[order_in.payment_method]}")
-    lines.append(f"TOTAL: ${total:.2f}" + (" (+ delivery por coordinar)" if order_in.delivery_type == "delivery" else ""))
+    lines.append(f"TOTAL: ${total:.2f}")
     lines.append(f"Pedido: {order_code}")
     return "\n".join(lines)
 
@@ -502,4 +634,3 @@ def delete_order(
     order.deleted_at = datetime.now(timezone.utc)
     db.commit()
     return {"status": "deleted", "order_id": order_id}
-

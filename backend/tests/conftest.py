@@ -60,7 +60,9 @@ def client(db_session):
 
 @pytest.fixture
 def clayton_branch(db_session):
-    branch = Branch(id=1, code="CLY", name="Clayton", color="#d97706", active=True)
+    branch = Branch(id=1, code="CLY", name="Clayton", color="#d97706", active=True,
+                    address="Plaza Clayton Mall", latitude=9.0038590, longitude=-79.5730430,
+                    accepts_delivery=True)
     db_session.add(branch)
     db_session.commit()
     db_session.refresh(branch)
@@ -68,7 +70,9 @@ def clayton_branch(db_session):
 
 @pytest.fixture
 def obarrio_branch(db_session):
-    branch = Branch(id=2, code="OBR", name="Obarrio", color="#2563eb", active=True)
+    branch = Branch(id=2, code="OBR", name="Obarrio", color="#2563eb", active=True,
+                    address="Adison House", latitude=8.9863531, longitude=-79.5196357,
+                    accepts_delivery=True)
     db_session.add(branch)
     db_session.commit()
     db_session.refresh(branch)
@@ -213,4 +217,3 @@ def auth_headers_for(user: User, device_id: str = None) -> dict:
     if device_id:
         headers["X-Device-ID"] = device_id
     return headers
-

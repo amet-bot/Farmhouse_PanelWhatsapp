@@ -33,7 +33,7 @@ from services.auto_responses import (
     get_main_welcome_body, get_branch_visit_message, get_branch_pickup_info_message,
     get_branch_delivery_info_message, MENU_LINK_WARM_CLOSING, get_manager_assigned_message,
     get_manager_declined_message, get_branch_welcome_message,
-    ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE, CASH_PAYMENT_MESSAGE,
+    ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE,
     UNKNOWN_MAIN_MESSAGE, UNKNOWN_ORDER_MESSAGE, UNKNOWN_BRANCH_MESSAGE,
     AFTER_MENU_HELP_QUESTION, AFTER_MENU_HELP_BUTTONS, RESTART_MESSAGE, CANCEL_MESSAGE,
     CHANGE_ORDER_TYPE_MESSAGE, CHANGE_BRANCH_MESSAGE, get_human_handoff_message,
@@ -43,7 +43,7 @@ from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKE
 from services.branch_matcher import match_branch_by_text
 from services.order_flow_matcher import (
     match_main_option, match_delivery_type_text, match_payment_method_text,
-    match_manager_help, match_event_type, match_event_location, mentions_cash,
+    match_manager_help, match_event_type, match_event_location,
     match_entry_intent, match_navigation_intent
 )
 from services.push_service import notify_branch_new_message
@@ -1004,7 +1004,8 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         if conv.branch_id is not None and conv.delivery_type in ["delivery", "pickup"] and conv.payment_method is None:
             matched_payment = None
             if interactive_id.startswith("pay_"):
-                matched_payment = interactive_id.replace("pay_", "")
+                candidate = interactive_id.replace("pay_", "")
+                matched_payment = candidate if candidate in {"ach", "card", "yappy"} else None
             elif message_type == "text":
                 matched_payment = match_payment_method_text(text)
 
@@ -1017,7 +1018,6 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                     "ach": ACH_PAYMENT_INSTRUCTIONS,
                     "card": CARD_PAYMENT_MESSAGE,
                     "yappy": YAPPY_PAYMENT_MESSAGE,
-                    "cash": CASH_PAYMENT_MESSAGE,
                 }
                 closing_text = payment_closing_messages.get(
                     conv.payment_method,

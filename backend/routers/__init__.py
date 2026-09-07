@@ -10,7 +10,8 @@ from routers import (
     media,
     websocket,
     webhooks,
-    push
+    push,
+    payments,
 )
 
 __all__ = [
@@ -25,5 +26,6 @@ __all__ = [
     "media",
     "websocket",
     "webhooks",
-    "push"
+    "push",
+    "payments",
 ]

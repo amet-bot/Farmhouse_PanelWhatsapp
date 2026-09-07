@@ -1,5 +1,6 @@
 ﻿from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy import Numeric
 from datetime import datetime
 from database import Base
 
@@ -11,6 +12,10 @@ class Branch(Base):
     code = Column(String(50), unique=True, nullable=False)
     color = Column(String(20), nullable=True, default="#16a34a")
     active = Column(Boolean, default=True, nullable=False)
+    address = Column(String(255), nullable=True)
+    latitude = Column(Numeric(10, 7), nullable=True)
+    longitude = Column(Numeric(10, 7), nullable=True)
+    accepts_delivery = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relaciones

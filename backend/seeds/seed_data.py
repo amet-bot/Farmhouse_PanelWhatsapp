@@ -26,12 +26,12 @@ def seed_database():
 
         # 1. SUCURSALES OFICIALES DE FARMHOUSE
         branches_data = [
-            {"code": "CDE", "name": "Costa del Este", "color": "#16a34a"},
-            {"code": "SF", "name": "San Francisco", "color": "#0d9488"},
-            {"code": "CLY", "name": "Clayton", "color": "#d97706"},
-            {"code": "OBR", "name": "Obarrio", "color": "#2563eb"},
-            {"code": "VP", "name": "Via Porras", "color": "#9333ea"},
-            {"code": "CAT", "name": "Catering", "color": "#e11d48"},
+            {"code": "CDE", "name": "Costa del Este", "color": "#16a34a", "address": "Torre MMG, planta baja, Costa del Este", "latitude": 9.0083064, "longitude": -79.4773394, "accepts_delivery": True},
+            {"code": "SF", "name": "San Francisco", "color": "#0d9488", "address": "Plaza 76, San Francisco", "latitude": 8.9912804, "longitude": -79.5031756, "accepts_delivery": True},
+            {"code": "CLY", "name": "Clayton", "color": "#d97706", "address": "Plaza Clayton Mall", "latitude": 9.0038590, "longitude": -79.5730430, "accepts_delivery": True},
+            {"code": "OBR", "name": "Obarrio", "color": "#2563eb", "address": "Adison House, Calle Abel Bravo, Obarrio", "latitude": 8.9863531, "longitude": -79.5196357, "accepts_delivery": True},
+            {"code": "VP", "name": "Via Porras", "color": "#9333ea", "address": "Vía Porras, Parque Omar", "latitude": 8.9967623, "longitude": -79.5065669, "accepts_delivery": True},
+            {"code": "CAT", "name": "Catering", "color": "#e11d48", "address": None, "latitude": None, "longitude": None, "accepts_delivery": False},
         ]
 
         for b_data in branches_data:
@@ -40,16 +40,20 @@ def seed_database():
             ).first()
             if not existing:
                 b = Branch(
-                    code=b_data["code"],
-                    name=b_data["name"],
-                    color=b_data["color"],
-                    active=True
+                    **b_data,
+                    active=True,
                 )
                 db.add(b)
                 db.commit()
                 db.refresh(b)
                 logger.info(f"  [OK] Sucursal creada: {b.name} (ID: {b.id})")
             else:
+                # Las coordenadas son configuración operacional, no datos del cliente.
+                # Se actualizan de forma idempotente al desplegar para que el mapa y el
+                # cálculo del servidor siempre utilicen la misma fuente.
+                for field in ("address", "latitude", "longitude", "accepts_delivery"):
+                    setattr(existing, field, b_data[field])
+                db.commit()
                 logger.debug(f"  [OK] Sucursal existente: {existing.name} (ID: {existing.id})")
 
         # 2. USUARIO ADMINISTRADOR PRINCIPAL (Punto 12)
