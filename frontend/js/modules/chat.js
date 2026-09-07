@@ -458,7 +458,7 @@ const chatModule = {
     const orderItemsList = document.getElementById('orderItemsList');
 
     const DELIVERY_LABELS = { delivery: '🛵 Delivery', pickup: '🏠 Retiro en el local' };
-    const PAYMENT_LABELS = { card: '💳 Tarjeta', yappy: '📱 Yappy', cash: '💵 Efectivo', ach: '🏦 ACH' };
+    const PAYMENT_LABELS = { card: '💳 Tilopay (Tarjeta)', yappy: '📱 Yappy', cash: '💵 Efectivo', ach: '🏦 ACH' };
     const STATUS_LABELS = {
       carrito_activo: 'Armando pedido', en_proceso: 'En proceso', en_cocina: 'En cocina',
       en_delivery: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado', abandonado: 'Carrito abandonado',
@@ -820,4 +820,3 @@ const chatModule = {
     }
   }
 };
-

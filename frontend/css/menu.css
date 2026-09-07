@@ -30,6 +30,7 @@
   /* Estados */
   --fh-red: #a8442f;
   --fh-red-soft: #f5e7e2;
+  --fh-payment-selected: #fff9e9;
 
   /* Radios */
   --radius-xs: 8px;
@@ -90,6 +91,7 @@
     /* Estados */
     --fh-red: #e08a72;
     --fh-red-soft: #3a2621;
+    --fh-payment-selected: #3c3523;
 
     /* Sombras (más marcadas sobre fondo oscuro) */
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -1044,6 +1046,52 @@ a:focus-visible {
   background: var(--fh-green-soft);
   z-index: 0;
 }
+.farmhouse-branch-marker {
+  border: 0;
+  background: transparent;
+}
+.farmhouse-marker-badge {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--fh-green);
+  box-shadow: 0 4px 13px rgba(35, 46, 40, 0.35);
+}
+.farmhouse-marker-badge::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 13px;
+  height: 13px;
+  border-right: 3px solid #fff;
+  border-bottom: 3px solid #fff;
+  background: var(--fh-green);
+  transform: translateX(-50%) rotate(45deg);
+  z-index: -1;
+}
+.farmhouse-marker-badge img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.leaflet-tooltip {
+  border-color: var(--fh-line-strong);
+  border-radius: 7px;
+  color: #303d36;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
 .map-attribution-note {
   margin: 7px 0 0;
   font-size: 11px;
@@ -1145,8 +1193,35 @@ a:focus-visible {
   margin-bottom: 2px;
 }
 
-.payment-pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+.payment-pills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
 .payment-pills .option-pill { text-align: center; }
+.payment-card-option {
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--fh-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--fh-panel);
+  color: var(--fh-text);
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+.payment-card-option:hover { border-color: var(--fh-green-light); transform: translateY(-1px); }
+.payment-card-option.active {
+  border-color: var(--fh-green-dark);
+  background: var(--fh-payment-selected);
+  box-shadow: 0 0 0 2px rgba(169, 131, 79, 0.18);
+}
+.payment-card-option small { color: var(--fh-text-muted); font-size: 11px; font-weight: 500; }
+.payment-brand { display: inline-flex; align-items: center; font-weight: 800; line-height: 1; }
+.tilopay-brand { color: #ff164d; font-family: var(--font-heading); font-size: 21px; letter-spacing: -0.06em; }
+.yappy-brand { color: #005ea8; font-size: 20px; letter-spacing: -0.035em; }
+.yappy-mark { position: relative; width: 31px; height: 20px; margin-right: 5px; display: inline-block; }
+.yappy-mark i { position: absolute; top: 3px; width: 15px; height: 15px; border-radius: 50%; }
+.yappy-mark i:first-child { left: 1px; background: #18aee4; }
+.yappy-mark i:last-child { right: 1px; background: #ff8b27; }
 
 .cart-totals { border-top: 1px dashed var(--fh-line-strong); padding-top: var(--space-3); margin-bottom: var(--space-4); }
 .totals-row { display: flex; justify-content: space-between; font-size: 13.5px; margin-bottom: 6px; color: var(--fh-text-muted); }
@@ -1239,7 +1314,9 @@ a:focus-visible {
 @media (max-width: 560px) {
   .cart-drawer { padding-right: var(--space-4); padding-left: var(--space-4); }
   .checkout-summary { padding: var(--space-4); }
-  .payment-pills { grid-template-columns: 1fr; }
+  .payment-pills { grid-template-columns: 1fr 1fr; }
+  .payment-card-option { min-height: 86px; padding-right: 8px; padding-left: 8px; }
+  .payment-card-option small { font-size: 10px; }
 }
 
 /* ===================== TOAST ===================== */

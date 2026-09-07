@@ -36,7 +36,7 @@ router = APIRouter(prefix="/orders", tags=["Pedidos"])
 
 ITBMS_RATE = Decimal("0.07") # 7% impuesto ITBMS en Panamá
 
-PAYMENT_METHOD_LABELS = {"yappy": "Yappy", "ach": "ACH / Transferencia", "card": "Tarjeta"}
+PAYMENT_METHOD_LABELS = {"yappy": "Yappy", "ach": "ACH / Transferencia", "card": "Tilopay (Tarjeta)"}
 WA_NUMBER_RE = re.compile(r"^\d{8,15}$")
 
 

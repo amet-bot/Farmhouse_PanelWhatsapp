@@ -268,12 +268,21 @@
     }).addTo(state.map);
 
     const bounds = [];
+    const branchIcon = L.divIcon({
+      className: "farmhouse-branch-marker",
+      html: '<span class="farmhouse-marker-badge"><img src="/assets/images/farmhouse-logo.png" alt=""></span>',
+      iconSize: [50, 58],
+      iconAnchor: [25, 55],
+      popupAnchor: [0, -50],
+      tooltipAnchor: [0, -46],
+    });
     physicalBranches().forEach((branch) => {
       const point = [Number(branch.latitude), Number(branch.longitude)];
       bounds.push(point);
-      L.marker(point, { title: `Farmhouse ${branch.name}` })
+      L.marker(point, { title: `Farmhouse ${branch.name}`, icon: branchIcon })
         .addTo(state.map)
-        .bindPopup(`<strong>Farmhouse ${escapeHtml(branch.name)}</strong><br>${escapeHtml(branch.address || "Sucursal")}`);
+        .bindPopup(`<strong>Farmhouse ${escapeHtml(branch.name)}</strong><br>${escapeHtml(branch.address || "Sucursal")}`)
+        .bindTooltip(`Farmhouse ${escapeHtml(branch.name)}`, { direction: "top", opacity: 0.92 });
     });
     if (bounds.length) state.map.fitBounds(bounds, { padding: [24, 24] });
 

@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="/css/menu.css?v=3.1.0">
+  <link rel="stylesheet" href="/css/menu.css?v=3.3.0">
 </head>
 <body>
 
@@ -222,11 +222,16 @@
         <summary><span class="step-number">4</span><span>Método de pago<small>Elige cómo deseas pagar</small></span></summary>
         <div class="checkout-step-body">
           <div id="paymentOptions" class="option-pills payment-pills">
-            <button type="button" class="option-pill" data-payment="yappy">Yappy</button>
-            <button type="button" class="option-pill" data-payment="ach">ACH / Transferencia</button>
-            <button type="button" class="option-pill" data-payment="card">Tarjeta</button>
+            <button type="button" class="option-pill payment-card-option tilopay-option" data-payment="card" aria-label="Pagar con Tilopay, tarjeta de crédito o débito">
+              <span class="payment-brand tilopay-brand">Tilopay</span>
+              <small>Tarjeta de crédito/débito</small>
+            </button>
+            <button type="button" class="option-pill payment-card-option yappy-option" data-payment="yappy" aria-label="Pagar con Yappy">
+              <span class="payment-brand yappy-brand"><span class="yappy-mark" aria-hidden="true"><i></i><i></i></span>yappy</span>
+              <small>Solicitud directa a tu celular</small>
+            </button>
           </div>
-          <p class="payment-method-hint">Si eliges Yappy, recibirás por WhatsApp un enlace con el monto exacto del pedido.</p>
+          <p class="payment-method-hint">Recibirás por WhatsApp el enlace seguro correspondiente al método que elijas.</p>
         </div>
       </details>
 
@@ -274,6 +279,6 @@
   <div id="toast" class="menu-toast" hidden role="status" aria-live="polite"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="/js/modules/menu_app.js?v=3.1.0"></script>
+  <script src="/js/modules/menu_app.js?v=3.3.0"></script>
 </body>
 </html>
