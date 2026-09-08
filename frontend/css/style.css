@@ -1733,6 +1733,10 @@ a:focus-visible {
   max-width: 800px;
 }
 
+.modal-card.modal-xl {
+  max-width: 1120px;
+}
+
 .modal-card.modal-sm {
   max-width: 420px;
 }
@@ -1998,6 +2002,121 @@ input:-webkit-autofill:focus {
 .btn-sm-action:hover {
   background: var(--panel-subtle);
   border-color: var(--text-muted);
+}
+
+/* ----------------------------------------------------------------------------
+   DIRECTORIO DE CONTACTOS
+   ---------------------------------------------------------------------------- */
+.contacts-modal-card { min-height: min(760px, 90vh); }
+
+.contacts-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.contact-stat {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.contact-stat span { color: var(--text-muted); font-size: 11px; }
+.contact-stat strong { color: var(--text-primary); font-size: 20px; }
+
+.contacts-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.contacts-toolbar button { display: inline-flex; align-items: center; gap: 6px; }
+.contacts-toolbar button svg { width: 15px; height: 15px; }
+
+.contacts-search {
+  flex: 1 1 240px;
+  position: relative;
+}
+
+.contacts-search > svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  color: var(--text-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.contacts-search .modal-input { padding-left: 34px; }
+
+.contacts-privacy-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 11px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--green-soft);
+  color: var(--green-soft-text);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.contacts-privacy-note svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.contacts-table-wrap { overflow: auto; max-height: 500px; border: 1px solid var(--line); border-radius: 10px; }
+.contacts-table th { position: sticky; top: 0; z-index: 1; }
+.contacts-table td { vertical-align: middle; }
+.contacts-table td small { display: block; margin-top: 2px; color: var(--text-muted); font-size: 10px; }
+
+.contact-person-cell { display: flex; align-items: center; gap: 9px; min-width: 180px; }
+.contact-person-cell strong { display: block; max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contact-mini-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: white;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.contact-type-badge,
+.contact-archived-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.contact-type-badge.new { background: var(--blue-soft); color: var(--blue); }
+.contact-type-badge.returning { background: var(--green-soft); color: var(--green-soft-text); }
+.contact-type-badge.order { background: var(--orange-soft); color: var(--orange); }
+.contact-archived-label { color: var(--text-muted); background: var(--panel-subtle); }
+.contact-archived-label svg { width: 12px; height: 12px; }
+.contacts-empty { padding: 38px 16px !important; text-align: center; color: var(--text-muted) !important; }
+.contacts-error { color: var(--red) !important; }
+
+@media (max-width: 760px) {
+  .contacts-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .contacts-toolbar > button { flex: 1 1 calc(50% - 8px); justify-content: center; }
+  .contacts-modal-card { min-height: 94vh; max-height: 94vh; }
 }
 
 .btn-sm-action.edit-action {
@@ -2979,4 +3098,3 @@ input:-webkit-autofill:focus {
   color: #ffffff;
   transform: translateY(-1px);
 }
-

@@ -453,6 +453,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 6. Formularios y Modales de Administración
 
+  // Directorio persistente de contactos y exportaciones
+  const navContactsBtn = document.getElementById('navContacts');
+  navContactsBtn?.addEventListener('click', () => {
+    contactsModule.setupSearch();
+    contactsModule.open();
+  });
+  document.getElementById('closeModalContactsList')?.addEventListener('click', () => contactsModule.close());
+  document.getElementById('btnRefreshContacts')?.addEventListener('click', () => {
+    const query = document.getElementById('contactsSearchInput')?.value || '';
+    contactsModule.load(query);
+  });
+  document.getElementById('btnExportContacts')?.addEventListener('click', () => contactsModule.exportContacts());
+  document.getElementById('btnExportChats')?.addEventListener('click', () => contactsModule.exportChats());
+
   // Modales de Usuarios (Admin)
   const navUsersBtn = document.getElementById('navUsers');
   if (navUsersBtn) {

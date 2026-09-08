@@ -52,6 +52,9 @@
         <span class="nav-left-group"><span class="nav-icon"><i data-lucide="inbox"></i></span>Todas</span>
         <span class="nav-badge">0</span>
       </button>
+      <button class="nav-btn" id="navContacts">
+        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="contact-round"></i></span>Contactos</span>
+      </button>
 
       <!-- Sucursales Oficiales Dinámicas desde MySQL -->
       <div class="nav-section-title">Equipos / Sucursales</div>
@@ -364,7 +367,61 @@
     </div>
   </div>
 
-  <!-- 2. Modal: Administración de Usuarios / Agentes (Exclusivo ADMIN) -->
+  <!-- 2. Modal: Directorio de Contactos y Exportaciones -->
+  <div class="modal-backdrop" id="modalContactsList">
+    <div class="modal-card modal-xl contacts-modal-card">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="contact-round"></i> Contactos de Farmhouse</h3>
+          <span class="modal-subtitle">Personas que nos contactaron, aunque su conversación haya sido archivada</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalContactsList" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="contacts-summary" aria-label="Resumen de contactos">
+          <div class="contact-stat"><span>Contactos</span><strong id="contactStatTotal">0</strong></div>
+          <div class="contact-stat"><span>Recurrentes</span><strong id="contactStatReturning">0</strong></div>
+          <div class="contact-stat"><span>Con pedidos</span><strong id="contactStatOrders">0</strong></div>
+          <div class="contact-stat"><span>Chats archivados</span><strong id="contactStatArchived">0</strong></div>
+        </div>
+
+        <div class="contacts-toolbar">
+          <div class="contacts-search">
+            <i data-lucide="search"></i>
+            <input id="contactsSearchInput" class="modal-input" placeholder="Buscar por nombre o teléfono..." />
+          </div>
+          <button class="btn-secondary" id="btnRefreshContacts"><i data-lucide="refresh-cw"></i> Actualizar</button>
+          <button class="btn-secondary" id="btnExportContacts"><i data-lucide="contact"></i> Exportar contactos</button>
+          <button class="btn-primary" id="btnExportChats"><i data-lucide="download"></i> Exportar chats para IA</button>
+        </div>
+
+        <div class="contacts-privacy-note">
+          <i data-lucide="shield-check"></i>
+          El archivo de chats contiene información privada. Guárdalo de forma segura y compártelo únicamente con servicios autorizados.
+        </div>
+
+        <div class="contacts-table-wrap">
+          <table class="device-table contacts-table">
+            <thead>
+              <tr>
+                <th>Contacto</th>
+                <th>Última interacción</th>
+                <th>Sucursal</th>
+                <th>Actividad</th>
+                <th>Tipo</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="contactsTableBody">
+              <tr><td colspan="6" class="contacts-empty">Cargando contactos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Modal: Administración de Usuarios / Agentes (Exclusivo ADMIN) -->
   <div class="modal-backdrop" id="modalUsersList">
     <div class="modal-card modal-lg">
       <div class="modal-header">
@@ -739,6 +796,7 @@
   <script src="js/modules/branches.js?v=3.4.0"></script>
   <script src="js/modules/users.js?v=3.4.0"></script>
   <script src="js/modules/devices.js?v=3.4.0"></script>
+  <script src="js/modules/contacts.js?v=1.0.0"></script>
   <script src="js/modules/conversations.js?v=3.4.0"></script>
   <script src="js/modules/chat.js?v=3.6.0"></script>
   <script src="js/modules/push.js?v=3.4.0"></script>
