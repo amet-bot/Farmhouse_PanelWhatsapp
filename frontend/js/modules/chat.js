@@ -360,7 +360,7 @@ const chatModule = {
         } else {
           mediaHtml = `<a href="${utils.escapeHtml(mediaSrc)}" target="_blank" rel="noopener" class="msg-media-file-link"><i data-lucide="paperclip"></i> Descargar archivo adjunto</a>`;
         }
-      } else if (msg.media_type) {
+      } else if (['image', 'video', 'audio', 'document', 'sticker'].includes(msg.media_type)) {
         const mediaTypeLabels = { image: 'imagen', video: 'video', audio: 'audio', document: 'documento', sticker: 'sticker' };
         const label = mediaTypeLabels[msg.media_type] || 'archivo';
         if (msg.error_detail === 'media_download_failed') {
