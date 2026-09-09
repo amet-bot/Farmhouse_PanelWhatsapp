@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=2.6.0">
+  <link rel="stylesheet" href="css/style.css?v=2.7.0">
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -194,10 +194,23 @@
               <div class="composer-tab" id="tabInternal" data-mode="internal">Nota interna</div>
             </div>
             <textarea id="messageInput" placeholder="Escribe un mensaje..."></textarea>
+            <div class="composer-attachment-preview" id="attachmentPreview" hidden>
+              <i data-lucide="paperclip"></i>
+              <div class="composer-attachment-meta">
+                <strong id="attachmentName">Archivo</strong>
+                <span id="attachmentSize"></span>
+              </div>
+              <button type="button" class="composer-attachment-remove" id="btnRemoveAttachment" aria-label="Quitar archivo" title="Quitar archivo">
+                <i data-lucide="x"></i>
+              </button>
+            </div>
+            <div class="emoji-picker" id="emojiPicker" hidden aria-label="Selector de emojis"></div>
+            <input type="file" id="imageFileInput" accept=".jpg,.jpeg,.png,image/jpeg,image/png" hidden />
+            <input type="file" id="documentFileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" hidden />
             <div class="composer-actions-bar">
-              <button class="composer-tool-btn" title="Emoji" aria-label="Insertar Emoji"><i data-lucide="smile"></i></button>
-              <button class="composer-tool-btn" title="Adjuntar" aria-label="Adjuntar archivo"><i data-lucide="paperclip"></i></button>
-              <button class="composer-tool-btn" title="Plantilla / Documento" aria-label="Documento"><i data-lucide="file-up"></i></button>
+              <button type="button" class="composer-tool-btn" id="btnEmoji" title="Emoji" aria-label="Insertar emoji"><i data-lucide="smile"></i></button>
+              <button type="button" class="composer-tool-btn" id="btnAttachImage" title="Adjuntar imagen" aria-label="Adjuntar imagen"><i data-lucide="image"></i></button>
+              <button type="button" class="composer-tool-btn" id="btnAttachDocument" title="Adjuntar documento" aria-label="Adjuntar documento"><i data-lucide="file-up"></i></button>
               <button class="btn-send" id="btnSend"><span>Enviar</span> <i data-lucide="send"></i></button>
             </div>
           </div>
@@ -790,7 +803,7 @@
 
   <!-- Scripts JavaScript Modularizados y Seguros -->
   <script src="js/utils.js?v=3.4.0"></script>
-  <script src="js/api.js?v=3.4.0"></script>
+  <script src="js/api.js?v=3.5.0"></script>
   <script src="js/ws.js?v=3.4.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/modules/branches.js?v=3.4.0"></script>
@@ -798,7 +811,7 @@
   <script src="js/modules/devices.js?v=3.4.0"></script>
   <script src="js/modules/contacts.js?v=1.0.0"></script>
   <script src="js/modules/conversations.js?v=3.4.0"></script>
-  <script src="js/modules/chat.js?v=3.6.1"></script>
+  <script src="js/modules/chat.js?v=3.7.0"></script>
   <script src="js/modules/push.js?v=3.4.0"></script>
   <script src="js/modules/notifications.js?v=3.4.0"></script>
   <script src="js/app.js?v=3.6.0"></script>

@@ -1,9 +1,11 @@
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
+from config import BASE_DIR
 from database import get_db
 from models.message import Message
 from models.conversation import Conversation
@@ -18,6 +20,42 @@ from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKE
 logger = logging.getLogger("farmhouse.messages")
 
 router = APIRouter(prefix="/messages", tags=["Mensajes"])
+
+OUTGOING_FILE_TYPES = {
+    ".jpg": ("image", "image/jpeg"),
+    ".jpeg": ("image", "image/jpeg"),
+    ".png": ("image", "image/png"),
+    ".pdf": ("document", "application/pdf"),
+    ".doc": ("document", "application/msword"),
+    ".docx": ("document", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    ".xls": ("document", "application/vnd.ms-excel"),
+    ".xlsx": ("document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    ".ppt": ("document", "application/vnd.ms-powerpoint"),
+    ".pptx": ("document", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+    ".txt": ("document", "text/plain"),
+}
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_DOCUMENT_BYTES = 25 * 1024 * 1024
+
+
+def _extract_wamid(send_res) -> str | None:
+    if isinstance(send_res, dict) and send_res.get("messages"):
+        return send_res["messages"][0].get("id")
+    return None
+
+
+def _stored_media_path(media_url: str) -> Path | None:
+    """Resuelve una URL /media/... sin permitir salir del directorio multimedia."""
+    relative = str(media_url or "").split("?", 1)[0].lstrip("/")
+    if relative.startswith("media/"):
+        relative = relative[len("media/"):]
+    media_root = (BASE_DIR / "media").resolve()
+    candidate = (media_root / relative).resolve()
+    try:
+        candidate.relative_to(media_root)
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
 
 @router.get("/conversation/{conversation_id}", response_model=List[MessageResponse])
 def get_conversation_messages(
@@ -117,6 +155,116 @@ async def send_message(
 
     return msg
 
+
+@router.post("/media", response_model=MessageResponse)
+async def send_media_message(
+    conversation_id: int = Form(...),
+    file: UploadFile = File(...),
+    caption: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """Envía imágenes y documentos permitidos desde el panel mediante WhatsApp Cloud API."""
+    conv = check_conversation_access(db, conversation_id, current_user, action="send_message")
+    contact = conv.contact
+    if not contact or not contact.phone:
+        raise HTTPException(status_code=400, detail="El contacto no tiene un número de teléfono registrado.")
+
+    original_name = str(file.filename or "archivo").replace("\\", "/").split("/")[-1]
+    original_name = "".join(ch for ch in original_name if ch >= " " and ch not in {'"'}).strip()[:240]
+    suffix = Path(original_name).suffix.lower()
+    type_info = OUTGOING_FILE_TYPES.get(suffix)
+    if not original_name or not type_info:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Formato no permitido. Usa JPG, PNG, PDF, Word, Excel, PowerPoint o TXT.",
+        )
+
+    media_type, mime_type = type_info
+    max_bytes = MAX_IMAGE_BYTES if media_type == "image" else MAX_DOCUMENT_BYTES
+    media_bytes = await file.read(max_bytes + 1)
+    await file.close()
+    if not media_bytes:
+        raise HTTPException(status_code=400, detail="El archivo está vacío.")
+    if len(media_bytes) > max_bytes:
+        max_mb = max_bytes // (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"El archivo supera el límite de {max_mb} MB.")
+
+    clean_caption = str(caption or "").strip()
+    if len(clean_caption) > 1024:
+        raise HTTPException(status_code=422, detail="El texto del archivo no puede superar 1024 caracteres.")
+
+    # Guardar una copia para que todos los agentes puedan verla en el historial del panel.
+    local_url = save_media_bytes(media_bytes, mime_type)
+    wamid = None
+    uploaded_media_id = None
+    msg_status = "sent"
+    error_detail = None
+    try:
+        send_res = await get_whatsapp_service().send_media_message(
+            contact.phone,
+            media_bytes,
+            mime_type,
+            media_type,
+            filename=original_name,
+            caption=clean_caption or None,
+        )
+        wamid = _extract_wamid(send_res)
+        uploaded_media_id = send_res.get("uploaded_media_id") if isinstance(send_res, dict) else None
+    except Exception as e:
+        msg_status = "failed"
+        error_detail = str(e)
+        logger.error(f"Fallo enviando archivo a WhatsApp para conversación {conv.id}: {e}")
+
+    now = datetime.now(timezone.utc)
+    content = original_name if media_type == "document" else (clean_caption or "📷 Imagen")
+    msg = Message(
+        conversation_id=conv.id,
+        direction="outgoing",
+        sender_type="agent",
+        sender_id=current_user.id,
+        content=content,
+        is_internal=False,
+        whatsapp_message_id=wamid,
+        status=msg_status,
+        error_detail=error_detail,
+        media_url=local_url,
+        media_type=media_type,
+        media_mime_type=mime_type,
+        media_id=uploaded_media_id,
+        created_at=now,
+    )
+    db.add(msg)
+    conv.updated_at = now
+    if conv.status == "new":
+        conv.status = "open"
+    db.commit()
+    db.refresh(msg)
+
+    try:
+        await ws_manager.broadcast_to_branch(conv.branch_id, {
+            "type": "new_outgoing_message",
+            "conversation_id": conv.id,
+            "branch_id": conv.branch_id,
+            "message": {
+                "id": msg.id,
+                "direction": msg.direction,
+                "sender_type": msg.sender_type,
+                "content": msg.content,
+                "is_internal": msg.is_internal,
+                "status": msg.status,
+                "error_detail": msg.error_detail,
+                "media_url": msg.media_url,
+                "media_type": msg.media_type,
+                "media_mime_type": msg.media_mime_type,
+                "created_at": msg.created_at.isoformat(),
+            },
+        })
+    except Exception as ws_err:
+        logger.error(f"Error difundiendo archivo saliente por WebSocket: {ws_err}")
+
+    return msg
+
 @router.post("/{message_id}/retry", response_model=MessageResponse)
 async def retry_message(
     message_id: int,
@@ -141,10 +289,25 @@ async def retry_message(
 
     wa_service = get_whatsapp_service()
     try:
-        send_res = await wa_service.send_text_message(contact.phone, msg.content)
-        wamid = None
-        if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-            wamid = send_res["messages"][0].get("id")
+        if msg.media_type in ("image", "document") and msg.media_url:
+            stored_path = _stored_media_path(msg.media_url)
+            if not stored_path:
+                raise HTTPException(status_code=410, detail="La copia local del archivo ya no está disponible.")
+            media_bytes = stored_path.read_bytes()
+            retry_caption = msg.content if msg.media_type == "image" and msg.content != "📷 Imagen" else None
+            send_res = await wa_service.send_media_message(
+                contact.phone,
+                media_bytes,
+                msg.media_mime_type or "application/octet-stream",
+                msg.media_type,
+                filename=msg.content if msg.media_type == "document" else stored_path.name,
+                caption=retry_caption,
+            )
+            if isinstance(send_res, dict):
+                msg.media_id = send_res.get("uploaded_media_id") or msg.media_id
+        else:
+            send_res = await wa_service.send_text_message(contact.phone, msg.content)
+        wamid = _extract_wamid(send_res)
         msg.whatsapp_message_id = wamid
         msg.status = "sent"
         msg.error_detail = None

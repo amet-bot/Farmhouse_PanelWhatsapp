@@ -81,10 +81,16 @@ const api = {
   async request(endpoint, options = {}) {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = {
-      'Content-Type': 'application/json',
       'X-Requested-With': 'XMLHttpRequest', // Protección CSRF (Punto 3)
       ...(options.headers || {})
     };
+
+    // El navegador debe generar automáticamente el boundary de multipart/form-data.
+    // Forzar application/json aquí dañaría las subidas de imágenes o documentos.
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+    if (!isFormData && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     const deviceId = this.getDeviceId();
     if (deviceId) {

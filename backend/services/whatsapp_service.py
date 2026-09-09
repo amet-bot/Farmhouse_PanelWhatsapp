@@ -30,6 +30,19 @@ class WhatsAppService(ABC):
         pass
 
     @abstractmethod
+    async def send_media_message(
+        self,
+        to_phone: str,
+        media_bytes: bytes,
+        mime_type: str,
+        media_type: str,
+        filename: Optional[str] = None,
+        caption: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Sube una imagen o documento a Meta y lo envía al contacto."""
+        pass
+
+    @abstractmethod
     async def send_interactive_list(self, to_phone: str, body_text: str, button_text: str, rows: list) -> Dict[str, Any]:
         """Envía un mensaje de lista interactiva de WhatsApp (menú con botones/opciones)."""
         pass
@@ -87,6 +100,27 @@ class MockWhatsAppService(WhatsAppService):
     async def download_media(self, media_id: str) -> Optional[Dict[str, Any]]:
         logger.info(f"[MockWhatsAppService] Modo prueba: no se descarga archivo real para media_id={media_id}.")
         return None
+
+    async def send_media_message(
+        self,
+        to_phone: str,
+        media_bytes: bytes,
+        mime_type: str,
+        media_type: str,
+        filename: Optional[str] = None,
+        caption: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        wamid = f"wamid.HBgL{uuid.uuid4().hex[:16].upper()}"
+        media_id = f"mock-media-{uuid.uuid4().hex}"
+        logger.info(
+            f"[MockWhatsAppService] {media_type} '{filename or 'archivo'}' enviado a "
+            f"{to_phone} ({len(media_bytes)} bytes, WAMID: {wamid})"
+        )
+        return {
+            "messaging_product": "whatsapp",
+            "messages": [{"id": wamid}],
+            "uploaded_media_id": media_id,
+        }
 
     async def send_catalog_message(self, to_phone: str, body_text: str, catalog_id: Optional[str] = None) -> Dict[str, Any]:
         wamid = f"wamid.HBgL{uuid.uuid4().hex[:16].upper()}"
@@ -222,6 +256,64 @@ class MetaWhatsAppService(WhatsAppService):
             except httpx.HTTPStatusError as e:
                 logger.error(f"[MetaWhatsAppService] Error HTTP {e.response.status_code} de Meta WhatsApp API al enviar a '{to_phone_clean}': {e.response.text}")
                 raise e
+
+    async def send_media_message(
+        self,
+        to_phone: str,
+        media_bytes: bytes,
+        mime_type: str,
+        media_type: str,
+        filename: Optional[str] = None,
+        caption: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Carga el archivo a WhatsApp Cloud API y envía el ID resultante en un mensaje."""
+        if media_type not in ("image", "document"):
+            raise ValueError(f"Tipo de archivo saliente no soportado: {media_type}")
+
+        to_phone_clean = "".join(c for c in str(to_phone) if c.isdigit())
+        safe_filename = (filename or "archivo").replace("\r", "").replace("\n", "")[:240]
+        auth_headers = {"Authorization": f"Bearer {self.access_token}"}
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                upload_response = await client.post(
+                    f"{self.api_url}/{self.phone_number_id}/media",
+                    headers=auth_headers,
+                    data={"messaging_product": "whatsapp"},
+                    files={"file": (safe_filename, media_bytes, mime_type)},
+                )
+                upload_response.raise_for_status()
+                uploaded_media_id = upload_response.json().get("id")
+                if not uploaded_media_id:
+                    raise ValueError("Meta no devolvió el identificador del archivo subido.")
+
+                media_payload: Dict[str, Any] = {"id": uploaded_media_id}
+                if caption:
+                    media_payload["caption"] = caption[:1024]
+                if media_type == "document":
+                    media_payload["filename"] = safe_filename
+
+                message_response = await client.post(
+                    f"{self.api_url}/{self.phone_number_id}/messages",
+                    headers={**auth_headers, "Content-Type": "application/json"},
+                    json={
+                        "messaging_product": "whatsapp",
+                        "recipient_type": "individual",
+                        "to": to_phone_clean,
+                        "type": media_type,
+                        media_type: media_payload,
+                    },
+                )
+                message_response.raise_for_status()
+                result = message_response.json()
+                result["uploaded_media_id"] = uploaded_media_id
+                return result
+            except httpx.HTTPStatusError as e:
+                logger.error(
+                    f"[MetaWhatsAppService] Error HTTP {e.response.status_code} enviando "
+                    f"{media_type} a '{to_phone_clean}': {e.response.text}"
+                )
+                raise
 
     async def send_template_message(self, to_phone: str, template_name: str, language_code: str = "es", components: Optional[list] = None) -> Dict[str, Any]:
         url = f"{self.api_url}/{self.phone_number_id}/messages"

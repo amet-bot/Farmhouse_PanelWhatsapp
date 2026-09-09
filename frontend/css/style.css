@@ -1270,6 +1270,18 @@ a:focus-visible {
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
 }
 
+.msg-media-sticker {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 170px;
+  max-height: 170px;
+  object-fit: contain;
+  cursor: zoom-in;
+  background: transparent;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.16));
+}
+
 .msg-media-video,
 .msg-media-audio {
   display: block;
@@ -1372,6 +1384,7 @@ a:focus-visible {
   background: var(--panel-bg);
   padding: 0 14px 12px;
   flex-shrink: 0;
+  position: relative;
   transition: opacity 0.15s ease;
 }
 
@@ -1430,6 +1443,103 @@ a:focus-visible {
   gap: 8px;
 }
 
+.composer-attachment-preview {
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  margin: 0 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-subtle);
+  color: var(--text-primary);
+}
+
+.composer-attachment-preview:not([hidden]) {
+  display: flex;
+}
+
+.composer-attachment-preview > svg {
+  width: 18px;
+  height: 18px;
+  color: var(--green);
+  flex-shrink: 0;
+}
+
+.composer-attachment-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.composer-attachment-meta strong {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.composer-attachment-meta span {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.composer-attachment-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.composer-attachment-remove:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.emoji-picker {
+  position: absolute;
+  z-index: 30;
+  left: 12px;
+  bottom: 54px;
+  grid-template-columns: repeat(7, 34px);
+  gap: 3px;
+  width: max-content;
+  max-width: calc(100vw - 36px);
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-bg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+}
+
+.emoji-picker:not([hidden]) {
+  display: grid;
+}
+
+.emoji-picker button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.emoji-picker button:hover {
+  background: var(--panel-subtle);
+  transform: scale(1.08);
+}
+
 .composer-tool-btn {
   border: none;
   background: transparent;
@@ -1443,6 +1553,11 @@ a:focus-visible {
 .composer-tool-btn:hover {
   background: var(--panel-subtle);
   color: var(--text-primary);
+}
+
+.composer-tool-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .btn-send {

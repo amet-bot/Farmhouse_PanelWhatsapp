@@ -12,8 +12,12 @@ const chatModule = {
   // respuesta que llega corresponde exactamente a esta id.
   activeRequestConvId: null,
   isInternalNote: false,
+  pendingAttachment: null,
 
   async loadConversation(convId) {
+    if (this.currentConversation && Number(this.currentConversation.id) !== Number(convId)) {
+      this.clearAttachment();
+    }
     this.activeRequestConvId = convId;
     this.renderLoadingState();
 
@@ -130,6 +134,7 @@ const chatModule = {
   },
 
   renderEmpty() {
+    this.clearAttachment();
     this.currentConversation = null;
     // Invalida cualquier loadConversation() todavía en vuelo: si llega tarde, ya no
     // coincidirá con activeRequestConvId y se descartará en vez de repoblar el panel.
@@ -330,7 +335,12 @@ const chatModule = {
         msg.content === '🎥 Video' ||
         msg.content === '[video]' ||
         msg.content === '🎵 Audio' ||
-        msg.content === '[audio]'
+        msg.content === '🎤 Audio' ||
+        msg.content === '[audio]' ||
+        msg.content === '📄 Documento' ||
+        msg.content === '[document]' ||
+        msg.content === '🩹 Sticker' ||
+        msg.content === '[sticker]'
       );
 
       if (msg.media_url) {
@@ -338,7 +348,22 @@ const chatModule = {
         const isImage = msg.media_type === 'image' || msg.media_type === 'sticker' ||
           /\.(jpg|jpeg|png|webp|gif)$/i.test(msg.media_url);
 
-        if (isImage) {
+        if (msg.media_type === 'sticker') {
+          mediaHtml = `
+            <div class="msg-media-container msg-media-sticker-container">
+              <img src="${utils.escapeHtml(mediaSrc)}"
+                   alt="Sticker enviado por ${utils.escapeHtml(this.currentConversation.contact?.name || 'el cliente')}"
+                   class="msg-media-sticker"
+                   loading="lazy"
+                   onclick="chatModule.openLightbox('${utils.escapeHtml(mediaSrc)}')"
+                   onerror="chatModule.handleMediaImgError(this, ${msg.id})">
+              <div class="msg-media-error-badge" hidden>
+                <i data-lucide="image-off"></i>
+                <span>No se pudo cargar este sticker</span>
+                <button type="button" class="btn-retry-media" onclick="chatModule.retryMedia(${msg.id})">Reintentar</button>
+              </div>
+            </div>`;
+        } else if (isImage) {
           mediaHtml = `
             <div class="msg-media-container">
               <img src="${utils.escapeHtml(mediaSrc)}"
@@ -569,10 +594,22 @@ const chatModule = {
     const tabInternal = document.getElementById('tabInternal');
     const msgInput = document.getElementById('messageInput');
     const btnSend = document.getElementById('btnSend');
+    const btnEmoji = document.getElementById('btnEmoji');
+    const btnAttachImage = document.getElementById('btnAttachImage');
+    const btnAttachDocument = document.getElementById('btnAttachDocument');
+    const imageInput = document.getElementById('imageFileInput');
+    const documentInput = document.getElementById('documentFileInput');
+    const emojiPicker = document.getElementById('emojiPicker');
+
+    const setAttachmentToolsEnabled = (enabled) => {
+      if (btnAttachImage) btnAttachImage.disabled = !enabled;
+      if (btnAttachDocument) btnAttachDocument.disabled = !enabled;
+    };
 
     if (tabMsg && tabInternal) {
       tabMsg.onclick = () => {
         this.isInternalNote = false;
+        setAttachmentToolsEnabled(true);
         tabMsg.classList.add('active');
         tabInternal.classList.remove('active');
         if (msgInput) {
@@ -582,6 +619,8 @@ const chatModule = {
       };
       tabInternal.onclick = () => {
         this.isInternalNote = true;
+        this.clearAttachment();
+        setAttachmentToolsEnabled(false);
         tabInternal.classList.add('active');
         tabMsg.classList.remove('active');
         if (msgInput) {
@@ -594,7 +633,9 @@ const chatModule = {
     if (btnSend) {
       btnSend.onclick = () => {
         const input = document.getElementById('messageInput');
-        if (input && input.value.trim()) {
+        if (this.pendingAttachment) {
+          this.sendAttachment();
+        } else if (input && input.value.trim()) {
           this.sendMessage(input.value);
         }
       };
@@ -604,11 +645,147 @@ const chatModule = {
       msgInput.onkeydown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
-          if (msgInput.value.trim()) {
+          if (this.pendingAttachment) {
+            this.sendAttachment();
+          } else if (msgInput.value.trim()) {
             this.sendMessage(msgInput.value);
           }
         }
       };
+    }
+
+    if (emojiPicker && !emojiPicker.dataset.initialized) {
+      const emojis = [
+        '😀', '😊', '😂', '😍', '🥰', '😋', '😉', '🤗', '🤩', '😎', '🥳', '🙏', '👍', '👏',
+        '🙌', '👌', '✅', '❤️', '💚', '✨', '🎉', '🔥', '🍔', '🍟', '🥗', '🍕', '🥤', '☕',
+        '📍', '🚗', '🛵', '🕐', '📞', '💳', '💰', '💯', '⭐', '🌟', '🍽️', '👋'
+      ];
+      emojiPicker.innerHTML = emojis.map(emoji => {
+        return `<button type="button" data-emoji="${utils.escapeHtml(emoji)}" title="${utils.escapeHtml(emoji)}">${utils.escapeHtml(emoji)}</button>`;
+      }).join('');
+      emojiPicker.dataset.initialized = 'true';
+      emojiPicker.onclick = (event) => {
+        const button = event.target.closest('[data-emoji]');
+        if (!button || !msgInput) return;
+        const emoji = button.dataset.emoji || '';
+        const start = msgInput.selectionStart ?? msgInput.value.length;
+        const end = msgInput.selectionEnd ?? start;
+        msgInput.setRangeText(emoji, start, end, 'end');
+        msgInput.focus();
+      };
+    }
+
+    if (btnEmoji && emojiPicker) {
+      btnEmoji.onclick = () => {
+        emojiPicker.hidden = !emojiPicker.hidden;
+        if (!emojiPicker.hidden) msgInput?.focus();
+      };
+    }
+
+    if (btnAttachImage && imageInput) {
+      btnAttachImage.onclick = () => {
+        if (this.isInternalNote) return;
+        imageInput.click();
+      };
+      imageInput.onchange = () => this.selectAttachment(imageInput.files?.[0]);
+    }
+
+    if (btnAttachDocument && documentInput) {
+      btnAttachDocument.onclick = () => {
+        if (this.isInternalNote) return;
+        documentInput.click();
+      };
+      documentInput.onchange = () => this.selectAttachment(documentInput.files?.[0]);
+    }
+
+    const removeAttachment = document.getElementById('btnRemoveAttachment');
+    if (removeAttachment) removeAttachment.onclick = () => this.clearAttachment();
+    setAttachmentToolsEnabled(!this.isInternalNote);
+  },
+
+  selectAttachment(file) {
+    if (!file) return;
+    const extension = `.${String(file.name || '').split('.').pop().toLowerCase()}`;
+    const imageExtensions = ['.jpg', '.jpeg', '.png'];
+    const documentExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'];
+    const isImage = imageExtensions.includes(extension);
+    if (!isImage && !documentExtensions.includes(extension)) {
+      utils.showToast('Formato no permitido. Usa JPG, PNG, PDF, Word, Excel, PowerPoint o TXT.', 'error');
+      this.clearAttachment();
+      return;
+    }
+
+    const maxBytes = isImage ? 5 * 1024 * 1024 : 25 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      utils.showToast(`El archivo supera el límite de ${isImage ? 5 : 25} MB.`, 'error');
+      this.clearAttachment();
+      return;
+    }
+
+    this.pendingAttachment = file;
+    const preview = document.getElementById('attachmentPreview');
+    const name = document.getElementById('attachmentName');
+    const size = document.getElementById('attachmentSize');
+    if (name) name.textContent = file.name;
+    if (size) size.textContent = `${this.formatFileSize(file.size)} · ${isImage ? 'Imagen' : 'Documento'}`;
+    if (preview) preview.hidden = false;
+    document.getElementById('emojiPicker')?.setAttribute('hidden', '');
+    utils.renderIcons();
+  },
+
+  clearAttachment() {
+    this.pendingAttachment = null;
+    const preview = document.getElementById('attachmentPreview');
+    if (preview) preview.hidden = true;
+    const imageInput = document.getElementById('imageFileInput');
+    const documentInput = document.getElementById('documentFileInput');
+    if (imageInput) imageInput.value = '';
+    if (documentInput) documentInput.value = '';
+  },
+
+  formatFileSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  },
+
+  async sendAttachment() {
+    if (!this.currentConversation || !this.pendingAttachment || this.isInternalNote) return;
+    const file = this.pendingAttachment;
+    const conversationId = Number(this.currentConversation.id);
+    const input = document.getElementById('messageInput');
+    const btnSend = document.getElementById('btnSend');
+    const sendLabel = btnSend?.querySelector('span');
+    const formData = new FormData();
+    formData.append('conversation_id', String(conversationId));
+    formData.append('file', file, file.name);
+    formData.append('caption', input?.value.trim() || '');
+
+    if (btnSend) btnSend.disabled = true;
+    if (sendLabel) sendLabel.textContent = 'Enviando...';
+    try {
+      const newMsg = await api.request('/messages/media', { method: 'POST', body: formData });
+      if (this.currentConversation && Number(this.currentConversation.id) === conversationId) {
+        if (!this.currentConversation.messages) this.currentConversation.messages = [];
+        const exists = this.currentConversation.messages.some(message => message.id === newMsg.id);
+        if (!exists) {
+          this.currentConversation.messages.push(newMsg);
+          this.renderMessages();
+        }
+        if (input) input.value = '';
+        this.clearAttachment();
+      }
+      conversationsModule.loadConversations();
+      if (newMsg.status === 'failed') {
+        utils.showToast('No se pudo enviar el archivo a WhatsApp. Puedes reintentarlo desde el mensaje.', 'error');
+      } else {
+        utils.showToast('✓ Archivo enviado por WhatsApp.', 'success');
+      }
+    } catch (e) {
+      utils.showToast(`Error enviando archivo: ${e.message}`, 'error');
+    } finally {
+      if (btnSend) btnSend.disabled = false;
+      if (sendLabel) sendLabel.textContent = 'Enviar';
     }
   },
 
