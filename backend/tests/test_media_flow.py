@@ -129,7 +129,7 @@ def test_retry_media_endpoint_success(client, clayton_branch, clayton_agent, cla
             assert media_id == "wamid_media_retry"
             return {"bytes": b"recovered-bytes", "mime_type": "image/jpeg"}
 
-    monkeypatch.setattr("routers.messages.get_whatsapp_service", lambda: FakeWaService())
+    monkeypatch.setattr("routers.messages.get_whatsapp_service", lambda *_args: FakeWaService())
 
     resp = client.post(
         f"/api/messages/{msg.id}/retry-media",
@@ -151,7 +151,7 @@ def test_retry_media_is_idempotent_when_already_available(client, clayton_branch
     msg.error_detail = None
     db_session.commit()
 
-    def boom():
+    def boom(*_args):
         raise AssertionError("No debería llamarse a get_whatsapp_service si el media ya está disponible")
 
     monkeypatch.setattr("routers.messages.get_whatsapp_service", boom)

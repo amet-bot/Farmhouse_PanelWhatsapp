@@ -148,6 +148,7 @@ class MockWhatsAppService(WhatsAppService):
             value = change.get("value", {})
             messages = value.get("messages", [])
             contacts = value.get("contacts", [])
+            metadata = value.get("metadata", {})
             if not messages:
                 return None
             msg = messages[0]
@@ -166,6 +167,8 @@ class MockWhatsAppService(WhatsAppService):
                 "caption": None,
                 "interactive_id": None,
                 "interactive_title": None,
+                "recipient_phone_number_id": metadata.get("phone_number_id"),
+                "recipient_display_phone_number": metadata.get("display_phone_number"),
             }
 
             if msg_type == "text":
@@ -199,6 +202,7 @@ class MockWhatsAppService(WhatsAppService):
             change = entry.get("changes", [])[0]
             value = change.get("value", {})
             statuses = value.get("statuses", [])
+            metadata = value.get("metadata", {})
             if not statuses:
                 return None
             status_obj = statuses[0]
@@ -209,7 +213,8 @@ class MockWhatsAppService(WhatsAppService):
                 "status": status_obj.get("status"), # "sent", "delivered", "read", "failed"
                 "timestamp": status_obj.get("timestamp"),
                 "recipient_id": status_obj.get("recipient_id"),
-                "error": error_msg
+                "error": error_msg,
+                "recipient_phone_number_id": metadata.get("phone_number_id"),
             }
         except Exception as e:
             logger.error(f"[WhatsAppService] Error parsing incoming status update: {e}")
@@ -217,9 +222,9 @@ class MockWhatsAppService(WhatsAppService):
 
 
 class MetaWhatsAppService(WhatsAppService):
-    def __init__(self):
+    def __init__(self, phone_number_id: Optional[str] = None):
         self.api_url = settings.META_WA_API_URL.strip() if settings.META_WA_API_URL else "https://graph.facebook.com/v20.0"
-        self.phone_number_id = str(settings.META_WA_PHONE_NUMBER_ID or "").strip()
+        self.phone_number_id = str(phone_number_id or settings.META_WA_PHONE_NUMBER_ID or "").strip()
         raw_token = str(settings.META_WA_ACCESS_TOKEN or "").strip()
 
         # Validación estricta de caracteres ASCII para evitar fallos de codificación HTTP
@@ -591,12 +596,12 @@ class MetaWhatsAppService(WhatsAppService):
         return mock_parser.parse_incoming_status(payload)
 
 
-def get_whatsapp_service() -> WhatsAppService:
+def get_whatsapp_service(phone_number_id: Optional[str] = None) -> WhatsAppService:
     token = str(settings.META_WA_ACCESS_TOKEN or "").strip()
-    phone_id = str(settings.META_WA_PHONE_NUMBER_ID or "").strip()
+    phone_id = str(phone_number_id or settings.META_WA_PHONE_NUMBER_ID or "").strip()
     if settings.WHATSAPP_MODE == "meta" and token and phone_id:
         try:
-            return MetaWhatsAppService()
+            return MetaWhatsAppService(phone_number_id=phone_number_id)
         except Exception as e:
             logger.error(f"[get_whatsapp_service] Error inicializando MetaWhatsAppService: {e}. Usando MockWhatsAppService como respaldo temporal.")
             return MockWhatsAppService()

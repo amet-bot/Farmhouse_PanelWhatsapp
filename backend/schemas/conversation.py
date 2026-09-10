@@ -14,6 +14,7 @@ class ConversationBase(BaseModel):
     status: Optional[str] = "new"
     delivery_type: Optional[str] = None
     payment_method: Optional[str] = None
+    whatsapp_phone_number_id: Optional[str] = None
     automation_paused: Optional[bool] = False
 
 class ConversationCreate(ConversationBase):

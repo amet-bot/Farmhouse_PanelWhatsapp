@@ -59,8 +59,16 @@ def test_agent_can_send_image_with_caption(
     client, clayton_branch, clayton_agent, clayton_device, db_session, monkeypatch
 ):
     conversation = _make_conversation(db_session, clayton_branch)
+    conversation.whatsapp_phone_number_id = "new-phone-id-987"
+    db_session.commit()
     service = RecordingMediaService()
-    monkeypatch.setattr("routers.messages.get_whatsapp_service", lambda: service)
+    selected_phone_ids = []
+
+    def service_factory(phone_number_id=None):
+        selected_phone_ids.append(phone_number_id)
+        return service
+
+    monkeypatch.setattr("routers.messages.get_whatsapp_service", service_factory)
 
     response = client.post(
         "/api/messages/media",
@@ -78,6 +86,7 @@ def test_agent_can_send_image_with_caption(
     assert body["content"] == "Aquí está tu pedido 😊"
     assert service.calls[0]["filename"] == "pedido.png"
     assert service.calls[0]["caption"] == "Aquí está tu pedido 😊"
+    assert selected_phone_ids == ["new-phone-id-987"]
 
 
 def test_agent_can_send_word_document(
@@ -85,7 +94,7 @@ def test_agent_can_send_word_document(
 ):
     conversation = _make_conversation(db_session, clayton_branch)
     service = RecordingMediaService()
-    monkeypatch.setattr("routers.messages.get_whatsapp_service", lambda: service)
+    monkeypatch.setattr("routers.messages.get_whatsapp_service", lambda *_args: service)
 
     response = client.post(
         "/api/messages/media",
@@ -124,7 +133,7 @@ def test_failed_image_retry_sends_the_file_again(
 ):
     conversation = _make_conversation(db_session, clayton_branch)
     failing_service = RecordingMediaService(fail=True)
-    monkeypatch.setattr("routers.messages.get_whatsapp_service", lambda: failing_service)
+    monkeypatch.setattr("routers.messages.get_whatsapp_service", lambda *_args: failing_service)
 
     first_response = client.post(
         "/api/messages/media",
@@ -137,7 +146,7 @@ def test_failed_image_retry_sends_the_file_again(
 
     message = db_session.query(Message).filter(Message.id == first_response.json()["id"]).one()
     retry_service = RecordingMediaService()
-    monkeypatch.setattr("routers.messages.get_whatsapp_service", lambda: retry_service)
+    monkeypatch.setattr("routers.messages.get_whatsapp_service", lambda *_args: retry_service)
     retry_response = client.post(
         f"/api/messages/{message.id}/retry",
         headers=auth_headers_for(clayton_agent, clayton_device.device_id),

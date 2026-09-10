@@ -305,7 +305,7 @@ async def create_public_order(
         message_status = "sent"
         error_detail = None
         try:
-            send_result = await get_whatsapp_service().send_cta_url_message(
+            send_result = await get_whatsapp_service(conv.whatsapp_phone_number_id).send_cta_url_message(
                 contact.phone, payment_message, "Pagar con Yappy", payment_url
             )
             if isinstance(send_result, dict) and send_result.get("messages"):

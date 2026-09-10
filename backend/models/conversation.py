@@ -13,6 +13,9 @@ class Conversation(Base):
     status = Column(String(50), nullable=False, default="new") # "new", "unassigned", "open", "pending", "closed"
     delivery_type = Column(String(20), nullable=True)
     payment_method = Column(String(20), nullable=True)
+    # Phone Number ID de Meta que recibió el mensaje. Permite responder desde el mismo número
+    # cuando la aplicación tiene más de una línea o cambia el número enrutado.
+    whatsapp_phone_number_id = Column(String(50), nullable=True, index=True)
     last_branch_prompt_at = Column(DateTime, nullable=True)
     automation_paused = Column(Boolean, default=False, nullable=False)
     # Preguntas guiadas del Pedido Corporativo/Evento (opción 4) antes de pasarle el chat a Sol:
@@ -35,4 +38,3 @@ class Conversation(Base):
     # Más reciente primero: el panel siempre debe leer orders[0] como "el pedido/carrito
     # vigente" (confirmado o carrito activo), nunca el más antiguo.
     orders = relationship("Order", back_populates="conversation", order_by="Order.created_at.desc()")
-

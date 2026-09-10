@@ -630,7 +630,11 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         if not conv or not contact:
             return
 
-        wa_service = get_whatsapp_service()
+        # Responder desde el mismo número de WhatsApp que recibió este mensaje. Esto evita
+        # errores "Re-engagement message" cuando se cambia el número enrutado pero Railway
+        # todavía conserva otro Phone Number ID como valor predeterminado.
+        receiving_phone_id = msg_data.get("recipient_phone_number_id") or conv.whatsapp_phone_number_id
+        wa_service = get_whatsapp_service(receiving_phone_id)
         message_type = msg_data.get("message_type", "text")
         text = msg_data.get("text", "")
 
@@ -1174,6 +1178,7 @@ async def receive_webhook(
     contact_name = msg_data["contact_name"]
     wamid = msg_data["wamid"]
     message_type = msg_data.get("message_type", "text")
+    receiving_phone_id = str(msg_data.get("recipient_phone_number_id") or "").strip() or None
 
     type_labels = {
         "image": "📷 Imagen",
@@ -1222,12 +1227,18 @@ async def receive_webhook(
                 customer_id=contact.id,
                 branch_id=None,
                 status="unassigned",
+                whatsapp_phone_number_id=receiving_phone_id,
                 created_at=now,
                 updated_at=now
             )
             db.add(conv)
             db.flush()
             is_new_conv = True
+
+        # Una conversación puede continuar después de cambiar la línea conectada. El webhook
+        # de Meta es la fuente autoritativa para saber cuál número recibió el último mensaje.
+        if receiving_phone_id and conv.whatsapp_phone_number_id != receiving_phone_id:
+            conv.whatsapp_phone_number_id = receiving_phone_id
 
         # 7. Descarga rápida de archivos multimedia (inline) para que el mensaje nazca ya con su imagen
         media_url = None

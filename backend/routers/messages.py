@@ -98,7 +98,7 @@ async def send_message(
             msg_status = "failed"
             error_detail = "El contacto no tiene un número de teléfono registrado."
         else:
-            wa_service = get_whatsapp_service()
+            wa_service = get_whatsapp_service(conv.whatsapp_phone_number_id)
             try:
                 send_res = await wa_service.send_text_message(contact.phone, msg_in.content)
                 if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
@@ -201,7 +201,7 @@ async def send_media_message(
     msg_status = "sent"
     error_detail = None
     try:
-        send_res = await get_whatsapp_service().send_media_message(
+        send_res = await get_whatsapp_service(conv.whatsapp_phone_number_id).send_media_message(
             contact.phone,
             media_bytes,
             mime_type,
@@ -287,7 +287,7 @@ async def retry_message(
     if not contact or not contact.phone:
         raise HTTPException(status_code=400, detail="El contacto no tiene un teléfono válido.")
 
-    wa_service = get_whatsapp_service()
+    wa_service = get_whatsapp_service(conv.whatsapp_phone_number_id)
     try:
         if msg.media_type in ("image", "document") and msg.media_url:
             stored_path = _stored_media_path(msg.media_url)
@@ -359,7 +359,7 @@ async def retry_message_media(
     if not msg.media_id:
         raise HTTPException(status_code=400, detail="No se guardó un identificador de archivo para este mensaje; no se puede reintentar.")
 
-    wa_service = get_whatsapp_service()
+    wa_service = get_whatsapp_service(conv.whatsapp_phone_number_id)
     try:
         media_result = await wa_service.download_media(msg.media_id)
     except Exception as e:
