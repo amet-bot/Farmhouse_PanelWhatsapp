@@ -18,6 +18,7 @@
     branches: [],
     activeTabKey: null,
     searchQuery: "",
+    currentProductList: [],
     branchCode: null,
     branchName: "Farmhouse",
     customerName: "",
@@ -173,7 +174,6 @@
     const select = el("branchSelect");
     const badge = el("headerBranchBadge");
     const cartTag = el("cartBranchTag");
-    const heroLabel = el("heroBranchLabel");
 
     const orderBranches = state.branches.filter((b) => b.accepts_delivery && b.latitude != null && b.longitude != null);
     if (orderBranches.length === 0) return;
@@ -199,7 +199,6 @@
     const setBranchLabels = (name) => {
       if (badge) badge.textContent = name;
       if (cartTag) cartTag.textContent = name;
-      if (heroLabel) heroLabel.textContent = name;
     };
     setBranchLabels(state.branchName);
 
@@ -528,10 +527,39 @@
     });
   }
 
+  function canQuickAdd(p) {
+    return !(p.has_sizes && p.sizes.length > 1);
+  }
+
+  function simpleCartQty(sku) {
+    return state.cart.reduce((sum, it) => {
+      if (it.sku === sku && (!it.addons || it.addons.length === 0) && !it.notes) return sum + it.quantity;
+      return sum;
+    }, 0);
+  }
+
+  function cardQtyControlHtml(sku, qty) {
+    if (qty > 0) {
+      return `
+        <div class="qty-stepper qty-stepper-sm product-card-stepper">
+          <button type="button" class="pc-qty-dec" aria-label="Restar cantidad">−</button>
+          <span class="pc-qty-value">${qty}</span>
+          <button type="button" class="pc-qty-inc" aria-label="Sumar cantidad">+</button>
+        </div>
+      `;
+    }
+    return `<button type="button" class="product-card-add">Agregar</button>`;
+  }
+
   function renderProductCardHtml(p, tabKey, globalIdx) {
     const price = p.sizes[0] ? p.sizes[0].price : 0;
+    const defaultSku = p.sizes[0] ? p.sizes[0].sku : "";
+    const quickAddable = canQuickAdd(p);
+    const footerControl = quickAddable
+      ? `<div class="product-card-qty-zone" data-sku="${escapeHtml(defaultSku)}">${cardQtyControlHtml(defaultSku, simpleCartQty(defaultSku))}</div>`
+      : `<span class="product-card-add">Elegir</span>`;
     return `
-      <button class="product-card" data-idx="${globalIdx}" data-tab="${tabKey}" type="button" aria-label="${escapeHtml(p.title)}, ${p.has_sizes ? "desde " : ""}${money(price)}">
+      <div class="product-card" data-idx="${globalIdx}" data-tab="${tabKey}" role="button" tabindex="0" aria-label="${escapeHtml(p.title)}, ${p.has_sizes ? "desde " : ""}${money(price)}">
         <div class="product-card-img-wrap">
           <img class="product-card-photo" src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.parentElement.classList.add('img-error')">
           ${FALLBACK_IMG_HTML}
@@ -541,11 +569,50 @@
           <div class="product-card-desc">${escapeHtml(p.description)}</div>
           <div class="product-card-footer">
             <span class="product-card-price">${p.has_sizes ? "Desde " : ""}${money(price)}</span>
-            <span class="product-card-add">Agregar</span>
+            ${footerControl}
           </div>
         </div>
-      </button>
+      </div>
     `;
+  }
+
+  function quickAddToCart(product) {
+    const size = product.sizes[0];
+    if (!size) return;
+    const existing = state.cart.find((it) => it.sku === size.sku && (!it.addons || it.addons.length === 0) && !it.notes);
+    if (existing) {
+      existing.quantity += 1;
+    } else {
+      state.cart.push({
+        uid: "item_" + Date.now() + "_" + Math.random().toString(36).substr(2, 6),
+        sku: size.sku,
+        title: product.title,
+        size_label: size.label || null,
+        unit_price: size.price,
+        quantity: 1,
+        addons: [],
+        notes: "",
+      });
+    }
+    persistCart();
+    renderCart();
+    scheduleCartSync();
+  }
+
+  function decrementSimpleCartItem(sku) {
+    const idx = state.cart.findIndex((it) => it.sku === sku && (!it.addons || it.addons.length === 0) && !it.notes);
+    if (idx === -1) return;
+    state.cart[idx].quantity -= 1;
+    if (state.cart[idx].quantity <= 0) state.cart.splice(idx, 1);
+    persistCart();
+    renderCart();
+    scheduleCartSync();
+  }
+
+  function syncAllCardQtyUI() {
+    document.querySelectorAll(".product-card-qty-zone").forEach((zone) => {
+      zone.innerHTML = cardQtyControlHtml(zone.dataset.sku, simpleCartQty(zone.dataset.sku));
+    });
   }
 
   function renderProducts() {
@@ -580,13 +647,7 @@
         </div>
       `;
 
-      grid.querySelectorAll(".product-card").forEach((card) => {
-        card.addEventListener("click", () => {
-          const idx = Number(card.dataset.idx);
-          const prod = filtered[idx];
-          if (prod) openProductModal(prod);
-        });
-      });
+      state.currentProductList = filtered;
       return;
     }
 
@@ -616,14 +677,7 @@
     }).join("");
 
     grid.innerHTML = sectionsHtml;
-
-    grid.querySelectorAll(".product-card").forEach((card) => {
-      card.addEventListener("click", () => {
-        const idx = Number(card.dataset.idx);
-        const prod = allProductsFlat[idx];
-        if (prod) openProductModal(prod);
-      });
-    });
+    state.currentProductList = allProductsFlat;
 
     setupScrollSpy();
   }
@@ -907,6 +961,7 @@
       });
     }
 
+    syncAllCardQtyUI();
     updateTotals();
     updateCheckoutStatus();
   }
@@ -1016,6 +1071,36 @@
       search.addEventListener("input", (e) => {
         state.searchQuery = e.target.value;
         renderProducts();
+      });
+    }
+
+    const grid = el("productsGrid");
+    if (grid) {
+      grid.addEventListener("click", (e) => {
+        const qtyZone = e.target.closest(".product-card-qty-zone");
+        const card = e.target.closest(".product-card");
+        if (!card) return;
+        const idx = Number(card.dataset.idx);
+        const product = (state.currentProductList || [])[idx];
+        if (!product) return;
+
+        if (qtyZone) {
+          e.stopPropagation();
+          if (e.target.closest(".pc-qty-inc, .product-card-add")) quickAddToCart(product);
+          else if (e.target.closest(".pc-qty-dec")) decrementSimpleCartItem(qtyZone.dataset.sku);
+          return;
+        }
+        openProductModal(product);
+      });
+      grid.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        if (e.target.closest(".product-card-qty-zone")) return;
+        const card = e.target.closest(".product-card");
+        if (!card) return;
+        e.preventDefault();
+        const idx = Number(card.dataset.idx);
+        const product = (state.currentProductList || [])[idx];
+        if (product) openProductModal(product);
       });
     }
 

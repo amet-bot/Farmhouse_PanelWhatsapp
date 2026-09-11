@@ -310,43 +310,6 @@ a:focus-visible {
   .menu-header-actions { order: 3; }
 }
 
-/* ===================== HERO ===================== */
-.menu-hero {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: var(--space-6) var(--space-4) var(--space-4);
-  text-align: center;
-}
-.menu-hero h2 {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--fh-green);
-  margin-bottom: var(--space-2);
-}
-.menu-hero p {
-  color: var(--fh-text-muted);
-  font-size: 14px;
-  max-width: 440px;
-  margin: 0 auto;
-}
-.menu-hero-branch {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: var(--space-4);
-  padding: 6px 14px;
-  border: 1px solid var(--fh-line-strong);
-  border-radius: var(--radius-pill);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--fh-green);
-  background: var(--fh-panel);
-}
-
-@media (min-width: 640px) {
-  .menu-hero h2 { font-size: 30px; }
-}
-
 /* ===================== CATEGORÍAS ===================== */
 .category-pills-wrap {
   max-width: 1180px;
@@ -385,7 +348,7 @@ a:focus-visible {
 .products-grid {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 0 var(--space-4) var(--space-8);
+  padding: var(--space-5) var(--space-4) var(--space-8);
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
@@ -484,6 +447,7 @@ a:focus-visible {
   flex-direction: column;
   text-align: left;
   padding: 0;
+  cursor: pointer;
   transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
 }
 .product-card:hover {
@@ -492,6 +456,8 @@ a:focus-visible {
   border-color: var(--fh-line-strong);
 }
 .product-card:active { transform: translateY(-1px); }
+.product-card:focus-visible { outline: 2px solid var(--fh-green); outline-offset: 2px; }
+.product-card-qty-zone { display: flex; }
 
 .product-card-img-wrap {
   position: relative;
