@@ -80,6 +80,13 @@ def local_yappy_alias(phone: str) -> str:
     return digits
 
 
+def local_yappy_alias_or_none(phone: str) -> str | None:
+    try:
+        return local_yappy_alias(phone)
+    except YappyGatewayError:
+        return None
+
+
 def _gateway_json(response: httpx.Response, public_message: str) -> dict[str, Any]:
     try:
         response.raise_for_status()

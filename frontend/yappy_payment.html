@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/yappy_payment.css?v=1.0.0">
+  <link rel="stylesheet" href="/css/yappy_payment.css?v=1.1.0">
 </head>
 <body>
   <main class="payment-shell">
@@ -24,6 +24,10 @@
         <div><span>Total</span><strong id="orderTotal">—</strong></div>
       </div>
 
+      <div id="phoneField" class="phone-field" hidden>
+        <label for="yappyPhone">Tu número Yappy</label>
+        <input id="yappyPhone" class="phone-input" type="tel" inputmode="numeric" placeholder="Ej: 6000-1234" maxlength="9">
+      </div>
       <div id="yappyButtonWrap" class="yappy-button-wrap" hidden>
         <btn-yappy theme="blue" rounded="true"></btn-yappy>
       </div>
@@ -37,6 +41,6 @@
       <p class="security-note">Nunca te pediremos tu PIN ni contraseña de Banco General.</p>
     </section>
   </main>
-  <script src="/js/modules/yappy_payment.js?v=1.0.0"></script>
+  <script src="/js/modules/yappy_payment.js?v=1.1.0"></script>
 </body>
 </html>

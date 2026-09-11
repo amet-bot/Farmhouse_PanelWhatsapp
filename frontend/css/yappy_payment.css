@@ -37,6 +37,19 @@ h1 { margin: 7px 0 10px; color: var(--green); font: 700 27px/1.2 Poppins, sans-s
 .order-summary div + div { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(48, 61, 54, .12); }
 .order-summary span { color: var(--muted); font-size: 13px; }
 .order-summary strong { color: var(--green); }
+.phone-field { margin: 20px 0; }
+.phone-field label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.phone-input {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+}
+.phone-input:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
 .yappy-button-wrap { min-height: 52px; }
 .yappy-button-wrap btn-yappy { width: 100%; }
 .payment-status { margin-top: 14px; padding: 11px 13px; border-radius: 10px; background: var(--green-soft); color: var(--green); font-size: 13px; line-height: 1.45; }

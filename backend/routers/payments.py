@@ -16,6 +16,7 @@ from services.yappy_payment import (
     create_yappy_order,
     decode_yappy_payment_token,
     is_yappy_configured,
+    local_yappy_alias_or_none,
     verify_yappy_ipn,
     yappy_domain,
 )
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/payments/yappy", tags=["Pagos Yappy"])
 class YappySessionRequest(BaseModel):
     order_code: str
     token: str
+    phone: Optional[str] = None
 
 
 def _payment_method(order: Order) -> Optional[str]:
@@ -77,6 +79,7 @@ def get_yappy_order(
         "total": f"{order.total:.2f}",
         "payment_status": order.payment_status,
         "configured": is_yappy_configured(),
+        "contact_phone": local_yappy_alias_or_none(order.conversation.contact.phone),
     }
 
 
@@ -89,10 +92,11 @@ async def start_yappy_session(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Este pedido ya está pagado."
         )
+    phone = (payload.phone or "").strip() or order.conversation.contact.phone
     try:
         result = await create_yappy_order(
             order_code=order.order_code,
-            phone=order.conversation.contact.phone,
+            phone=phone,
             total=order.total,
         )
     except YappyConfigurationError as exc:

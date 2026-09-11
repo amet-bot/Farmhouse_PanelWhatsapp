@@ -6,6 +6,14 @@
   const paymentToken = params.get("token") || "";
   const statusBox = document.getElementById("paymentStatus");
   const buttonWrap = document.getElementById("yappyButtonWrap");
+  const phoneField = document.getElementById("phoneField");
+  const phoneInput = document.getElementById("yappyPhone");
+
+  function normalizedPhoneDigits(value) {
+    let digits = String(value || "").replace(/\D/g, "");
+    if (digits.startsWith("507") && digits.length === 11) digits = digits.slice(3);
+    return digits;
+  }
 
   function setStatus(message, type = "") {
     statusBox.textContent = message;
@@ -40,22 +48,31 @@
       return;
     }
 
+    if (order.contact_phone) phoneInput.value = order.contact_phone;
+    phoneField.hidden = false;
+
     const script = document.createElement("script");
     script.type = "module";
     script.src = config.button_cdn_url;
     script.onload = () => {
       const button = document.querySelector("btn-yappy");
       buttonWrap.hidden = false;
-      setStatus("Todo listo. Toca el botón para enviar la solicitud a tu Yappy.");
+      setStatus("Confirma tu número y toca el botón para enviar la solicitud a tu Yappy.");
 
       button.addEventListener("eventClick", async () => {
+        const phoneDigits = normalizedPhoneDigits(phoneInput.value);
+        if (phoneDigits.length !== 8) {
+          setStatus("Escribe un número de Yappy válido (8 dígitos).", "error");
+          phoneInput.focus();
+          return;
+        }
         button.isButtonLoading = true;
         setStatus("Creando tu solicitud segura en Yappy…");
         try {
           const session = await fetch("/api/payments/yappy/session", {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
-            body: JSON.stringify({ order_code: orderCode, token: paymentToken }),
+            body: JSON.stringify({ order_code: orderCode, token: paymentToken, phone: phoneDigits }),
           }).then(responseJson);
           button.eventPayment(session);
           setStatus("Solicitud enviada. Revisa la sección Pendientes en tu aplicación Yappy.");
