@@ -43,7 +43,7 @@ class WhatsAppService(ABC):
         pass
 
     @abstractmethod
-    async def send_interactive_list(self, to_phone: str, body_text: str, button_text: str, rows: list) -> Dict[str, Any]:
+    async def send_interactive_list(self, to_phone: str, body_text: str, button_text: str, rows: list, section_title: str = "Sucursales Farmhouse") -> Dict[str, Any]:
         """Envía un mensaje de lista interactiva de WhatsApp (menú con botones/opciones)."""
         pass
 
@@ -87,7 +87,7 @@ class MockWhatsAppService(WhatsAppService):
         logger.info(f"[MockWhatsAppService] Plantilla '{template_name}' enviada a {to_phone} (WAMID: {wamid})")
         return {"messaging_product": "whatsapp", "messages": [{"id": wamid}]}
 
-    async def send_interactive_list(self, to_phone: str, body_text: str, button_text: str, rows: list) -> Dict[str, Any]:
+    async def send_interactive_list(self, to_phone: str, body_text: str, button_text: str, rows: list, section_title: str = "Sucursales Farmhouse") -> Dict[str, Any]:
         wamid = f"wamid.HBgL{uuid.uuid4().hex[:16].upper()}"
         logger.info(f"[MockWhatsAppService] Lista interactiva enviada a {to_phone}: '{body_text}' con {len(rows)} opciones (WAMID: {wamid})")
         return {"messaging_product": "whatsapp", "messages": [{"id": wamid}]}
@@ -346,7 +346,7 @@ class MetaWhatsAppService(WhatsAppService):
                 logger.error(f"[MetaWhatsAppService] Error HTTP {e.response.status_code} de Meta WhatsApp API al enviar plantilla a '{to_phone_clean}': {e.response.text}")
                 raise e
 
-    async def send_interactive_list(self, to_phone: str, body_text: str, button_text: str, rows: list) -> Dict[str, Any]:
+    async def send_interactive_list(self, to_phone: str, body_text: str, button_text: str, rows: list, section_title: str = "Sucursales Farmhouse") -> Dict[str, Any]:
         url = f"{self.api_url}/{self.phone_number_id}/messages"
         to_phone_clean = "".join(c for c in str(to_phone) if c.isdigit())
         headers = {
@@ -364,7 +364,7 @@ class MetaWhatsAppService(WhatsAppService):
                 "action": {
                     "button": button_text,
                     "sections": [
-                        {"title": "Sucursales Farmhouse", "rows": rows}
+                        {"title": section_title, "rows": rows}
                     ]
                 }
             }

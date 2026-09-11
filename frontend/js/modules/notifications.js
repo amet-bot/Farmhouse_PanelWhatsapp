@@ -147,9 +147,35 @@ const notificationModule = {
   },
 
   /**
+   * Segunda capa de defensa: espeja la regla de audiencia del backend
+   * (backend/services/notification_audience.py) antes de alertar al usuario.
+   *
+   * La protección REAL vive en el backend, que ya no entrega eventos de otra sucursal.
+   * Esto solo cubre el caso de un panel viejo en caché hablando con un backend nuevo, o
+   * al revés. Nunca debe ser la única barrera: si esta función es lo único que impide ver
+   * una notificación ajena, el evento ya viajó por la red hasta el navegador.
+   */
+  canBeNotifiedAbout(data) {
+    const user = (typeof auth !== 'undefined' && auth.getUser) ? auth.getUser() : null;
+    if (!user) return true; // Sin sesión cargada no se filtra; el backend manda.
+
+    const role = user.role;
+    const userBranch = user.branch_id ?? null;
+    // Admin, o supervisor sin sucursal asignada: ve todas las sucursales.
+    if (role === 'admin') return true;
+    if (role === 'supervisor' && userBranch === null) return true;
+
+    // Agentes y supervisores de sucursal: exigen coincidencia exacta.
+    const convBranch = data?.branch_id ?? null;
+    if (convBranch === null || userBranch === null) return false;
+    return Number(userBranch) === Number(convBranch);
+  },
+
+  /**
    * Muestra notificación integral: Sonido + Tarjeta Flotante + Desktop Push + Flash de pestaña
    */
   notifyIncomingMessage(data) {
+    if (!this.canBeNotifiedAbout(data)) return;
     const contactName = data.contact_name || 'Cliente';
     const msgContent = (data.message && data.message.content) ? data.message.content : 'Nuevo mensaje recibido';
     const convId = data.conversation_id;
@@ -195,6 +221,7 @@ const notificationModule = {
   },
 
   notifyNewOrder(data) {
+    if (!this.canBeNotifiedAbout(data)) return;
     const contactName = data.contact_name || 'Cliente';
     const orderCode = data.order?.order_code || 'FH-Orden';
     const convId = data.conversation_id;

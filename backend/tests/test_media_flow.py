@@ -80,6 +80,39 @@ def test_incoming_image_with_caption_keeps_caption_as_content(client, clayton_br
     assert msg.media_url is not None
 
 
+def test_button_reply_is_not_stored_as_media(client, clayton_branch, db_session, monkeypatch):
+    """
+    Una respuesta de botón/lista de WhatsApp (type="interactive") no es un adjunto: si se
+    guardara con media_type="interactive", el panel del agente mostraría un falso
+    "Descargando archivo de WhatsApp..." debajo de cada opción que toca el cliente.
+    """
+    monkeypatch.setattr(settings, "WHATSAPP_MODE", "mock")
+    monkeypatch.setattr("routers.webhooks.SessionLocal", TestingSessionLocal)
+
+    payload = {
+        "object": "whatsapp_business_account",
+        "entry": [{
+            "id": "WABA_ID",
+            "changes": [{
+                "value": {"messaging_product": "whatsapp", "messages": [
+                    {"from": "50769998877", "id": "wamid.HBgLBUTTON001", "timestamp": "1725500000",
+                     "interactive": {"button_reply": {"id": "opt_delivery", "title": "Pedido a domicilio"}},
+                     "type": "interactive"}
+                ]},
+                "field": "messages"
+            }]
+        }]
+    }
+    resp = client.post("/api/webhooks/whatsapp", json=payload)
+    assert resp.status_code == 200, resp.text
+
+    msg = db_session.query(Message).filter(Message.whatsapp_message_id == "wamid.HBgLBUTTON001").first()
+    assert msg is not None
+    assert msg.content == "Pedido a domicilio"
+    assert msg.media_type is None
+    assert msg.media_id is None
+
+
 def test_incoming_image_download_failure_marks_error_instead_of_hanging_forever(client, clayton_branch, db_session, monkeypatch):
     """
     Sin más monkeypatch que la sesión de BD: MockWhatsAppService.download_media() devuelve None

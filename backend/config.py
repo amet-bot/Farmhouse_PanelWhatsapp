@@ -73,7 +73,7 @@ class Settings(BaseSettings):
 
     # Pausa (en segundos) antes de que el bot responda, para que la conversación se sienta
     # escrita por una persona y no como una respuesta instantánea. Se puede poner en 0 en tests.
-    BOT_RESPONSE_DELAY_SECONDS: float = 3.0
+    BOT_RESPONSE_DELAY_SECONDS: float = 1.2
 
     # Web Push (Notificaciones push del navegador vía VAPID)
     VAPID_PUBLIC_KEY: Optional[str] = None

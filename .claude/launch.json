@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "farmhouse-backend",
+      "url": "http://127.0.0.1:8000"
+    },
+    {
+      "name": "farmhouse-catering-backend",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "main:app", "--app-dir", "C:\\Users\\PC\\.gemini\\antigravity\\scratch\\sistema-proyecto\\farmhouse-catering-center\\backend", "--host", "127.0.0.1", "--port", "8001"],
+      "port": 8001
+    }
+  ]
+}

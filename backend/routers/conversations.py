@@ -188,19 +188,42 @@ def take_conversation(
     return RoutingService.take_conversation(db, conversation_id, current_user)
 
 @router.post("/{conversation_id}/transfer", response_model=ConversationResponse)
-def transfer_conversation(
+async def transfer_conversation(
     conversation_id: int,
     req: ConversationTransferRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_authorized_user)
 ):
-    return RoutingService.transfer_conversation(
+    # Sucursal de origen ANTES de transferir, para poder avisarle que retire la
+    # conversación de su bandeja. Se lee sin validar permisos porque la validación real la
+    # hace RoutingService.transfer_conversation: si el usuario no tiene acceso, lanza y
+    # nunca se llega a difundir nada.
+    previous = db.query(Conversation.branch_id).filter(
+        Conversation.id == conversation_id
+    ).first()
+    old_branch_id = previous[0] if previous else None
+
+    conv = RoutingService.transfer_conversation(
         db=db,
         conversation_id=conversation_id,
         target_branch_id=req.target_branch_id,
         transferred_by=current_user,
         reason=req.reason
     )
+
+    # La transferencia manual desde el panel no emitía ningún evento: los agentes de la
+    # sucursal de origen seguían viendo la conversación en su bandeja hasta recargar.
+    # Una sola difusión a la unión de ambas sucursales evita además el evento duplicado.
+    try:
+        await ws_manager.broadcast_to_branches({old_branch_id, conv.branch_id}, {
+            "type": "conversation_transferred",
+            "conversation_id": conv.id,
+            "branch_id": conv.branch_id
+        })
+    except Exception as ws_err:
+        logger.error(f"Error difundiendo transferencia de conversación por WebSocket: {ws_err}")
+
+    return conv
 
 @router.put("/{conversation_id}/status", response_model=ConversationResponse)
 def update_conversation_status(
@@ -269,7 +292,10 @@ async def delete_conversation(
     logger.info(f"Conversación ID {conversation_id} borrada lógicamente por {current_user.role.upper()} '{current_user.name}' (@{current_user.username}).")
 
     try:
-        await ws_manager.broadcast_all({
+        # Antes esto era broadcast_all: la eliminación de una conversación de Clayton
+        # llegaba a los agentes de Obarrio junto con su branch_id. Ahora se segmenta con
+        # la misma regla de audiencia que el resto de los eventos.
+        await ws_manager.broadcast_to_branch(branch_id, {
             "type": "conversation_deleted",
             "conversation_id": conversation_id,
             "branch_id": branch_id

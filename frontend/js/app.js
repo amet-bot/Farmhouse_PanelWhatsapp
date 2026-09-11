@@ -159,6 +159,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Logout
   if (btnLogout) {
     btnLogout.addEventListener('click', async () => {
+      // Cancela la suscripción push ANTES de cerrar sesión (el token de sesión aún es
+      // válido en este punto, y unsubscribe() lo necesita para autenticar la petición al
+      // backend). Es clave en un dispositivo compartido entre turnos/sucursales: sin esto,
+      // el celular seguía recibiendo notificaciones del agente anterior después de que
+      // cerrara sesión, hasta que alguien nuevo iniciara sesión y volviera a suscribirse
+      // (o nunca, si esa sucursal no vuelve a abrir la app en ese equipo).
+      if (typeof pushModule !== 'undefined') {
+        try {
+          await pushModule.unsubscribe();
+        } catch (e) {
+          console.warn('[Logout] No se pudo cancelar la suscripción push:', e);
+        }
+      }
       await auth.logout();
       wsClient.disconnect();
       chatModule.renderEmpty();

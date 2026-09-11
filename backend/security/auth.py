@@ -20,15 +20,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login
 import uuid
 from datetime import datetime, timezone, timedelta
 
-def validate_password_strength(password: str) -> bool:
-    """Valida que la contraseña cumpla los estándares mínimos de longitud (10+ caracteres)."""
-    if not password or len(password.strip()) < 10:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La contraseña debe contener al menos 10 caracteres."
-        )
-    return True
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Compara la contraseña en texto plano contra el hash bcrypt"""
     try:

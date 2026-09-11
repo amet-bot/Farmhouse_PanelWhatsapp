@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import AsyncMock
 from config import settings
 from conftest import TestingSessionLocal
 from models.conversation import Conversation
@@ -7,10 +6,8 @@ from models.contact import Contact
 from models.message import Message
 from models.branch import Branch
 from services.auto_responses import (
-    MAIN_WELCOME_BODY, MAIN_MENU_OPTIONS, CORPORATE_INTAKE_CLOSING_MESSAGE,
-    MANAGER_HELP_QUESTION, get_manager_assigned_message, get_manager_declined_message,
-    BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY, BRANCH_SELECTION_PICKUP_BODY,
-    get_branch_visit_message, MENU_LINK_WARM_CLOSING
+    MAIN_WELCOME_BODY, CORPORATE_INTAKE_CLOSING_MESSAGE,
+    MANAGER_HELP_QUESTION, MENU_LINK_WARM_CLOSING
 )
 
 @pytest.fixture(autouse=True)

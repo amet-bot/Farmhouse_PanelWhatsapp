@@ -430,10 +430,9 @@ async def delete_message(
             "message_id": message_id,
             "conversation_id": conv_id
         }
-        if branch_id:
-            await ws_manager.broadcast_to_branch(branch_id, payload)
-        else:
-            await ws_manager.broadcast_all(payload)
+        # broadcast_to_branch ya resuelve el caso branch_id=None (solo admins y
+        # supervisores globales), así que no hace falta una rama global aparte.
+        await ws_manager.broadcast_to_branch(branch_id, payload)
     except Exception as ws_err:
         logger.error(f"Error difundiendo eliminación de mensaje por WebSocket: {ws_err}")
 

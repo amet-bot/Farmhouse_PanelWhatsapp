@@ -111,3 +111,54 @@ def test_yappy_session_and_signed_ipn_update_payment_status(
     db_session.refresh(order)
     assert order.payment_status == "paid"
     assert order.payment_confirmation_number == "CONF-999"
+
+    # Una notificación posterior de otro intento (ej. expirado) no debe degradar un pedido
+    # que ya quedó pagado.
+    expired_signature = hmac.new(
+        signing_secret.encode(), f"{order.order_code}X{domain}".encode(), hashlib.sha256
+    ).hexdigest()
+    late_ipn = client.get(
+        "/api/payments/yappy/ipn",
+        params={
+            "orderId": order.order_code,
+            "status": "X",
+            "Hash": expired_signature,
+            "domain": domain,
+        },
+    )
+    assert late_ipn.status_code == 200, late_ipn.text
+    db_session.refresh(order)
+    assert order.payment_status == "paid"
+
+
+def test_yappy_ipn_rejected_when_yappy_is_not_configured(
+    client, clayton_branch, db_session, monkeypatch
+):
+    """
+    Sin credenciales de Yappy la clave de firma queda vacía y cualquiera podría calcular un
+    hash válido (el dominio es público) para marcar un pedido como pagado. El IPN debe
+    rechazarse de plano mientras Yappy no esté configurado.
+    """
+    _enable_yappy(monkeypatch)
+    response = client.post(
+        "/api/orders/public",
+        json=ORDER_PAYLOAD,
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert response.status_code == 200, response.text
+    order_code = response.json()["order_code"]
+
+    # Yappy se apaga (estado real hoy: sin credenciales en el entorno).
+    monkeypatch.setattr(settings, "YAPPY_ENABLED", False)
+    monkeypatch.setattr(settings, "YAPPY_SECRET_KEY", None)
+
+    domain = "https://farmhouse.example"
+    forged = hmac.new(b"", f"{order_code}E{domain}".encode(), hashlib.sha256).hexdigest()
+    ipn = client.get(
+        "/api/payments/yappy/ipn",
+        params={"orderId": order_code, "status": "E", "Hash": forged, "domain": domain},
+    )
+    assert ipn.status_code == 503, ipn.text
+
+    order = db_session.query(Order).filter(Order.order_code == order_code).one()
+    assert order.payment_status != "paid"

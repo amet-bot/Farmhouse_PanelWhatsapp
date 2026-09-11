@@ -28,14 +28,26 @@ def get_main_welcome_body(customer_name: Optional[str] = None) -> str:
 
 MAIN_WELCOME_BODY = get_main_welcome_body(None)
 
-MAIN_MENU_BUTTON = "Ver opciones"
-
-# WhatsApp admite un máximo de tres respuestas rápidas. Las decisiones principales se
-# muestran de inmediato; Delivery / Retiro / Corporativo aparecen al tocar "Hacer un pedido".
+# WhatsApp admite un máximo de tres respuestas rápidas, así que este set de 3 botones se usa
+# solo como recuperación (cuando el bot no entendió un texto libre). El menú de bienvenida
+# principal usa la lista de abajo, que sí puede mostrar las 5 opciones de una vez.
 MAIN_MENU_BUTTONS = [
     {"id": "main_order", "title": "Hacer un pedido"},
     {"id": "main_visit", "title": "Ver sucursales"},
     {"id": "main_human", "title": "Hablar con alguien"},
+]
+
+# Menú de bienvenida como lista interactiva (hasta 10 filas): muestra Delivery/Retiro/Evento
+# directamente, sin el paso intermedio de "Hacer un pedido" -> submenú de tipo de entrega.
+# Los ids coinciden con los que ya reconoce el submenú de tipo de entrega (ORDER_TYPE_BUTTONS)
+# para no duplicar lógica de despacho en webhooks.py.
+MAIN_MENU_LIST_BUTTON = "Elegir opción"
+MAIN_MENU_LIST_ROWS = [
+    {"id": "order_delivery", "title": "Delivery", "description": "Pedido a domicilio"},
+    {"id": "order_pickup", "title": "Retiro en local", "description": "Pasas a recoger tu pedido"},
+    {"id": "order_corporate", "title": "Evento o empresa", "description": "Catering y pedidos corporativos"},
+    {"id": "main_visit", "title": "Ver sucursales", "description": "Direcciones y horarios"},
+    {"id": "main_human", "title": "Hablar con alguien", "description": "Te atiende una persona del equipo"},
 ]
 
 ORDER_TYPE_QUESTION = "¡Claro! ¿Cómo quieres recibir tu pedido?"
@@ -43,20 +55,6 @@ ORDER_TYPE_BUTTONS = [
     {"id": "order_delivery", "title": "Delivery"},
     {"id": "order_pickup", "title": "Retiro en local"},
     {"id": "order_corporate", "title": "Evento / empresa"},
-]
-
-MAIN_MENU_OPTIONS = [
-    {"id": "opt_visit", "title": "(1) Visitar sucursales", "description": "Quiero visitarlos en una de sus sucursales"},
-    {"id": "opt_delivery", "title": "(2) Pedido a domicilio", "description": "Quiero hacer un pedido a domicilio"},
-    {"id": "opt_pickup", "title": "(3) Retiro en el local", "description": "Quiero hacer un pedido para retirar en el local"},
-    {"id": "opt_corporate", "title": "(4) Evento / Corporativo", "description": "Quiero coordinar un pedido corporativo u organizar un evento"},
-]
-
-MAIN_MENU_TEXT_FALLBACK = MAIN_WELCOME_BODY
-
-WELCOME_MESSAGES = [
-    MAIN_WELCOME_BODY,
-    "¿Cómo te podemos ayudar hoy?"
 ]
 
 BRANCH_SELECTION_BODY = "¿Cuál de nuestras sucursales te gustaría contactar?"
@@ -152,11 +150,6 @@ MANAGER_HELP_BUTTONS = [
     {"id": "view_menu", "title": "Ver el menú"},
     {"id": "manager_no", "title": "Nos vemos pronto"},
 ]
-MANAGER_HELP_OPTIONS = [
-    {"id": "manager_yes", "title": "(1) Hablar con gerente", "description": "Sí, me encantaría hablar con un gerente"},
-    {"id": "view_menu", "title": "(2) Ver el menú", "description": "Quiero ver el menú"},
-    {"id": "manager_no", "title": "(3) Nos vemos pronto", "description": "No, gracias, nos vemos pronto"},
-]
 
 def get_branch_info_message(branch_name: str, branch_code: str, opening_line: str) -> str:
     """Arma un único mensaje con la dirección, el horario y el link de Maps de una sucursal (Punto de venta físico)."""
@@ -219,9 +212,6 @@ def get_manager_declined_message(branch_name: str) -> str:
         f"¡Perfecto! Muchas gracias por escribirnos. ¡Te esperamos pronto en Farmhouse *{branch_name}*! "
         f"Que tengas un excelente día 🌿✨"
     )
-
-def get_branch_welcome_message(branch_name: str) -> str:
-    return f"¡Bienvenido a Farmhouse {branch_name}! 🌿 Un gusto atenderte."
 
 ACH_PAYMENT_INSTRUCTIONS = (
     "¡Perfecto! 🏦 Estos son los datos de nuestra cuenta para pagar por ACH:\n\n"

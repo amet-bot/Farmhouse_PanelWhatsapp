@@ -1,7 +1,7 @@
 import json
 import logging
 from typing import Optional
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 try:
@@ -46,18 +46,29 @@ def _send_to_subscription(db: Session, sub: PushSubscription, payload: dict) -> 
 
 def notify_branch_new_message(db: Session, branch_id: Optional[int], title: str, body: str, conversation_id: int) -> None:
     """
-    Envía notificaciones push a los agentes/encargados de la sucursal indicada y a todos
-    los supervisores/administradores activos (mismo criterio de audiencia que la difusión
-    en tiempo real por WebSocket, ver ConnectionManager.broadcast_to_branch).
+    Envía notificaciones push a quien tiene derecho a ver la conversación: admins,
+    supervisores globales y los usuarios de esa misma sucursal. Usa exactamente el mismo
+    criterio que la difusión en tiempo real por WebSocket
+    (ver services/notification_audience.py y ConnectionManager.broadcast_to_branch).
     branch_id puede ser None (conversación aún sin sucursal asignada): en ese caso solo
-    califican admin/supervisor, nunca agentes (un agente siempre requiere coincidencia de sucursal).
+    califican los que ven global (admin y supervisor sin sucursal), nunca agentes ni
+    supervisores de sucursal.
     No hace nada si el servidor no tiene VAPID configurado (Web Push deshabilitado).
     """
     if not is_push_configured():
         return
 
-    role_condition = User.role.in_(["admin", "supervisor"])
-    audience_condition = or_(role_condition, User.branch_id == branch_id) if branch_id is not None else role_condition
+    # Traducción a SQL de services/notification_audience.can_receive_branch_event.
+    # Antes la condición era `User.role.in_(["admin", "supervisor"])`, que le mandaba las
+    # notificaciones de TODAS las sucursales a un supervisor asignado a una sola.
+    audience_conditions = [
+        User.role == "admin",
+        and_(User.role == "supervisor", User.branch_id.is_(None)),
+    ]
+    if branch_id is not None:
+        # Agentes y supervisores de esa misma sucursal.
+        audience_conditions.append(User.branch_id == branch_id)
+    audience_condition = or_(*audience_conditions)
 
     target_users = db.query(User).filter(
         User.active == True,

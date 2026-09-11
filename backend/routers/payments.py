@@ -124,6 +124,19 @@ async def yappy_ipn(
     confirmation_number: Optional[str] = Query(None, alias="confirmationNumber"),
     db: Session = Depends(get_db),
 ):
+    # Sin credenciales de Yappy configuradas, la clave de firma queda vacía y CUALQUIERA podría
+    # calcular un hash válido (el dominio es público) y marcar un pedido como pagado. Este
+    # endpoint es público, así que se rechaza de plano mientras Yappy no esté configurado.
+    if not is_yappy_configured():
+        logger.warning(
+            "[Yappy IPN] Notificación recibida para la orden %s con Yappy sin configurar. Rechazada.",
+            order_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Los pagos por Yappy no están habilitados.",
+        )
+
     received_hash = received_hash_upper or received_hash_lower or ""
     if domain != yappy_domain() or not verify_yappy_ipn(
         order_id, payment_status, domain, received_hash
@@ -143,7 +156,24 @@ async def yappy_ipn(
         )
 
     status_map = {"E": "paid", "R": "rejected", "C": "cancelled", "X": "expired"}
-    order.payment_status = status_map.get(payment_status, "unknown")
+    new_payment_status = status_map.get(payment_status)
+    if new_payment_status is None:
+        # Código desconocido (Yappy podría agregar nuevos): se registra sin tocar el estado,
+        # en vez de dejar el pedido en "unknown" y perder el estado real que ya tenía.
+        logger.warning(
+            "[Yappy IPN] Estado '%s' no reconocido para la orden %s. Se conserva '%s'.",
+            payment_status, order_id, order.payment_status,
+        )
+    elif order.payment_status == "paid" and new_payment_status != "paid":
+        # Una notificación posterior (ej. la expiración de otro intento de la misma orden) no
+        # debe degradar un pedido que ya fue pagado y confirmado.
+        logger.warning(
+            "[Yappy IPN] Se ignora '%s' para la orden %s porque ya está pagada.",
+            payment_status, order_id,
+        )
+    else:
+        order.payment_status = new_payment_status
+
     if confirmation_number:
         order.payment_confirmation_number = confirmation_number
     db.commit()

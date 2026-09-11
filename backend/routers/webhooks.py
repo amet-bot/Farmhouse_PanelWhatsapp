@@ -20,8 +20,7 @@ from models.branch import Branch
 from services.whatsapp_service import get_whatsapp_service
 from services.websocket_manager import ws_manager
 from services.auto_responses import (
-    MAIN_WELCOME_BODY, MAIN_MENU_BUTTON, MAIN_MENU_OPTIONS, MAIN_MENU_TEXT_FALLBACK,
-    MAIN_MENU_BUTTONS, ORDER_TYPE_QUESTION, ORDER_TYPE_BUTTONS,
+    MAIN_MENU_BUTTONS, MAIN_MENU_LIST_BUTTON, MAIN_MENU_LIST_ROWS, ORDER_TYPE_QUESTION, ORDER_TYPE_BUTTONS,
     BRANCH_SELECTION_BODY, BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY,
     BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON,
     CORPORATE_INTAKE_INTRO, CORPORATE_EVENT_TYPE_QUESTION, CORPORATE_EVENT_TYPE_BUTTONS,
@@ -29,10 +28,10 @@ from services.auto_responses import (
     CORPORATE_DATE_QUESTION, CORPORATE_DATE_RETRY, CORPORATE_LOCATION_QUESTION,
     CORPORATE_LOCATION_BUTTONS, CORPORATE_LOCATION_LABELS, CORPORATE_INVALID_OPTION_RETRY,
     CORPORATE_INTAKE_CLOSING_MESSAGE, get_corporate_intake_summary,
-    MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS, MANAGER_HELP_OPTIONS,
+    MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS,
     get_main_welcome_body, get_branch_visit_message, get_branch_pickup_info_message,
     get_branch_delivery_info_message, MENU_LINK_WARM_CLOSING, get_manager_assigned_message,
-    get_manager_declined_message, get_branch_welcome_message,
+    get_manager_declined_message,
     ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE,
     UNKNOWN_MAIN_MESSAGE, UNKNOWN_ORDER_MESSAGE, UNKNOWN_BRANCH_MESSAGE,
     AFTER_MENU_HELP_QUESTION, AFTER_MENU_HELP_BUTTONS, RESTART_MESSAGE, CANCEL_MESSAGE,
@@ -55,7 +54,7 @@ router = APIRouter(prefix="/webhooks", tags=["Webhooks Meta WhatsApp"])
 
 # Pausa breve entre las burbujas de un mismo turno del bot (una vez que ya "empezó a escribir"),
 # distinta de settings.BOT_RESPONSE_DELAY_SECONDS que es la pausa inicial antes de la primera respuesta.
-BUBBLE_PACE_DELAY_SECONDS = 0.6
+BUBBLE_PACE_DELAY_SECONDS = 0.4
 
 def verify_meta_signature(raw_body: bytes, signature_header: Optional[str]) -> bool:
     """
@@ -120,20 +119,25 @@ async def _assign_conversation_branch(db: Session, conv: Conversation, branch: B
     db.commit()
     db.refresh(conv)
     logger.info(f"[BranchAssign] Conv ID {conv.id} asignada a sucursal {branch.id} ({branch.name}). Motivo: {motivo}.")
-    for room_branch_id in {old_branch_id, branch.id}:
-        if room_branch_id:
-            await ws_manager.broadcast_to_branch(room_branch_id, {
-                "type": "conversation_transferred",
-                "conversation_id": conv.id,
-                "branch_id": conv.branch_id
-            })
+    # Una sola difusión a la unión de ambas sucursales: la anterior (para que retire la
+    # conversación de su bandeja) y la nueva (para que la reciba). Emitir una vez por
+    # sucursal entregaba el evento dos veces a los admins y supervisores globales.
+    await ws_manager.broadcast_to_branches({old_branch_id, branch.id}, {
+        "type": "conversation_transferred",
+        "conversation_id": conv.id,
+        "branch_id": conv.branch_id
+    })
 
 async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
-    """Envía el menú principal de bienvenida de Farmhouse con las 4 opciones interactivas,
-    personalizado con el nombre de WhatsApp del cliente cuando se conoce."""
+    """Envía el menú principal de bienvenida de Farmhouse como lista interactiva (Delivery,
+    Retiro, Evento/empresa, Ver sucursales, Hablar con alguien), personalizado con el nombre
+    de WhatsApp del cliente cuando se conoce. Una lista en vez de 3 botones evita el paso
+    intermedio de "Hacer un pedido" -> submenú de tipo de entrega."""
     welcome_body = get_main_welcome_body(contact.name)
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-    menu_res = await wa_service.send_interactive_buttons(phone, welcome_body, MAIN_MENU_BUTTONS)
+    menu_res = await wa_service.send_interactive_list(
+        phone, welcome_body, MAIN_MENU_LIST_BUTTON, MAIN_MENU_LIST_ROWS, section_title="¿Qué te gustaría hacer?"
+    )
     menu_wamid = None
     if isinstance(menu_res, dict) and "messages" in menu_res and menu_res["messages"]:
         menu_wamid = menu_res["messages"][0].get("id")
@@ -318,13 +322,15 @@ async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, c
     if conv.delivery_type == "delivery":
         body_text = (
             f"🍽️ Aquí tienes nuestro Menú Digital para armar tu pedido a domicilio desde Farmhouse *{branch_name}*.\n\n"
-            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos, ingresa tu dirección y envíanos tu orden en 1 clic._"
+            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos, ingresa tu dirección y envíanos tu orden en 1 clic._\n\n"
+            f"{MENU_LINK_WARM_CLOSING}"
         )
         button_text = "Ver menú y pedir"
     elif conv.delivery_type == "pickup":
         body_text = (
             f"🍽️ Échale un vistazo a nuestro Menú Digital y arma tu pedido para retirar en Farmhouse *{branch_name}*.\n\n"
-            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos y te lo tendremos fresco y listo cuando pases a retirarlo._"
+            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos y te lo tendremos fresco y listo cuando pases a retirarlo._\n\n"
+            f"{MENU_LINK_WARM_CLOSING}"
         )
         button_text = "Ver menú y pedir"
     else:
@@ -361,12 +367,6 @@ async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, c
         },
         "is_new_conversation": False
     })
-
-    # Cierre cálido en delivery/pickup: deja la puerta abierta sin forzar otro botón de decisión
-    # (en "visitar sucursal" no aplica porque ese flujo ya vuelve a preguntar "¿algo más?").
-    if conv.delivery_type in ("delivery", "pickup"):
-        await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-        await _send_plain_text_message(db, wa_service, conv, contact, phone, MENU_LINK_WARM_CLOSING)
 
 async def _send_plain_text_message(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, text: str) -> None:
     """Envía un mensaje de texto plano (ej. dirección/horario/maps de una sucursal), lo guarda y lo difunde por WebSocket."""
@@ -653,6 +653,17 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             reading_time = min(len(text or "") * 0.015, 1.2)
             await asyncio.sleep(settings.BOT_RESPONSE_DELAY_SECONDS + reading_time)
 
+        # Durante esos segundos de pausa el estado pudo cambiar: un agente pudo pausar el bot,
+        # o pudo llegar otro mensaje del mismo cliente y avanzar el flujo. Se relee la
+        # conversación para no contestar con datos obsoletos (y pisarle la conversación al
+        # agente que ya la tomó).
+        db.expire(conv)
+        conv = db.query(Conversation).filter(
+            Conversation.id == conv_id, Conversation.deleted_at.is_(None)
+        ).first()
+        if not conv:
+            return
+
         # 0. Pedido estructurado enviado desde la Web App de Menú (/menu). Ya trae sucursal,
         #    entrega y pago resueltos (ver POST /api/orders/public), así que respondemos con un mensaje
         #    cálido y empático según el tipo de entrega (Delivery o Retiro) y pausamos el bot para que
@@ -711,8 +722,10 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             })
             return
 
-        # 0.1 Atención humana solicitada explícitamente por el cliente
-        if message_type == "text":
+        # 0.1 Atención humana solicitada explícitamente por el cliente. Si el bot ya está
+        #     pausado, un agente ya está atendiendo: repetir el handoff solo volvería a
+        #     anunciar lo mismo y dejaría otra nota interna de resumen duplicada.
+        if message_type == "text" and not conv.automation_paused:
             if match_entry_intent(text) == "human":
                 await _handoff_to_human(db, wa_service, conv, contact, phone)
                 return
@@ -1256,7 +1269,11 @@ async def receive_webhook(
             except Exception as me:
                 logger.warning(f"[FastMedia] Descarga inline no completada (se completará en background): {me}")
 
-        # 8. Insertar mensaje entrante de forma atómica
+        # 8. Insertar mensaje entrante de forma atómica.
+        #    media_type solo debe reflejar adjuntos reales: "interactive" (el cliente tocó un
+        #    botón o eligió de una lista) no es un archivo, y guardarlo aquí hacía que el panel
+        #    mostrara un falso "Descargando archivo de WhatsApp..." bajo cada respuesta de botón.
+        is_real_media = message_type in ("image", "video", "audio", "document", "sticker")
         message = Message(
             conversation_id=conv.id,
             direction="incoming",
@@ -1265,8 +1282,8 @@ async def receive_webhook(
             whatsapp_message_id=wamid,
             is_internal=False,
             status="delivered",
-            media_type=message_type if message_type != "text" else None,
-            media_id=msg_data.get("media_id") if message_type != "text" else None,
+            media_type=message_type if is_real_media else None,
+            media_id=msg_data.get("media_id") if is_real_media else None,
             media_url=media_url,
             media_mime_type=media_mime,
             created_at=now
