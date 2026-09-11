@@ -119,6 +119,48 @@ def test_quick_order_button_opens_delivery_pickup_corporate_choices(client, clay
     assert any("Delivery, entendido" in msg.content for msg in outgoing)
 
 
+def test_direct_to_menu_option_skips_delivery_type_question(client, clayton_branch, db_session):
+    # Cliente que ya sabe qué quiere: toca "Ver el menú y pedir" en el menú principal y solo
+    # debe pasar por la elección de sucursal, sin la pregunta de Delivery/Retiro/Evento.
+    phone = "50769990013"
+    assert _post_bot_message(
+        client, phone, "wamid.DIRECT01", button_id="main_menu_direct", button_title="Ver el menú y pedir"
+    ).status_code == 200
+
+    contact = db_session.query(Contact).filter(Contact.phone.contains("69990013")).first()
+    conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
+    assert conv.delivery_type is None
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert any("¿Desde cuál sucursal te gustaría pedir?" in msg.content for msg in outgoing)
+    assert not any("¿Cómo quieres recibir tu pedido?" in msg.content for msg in outgoing)
+
+    assert _post_bot_message(
+        client, phone, "wamid.DIRECT02", button_id=f"branch_{clayton_branch.id}", button_title="Clayton"
+    ).status_code == 200
+    db_session.refresh(conv)
+    assert conv.branch_id == clayton_branch.id
+    assert conv.delivery_type is None
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert any("Menú Digital de Farmhouse" in msg.content for msg in outgoing)
+
+
+def test_customer_can_type_menu_request_directly(client, clayton_branch, db_session):
+    phone = "50769990014"
+    assert _post_bot_message(
+        client, phone, "wamid.DIRECT03", text="quiero ver el menu"
+    ).status_code == 200
+    contact = db_session.query(Contact).filter(Contact.phone.contains("69990014")).first()
+    conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert any("¿Desde cuál sucursal te gustaría pedir?" in msg.content for msg in outgoing)
+
+
 def test_customer_can_change_branch_in_natural_language(client, clayton_branch, db_session):
     phone = "50769990012"
     contact = Contact(name="Ana Cambio", phone=f"+{phone}")

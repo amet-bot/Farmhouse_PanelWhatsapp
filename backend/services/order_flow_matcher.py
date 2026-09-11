@@ -187,6 +187,25 @@ def match_entry_intent(customer_text: str) -> Optional[str]:
         ]
     ):
         return "order"
+    # Cliente que ya sabe qué quiere y pide el menú directo, sin pasar por las preguntas
+    # de Delivery/Retiro/Evento (solo falta elegir sucursal para armar el link).
+    if any(
+        kw in normalized
+        for kw in [
+            "ver el menu",
+            "ver menu",
+            "el menu",
+            "menu digital",
+            "manda el menu",
+            "mandame el menu",
+            "enviame el menu",
+            "quiero ver el menu",
+            "pasar al menu",
+            "ir al menu",
+            "ir directo al menu",
+        ]
+    ):
+        return "menu_direct"
     return None
 
 

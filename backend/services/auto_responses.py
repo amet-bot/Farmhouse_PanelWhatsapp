@@ -43,12 +43,15 @@ MAIN_MENU_BUTTONS = [
 # para no duplicar lógica de despacho en webhooks.py.
 MAIN_MENU_LIST_BUTTON = "Elegir opción"
 MAIN_MENU_LIST_ROWS = [
+    {"id": "main_menu_direct", "title": "Ver el menú y pedir", "description": "Si ya sabes qué quieres, entra directo"},
     {"id": "order_delivery", "title": "Delivery", "description": "Pedido a domicilio"},
     {"id": "order_pickup", "title": "Retiro en local", "description": "Pasas a recoger tu pedido"},
     {"id": "order_corporate", "title": "Evento o empresa", "description": "Catering y pedidos corporativos"},
     {"id": "main_visit", "title": "Ver sucursales", "description": "Direcciones y horarios"},
     {"id": "main_human", "title": "Hablar con alguien", "description": "Te atiende una persona del equipo"},
 ]
+
+BRANCH_SELECTION_MENU_DIRECT_BODY = "¡Perfecto! 🍽️ ¿Desde cuál sucursal te gustaría pedir?"
 
 ORDER_TYPE_QUESTION = "¡Claro! ¿Cómo quieres recibir tu pedido?"
 ORDER_TYPE_BUTTONS = [

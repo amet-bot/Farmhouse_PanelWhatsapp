@@ -22,7 +22,7 @@ from services.websocket_manager import ws_manager
 from services.auto_responses import (
     MAIN_MENU_BUTTONS, MAIN_MENU_LIST_BUTTON, MAIN_MENU_LIST_ROWS, ORDER_TYPE_QUESTION, ORDER_TYPE_BUTTONS,
     BRANCH_SELECTION_BODY, BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY,
-    BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON,
+    BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON, BRANCH_SELECTION_MENU_DIRECT_BODY,
     CORPORATE_INTAKE_INTRO, CORPORATE_EVENT_TYPE_QUESTION, CORPORATE_EVENT_TYPE_BUTTONS,
     CORPORATE_EVENT_TYPE_LABELS, CORPORATE_HEADCOUNT_QUESTION, CORPORATE_HEADCOUNT_RETRY,
     CORPORATE_DATE_QUESTION, CORPORATE_DATE_RETRY, CORPORATE_LOCATION_QUESTION,
@@ -912,8 +912,17 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
             return
 
-        main_option_matched = None
         entry_intent = match_entry_intent(text) if message_type == "text" else None
+
+        # 2.9 Cliente que ya sabe qué quiere y pide el menú directo: nos saltamos la pregunta
+        # de Delivery/Retiro/Evento y solo pedimos la sucursal para armar el link del menú.
+        if interactive_id == "main_menu_direct" or entry_intent == "menu_direct":
+            await _send_branch_selection_menu(
+                db, wa_service, conv, contact, phone, prompt_body=BRANCH_SELECTION_MENU_DIRECT_BODY
+            )
+            return
+
+        main_option_matched = None
         if interactive_id in ("opt_visit", "main_visit"):
             main_option_matched = "visit"
         elif interactive_id in ("opt_delivery", "order_delivery"):
