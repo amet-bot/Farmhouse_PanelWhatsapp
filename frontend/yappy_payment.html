@@ -9,11 +9,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/yappy_payment.css?v=1.1.0">
+  <link rel="stylesheet" href="/css/yappy_payment.css?v=1.2.0">
 </head>
 <body>
   <main class="payment-shell">
     <section class="payment-card" aria-labelledby="paymentTitle">
+      <div id="demoBanner" class="demo-banner" hidden>🧪 Modo simulación — no se cobra dinero real</div>
       <img class="payment-logo" src="/assets/images/farmhouse-logo.png" alt="Farmhouse">
       <span class="payment-eyebrow">PAGO SEGURO</span>
       <h1 id="paymentTitle">Paga tu pedido con Yappy</h1>
@@ -31,6 +32,7 @@
       <div id="yappyButtonWrap" class="yappy-button-wrap" hidden>
         <btn-yappy theme="blue" rounded="true"></btn-yappy>
       </div>
+      <button id="demoPayButton" class="demo-pay-button" type="button" hidden>Pagar con Yappy (simulado)</button>
       <div id="paymentStatus" class="payment-status" role="status">Validando tu enlace de pago…</div>
 
       <ol class="payment-steps">
@@ -41,6 +43,6 @@
       <p class="security-note">Nunca te pediremos tu PIN ni contraseña de Banco General.</p>
     </section>
   </main>
-  <script src="/js/modules/yappy_payment.js?v=1.1.0"></script>
+  <script src="/js/modules/yappy_payment.js?v=1.2.0"></script>
 </body>
 </html>

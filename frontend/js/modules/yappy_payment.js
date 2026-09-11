@@ -4,10 +4,13 @@
   const params = new URLSearchParams(window.location.search);
   const orderCode = params.get("order") || "";
   const paymentToken = params.get("token") || "";
+  const isDemo = params.get("demo") === "1";
   const statusBox = document.getElementById("paymentStatus");
   const buttonWrap = document.getElementById("yappyButtonWrap");
   const phoneField = document.getElementById("phoneField");
   const phoneInput = document.getElementById("yappyPhone");
+  const demoBanner = document.getElementById("demoBanner");
+  const demoButton = document.getElementById("demoPayButton");
 
   function normalizedPhoneDigits(value) {
     let digits = String(value || "").replace(/\D/g, "");
@@ -24,6 +27,29 @@
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.detail || "No pudimos comunicarnos con Yappy.");
     return data;
+  }
+
+  function runDemoFlow(order) {
+    demoBanner.hidden = false;
+    if (order.contact_phone) phoneInput.value = order.contact_phone;
+    phoneField.hidden = false;
+    demoButton.hidden = false;
+    setStatus("Simulación: confirma tu número y toca el botón para ver cómo se vería el pago real.");
+
+    demoButton.addEventListener("click", () => {
+      const phoneDigits = normalizedPhoneDigits(phoneInput.value);
+      if (phoneDigits.length !== 8) {
+        setStatus("Escribe un número de Yappy válido (8 dígitos).", "error");
+        phoneInput.focus();
+        return;
+      }
+      demoButton.disabled = true;
+      setStatus("Simulación: creando tu solicitud segura en Yappy…");
+      setTimeout(() => {
+        setStatus("✅ Simulación exitosa. Así se vería para tu cliente — actívalo con tus credenciales de Yappy Comercial para que sea un cobro real.", "success");
+        demoButton.disabled = false;
+      }, 1400);
+    });
   }
 
   if (!orderCode || !paymentToken) {
@@ -44,6 +70,7 @@
       return;
     }
     if (!order.configured || !config.enabled) {
+      if (isDemo) return runDemoFlow(order);
       setStatus("El pago automático por Yappy todavía está pendiente de activación comercial. Escríbenos por WhatsApp para ayudarte.", "error");
       return;
     }

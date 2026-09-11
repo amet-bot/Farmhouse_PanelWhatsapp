@@ -52,6 +52,28 @@ h1 { margin: 7px 0 10px; color: var(--green); font: 700 27px/1.2 Poppins, sans-s
 .phone-input:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
 .yappy-button-wrap { min-height: 52px; }
 .yappy-button-wrap btn-yappy { width: 100%; }
+.demo-banner {
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.demo-pay-button {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 999px;
+  background: #29a9e0;
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+}
+.demo-pay-button:disabled { opacity: 0.7; }
 .payment-status { margin-top: 14px; padding: 11px 13px; border-radius: 10px; background: var(--green-soft); color: var(--green); font-size: 13px; line-height: 1.45; }
 .payment-status.error { background: #f5e7e2; color: var(--red); }
 .payment-status.success { background: #e4f2e8; color: #24673c; }
