@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="/css/menu.css?v=3.5.0">
+  <link rel="stylesheet" href="/css/menu.css?v=3.6.0">
 </head>
 <body>
 
@@ -172,21 +172,11 @@
             <div id="deliveryMap" class="delivery-map" aria-label="Mapa para seleccionar ubicación"></div>
             <p class="map-attribution-note">Toca el mapa o arrastra el pin verde. Las sucursales aparecen identificadas.</p>
             <div id="deliveryGpsHint" class="delivery-gps-hint" hidden></div>
-            <div class="address-details-grid">
-              <div>
-                <label class="field-label" for="deliveryBuilding">Edificio o casa</label>
-                <input id="deliveryBuilding" class="text-input" type="text" placeholder="Ej: Torre Azul o Casa 24">
-              </div>
-              <div>
-                <label class="field-label" for="deliveryUnit">Piso / número</label>
-                <input id="deliveryUnit" class="text-input" type="text" placeholder="Ej: Piso 4, apto. 4B">
-              </div>
-            </div>
             <div class="delivery-reference-field">
-              <label class="field-label" for="deliveryReference">Referencia</label>
-              <input id="deliveryReference" class="text-input" type="text" placeholder="Ej: Portón negro, frente al parque">
+              <label class="field-label" for="deliveryReference">Detalles de la dirección <span class="field-label-optional">(opcional)</span></label>
+              <input id="deliveryReference" class="text-input" type="text" placeholder="Ej: Torre Azul, piso 4, portón negro...">
             </div>
-            <div id="deliveryQuote" class="delivery-quote">Selecciona una ubicación para ver la sucursal más cercana y el costo.</div>
+            <div id="deliveryQuote" class="delivery-quote" hidden></div>
           </div>
         </div>
       </details>
@@ -261,6 +251,6 @@
   <div id="toast" class="menu-toast" hidden role="status" aria-live="polite"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="/js/modules/menu_app.js?v=3.5.0"></script>
+  <script src="/js/modules/menu_app.js?v=3.6.0"></script>
 </body>
 </html>

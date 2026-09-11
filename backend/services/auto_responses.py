@@ -93,6 +93,12 @@ CORPORATE_DATE_QUESTION = "¡Genial! ¿Tienes fecha y hora en mente?"
 CORPORATE_DATE_RETRY = "¿Me compartes la fecha y hora que tienes en mente?"
 
 CORPORATE_LOCATION_QUESTION = "Última pregunta: ¿dónde te gustaría recibir el pedido?"
+
+# Variante para cuando el cliente ya dio cantidad y fecha/hora juntas en una sola respuesta:
+# fusiona el agradecimiento con la última pregunta en una sola burbuja, en vez de dos.
+CORPORATE_LOCATION_QUESTION_AFTER_COMBINED_ANSWER = (
+    "¡Genial, gracias! Última pregunta: ¿dónde te gustaría recibir el pedido?"
+)
 CORPORATE_LOCATION_BUTTONS = [
     {"id": "event_loc_pickup", "title": "Retiro en sucursal"},
     {"id": "event_loc_delivery", "title": "Entrega en mi lugar"},

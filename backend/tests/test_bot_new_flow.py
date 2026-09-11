@@ -245,8 +245,8 @@ def test_corporate_customer_can_answer_people_and_date_in_one_message(client, cl
     outgoing = db_session.query(Message).filter(
         Message.conversation_id == conv.id, Message.direction == "outgoing"
     ).all()
-    assert any("entiendo mucho mejor" in msg.content for msg in outgoing)
-    assert any("¿dónde te gustaría recibir" in msg.content for msg in outgoing)
+    # El agradecimiento y la última pregunta van fusionados en un solo mensaje (no dos).
+    assert any("¡Genial, gracias!" in msg.content and "¿dónde te gustaría recibir" in msg.content for msg in outgoing)
 
 
 def test_typing_indicator_shown_before_bot_responds(client, clayton_branch, db_session, monkeypatch):

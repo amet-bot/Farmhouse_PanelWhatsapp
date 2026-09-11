@@ -26,6 +26,7 @@ from services.auto_responses import (
     CORPORATE_INTAKE_INTRO, CORPORATE_EVENT_TYPE_QUESTION, CORPORATE_EVENT_TYPE_BUTTONS,
     CORPORATE_EVENT_TYPE_LABELS, CORPORATE_HEADCOUNT_QUESTION, CORPORATE_HEADCOUNT_RETRY,
     CORPORATE_DATE_QUESTION, CORPORATE_DATE_RETRY, CORPORATE_LOCATION_QUESTION,
+    CORPORATE_LOCATION_QUESTION_AFTER_COMBINED_ANSWER,
     CORPORATE_LOCATION_BUTTONS, CORPORATE_LOCATION_LABELS, CORPORATE_INVALID_OPTION_RETRY,
     CORPORATE_INTAKE_CLOSING_MESSAGE, get_corporate_intake_summary,
     MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS,
@@ -549,9 +550,10 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
         conv.updated_at = datetime.now(timezone.utc)
         db.commit()
         if has_date_or_time:
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, "Gracias, con eso ya entiendo mucho mejor lo que necesitas 🙌")
-            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-            await _send_corporate_location_question(db, wa_service, conv, contact, phone)
+            await _send_interactive_buttons_message(
+                db, wa_service, conv, contact, phone,
+                CORPORATE_LOCATION_QUESTION_AFTER_COMBINED_ANSWER, CORPORATE_LOCATION_BUTTONS,
+            )
         else:
             await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_DATE_QUESTION)
         return

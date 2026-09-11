@@ -351,7 +351,7 @@
       state.deliveryDistanceKm = null;
       state.deliveryFee = 0;
       if (optionPrice) optionPrice.textContent = "Selecciona tu pin";
-      if (quote) quote.textContent = "Selecciona una ubicación para ver la distancia y el costo.";
+      if (quote) quote.hidden = true;
       updateTotals();
       return;
     }
@@ -360,6 +360,7 @@
       state.deliveryFee = 0;
       if (optionPrice) optionPrice.textContent = "Fuera de cobertura";
       if (quote) {
+        quote.hidden = false;
         quote.className = "delivery-quote error";
         quote.textContent = "Lamentablemente no hacemos entregas fuera de Ciudad de Panamá. Puedes elegir retiro gratis en cualquiera de nuestras sucursales.";
       }
@@ -375,6 +376,7 @@
     state.deliveryFee = feeForDistance(km);
     if (optionPrice) optionPrice.textContent = money(state.deliveryFee);
     if (quote) {
+      quote.hidden = false;
       quote.className = "delivery-quote";
       quote.textContent = `${km.toFixed(2)} km desde Farmhouse ${selected.name}. Delivery: ${money(state.deliveryFee)}.`;
     }
@@ -1022,8 +1024,8 @@
       branch_code: branchCode || null,
       delivery_type: state.deliveryType,
       delivery_address: state.deliveryType === "delivery" ? (deliveryAddress || null) : null,
-      delivery_building: el("deliveryBuilding") ? (el("deliveryBuilding").value.trim() || null) : null,
-      delivery_unit: el("deliveryUnit") ? (el("deliveryUnit").value.trim() || null) : null,
+      delivery_building: null,
+      delivery_unit: null,
       delivery_reference: el("deliveryReference") ? (el("deliveryReference").value.trim() || null) : null,
       delivery_latitude: state.deliveryType === "delivery" ? state.deliveryLatitude : null,
       delivery_longitude: state.deliveryType === "delivery" ? state.deliveryLongitude : null,
@@ -1196,10 +1198,8 @@
       });
     }
 
-    ["deliveryBuilding", "deliveryUnit", "deliveryReference"].forEach((id) => {
-      const input = el(id);
-      if (input) input.addEventListener("input", () => scheduleCartSync());
-    });
+    const deliveryReferenceInput = el("deliveryReference");
+    if (deliveryReferenceInput) deliveryReferenceInput.addEventListener("input", () => scheduleCartSync());
 
     ["customerName", "customerPhone"].forEach((id) => {
       const input = el(id);
@@ -1406,8 +1406,8 @@
       branch_code: branchCode,
       delivery_type: state.deliveryType,
       delivery_address: state.deliveryType === "delivery" ? deliveryAddress : null,
-      delivery_building: el("deliveryBuilding") ? (el("deliveryBuilding").value.trim() || null) : null,
-      delivery_unit: el("deliveryUnit") ? (el("deliveryUnit").value.trim() || null) : null,
+      delivery_building: null,
+      delivery_unit: null,
       delivery_reference: el("deliveryReference") ? (el("deliveryReference").value.trim() || null) : null,
       delivery_latitude: state.deliveryType === "delivery" ? state.deliveryLatitude : null,
       delivery_longitude: state.deliveryType === "delivery" ? state.deliveryLongitude : null,
