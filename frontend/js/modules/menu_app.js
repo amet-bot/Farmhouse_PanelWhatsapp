@@ -293,6 +293,7 @@
     state.deliveryLatitude = Number(lat);
     state.deliveryLongitude = Number(lng);
     state.deliveryInCity = isInPanamaCity(state.deliveryLatitude, state.deliveryLongitude);
+    if (state.deliveryInCity && state.deliveryType !== "delivery") setDeliveryType("delivery");
 
     if (state.map && window.L && !state.customerMarker) {
       state.customerMarker = L.marker([lat, lng], { draggable: true, title: "Tu ubicación" }).addTo(state.map);
@@ -363,7 +364,10 @@
         quote.className = "delivery-quote error";
         quote.textContent = "Lamentablemente no hacemos entregas fuera de Ciudad de Panamá. Puedes elegir retiro gratis en cualquiera de nuestras sucursales.";
       }
-      if (state.deliveryType === "delivery") setDeliveryType("pickup");
+      if (state.deliveryType === "delivery") {
+        setDeliveryType("pickup");
+        showToast("Esa ubicación está fuera de cobertura. Cambiamos tu pedido a retiro en sucursal.", true);
+      }
       updateTotals();
       return;
     }
@@ -393,11 +397,16 @@
       Boolean(address) && state.deliveryLatitude != null && state.deliveryLongitude != null && state.deliveryInCity
     );
     const branchReady = Boolean(state.branchCode);
+    const fulfillmentReady = state.fulfillmentType === "asap" || Boolean(state.scheduledFor);
     const steps = [
-      { complete: deliveryReady, message: "Indica la dirección y marca el punto exacto en el mapa." },
-      { complete: branchReady && (state.deliveryType === "pickup" || deliveryReady), message: !branchReady ? "Selecciona la sucursal de tu pedido." : "Elige retiro en sucursal o completa la ubicación para delivery." },
-      { complete: state.fulfillmentType === "asap" || Boolean(state.scheduledFor), message: "Indica cuándo quieres recibir tu pedido." },
-      { complete: Boolean(state.paymentMethod), message: "Selecciona un método de pago." },
+      {
+        complete: branchReady && deliveryReady,
+        message: !branchReady ? "Selecciona la sucursal de tu pedido." : "Indica la dirección y marca el punto exacto en el mapa.",
+      },
+      {
+        complete: fulfillmentReady && Boolean(state.paymentMethod),
+        message: !fulfillmentReady ? "Indica cuándo quieres recibir tu pedido." : "Selecciona un método de pago.",
+      },
       { complete: Boolean(name) && phone.length >= 7, message: !name ? "Escribe tu nombre completo." : "Escribe un número de teléfono válido." },
     ];
     const firstMissing = steps.findIndex((step) => !step.complete);
@@ -431,6 +440,11 @@
   function setDeliveryType(type) {
     state.deliveryType = type;
     document.querySelectorAll(".delivery-option").forEach((button) => button.classList.toggle("active", button.dataset.delivery === type));
+    const addressSection = el("deliveryAddressSection");
+    if (addressSection) {
+      addressSection.hidden = type !== "delivery";
+      if (type === "delivery" && state.map) setTimeout(() => state.map.invalidateSize(), 80);
+    }
     updateTotals();
     updateCheckoutStatus();
   }
@@ -1064,6 +1078,8 @@
     document.querySelectorAll(".delivery-option").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (btn.dataset.delivery === "delivery" && state.deliveryLatitude == null) {
+          const addressSection = el("deliveryAddressSection");
+          if (addressSection) addressSection.hidden = false;
           openCheckoutStep(1);
           return showToast("Primero marca tu ubicación exacta en el mapa.", true);
         }
@@ -1071,7 +1087,7 @@
           return showToast("Esa ubicación está fuera del área de delivery. Elige retiro en sucursal.", true);
         }
         setDeliveryType(btn.dataset.delivery);
-        openCheckoutStep(3);
+        openCheckoutStep(2);
         scheduleCartSync();
       });
     });
@@ -1112,7 +1128,6 @@
         if (el("scheduledTimeWrap")) el("scheduledTimeWrap").hidden = state.fulfillmentType !== "scheduled";
         if (state.fulfillmentType === "asap") {
           state.scheduledFor = null;
-          openCheckoutStep(4);
         }
         updateCheckoutStatus();
         scheduleCartSync();
@@ -1125,7 +1140,6 @@
       scheduledInput.min = new Date(minimum.getTime() - minimum.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
       scheduledInput.addEventListener("change", () => {
         state.scheduledFor = scheduledInput.value ? new Date(scheduledInput.value).toISOString() : null;
-        if (state.scheduledFor) openCheckoutStep(4);
         updateCheckoutStatus();
         scheduleCartSync();
       });
@@ -1135,7 +1149,7 @@
       btn.addEventListener("click", () => {
         state.paymentMethod = btn.dataset.payment;
         document.querySelectorAll("#paymentOptions .option-pill").forEach((b) => b.classList.toggle("active", b === btn));
-        openCheckoutStep(5);
+        openCheckoutStep(3);
         updateCheckoutStatus();
         scheduleCartSync();
       });

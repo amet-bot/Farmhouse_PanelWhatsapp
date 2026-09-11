@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="/css/menu.css?v=3.3.0">
+  <link rel="stylesheet" href="/css/menu.css?v=3.4.0">
 </head>
 <body>
 
@@ -157,40 +157,7 @@
       <div class="checkout-layout">
         <div class="checkout-form-column">
       <details class="checkout-step" data-step="1" open>
-        <summary><span class="step-number">1</span><span>Dirección y ubicación<small>Marca el punto exacto en el mapa</small></span></summary>
-        <div class="checkout-step-body">
-          <div class="delivery-address-header">
-            <label class="field-label delivery-address-label" for="deliveryAddress" id="deliveryAddressLabel">Dirección</label>
-            <button type="button" id="btnDetectGps" class="btn-detect-gps" title="Detectar mi ubicación actual por GPS">
-              <span class="gps-icon">📍</span> <span id="btnDetectGpsLabel">Usar mi ubicación actual</span>
-            </button>
-          </div>
-          <div class="address-search-row">
-            <input id="deliveryAddress" class="text-input delivery-address-input" type="text" placeholder="Busca una dirección o mueve el pin...">
-            <button type="button" id="btnSearchAddress" class="btn-address-search">Buscar</button>
-          </div>
-          <div id="deliveryMap" class="delivery-map" aria-label="Mapa para seleccionar ubicación"></div>
-          <p class="map-attribution-note">Toca el mapa o arrastra el pin verde. Las sucursales aparecen identificadas.</p>
-          <div id="deliveryGpsHint" class="delivery-gps-hint" hidden></div>
-          <div class="address-details-grid">
-            <div>
-              <label class="field-label" for="deliveryBuilding">Edificio o casa</label>
-              <input id="deliveryBuilding" class="text-input" type="text" placeholder="Ej: Torre Azul o Casa 24">
-            </div>
-            <div>
-              <label class="field-label" for="deliveryUnit">Piso / número</label>
-              <input id="deliveryUnit" class="text-input" type="text" placeholder="Ej: Piso 4, apto. 4B">
-            </div>
-          </div>
-          <div class="delivery-reference-field">
-            <label class="field-label" for="deliveryReference">Referencia</label>
-            <input id="deliveryReference" class="text-input" type="text" placeholder="Ej: Portón negro, frente al parque">
-          </div>
-        </div>
-      </details>
-
-      <details class="checkout-step" data-step="2">
-        <summary><span class="step-number">2</span><span>Tipo de entrega<small>Retiro gratis o delivery calculado</small></span></summary>
+        <summary><span class="step-number">1</span><span>Entrega<small>Retiro gratis o delivery calculado</small></span></summary>
         <div class="checkout-step-body">
           <div class="delivery-toggle">
             <button type="button" class="delivery-option" data-delivery="pickup">
@@ -200,12 +167,42 @@
               Delivery<span id="deliveryOptionPrice" class="delivery-price">Selecciona tu pin</span>
             </button>
           </div>
-          <div id="deliveryQuote" class="delivery-quote">Selecciona una ubicación para ver la sucursal más cercana y el costo.</div>
+
+          <div id="deliveryAddressSection" class="delivery-address-section">
+            <div class="delivery-address-header">
+              <label class="field-label delivery-address-label" for="deliveryAddress" id="deliveryAddressLabel">Dirección</label>
+              <button type="button" id="btnDetectGps" class="btn-detect-gps" title="Detectar mi ubicación actual por GPS">
+                <span class="gps-icon">📍</span> <span id="btnDetectGpsLabel">Usar mi ubicación actual</span>
+              </button>
+            </div>
+            <div class="address-search-row">
+              <input id="deliveryAddress" class="text-input delivery-address-input" type="text" placeholder="Busca una dirección o mueve el pin...">
+              <button type="button" id="btnSearchAddress" class="btn-address-search">Buscar</button>
+            </div>
+            <div id="deliveryMap" class="delivery-map" aria-label="Mapa para seleccionar ubicación"></div>
+            <p class="map-attribution-note">Toca el mapa o arrastra el pin verde. Las sucursales aparecen identificadas.</p>
+            <div id="deliveryGpsHint" class="delivery-gps-hint" hidden></div>
+            <div class="address-details-grid">
+              <div>
+                <label class="field-label" for="deliveryBuilding">Edificio o casa</label>
+                <input id="deliveryBuilding" class="text-input" type="text" placeholder="Ej: Torre Azul o Casa 24">
+              </div>
+              <div>
+                <label class="field-label" for="deliveryUnit">Piso / número</label>
+                <input id="deliveryUnit" class="text-input" type="text" placeholder="Ej: Piso 4, apto. 4B">
+              </div>
+            </div>
+            <div class="delivery-reference-field">
+              <label class="field-label" for="deliveryReference">Referencia</label>
+              <input id="deliveryReference" class="text-input" type="text" placeholder="Ej: Portón negro, frente al parque">
+            </div>
+            <div id="deliveryQuote" class="delivery-quote">Selecciona una ubicación para ver la sucursal más cercana y el costo.</div>
+          </div>
         </div>
       </details>
 
-      <details class="checkout-step" data-step="3">
-        <summary><span class="step-number">3</span><span>¿Para cuándo?<small>Ahora o programa una hora</small></span></summary>
+      <details class="checkout-step" data-step="2">
+        <summary><span class="step-number">2</span><span>¿Cuándo y cómo pagas?<small>Horario de entrega y método de pago</small></span></summary>
         <div class="checkout-step-body">
           <div class="delivery-toggle fulfillment-toggle">
             <button type="button" class="fulfillment-option active" data-fulfillment="asap">Lo antes posible</button>
@@ -215,13 +212,8 @@
             <label class="field-label" for="scheduledFor">Fecha y hora</label>
             <input id="scheduledFor" class="text-input" type="datetime-local">
           </div>
-        </div>
-      </details>
 
-      <details class="checkout-step" data-step="4">
-        <summary><span class="step-number">4</span><span>Método de pago<small>Elige cómo deseas pagar</small></span></summary>
-        <div class="checkout-step-body">
-          <div id="paymentOptions" class="option-pills payment-pills">
+          <div id="paymentOptions" class="option-pills payment-pills checkout-substep">
             <button type="button" class="option-pill payment-card-option tilopay-option" data-payment="card" aria-label="Pagar con Tilopay, tarjeta de crédito o débito">
               <span class="payment-brand tilopay-brand">Tilopay</span>
               <small>Tarjeta de crédito/débito</small>
@@ -235,8 +227,8 @@
         </div>
       </details>
 
-      <details class="checkout-step" data-step="5" id="customerSection">
-        <summary><span class="step-number">5</span><span>Datos del cliente<small>Para identificar y confirmar tu pedido</small></span></summary>
+      <details class="checkout-step" data-step="3" id="customerSection">
+        <summary><span class="step-number">3</span><span>Tus datos<small>Para identificar y confirmar tu pedido</small></span></summary>
         <div class="checkout-step-body" id="customerInputFields">
           <div>
             <label class="field-label" for="customerName">Tu nombre</label>
@@ -279,6 +271,6 @@
   <div id="toast" class="menu-toast" hidden role="status" aria-live="polite"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="/js/modules/menu_app.js?v=3.3.0"></script>
+  <script src="/js/modules/menu_app.js?v=3.4.0"></script>
 </body>
 </html>

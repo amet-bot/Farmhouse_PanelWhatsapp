@@ -973,6 +973,9 @@ a:focus-visible {
 .delivery-address-section {
   margin-top: var(--space-3);
 }
+.checkout-substep {
+  margin-top: var(--space-4);
+}
 
 .checkout-step {
   border: 1px solid var(--fh-line);
