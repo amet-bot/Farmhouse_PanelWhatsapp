@@ -101,9 +101,20 @@
   --table-header-bg: #f8fafc;
   --table-row-hover: #f8fafc;
   --modal-backdrop: rgba(15, 23, 42, 0.55);
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.03);
-  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  --radius: 14px;
+  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.04);
+  --shadow: 0 2px 6px rgba(17, 24, 39, 0.05), 0 8px 20px -4px rgba(17, 24, 39, 0.07);
+  --shadow-lg: 0 12px 20px -6px rgba(17, 24, 39, 0.12), 0 24px 48px -12px rgba(17, 24, 39, 0.16);
+  --shadow-glow-green: 0 4px 14px rgba(22, 163, 74, 0.28);
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  /* Superficies genéricas (usadas por notificaciones flotantes y controles sueltos) */
+  --bg-surface: var(--panel-bg);
+  --bg-surface-soft: var(--panel-subtle);
+  --bg-hover: var(--panel-subtle);
+  --text-main: var(--text-primary);
+  --primary-color: var(--green);
+  --primary-light: var(--green-soft);
 
   /* Toast */
   --toast-bg: #1e293b;
@@ -206,9 +217,12 @@
   --table-header-bg: #0d1622;
   --table-row-hover: #152233;
   --modal-backdrop: rgba(0, 0, 0, 0.78);
-  --shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 20px 30px rgba(0, 0, 0, 0.65);
-  --radius: 14px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 10px 24px -6px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 24px -8px rgba(0, 0, 0, 0.5), 0 28px 56px -12px rgba(0, 0, 0, 0.6);
+  --shadow-glow-green: 0 4px 18px rgba(34, 197, 94, 0.25);
+  --radius: 16px;
+  --radius-sm: 10px;
 
   /* Toast */
   --toast-bg: #1e2b3d;
@@ -272,7 +286,7 @@ a:focus-visible {
    3. SIDEBAR DE NAVEGACIÓN
    ---------------------------------------------------------------------------- */
 .sidebar {
-  background: var(--nav-bg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--nav-bg) 92%, #ffffff 8%) 0%, var(--nav-bg) 45%);
   color: #fff;
   padding: 18px 12px;
   display: flex;
@@ -366,14 +380,14 @@ a:focus-visible {
   gap: 8px;
   color: var(--nav-text);
   padding: 9px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   margin: 2px 0;
   background: transparent;
   border: none;
   width: 100%;
   text-align: left;
   font-size: 13px;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .nav-btn:hover {
@@ -385,6 +399,7 @@ a:focus-visible {
   background: var(--nav-active);
   color: #fff;
   font-weight: 600;
+  box-shadow: 0 4px 14px -2px rgba(22, 163, 74, 0.45);
 }
 
 .nav-left-group {
@@ -471,16 +486,19 @@ a:focus-visible {
 
 .topbar {
   background: var(--panel-bg);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-light);
+  box-shadow: var(--shadow-sm);
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   padding: 0 20px;
   height: 68px;
   flex-shrink: 0;
   overflow-x: auto;
   overflow-y: hidden;
   transition: background-color 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  z-index: 5;
 }
 
 /* Botón de menú hamburguesa: solo existe visualmente en celular (ver media query) */
@@ -600,6 +618,37 @@ a:focus-visible {
   pointer-events: none;
 }
 
+/* CLÚSTER DE CONTROLES SECUNDARIOS DE LA TOPBAR (tema, sonido, notificaciones) */
+.topbar-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--panel-subtle);
+  border: 1px solid var(--line-light);
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.topbar-cluster .theme-toggle-btn,
+.topbar-cluster .sound-toggle-btn,
+.topbar-cluster .notif-bell {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.topbar-cluster .theme-toggle-btn:hover,
+.topbar-cluster .sound-toggle-btn:hover,
+.topbar-cluster .notif-bell:hover {
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.topbar-cluster .sound-toggle-btn.active {
+  background: var(--primary-light);
+}
+
 /* BOTÓN DE CAMBIO DE TEMA CLARO / OSCURO */
 .theme-toggle-btn {
   display: inline-flex;
@@ -712,7 +761,7 @@ a:focus-visible {
 
 .card-panel {
   background: var(--panel-bg);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-light);
   border-radius: var(--radius);
   min-height: 0;
   height: 100%;
@@ -720,7 +769,7 @@ a:focus-visible {
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 /* COLUMNA 1: BANDEJA DE CONVERSACIONES */
@@ -733,10 +782,10 @@ a:focus-visible {
 }
 
 .panel-header-title {
-  padding: 14px 16px 10px;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  padding: 16px 16px 10px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
   flex-shrink: 0;
 }
@@ -1162,10 +1211,19 @@ a:focus-visible {
   width: fit-content;
   max-width: 65%;
   padding: 8px 12px;
-  border-radius: 14px;
+  border-radius: 16px;
   font-size: 13.5px;
   line-height: 1.42;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-sm);
+}
+
+.msg-bubble.msg-bubble-enter {
+  animation: msgBubbleEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes msgBubbleEnter {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .msg-bubble .btn-delete-msg {
@@ -1565,15 +1623,18 @@ a:focus-visible {
   border: none;
   background: var(--green);
   color: #fff;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 8px 18px;
   font-weight: 700;
   font-size: 13px;
-  transition: background 0.15s ease;
+  box-shadow: 0 2px 8px -1px rgba(22, 163, 74, 0.35);
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .btn-send:hover {
   background: var(--green-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-glow-green);
 }
 
 .btn-send:disabled {
@@ -1606,8 +1667,10 @@ a:focus-visible {
 
 .detail-block-title {
   font-weight: 700;
-  font-size: 13px;
-  color: var(--text-primary);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
   margin-bottom: 10px;
 }
 
@@ -1833,8 +1896,8 @@ a:focus-visible {
 .modal-card {
   background: var(--panel-bg);
   color: var(--text-primary);
-  border: 1px solid var(--line);
-  border-radius: 16px;
+  border: 1px solid var(--line-light);
+  border-radius: 20px;
   width: 100%;
   max-width: 540px;
   box-shadow: var(--shadow-lg);
@@ -1842,6 +1905,12 @@ a:focus-visible {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: modalCardIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalCardIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .modal-card.modal-lg {
@@ -1981,14 +2050,21 @@ a:focus-visible {
   color: #fff;
   border: none;
   padding: 9px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-weight: 600;
   font-size: 13px;
-  transition: background 0.15s ease;
+  box-shadow: 0 2px 8px -1px rgba(22, 163, 74, 0.35);
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .btn-primary:hover {
   background: var(--green-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-glow-green);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
 }
 
 .btn-secondary {
@@ -2052,25 +2128,42 @@ input:-webkit-autofill:focus {
 /* ----------------------------------------------------------------------------
    9. TABLAS DE USUARIOS Y DISPOSITIVOS
    ---------------------------------------------------------------------------- */
+.device-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line-light);
+  border-radius: var(--radius-sm);
+}
+
 .device-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 12.5px;
 }
 
 .device-table th {
   text-align: left;
-  padding: 10px 12px;
+  padding: 11px 14px;
   background: var(--table-header-bg);
   border-bottom: 1px solid var(--line);
   color: var(--text-muted);
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .device-table td {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--line-light);
   color: var(--text-primary);
+}
+
+.device-table tr:last-child td {
+  border-bottom: none;
+}
+
+.device-table tr {
+  transition: background-color 0.12s ease;
 }
 
 .device-table tr:hover td {

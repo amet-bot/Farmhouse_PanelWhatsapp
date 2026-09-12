@@ -114,22 +114,25 @@
           <span class="search-icon"><i data-lucide="search"></i></span>
         </div>
 
-        <!-- Botón Selector de Tema Claro / Oscuro -->
-        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
-          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
-          <span class="theme-label">Oscuro</span>
-        </button>
+        <!-- Clúster de controles secundarios: tema, sonido y notificaciones agrupados -->
+        <div class="topbar-cluster">
+          <!-- Botón Selector de Tema Claro / Oscuro -->
+          <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+            <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+            <span class="theme-label">Oscuro</span>
+          </button>
 
-        <!-- Botón de Control de Sonido -->
-        <button class="sound-toggle-btn active" id="btnToggleSound" aria-label="Sonido de notificaciones" title="Sonido activado (clic para silenciar)">
-          <span class="nav-icon"><i data-lucide="volume-2"></i></span>
-          <span class="btn-text">Sonido</span>
-        </button>
+          <!-- Botón de Control de Sonido -->
+          <button class="sound-toggle-btn active" id="btnToggleSound" aria-label="Sonido de notificaciones" title="Sonido activado (clic para silenciar)">
+            <span class="nav-icon"><i data-lucide="volume-2"></i></span>
+            <span class="btn-text">Sonido</span>
+          </button>
 
-        <button class="notif-bell" id="btnEnableNotifications" aria-label="Notificaciones" title="Activar notificaciones push">
-          <span class="nav-icon" id="notifBellIconSlot"><i data-lucide="bell"></i></span>
-          <span class="count" id="notifBellCount" style="display:none">0</span>
-        </button>
+          <button class="notif-bell" id="btnEnableNotifications" aria-label="Notificaciones" title="Activar notificaciones push">
+            <span class="nav-icon" id="notifBellIconSlot"><i data-lucide="bell"></i></span>
+            <span class="count" id="notifBellCount" style="display:none">0</span>
+          </button>
+        </div>
 
         <div class="user-profile">
           <div class="profile-avatar" id="topAgentAvatar">AD</div>
@@ -449,7 +452,7 @@
           <span style="font-size:12px;color:var(--muted)">Usuarios registrados en el sistema</span>
           <button class="btn-primary" id="btnOpenAddUser"><i data-lucide="user-plus"></i> Crear Nuevo Agente / Usuario</button>
         </div>
-        <div style="overflow-x:auto">
+        <div class="device-table-wrap">
           <table class="device-table">
             <thead>
               <tr>
@@ -617,7 +620,7 @@
           <span style="font-size:12px;color:var(--muted)">Control exclusivo de Administrador.</span>
           <button class="btn-primary" id="btnOpenAddDevice" style="display:none"><i data-lucide="plus-circle"></i> Registrar Nuevo Dispositivo</button>
         </div>
-        <div style="overflow-x:auto">
+        <div class="device-table-wrap">
           <table class="device-table">
             <thead>
               <tr>

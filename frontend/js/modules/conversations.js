@@ -183,7 +183,7 @@ const conversationsModule = {
 
       item.dataset.id = conv.id;
       item.innerHTML = `
-        <div class="conv-avatar" style="border-left: 3px solid ${utils.escapeHtml(branchColor)}; background:${avatarColor}22; color:${avatarColor}">
+        <div class="conv-avatar" style="background:${avatarColor}22; color:${avatarColor}; border: 1.5px solid ${avatarColor}66">
           ${utils.escapeHtml(initials)}
         </div>
         <div class="conv-content">

@@ -13,11 +13,15 @@ const chatModule = {
   activeRequestConvId: null,
   isInternalNote: false,
   pendingAttachment: null,
+  // IDs de mensajes ya animados al entrar, para no repetir la animación en cada
+  // re-render (renderMessages reconstruye todas las burbujas desde cero).
+  seenMessageIds: new Set(),
 
   async loadConversation(convId) {
     if (this.currentConversation && Number(this.currentConversation.id) !== Number(convId)) {
       this.clearAttachment();
     }
+    this.seenMessageIds = new Set();
     this.activeRequestConvId = convId;
     this.renderLoadingState();
 
@@ -305,6 +309,11 @@ const chatModule = {
         msgDiv.className = 'msg-bubble msg-out';
       } else {
         msgDiv.className = 'msg-bubble msg-in';
+      }
+
+      if (!msg.id || !this.seenMessageIds.has(msg.id)) {
+        msgDiv.classList.add('msg-bubble-enter');
+        if (msg.id) this.seenMessageIds.add(msg.id);
       }
 
       const timeStr = utils.formatTime(msg.created_at);
