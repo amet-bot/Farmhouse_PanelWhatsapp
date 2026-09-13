@@ -67,6 +67,23 @@ def test_webhook_persists_and_uses_receiving_phone_number_id(
     assert "new-phone-id-987" in selected_phone_ids
 
 
+def test_webhook_ignores_excluded_phone_number_id(client, db_session, monkeypatch):
+    """Mensajes de un phone_number_id explícitamente excluido (ej. otro panel que comparte
+    la misma WABA, como farmhouse-catering-center) no deben crear contacto ni conversación."""
+    monkeypatch.setattr(settings, "WHATSAPP_MODE", "mock")
+    monkeypatch.setattr(settings, "EXCLUDED_PHONE_NUMBER_IDS", "catering-phone-id-123")
+    monkeypatch.setattr("routers.webhooks.SessionLocal", TestingSessionLocal)
+
+    response = client.post(
+        "/api/webhooks/whatsapp",
+        json=_incoming_payload(phone_number_id="catering-phone-id-123"),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "ignored_excluded_phone_number_id"
+    assert db_session.query(Contact).filter(Contact.phone == "+50765523134").first() is None
+
+
 def test_panel_reply_uses_phone_number_id_stored_on_conversation(
     client, db_session, clayton_branch, clayton_agent, clayton_device, monkeypatch
 ):

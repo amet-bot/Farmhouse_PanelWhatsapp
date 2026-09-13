@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     # las sucursales (incluida Obarrio) comparten la única línea de META_WA_DISPLAY_NUMBER,
     # y así debe seguir hasta que exista un número real que configurar aquí.
     BRANCH_WHATSAPP_NUMBERS: Optional[str] = None
+    # phone_number_id de OTROS paneles que comparten esta misma cuenta de WhatsApp Business
+    # (WABA) pero tienen su propia app de Meta y no deben ser procesados aquí — ej. el número
+    # dedicado de farmhouse-catering-center. Separados por coma. Vacío por defecto (ninguno).
+    EXCLUDED_PHONE_NUMBER_IDS: Optional[str] = None
     # URL pública base del panel (sin slash final), usada para armar enlaces como el del
     # Menú Digital que el bot manda por WhatsApp.
     PUBLIC_BASE_URL: str = "https://farmhousepanelwhatsapp-production.up.railway.app"
@@ -79,6 +83,11 @@ class Settings(BaseSettings):
     VAPID_PUBLIC_KEY: Optional[str] = None
     VAPID_PRIVATE_KEY: Optional[str] = None
     VAPID_CLAIM_SUB: str = "mailto:admin@farmhouse.pa"
+
+    def get_excluded_phone_number_ids(self) -> List[str]:
+        if not self.EXCLUDED_PHONE_NUMBER_IDS:
+            return []
+        return [pid.strip() for pid in self.EXCLUDED_PHONE_NUMBER_IDS.split(",") if pid.strip()]
 
     def get_allowed_origins(self) -> List[str]:
         if not self.ALLOWED_ORIGINS:

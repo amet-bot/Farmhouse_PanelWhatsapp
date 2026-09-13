@@ -1204,6 +1204,16 @@ async def receive_webhook(
     message_type = msg_data.get("message_type", "text")
     receiving_phone_id = str(msg_data.get("recipient_phone_number_id") or "").strip() or None
 
+    # Ignorar mensajes de números que pertenecen a OTRO panel (ej. farmhouse-catering-center),
+    # aunque compartan esta misma cuenta de WhatsApp Business. A diferencia de un futuro número
+    # propio por sucursal (que sí debe procesarse aquí), estos están explícitamente excluidos.
+    if receiving_phone_id and receiving_phone_id in settings.get_excluded_phone_number_ids():
+        logger.info(
+            f"[Webhook] Mensaje ignorado: phone_number_id {receiving_phone_id} pertenece a otro "
+            f"panel (excluido explícitamente vía EXCLUDED_PHONE_NUMBER_IDS)."
+        )
+        return {"status": "ignored_excluded_phone_number_id"}
+
     type_labels = {
         "image": "📷 Imagen",
         "video": "🎥 Video",
