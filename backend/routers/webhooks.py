@@ -47,6 +47,7 @@ from services.order_flow_matcher import (
     match_entry_intent, match_navigation_intent
 )
 from services.push_service import notify_branch_new_message
+from services.flow_content import get_node_text, get_node_options
 from security.auth import create_menu_session_token
 
 logger = logging.getLogger("farmhouse.webhooks")
@@ -134,7 +135,7 @@ async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, c
     Retiro, Evento/empresa, Ver sucursales, Hablar con alguien), personalizado con el nombre
     de WhatsApp del cliente cuando se conoce. Una lista en vez de 3 botones evita el paso
     intermedio de "Hacer un pedido" -> submenú de tipo de entrega."""
-    welcome_body = get_main_welcome_body(contact.name)
+    welcome_body = get_main_welcome_body(contact.name, db=db)
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
     menu_res = await wa_service.send_interactive_list(
         phone, welcome_body, MAIN_MENU_LIST_BUTTON, MAIN_MENU_LIST_ROWS, section_title="¿Qué te gustaría hacer?"
@@ -168,10 +169,13 @@ async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, c
 
 async def _send_order_type_prompt(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, body_text: Optional[str] = None) -> None:
     """Segundo nivel del menú: una sola decisión corta, con texto libre permitido."""
+    question_text = body_text or get_node_text(db, "order_type_question", ORDER_TYPE_QUESTION)
+    titles = get_node_options(db, "order_type_question", [b["title"] for b in ORDER_TYPE_BUTTONS])
+    buttons = [{"id": b["id"], "title": t} for b, t in zip(ORDER_TYPE_BUTTONS, titles)]
     await _send_interactive_buttons_message(
         db, wa_service, conv, contact, phone,
-        body_text or ORDER_TYPE_QUESTION,
-        ORDER_TYPE_BUTTONS,
+        question_text,
+        buttons,
     )
 
 async def _reset_bot_context(db: Session, conv: Conversation, *, clear_branch: bool = True) -> None:
@@ -187,9 +191,26 @@ async def _reset_bot_context(db: Session, conv: Conversation, *, clear_branch: b
     conv.updated_at = datetime.now(timezone.utc)
     db.commit()
 
-async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, intro_text: Optional[str] = None, prompt_body: Optional[str] = None) -> None:
-    """Envía (opcionalmente) un mensaje introductorio y luego la lista interactiva de sucursales activas."""
-    body_text = prompt_body or BRANCH_SELECTION_BODY
+
+# Mapa clave corta -> (id del nodo editable, texto de respaldo). Las claves coinciden a
+# propósito con los valores de conv.delivery_type ("visit"/"delivery"/"pickup") para que los
+# call sites puedan pasar prompt_key=conv.delivery_type directamente.
+_BRANCH_PROMPT_NODES = {
+    "visit": ("branch_selection_visit_body", BRANCH_SELECTION_VISIT_BODY),
+    "delivery": ("branch_selection_delivery_body", BRANCH_SELECTION_DELIVERY_BODY),
+    "pickup": ("branch_selection_pickup_body", BRANCH_SELECTION_PICKUP_BODY),
+    "menu_direct": ("branch_selection_menu_direct_body", BRANCH_SELECTION_MENU_DIRECT_BODY),
+}
+
+async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, intro_text: Optional[str] = None, prompt_body: Optional[str] = None, prompt_key: Optional[str] = None) -> None:
+    """Envía (opcionalmente) un mensaje introductorio y luego la lista interactiva de sucursales activas.
+    `prompt_key` resuelve el cuerpo del mensaje contra el nodo editable correspondiente (ver
+    _BRANCH_PROMPT_NODES); `prompt_body` sigue existiendo para un texto ya resuelto/puntual."""
+    if prompt_key and prompt_key in _BRANCH_PROMPT_NODES:
+        node_id, fallback = _BRANCH_PROMPT_NODES[prompt_key]
+        body_text = get_node_text(db, node_id, fallback)
+    else:
+        body_text = prompt_body or BRANCH_SELECTION_BODY
     if intro_text:
         await asyncio.sleep(0.3)
         send_res = await wa_service.send_text_message(phone, intro_text)
@@ -280,13 +301,16 @@ async def _send_interactive_buttons_message(db: Session, wa_service, conv: Conve
 
 async def _send_manager_help_prompt(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
     """Envía el prompt de '¿Algo más?' (hablar con gerente / ver el menú / despedida) tras la info de sucursal."""
-    btn_res = await wa_service.send_interactive_buttons(phone, MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS)
+    question_text = get_node_text(db, "manager_help_question", MANAGER_HELP_QUESTION)
+    titles = get_node_options(db, "manager_help_question", [b["title"] for b in MANAGER_HELP_BUTTONS])
+    buttons = [{"id": b["id"], "title": t} for b, t in zip(MANAGER_HELP_BUTTONS, titles)]
+    btn_res = await wa_service.send_interactive_buttons(phone, question_text, buttons)
     btn_wamid = None
     if isinstance(btn_res, dict) and "messages" in btn_res and btn_res["messages"]:
         btn_wamid = btn_res["messages"][0].get("id")
     btn_msg = Message(
         conversation_id=conv.id, direction="outgoing", sender_type="system",
-        content=f"{MANAGER_HELP_QUESTION}\n\n(1) Sí, me encantaría hablar con un gerente\n(2) Quiero ver el menú\n(3) No, gracias, nos vemos pronto",
+        content=f"{question_text}\n\n(1) {titles[0]}\n(2) {titles[1]}\n(3) {titles[2]}",
         whatsapp_message_id=btn_wamid, is_internal=False, status="sent"
     )
     db.add(btn_msg)
@@ -321,24 +345,27 @@ async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, c
     menu_url = f"{settings.PUBLIC_BASE_URL}/menu?branch={branch_code}&phone={client_phone}&name={client_name}&conv={conv.id}&session={session_token}{wa_param}"
 
     if conv.delivery_type == "delivery":
-        body_text = (
-            f"🍽️ Aquí tienes nuestro Menú Digital para armar tu pedido a domicilio desde Farmhouse *{branch_name}*.\n\n"
+        fallback_body = (
+            f"🍽️ Aquí tienes nuestro Menú Digital para armar tu pedido a domicilio desde Farmhouse *{{sucursal}}*.\n\n"
             f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos, ingresa tu dirección y envíanos tu orden en 1 clic._\n\n"
             f"{MENU_LINK_WARM_CLOSING}"
         )
+        body_text = get_node_text(db, "menu_link_delivery_body", fallback_body, sucursal=branch_name)
         button_text = "Ver menú y pedir"
     elif conv.delivery_type == "pickup":
-        body_text = (
-            f"🍽️ Échale un vistazo a nuestro Menú Digital y arma tu pedido para retirar en Farmhouse *{branch_name}*.\n\n"
+        fallback_body = (
+            f"🍽️ Échale un vistazo a nuestro Menú Digital y arma tu pedido para retirar en Farmhouse *{{sucursal}}*.\n\n"
             f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos y te lo tendremos fresco y listo cuando pases a retirarlo._\n\n"
             f"{MENU_LINK_WARM_CLOSING}"
         )
+        body_text = get_node_text(db, "menu_link_pickup_body", fallback_body, sucursal=branch_name)
         button_text = "Ver menú y pedir"
     else:
-        body_text = (
-            f"🍽️ Aquí tienes nuestro Menú Digital de Farmhouse *{branch_name}*.\n\n"
+        fallback_body = (
+            f"🍽️ Aquí tienes nuestro Menú Digital de Farmhouse *{{sucursal}}*.\n\n"
             f"_Así vas viendo qué se te antoja antes de llegar, o si prefieres, también puedes hacer tu pedido desde aquí mismo._"
         )
+        body_text = get_node_text(db, "menu_link_generic_body", fallback_body, sucursal=branch_name)
         button_text = "Ver menú"
 
     send_res_menu = await wa_service.send_cta_url_message(phone, body_text, button_text, menu_url)
@@ -414,7 +441,7 @@ async def _handoff_to_human(db: Session, wa_service, conv: Conversation, contact
     branch_name = conv.branch.name if conv.branch else None
     await _send_plain_text_message(
         db, wa_service, conv, contact, phone,
-        customer_text or get_human_handoff_message(branch_name),
+        customer_text or get_human_handoff_message(branch_name, db=db),
     )
     summary_msg = Message(
         conversation_id=conv.id,
@@ -458,21 +485,21 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
     branch_code = conv.branch.code if conv.branch else ""
 
     if conv.delivery_type == "visit":
-        visit_text = get_branch_visit_message(branch_code, branch_name)
+        visit_text = get_branch_visit_message(branch_code, branch_name, db=db)
         await _send_plain_text_message(db, wa_service, conv, contact, phone, visit_text)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
         return
 
     if conv.delivery_type == "pickup":
-        pickup_info_text = get_branch_pickup_info_message(branch_code, branch_name)
+        pickup_info_text = get_branch_pickup_info_message(branch_code, branch_name, db=db)
         await _send_plain_text_message(db, wa_service, conv, contact, phone, pickup_info_text)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_digital_menu_link(db, wa_service, conv, contact, phone)
         return
 
     if conv.delivery_type == "delivery":
-        delivery_info_text = get_branch_delivery_info_message(branch_code, branch_name)
+        delivery_info_text = get_branch_delivery_info_message(branch_code, branch_name, db=db)
         await _send_plain_text_message(db, wa_service, conv, contact, phone, delivery_info_text)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_digital_menu_link(db, wa_service, conv, contact, phone)
@@ -486,11 +513,21 @@ def _append_corporate_note(conv: Conversation, line: str) -> None:
     """Acumula una línea más al resumen de respuestas del flujo Corporativo/Evento."""
     conv.corporate_intake_notes = f"{conv.corporate_intake_notes}\n{line}" if conv.corporate_intake_notes else line
 
+def _corporate_event_type_buttons(db: Session) -> list:
+    titles = get_node_options(db, "corporate_event_type_question", [b["title"] for b in CORPORATE_EVENT_TYPE_BUTTONS])
+    return [{"id": b["id"], "title": t} for b, t in zip(CORPORATE_EVENT_TYPE_BUTTONS, titles)]
+
+def _corporate_location_buttons(db: Session) -> list:
+    titles = get_node_options(db, "corporate_location_question", [b["title"] for b in CORPORATE_LOCATION_BUTTONS])
+    return [{"id": b["id"], "title": t} for b, t in zip(CORPORATE_LOCATION_BUTTONS, titles)]
+
 async def _send_corporate_event_type_question(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
-    await _send_interactive_buttons_message(db, wa_service, conv, contact, phone, CORPORATE_EVENT_TYPE_QUESTION, CORPORATE_EVENT_TYPE_BUTTONS)
+    question_text = get_node_text(db, "corporate_event_type_question", CORPORATE_EVENT_TYPE_QUESTION)
+    await _send_interactive_buttons_message(db, wa_service, conv, contact, phone, question_text, _corporate_event_type_buttons(db))
 
 async def _send_corporate_location_question(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
-    await _send_interactive_buttons_message(db, wa_service, conv, contact, phone, CORPORATE_LOCATION_QUESTION, CORPORATE_LOCATION_BUTTONS)
+    question_text = get_node_text(db, "corporate_location_question", CORPORATE_LOCATION_QUESTION)
+    await _send_interactive_buttons_message(db, wa_service, conv, contact, phone, question_text, _corporate_location_buttons(db))
 
 async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, interactive_id: str, message_type: str, text: str) -> None:
     """Procesa la respuesta del cliente a una de las 4 preguntas guiadas del Pedido
@@ -509,7 +546,7 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
             event_type = match_event_type(text)
 
         if not event_type:
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_INVALID_OPTION_RETRY)
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_invalid_option_retry", CORPORATE_INVALID_OPTION_RETRY))
             await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
             await _send_corporate_event_type_question(db, wa_service, conv, contact, phone)
             return
@@ -518,12 +555,12 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
         conv.corporate_intake_step = 2
         conv.updated_at = datetime.now(timezone.utc)
         db.commit()
-        await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_HEADCOUNT_QUESTION)
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_headcount_question", CORPORATE_HEADCOUNT_QUESTION))
         return
 
     if step == 2:
         if message_type != "text" or not text.strip():
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_HEADCOUNT_RETRY)
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_headcount_retry", CORPORATE_HEADCOUNT_RETRY))
             return
         answer = text.strip()
         _append_corporate_note(conv, f"Cantidad de personas: {answer}")
@@ -552,15 +589,16 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
         if has_date_or_time:
             await _send_interactive_buttons_message(
                 db, wa_service, conv, contact, phone,
-                CORPORATE_LOCATION_QUESTION_AFTER_COMBINED_ANSWER, CORPORATE_LOCATION_BUTTONS,
+                get_node_text(db, "corporate_location_after_combined", CORPORATE_LOCATION_QUESTION_AFTER_COMBINED_ANSWER),
+                _corporate_location_buttons(db),
             )
         else:
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_DATE_QUESTION)
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_date_question", CORPORATE_DATE_QUESTION))
         return
 
     if step == 3:
         if message_type != "text" or not text.strip():
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_DATE_RETRY)
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_date_retry", CORPORATE_DATE_RETRY))
             return
         _append_corporate_note(conv, f"Fecha y hora: {text.strip()}")
         conv.corporate_intake_step = 4
@@ -581,7 +619,7 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
             location = match_event_location(text)
 
         if not location:
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_INVALID_OPTION_RETRY)
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_invalid_option_retry", CORPORATE_INVALID_OPTION_RETRY))
             await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
             await _send_corporate_location_question(db, wa_service, conv, contact, phone)
             return
@@ -591,7 +629,7 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
         conv.updated_at = datetime.now(timezone.utc)
         db.commit()
 
-        await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_INTAKE_CLOSING_MESSAGE)
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_closing", CORPORATE_INTAKE_CLOSING_MESSAGE))
 
         # Resumen interno (solo visible en el panel, nunca se manda al cliente) para que Sol vea
         # de un vistazo lo ya conversado sin desplazarse por todo el historial del chat.
@@ -798,7 +836,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             await _reset_bot_context(db, conv)
             await _send_plain_text_message(
                 db, wa_service, conv, contact, phone,
-                RESTART_MESSAGE if navigation_intent == "restart" else CANCEL_MESSAGE,
+                get_node_text(db, "restart_message", RESTART_MESSAGE) if navigation_intent == "restart" else get_node_text(db, "cancel_message", CANCEL_MESSAGE),
             )
             await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
             await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
@@ -810,15 +848,10 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             conv.payment_method = None
             conv.updated_at = datetime.now(timezone.utc)
             db.commit()
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, CHANGE_BRANCH_MESSAGE)
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "change_branch_message", CHANGE_BRANCH_MESSAGE))
             await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
             if conv.delivery_type in ("visit", "delivery", "pickup"):
-                prompt = {
-                    "visit": BRANCH_SELECTION_VISIT_BODY,
-                    "delivery": BRANCH_SELECTION_DELIVERY_BODY,
-                    "pickup": BRANCH_SELECTION_PICKUP_BODY,
-                }[conv.delivery_type]
-                await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_body=prompt)
+                await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=conv.delivery_type)
             else:
                 await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
             return
@@ -852,10 +885,9 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             if desired_type:
                 conv.delivery_type = desired_type
                 db.commit()
-                prompt = BRANCH_SELECTION_DELIVERY_BODY if desired_type == "delivery" else BRANCH_SELECTION_PICKUP_BODY
-                await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_body=prompt)
+                await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=desired_type)
             else:
-                await _send_order_type_prompt(db, wa_service, conv, contact, phone, CHANGE_ORDER_TYPE_MESSAGE)
+                await _send_order_type_prompt(db, wa_service, conv, contact, phone, get_node_text(db, "change_order_type_message", CHANGE_ORDER_TYPE_MESSAGE))
             return
 
         # 2.5 Si hay una pregunta guiada de Corporativo/Evento pendiente, esta respuesta es
@@ -877,12 +909,12 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
 
         if manager_choice == "yes":
             branch_name = conv.branch.name if conv.branch else "Farmhouse"
-            ans_text = get_manager_assigned_message(branch_name)
+            ans_text = get_manager_assigned_message(branch_name, db=db)
             await _handoff_to_human(db, wa_service, conv, contact, phone, ans_text)
             return
         elif manager_choice == "no":
             branch_name = conv.branch.name if conv.branch else "Farmhouse"
-            ans_text = get_manager_declined_message(branch_name)
+            ans_text = get_manager_declined_message(branch_name, db=db)
             send_res = await wa_service.send_text_message(phone, ans_text)
             wamid = None
             if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
@@ -920,7 +952,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         # de Delivery/Retiro/Evento y solo pedimos la sucursal para armar el link del menú.
         if interactive_id == "main_menu_direct" or entry_intent == "menu_direct":
             await _send_branch_selection_menu(
-                db, wa_service, conv, contact, phone, prompt_body=BRANCH_SELECTION_MENU_DIRECT_BODY
+                db, wa_service, conv, contact, phone, prompt_key="menu_direct"
             )
             return
 
@@ -949,7 +981,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             if cat_branch:
                 await _assign_conversation_branch(db, conv, cat_branch, "cliente seleccionó Pedido Corporativo / Evento")
 
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, CORPORATE_INTAKE_INTRO)
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_intro", CORPORATE_INTAKE_INTRO))
             await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
 
             conv.corporate_intake_step = 1
@@ -989,13 +1021,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
 
         # 5. Si se seleccionó o tiene delivery_type (visit, delivery, pickup) pero falta sucursal:
         if conv.delivery_type in ["visit", "delivery", "pickup"] and conv.branch_id is None:
-            if conv.delivery_type == "visit":
-                prompt_text = BRANCH_SELECTION_VISIT_BODY
-            elif conv.delivery_type == "delivery":
-                prompt_text = BRANCH_SELECTION_DELIVERY_BODY
-            else:
-                prompt_text = BRANCH_SELECTION_PICKUP_BODY
-            await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_body=prompt_text)
+            await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=conv.delivery_type)
             return
 
         # 6. Si la sucursal fue elegida en este turno o acaba de completar delivery_type + sucursal:
@@ -1014,8 +1040,13 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                     should_prompt = False
 
             last_bot_text = _last_public_bot_text(db, conv.id)
-            if ORDER_TYPE_QUESTION in last_bot_text or CHANGE_ORDER_TYPE_MESSAGE in last_bot_text or UNKNOWN_ORDER_MESSAGE in last_bot_text:
-                await _send_order_type_prompt(db, wa_service, conv, contact, phone, UNKNOWN_ORDER_MESSAGE)
+            # Se resuelve el mismo texto (editable) tanto para "¿ya preguntamos esto?" como
+            # para lo que se manda a continuación, así los dos lados siempre coinciden.
+            order_type_question_text = get_node_text(db, "order_type_question", ORDER_TYPE_QUESTION)
+            change_order_type_text = get_node_text(db, "change_order_type_message", CHANGE_ORDER_TYPE_MESSAGE)
+            unknown_order_text = get_node_text(db, "unknown_order_message", UNKNOWN_ORDER_MESSAGE)
+            if order_type_question_text in last_bot_text or change_order_type_text in last_bot_text or unknown_order_text in last_bot_text:
+                await _send_order_type_prompt(db, wa_service, conv, contact, phone, unknown_order_text)
             elif should_prompt:
                 await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
                 conv.last_branch_prompt_at = now
@@ -1023,7 +1054,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             else:
                 await _send_interactive_buttons_message(
                     db, wa_service, conv, contact, phone,
-                    UNKNOWN_MAIN_MESSAGE,
+                    get_node_text(db, "unknown_main_message", UNKNOWN_MAIN_MESSAGE),
                     MAIN_MENU_BUTTONS,
                 )
             return
@@ -1043,9 +1074,9 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                 db.commit()
 
                 payment_closing_messages = {
-                    "ach": ACH_PAYMENT_INSTRUCTIONS,
-                    "card": CARD_PAYMENT_MESSAGE,
-                    "yappy": YAPPY_PAYMENT_MESSAGE,
+                    "ach": get_node_text(db, "payment_ach", ACH_PAYMENT_INSTRUCTIONS),
+                    "card": get_node_text(db, "payment_card", CARD_PAYMENT_MESSAGE),
+                    "yappy": get_node_text(db, "payment_yappy", YAPPY_PAYMENT_MESSAGE),
                 }
                 closing_text = payment_closing_messages.get(
                     conv.payment_method,
@@ -1059,35 +1090,41 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         if message_type not in ("text", "interactive"):
             await _handoff_to_human(
                 db, wa_service, conv, contact, phone,
-                "Recibí tu archivo, gracias 📎 Ya se lo compartí al equipo para que lo revise y continúe contigo por aquí.",
+                get_node_text(db, "attachment_received_message", "Recibí tu archivo, gracias 📎 Ya se lo compartí al equipo para que lo revise y continúe contigo por aquí."),
             )
             return
 
         # 9. Recuperación contextual. Todo mensaje obtiene una salida útil: repetir la
         # decisión pertinente, ofrecer acciones o volver al inicio, nunca quedarse en silencio.
         if conv.delivery_type == "visit" and conv.branch_id is not None:
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, "Quiero asegurarme de ayudarte bien 😊")
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "visit_recovery_message", "Quiero asegurarme de ayudarte bien 😊"))
             await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
             await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
             return
 
         if conv.delivery_type in ("delivery", "pickup") and conv.branch_id is not None:
+            after_menu_question = get_node_text(db, "after_menu_help_question", AFTER_MENU_HELP_QUESTION)
+            after_menu_titles = get_node_options(db, "after_menu_help_question", [b["title"] for b in AFTER_MENU_HELP_BUTTONS])
+            after_menu_buttons = [{"id": b["id"], "title": t} for b, t in zip(AFTER_MENU_HELP_BUTTONS, after_menu_titles)]
             await _send_interactive_buttons_message(
                 db, wa_service, conv, contact, phone,
-                AFTER_MENU_HELP_QUESTION,
-                AFTER_MENU_HELP_BUTTONS,
+                after_menu_question,
+                after_menu_buttons,
             )
             return
 
         last_bot_text = _last_public_bot_text(db, conv.id)
-        if ORDER_TYPE_QUESTION in last_bot_text or CHANGE_ORDER_TYPE_MESSAGE in last_bot_text:
-            await _send_order_type_prompt(db, wa_service, conv, contact, phone, UNKNOWN_ORDER_MESSAGE)
+        order_type_question_text = get_node_text(db, "order_type_question", ORDER_TYPE_QUESTION)
+        change_order_type_text = get_node_text(db, "change_order_type_message", CHANGE_ORDER_TYPE_MESSAGE)
+        unknown_order_text = get_node_text(db, "unknown_order_message", UNKNOWN_ORDER_MESSAGE)
+        if order_type_question_text in last_bot_text or change_order_type_text in last_bot_text:
+            await _send_order_type_prompt(db, wa_service, conv, contact, phone, unknown_order_text)
         elif conv.delivery_type in ("visit", "delivery", "pickup"):
-            await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_body=UNKNOWN_BRANCH_MESSAGE)
+            await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_body=get_node_text(db, "unknown_branch_message", UNKNOWN_BRANCH_MESSAGE))
         else:
             await _send_interactive_buttons_message(
                 db, wa_service, conv, contact, phone,
-                UNKNOWN_MAIN_MESSAGE,
+                get_node_text(db, "unknown_main_message", UNKNOWN_MAIN_MESSAGE),
                 MAIN_MENU_BUTTONS,
             )
         return

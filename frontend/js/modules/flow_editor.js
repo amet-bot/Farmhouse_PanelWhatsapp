@@ -721,7 +721,15 @@ const flowEditorModule = (function () {
   // ambas, nunca a mitad de una de ellas.
   function computeDepths() {
     const depth = {};
-    graph.nodes.forEach(function (n) { depth[n.id] = (n.type === 'trigger') ? 0 : null; });
+    // Cualquier nodo sin conexión de entrada es una "raíz" (profundidad 0) desde el arranque,
+    // no solo el disparador — si no, una rama huérfana (ej. una ruta alterna que no cuelga del
+    // disparador) nunca propagaba profundidad a SUS propios nodos posteriores: como el
+    // huérfano solo se fijaba en 0 hasta DESPUÉS del ciclo de propagación de abajo, todo lo que
+    // colgaba de él se quedaba sin profundidad asignada y cabecera terminaba también en 0,
+    // apilado encima del disparador en vez de seguir su propia cadena hacia abajo.
+    const hasIncoming = {};
+    graph.conns.forEach(function (c) { hasIncoming[c.to] = true; });
+    graph.nodes.forEach(function (n) { depth[n.id] = (n.type === 'trigger' || !hasIncoming[n.id]) ? 0 : null; });
     let changed = true, guard = 0;
     while (changed && guard < 50) {
       changed = false; guard++;
@@ -732,8 +740,7 @@ const flowEditorModule = (function () {
         if (depth[c.to] == null || proposed > depth[c.to]) { depth[c.to] = proposed; changed = true; }
       });
     }
-    // Un nodo que quedó sin ninguna conexión de entrada (huérfano) no tiene de dónde heredar
-    // profundidad; se agrupa junto al disparador en vez de desaparecer del cálculo.
+    // Por si acaso queda algún nodo sin tocar (no debería, con la inicialización de arriba).
     graph.nodes.forEach(function (n) { if (depth[n.id] == null) depth[n.id] = 0; });
     return depth;
   }

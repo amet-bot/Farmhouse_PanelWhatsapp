@@ -1,8 +1,19 @@
 """
 Farmhouse WhatsApp Center - Mensajes de Respuesta Automática
 Configuración centralizada de mensajes y saludos automáticos del sistema.
+
+Las funciones que reciben `db` consultan primero el grafo editable "Flujo visual"
+(services/flow_content.py) y solo si no hay nada editado usan el texto de aquí abajo — ver el
+docstring de ese módulo para el porqué. `db` es opcional (default None) para que estas
+funciones sigan siendo llamables sin base de datos, ej. al calcular MAIN_WELCOME_BODY como
+constante de módulo más abajo.
 """
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+from services.flow_content import get_node_text, get_node_options
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 # Nombre de respaldo que usa parse_incoming_message cuando Meta no manda un perfil de contacto
 # (ver services/whatsapp_service.py). Nunca se usa como saludo personalizado, se trata como
@@ -17,13 +28,14 @@ def get_customer_first_name(customer_name: Optional[str] = None) -> str:
     return name.split()[0]
 
 
-def get_main_welcome_body(customer_name: Optional[str] = None) -> str:
+def get_main_welcome_body(customer_name: Optional[str] = None, db: "Optional[Session]" = None) -> str:
     """Saludo inicial del bot, personalizado con el nombre real de WhatsApp del cliente cuando
     se conoce (y no es el nombre genérico de respaldo), para que se sienta menos robótico."""
     name = (customer_name or "").strip()
     first_name = get_customer_first_name(name)
     saludo = f"¡Hola, {first_name}! 👋" if first_name else "¡Hola! 👋"
-    return f"{saludo} Soy el asistente de Farmhouse 🌿\n\n¿Qué te gustaría hacer hoy? También puedes escribirme con tus propias palabras."
+    fallback = f"{saludo} Soy el asistente de Farmhouse 🌿\n\n¿Qué te gustaría hacer hoy? También puedes escribirme con tus propias palabras."
+    return get_node_text(db, "main_welcome", fallback, saludo=saludo)
 
 
 MAIN_WELCOME_BODY = get_main_welcome_body(None)
@@ -173,14 +185,20 @@ def get_branch_info_message(branch_name: str, branch_code: str, opening_line: st
             lines.append(f"🗺️ Ubícanos en Google Maps: {info['maps_url']}")
     return "\n".join(lines)
 
-def get_branch_visit_message(branch_code: str, branch_name: str) -> str:
-    return get_branch_info_message(branch_name, branch_code, f"¡Excelente! Te esperamos en la sucursal de *{branch_name}*.")
+def get_branch_visit_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None) -> str:
+    fallback_opening = f"¡Excelente! Te esperamos en la sucursal de *{branch_name}*."
+    opening = get_node_text(db, "branch_visit_opening", fallback_opening, sucursal=branch_name)
+    return get_branch_info_message(branch_name, branch_code, opening)
 
-def get_branch_pickup_info_message(branch_code: str, branch_name: str) -> str:
-    return get_branch_info_message(branch_name, branch_code, f"¡Perfecto! 🛍️ Retirarás tu pedido en nuestra sucursal de *{branch_name}*.")
+def get_branch_pickup_info_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None) -> str:
+    fallback_opening = f"¡Perfecto! 🛍️ Retirarás tu pedido en nuestra sucursal de *{branch_name}*."
+    opening = get_node_text(db, "branch_pickup_opening", fallback_opening, sucursal=branch_name)
+    return get_branch_info_message(branch_name, branch_code, opening)
 
-def get_branch_delivery_info_message(branch_code: str, branch_name: str) -> str:
-    return get_branch_info_message(branch_name, branch_code, f"¡Excelente! 🛵 Tu pedido a domicilio saldrá de nuestra sucursal de *{branch_name}*.")
+def get_branch_delivery_info_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None) -> str:
+    fallback_opening = f"¡Excelente! 🛵 Tu pedido a domicilio saldrá de nuestra sucursal de *{branch_name}*."
+    opening = get_node_text(db, "branch_delivery_opening", fallback_opening, sucursal=branch_name)
+    return get_branch_info_message(branch_name, branch_code, opening)
 
 # Cierre cálido tras mandar el botón del Menú Digital en delivery/pickup: deja la puerta abierta
 # sin forzar otra decisión de botones (el bot ya detecta por texto libre si piden un humano).
@@ -202,25 +220,28 @@ CANCEL_MESSAGE = "Listo, dejé a un lado esa selección. ¿Qué te gustaría hac
 CHANGE_ORDER_TYPE_MESSAGE = "Sin problema. ¿Cómo prefieres recibir el pedido?"
 CHANGE_BRANCH_MESSAGE = "Claro, puedes elegir otra sucursal."
 
-def get_human_handoff_message(branch_name: Optional[str] = None) -> str:
+def get_human_handoff_message(branch_name: Optional[str] = None, db: "Optional[Session]" = None) -> str:
     place = f" de *{branch_name}*" if branch_name and branch_name != "Farmhouse" else ""
-    return (
+    fallback = (
         f"Claro 🤝 Ya compartí tu solicitud con nuestro equipo{place}. "
         "Una persona continuará contigo por este mismo chat y podrá ver lo que ya conversamos, "
         "así que no tendrás que repetirlo."
     )
+    return get_node_text(db, "human_handoff_message", fallback, lugar=place)
 
-def get_manager_assigned_message(branch_name: str) -> str:
-    return (
+def get_manager_assigned_message(branch_name: str, db: "Optional[Session]" = None) -> str:
+    fallback = (
         f"¡Con mucho gusto! 🤝 Te comunicamos de inmediato con el gerente de nuestra sucursal de *{branch_name}*.\n\n"
         f"En un momento te estará atendiendo personalmente por aquí. ¡Muchas gracias por tu paciencia! 😊"
     )
+    return get_node_text(db, "manager_assigned_message", fallback, sucursal=branch_name)
 
-def get_manager_declined_message(branch_name: str) -> str:
-    return (
+def get_manager_declined_message(branch_name: str, db: "Optional[Session]" = None) -> str:
+    fallback = (
         f"¡Perfecto! Muchas gracias por escribirnos. ¡Te esperamos pronto en Farmhouse *{branch_name}*! "
         f"Que tengas un excelente día 🌿✨"
     )
+    return get_node_text(db, "manager_declined_message", fallback, sucursal=branch_name)
 
 ACH_PAYMENT_INSTRUCTIONS = (
     "¡Perfecto! 🏦 Estos son los datos de nuestra cuenta para pagar por ACH:\n\n"
