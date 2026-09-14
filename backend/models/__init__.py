@@ -7,5 +7,6 @@ from models.conversation import Conversation
 from models.message import Message
 from models.order import Order
 from models.push_subscription import PushSubscription
+from models.bot_flow import BotFlow
 
-__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription"]
+__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription", "BotFlow"]

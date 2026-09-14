@@ -1,0 +1,399 @@
+/* ============================================================================
+   FLUJO VISUAL DEL BOT — pestaña "Flujo visual" (solo admin)
+   ----------------------------------------------------------------------------
+   Componente propio, separado de style.css (base compartida): esta pantalla es nueva en el
+   panel central, así que su CSS vive en su propio archivo en vez de mezclarse con style.css.
+   ========================================================================== */
+
+:root, :root[data-theme="light"] {
+  --flow-trigger: #5b6b62;
+  --flow-message: var(--green);
+  --flow-question: #b4650a;
+  --flow-capture: #1d6fa5;
+  --flow-delay: #0f8f8a;
+  --flow-action: #7047c9;
+  --flow-end: #b23a52;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --flow-trigger: #9fb0a6;
+    --flow-question: #e0a13d;
+    --flow-capture: #5aa8dd;
+    --flow-delay: #4fc3bd;
+    --flow-action: #ad91ec;
+    --flow-end: #ea7a91;
+  }
+}
+:root[data-theme="dark"] {
+  --flow-trigger: #9fb0a6;
+  --flow-question: #e0a13d;
+  --flow-capture: #5aa8dd;
+  --flow-delay: #4fc3bd;
+  --flow-action: #ad91ec;
+  --flow-end: #ea7a91;
+}
+
+/* Página normal (no modal): ocupa el mismo lugar en la rejilla de .main-area que
+   .workspace y se muestra en su lugar — nunca las dos a la vez (ver showPage en app.js). */
+.flow-page {
+  grid-row: 2;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--panel-bg);
+}
+.flow-page[hidden] { display: none; }
+/* .workspace trae su propio `display: grid` (style.css) con la misma especificidad que la
+   regla nativa del navegador para `[hidden]` — y como esa regla nativa es de más baja
+   prioridad (viene del user-agent, no del autor), `display: grid` le gana y el atributo
+   `hidden` no hacía nada: las dos vistas quedaban montadas una sobre la otra. Esta regla
+   compuesta (dos selectores = más específica que `.workspace` sola) fuerza a `.workspace`
+   a respetar `hidden` de verdad. */
+.workspace[hidden] { display: none; }
+
+.flow-page-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.btn-flow-back {
+  flex: none;
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-bg);
+  color: var(--text-secondary);
+  display: grid;
+  place-items: center;
+}
+.btn-flow-back:hover { background: var(--panel-subtle); color: var(--text-primary); }
+.btn-flow-back svg, .btn-flow-back i { width: 17px; height: 17px; }
+.flow-page-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.flow-page-header h2 svg, .flow-page-header h2 i { width: 16px; height: 16px; color: var(--green); }
+.flow-page-subtitle { font-size: 12px; color: var(--text-muted); }
+
+.flow-editor-banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: var(--panel-subtle);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.flow-editor-banner-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex: none;
+}
+
+.flow-editor-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.flow-editor-loading, .flow-editor-error {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  gap: 8px;
+}
+.flow-editor-error { color: var(--red); flex-direction: column; gap: 10px; }
+
+/* ---------- barra superior interna (guardar / descartar / stats) ---------- */
+.flow-toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-bg);
+}
+.flow-toolbar .spacer { flex: 1; }
+
+.flow-layout-group { display: flex; gap: 6px; padding-left: 4px; border-left: 1px solid var(--line); margin-left: 2px; }
+.btn-flow-layout {
+  display: flex; align-items: center; gap: 6px;
+  border: 1px solid var(--line); background: var(--panel-bg); color: var(--text-secondary);
+  padding: 6px 11px; border-radius: 8px; font-size: 12px; font-weight: 500;
+}
+.btn-flow-layout:hover { border-color: var(--green); color: var(--green-dark); }
+.btn-flow-layout svg { width: 13px; height: 13px; }
+.flow-stats {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 12px;
+}
+.flow-stats b { color: var(--text-secondary); font-weight: 600; }
+.flow-dirty-flag {
+  font-size: 11px;
+  color: #b8611c;
+  background: var(--orange-soft, #fffbeb);
+  padding: 3px 8px;
+  border-radius: 999px;
+  display: none;
+  align-items: center;
+  gap: 5px;
+}
+.flow-dirty-flag.show { display: inline-flex; }
+.flow-dirty-flag .dot { width: 5px; height: 5px; border-radius: 50%; background: #b8611c; }
+.btn-flow-discard, .btn-flow-save {
+  border: 1px solid var(--line);
+  background: var(--panel-bg);
+  color: var(--text-secondary);
+  padding: 6px 13px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-flow-discard:hover { border-color: var(--text-muted); }
+.btn-flow-save { border-color: var(--green); color: var(--green-dark); }
+.btn-flow-save:hover { background: var(--green-soft); }
+.btn-flow-save:disabled { opacity: .5; cursor: default; background: none; }
+.btn-flow-save svg, .btn-flow-discard svg { width: 13px; height: 13px; }
+
+.flow-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+}
+
+/* ---------- paleta ---------- */
+.flow-palette {
+  flex: none;
+  width: 168px;
+  border-right: 1px solid var(--line);
+  background: var(--panel-bg);
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+}
+.flow-palette-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 2px 6px 7px;
+}
+.flow-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+.flow-palette-item:hover { background: var(--panel-subtle); border-color: var(--line); }
+.flow-palette-icon {
+  flex: none; width: 24px; height: 24px; border-radius: 6px;
+  display: grid; place-items: center;
+  background: color-mix(in oklab, var(--type-color) 16%, var(--panel-bg));
+  color: var(--type-color);
+}
+.flow-palette-icon svg { width: 13px; height: 13px; }
+.flow-palette-label { font-size: 12px; font-weight: 500; color: var(--text-primary); }
+.flow-palette-hint { font-size: 10.5px; color: var(--text-muted); line-height: 1.45; padding: 10px 6px 0; }
+
+/* "Cómo leer esto": leyenda de todos los tipos de nodo (incluidos Disparador y Fin, que no
+   se pueden agregar desde la paleta) para que cualquiera entienda el diagrama a simple
+   vista, no solo quien lo construyó. */
+.flow-legend { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.flow-legend-intro { font-size: 10.5px; color: var(--text-muted); line-height: 1.45; padding: 0 6px 8px; }
+.flow-legend-item { display: flex; align-items: flex-start; gap: 8px; padding: 5px 6px; }
+.flow-legend-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--type-color); margin-top: 4px; }
+.flow-legend-label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text-primary); }
+.flow-legend-desc { display: block; font-size: 10.5px; color: var(--text-muted); line-height: 1.4; }
+
+/* ---------- lienzo ---------- */
+/* Envoltura que NO hace scroll — ancla el control de zoom en su lugar aunque el usuario
+   recorra un diagrama grande adentro. .flow-canvas-viewport es el único que hace scroll. */
+.flow-canvas-outer {
+  flex: 1;
+  min-width: 480px;
+  position: relative;
+  overflow: hidden;
+}
+.flow-canvas-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--panel-subtle);
+  background-image: radial-gradient(color-mix(in oklab, var(--line) 70%, transparent) 1px, transparent 1px);
+  background-size: 20px 20px;
+  cursor: grab;
+  /* El scroll sigue funcionando (rueda, arrastre) pero sin la barra visible del navegador —
+     se ve como un lienzo libre, no como una página con scrollbars. */
+  scrollbar-width: none; /* Firefox */
+}
+.flow-canvas-viewport::-webkit-scrollbar { display: none; } /* Chrome/Edge/Safari */
+.flow-canvas-viewport.panning { cursor: grabbing; }
+.flow-canvas {
+  position: relative;
+  transform-origin: 0 0;
+  /* El zoom (botones +/-, rueda) anima aquí; arrastrar un nodo no toca este transform,
+     así que la transición no afecta el rendimiento del arrastre. */
+  transition: transform 0.12s ease-out;
+}
+.flow-conn-svg { position: absolute; inset: 0; overflow: visible; color: var(--line); }
+
+.flow-zoom-controls {
+  position: absolute; right: 16px; bottom: 16px; z-index: 4;
+  display: flex; align-items: center; gap: 2px;
+  background: var(--panel-bg); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow); padding: 4px;
+}
+.flow-zoom-controls button {
+  display: grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 7px; border: none; background: transparent;
+  color: var(--text-secondary);
+}
+.flow-zoom-controls button:hover { background: var(--panel-subtle); color: var(--text-primary); }
+.flow-zoom-controls button svg { width: 15px; height: 15px; }
+.flow-zoom-pct {
+  width: auto !important; padding: 0 8px; font-family: monospace; font-size: 11px; font-weight: 600;
+}
+.flow-conn-svg path.fconn { fill: none; stroke: currentColor; stroke-width: 2; }
+.flow-conn-svg path.fconn.selected { stroke: var(--green); stroke-width: 2.5; }
+.flow-conn-svg path.fconn-ghost { fill: none; stroke: var(--green); stroke-width: 2; stroke-dasharray: 5 4; }
+.flow-conn-svg .fconn-del circle { fill: var(--panel-bg); stroke: var(--text-muted); stroke-width: 1; opacity: 0; }
+.flow-conn-svg .fconn-del-group:hover circle { opacity: 1; stroke: var(--red); }
+.flow-conn-svg .fconn-del text { fill: var(--text-muted); font-size: 11px; pointer-events: none; opacity: 0; }
+.flow-conn-svg .fconn-del-group:hover text { opacity: 1; fill: var(--red); }
+
+.fnode {
+  position: absolute;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  user-select: none;
+  z-index: 2;
+}
+.fnode.selected { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft), var(--shadow); }
+.fnode-head {
+  display: flex; align-items: center; gap: 7px; padding: 7px 8px; cursor: grab;
+  border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; background: var(--panel-subtle);
+}
+.fnode-head:active { cursor: grabbing; }
+.fnode-icon {
+  flex: none; width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center;
+  background: color-mix(in oklab, var(--type-color) 16%, var(--panel-bg)); color: var(--type-color);
+}
+.fnode-icon svg { width: 12px; height: 12px; }
+.fnode-title { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fnode-tag { flex: none; font-family: monospace; font-size: 8.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--type-color); font-weight: 700; }
+.fnode-del { flex: none; width: 17px; height: 17px; border-radius: 4px; display: none; align-items: center; justify-content: center; color: var(--text-muted); }
+.fnode:hover .fnode-del { display: flex; }
+.fnode-del:hover { background: #fde3e6; color: var(--red); }
+.fnode-body { padding: 8px 9px 10px; font-size: 11.5px; color: var(--text-secondary); }
+.fnode-body p { margin: 0; line-height: 1.5; white-space: pre-line; }
+.fnode-body .muted-line { color: var(--text-muted); font-size: 10.5px; margin-top: 4px; }
+
+.fport { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--panel-bg); border: 2px solid var(--type-color); z-index: 3; }
+.fport-in { top: -6px; left: 50%; transform: translateX(-50%); }
+.fport-out-single { bottom: -6px; left: 50%; transform: translateX(-50%); }
+.fport-out { cursor: crosshair; }
+
+.fopt-row { position: relative; display: flex; align-items: center; margin: 4px 0; }
+.fopt-chip { flex: 1; min-width: 0; font-size: 11px; font-weight: 500; color: var(--text-primary); background: var(--panel-subtle); border: 1px solid var(--line); border-radius: 999px; padding: 4px 20px 4px 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fopt-row .fport-out { position: absolute; right: -6px; top: 50%; transform: translateY(-50%); }
+
+/* ---------- inspector ---------- */
+.flow-inspector { flex: none; width: 292px; border-left: 1px solid var(--line); background: var(--panel-bg); display: flex; flex-direction: column; min-height: 0; }
+.flow-insp-tabs { flex: none; display: flex; border-bottom: 1px solid var(--line); }
+.flow-insp-tab { flex: 1; padding: 10px 8px; font-size: 12px; font-weight: 600; color: var(--text-muted); background: transparent; border-bottom: 2px solid transparent; }
+.flow-insp-tab.active { color: var(--green-dark); border-bottom-color: var(--green); }
+.flow-insp-body {
+  flex: 1; min-height: 0; overflow-y: auto; padding: 14px;
+  /* Columna flex (no solo un bloque) para que el campo marcado ".grow" (el mensaje/pregunta
+     principal de cada nodo) pueda estirarse y ocupar el espacio libre que sobre, en vez de
+     quedar en una caja chica con scroll propio mientras el panel tiene aire vacío debajo. */
+  display: flex;
+  flex-direction: column;
+}
+
+.ffield { margin-bottom: 13px; flex: none; }
+.ffield label { display: block; font-size: 10.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
+.ffield input[type="text"], .ffield input[type="number"], .ffield textarea, .ffield select {
+  width: 100%; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--input-text, var(--text-primary));
+  border-radius: 7px; padding: 7px 9px; font-size: 12px; resize: vertical;
+}
+.ffield textarea { min-height: 90px; line-height: 1.5; }
+.ffield .fhint { font-size: 10px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+
+/* El campo "principal" de cada tipo de nodo (el mensaje que se lee más largo) se estira
+   para llenar el espacio sobrante del panel, en vez de quedarse en 90px con scroll propio. */
+.ffield.grow { flex: 1; min-height: 140px; display: flex; flex-direction: column; }
+.ffield.grow textarea { flex: 1; min-height: 120px; resize: none; }
+.flow-empty-insp { display: flex; flex-direction: column; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 4px 2px; }
+.flow-empty-insp svg { width: 24px; height: 24px; color: var(--line); }
+
+.fopt-list { display: flex; flex-direction: column; gap: 6px; }
+.fopt-item { display: flex; align-items: center; gap: 6px; }
+.fopt-item input { flex: 1; }
+.fopt-remove { flex: none; width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--input-border); display: grid; place-items: center; color: var(--text-muted); background: var(--panel-bg); }
+.fopt-remove:hover { color: var(--red); border-color: var(--red); }
+.fopt-add { margin-top: 7px; border: 1px dashed var(--line); border-radius: 7px; padding: 6px; text-align: center; font-size: 11.5px; color: var(--text-secondary); background: transparent; width: 100%; }
+.fopt-add:hover { border-color: var(--green); color: var(--green-dark); }
+.fopt-add:disabled { opacity: .45; }
+
+/* ---------- vista previa de chat ---------- */
+.fphone { display: flex; flex-direction: column; height: 100%; }
+.fphone-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 2px 10px; border-bottom: 1px solid var(--line); }
+.fphone-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--green), var(--green-dark)); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 11px; flex: none; }
+.fphone-name { font-size: 12px; font-weight: 700; color: var(--text-primary); }
+.fphone-status { font-size: 10px; color: var(--green-dark); display: flex; align-items: center; gap: 4px; }
+.fphone-status .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+.fphone-restart { margin-left: auto; flex: none; border: 1px solid var(--line); border-radius: 6px; font-size: 10.5px; padding: 4px 8px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
+.fphone-restart:hover { border-color: var(--green); color: var(--green-dark); }
+.fphone-restart svg { width: 11px; height: 11px; }
+.fphone-body { flex: 1; overflow-y: auto; padding: 12px 2px 6px; display: flex; flex-direction: column; gap: 7px; }
+.fbubble { max-width: 90%; padding: 7px 10px; border-radius: 12px; font-size: 12px; line-height: 1.48; white-space: pre-line; }
+.fbubble.in { align-self: flex-start; background: var(--panel-subtle); border: 1px solid var(--line); border-top-left-radius: 4px; color: var(--text-primary); }
+.fbubble.out { align-self: flex-end; background: var(--green-soft); border: 1px solid var(--green-border); border-top-right-radius: 4px; color: var(--green-soft-text, var(--green-dark)); font-weight: 500; }
+.fbubble.sys { align-self: center; background: transparent; color: var(--text-muted); font-size: 10.5px; font-family: monospace; text-align: center; padding: 2px 8px; }
+.fbubble.end { align-self: center; color: var(--text-muted); font-size: 10.5px; font-family: monospace; letter-spacing: .04em; text-transform: uppercase; padding: 5px 0; }
+.ftyping { align-self: flex-start; display: flex; gap: 3px; padding: 8px 11px; background: var(--panel-subtle); border: 1px solid var(--line); border-radius: 12px; border-top-left-radius: 4px; }
+.ftyping span { width: 4px; height: 4px; border-radius: 50%; background: var(--text-muted); animation: fblink 1.1s infinite ease-in-out; }
+.ftyping span:nth-child(2) { animation-delay: .15s; }
+.ftyping span:nth-child(3) { animation-delay: .3s; }
+@keyframes fblink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ftyping span { animation: none; opacity: .6; } }
+.fphone-options { flex: none; display: flex; flex-direction: column; gap: 5px; padding: 9px 2px 2px; }
+.fphone-opt-btn { border: 1px solid var(--green); color: var(--green-dark); background: var(--panel-bg); border-radius: 8px; padding: 7px 9px; font-size: 11.5px; font-weight: 600; text-align: center; }
+.fphone-opt-btn:hover { background: var(--green-soft); }
+.fphone-capture-row { display: flex; gap: 6px; padding: 9px 2px 2px; }
+.fphone-capture-row input { flex: 1; border: 1px solid var(--input-border); background: var(--input-bg); border-radius: 8px; padding: 7px 9px; font-size: 12px; color: var(--text-primary); }
+.fphone-capture-row button { flex: none; border: 1px solid var(--green); background: var(--green); color: #fff; border-radius: 8px; padding: 0 12px; font-size: 12px; font-weight: 600; }
+.fphone-capture-row button:hover { background: var(--green-dark); }

@@ -11,7 +11,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=2.7.0">
+  <link rel="stylesheet" href="css/style.css?v=2.8.1">
+  <!-- Componente propio de la pestaña "Flujo visual" (diagrama de referencia + editor). -->
+  <link rel="stylesheet" href="css/flow-editor.css?v=1.0.0">
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -29,7 +31,7 @@
             <i data-lucide="sprout"></i>
           </div>
         </div>
-        <div>
+        <div class="brand-text">
           <div class="brand-name">farmhouse</div>
           <div class="brand-sub">WHATSAPP CENTER</div>
         </div>
@@ -37,23 +39,23 @@
 
       <!-- Bandeja -->
       <button class="nav-btn active" data-nav="conversaciones">
-        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="message-square"></i></span>Conversaciones</span>
+        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="message-square"></i></span><span class="nav-label">Conversaciones</span></span>
         <span class="nav-badge" id="badgeConversaciones">0</span>
       </button>
       <button class="nav-btn tool-upcoming" data-tool="Menciones">
-        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="at-sign"></i></span>Menciones</span>
+        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="at-sign"></i></span><span class="nav-label">Menciones</span></span>
         <span class="nav-badge">0</span>
       </button>
       <button class="nav-btn" data-nav="no-asignadas">
-        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="clock"></i></span>No asignadas</span>
+        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="clock"></i></span><span class="nav-label">No asignadas</span></span>
         <span class="nav-badge">0</span>
       </button>
       <button class="nav-btn" data-nav="todas">
-        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="inbox"></i></span>Todas</span>
+        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="inbox"></i></span><span class="nav-label">Todas</span></span>
         <span class="nav-badge">0</span>
       </button>
       <button class="nav-btn" id="navContacts">
-        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="contact-round"></i></span>Contactos</span>
+        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="contact-round"></i></span><span class="nav-label">Contactos</span></span>
       </button>
 
       <!-- Sucursales Oficiales Dinámicas desde MySQL -->
@@ -64,18 +66,18 @@
 
       <!-- Administración & Herramientas -->
       <div class="nav-section-title">Administración</div>
-      <button class="nav-btn" id="navUsers"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="users"></i></span>Agentes / Usuarios</span></button>
-      <button class="nav-btn" id="navDevices"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="laptop"></i></span>Dispositivos</span></button>
-      <button class="nav-btn tool-upcoming" data-tool="Plantillas Meta"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="file-text"></i></span>Plantillas</span></button>
-      <button class="nav-btn tool-upcoming" data-tool="Respuestas Rápidas"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="zap"></i></span>Respuestas rápidas</span></button>
-      <button class="nav-btn tool-upcoming" data-tool="Etiquetas"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="tag"></i></span>Etiquetas</span></button>
-      <button class="nav-btn tool-upcoming" data-tool="Automatizaciones"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="sliders"></i></span>Automatizaciones</span></button>
-      <button class="nav-btn tool-upcoming" data-tool="Reportes"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span>Reportes</span></button>
+      <button class="nav-btn" id="navUsers"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Agentes / Usuarios</span></span></button>
+      <button class="nav-btn" id="navDevices"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="laptop"></i></span><span class="nav-label">Dispositivos</span></span></button>
+      <button class="nav-btn tool-upcoming" data-tool="Plantillas Meta"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="file-text"></i></span><span class="nav-label">Plantillas</span></span></button>
+      <button class="nav-btn tool-upcoming" data-tool="Respuestas Rápidas"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="zap"></i></span><span class="nav-label">Respuestas rápidas</span></span></button>
+      <button class="nav-btn tool-upcoming" data-tool="Etiquetas"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="tag"></i></span><span class="nav-label">Etiquetas</span></span></button>
+      <button class="nav-btn" id="navFlowEditor"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="git-branch"></i></span><span class="nav-label">Flujo visual</span></span></button>
+      <button class="nav-btn tool-upcoming" data-tool="Reportes"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span><span class="nav-label">Reportes</span></span></button>
 
       <!-- Footer -->
       <div class="sidebar-footer">
-        <button class="nav-btn tool-upcoming" data-tool="Configuración"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="settings"></i></span>Configuración</span></button>
-        <button class="nav-btn" id="btnLogout"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="log-out"></i></span>Cerrar sesión</span></button>
+        <button class="nav-btn tool-upcoming" data-tool="Configuración"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="settings"></i></span><span class="nav-label">Configuración</span></span></button>
+        <button class="nav-btn" id="btnLogout"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="log-out"></i></span><span class="nav-label">Cerrar sesión</span></span></button>
       </div>
     </aside>
 
@@ -311,6 +313,26 @@
             </div>
           </div>
         </aside>
+      </section>
+
+      <!-- Flujo Visual del Bot: página normal (no modal), solo admin. Diagrama de
+           referencia + editor + simulador de prueba — no controla al bot real todavía
+           (ver flow_editor.js y models/bot_flow.py para el alcance exacto). -->
+      <section class="flow-page" id="flowPageContainer" hidden>
+        <div class="flow-page-header">
+          <button type="button" class="btn-flow-back" id="btnFlowBack" title="Volver a conversaciones" aria-label="Volver a conversaciones">
+            <i data-lucide="chevron-left"></i>
+          </button>
+          <div>
+            <h2><i data-lucide="git-branch"></i> Flujo Visual del Bot</h2>
+            <span class="flow-page-subtitle" id="flowEditorSubtitle">Camino principal (referencia visual)</span>
+          </div>
+        </div>
+        <div class="flow-editor-banner" id="flowEditorBanner">
+          <span class="flow-editor-banner-dot"></span>
+          <span>Este diagrama <strong>no controla al bot real</strong> — es una referencia visual y editable del camino principal. Pruébalo con "Probar flujo" antes de guardar.</span>
+        </div>
+        <div class="flow-editor-body" id="flowEditorRoot"><!-- Renderizado por flow_editor.js --></div>
       </section>
     </main>
   </div>
@@ -809,7 +831,7 @@
   <script src="js/api.js?v=3.5.0"></script>
   <script src="js/ws.js?v=3.4.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/modules/branches.js?v=3.4.0"></script>
+  <script src="js/modules/branches.js?v=3.5.0"></script>
   <script src="js/modules/users.js?v=3.4.0"></script>
   <script src="js/modules/devices.js?v=3.4.0"></script>
   <script src="js/modules/contacts.js?v=1.0.0"></script>
@@ -817,6 +839,7 @@
   <script src="js/modules/chat.js?v=3.7.0"></script>
   <script src="js/modules/push.js?v=3.4.0"></script>
   <script src="js/modules/notifications.js?v=3.5.0"></script>
-  <script src="js/app.js?v=3.7.0"></script>
+  <script src="js/modules/flow_editor.js?v=1.0.0"></script>
+  <script src="js/app.js?v=3.8.0"></script>
 </body>
 </html>

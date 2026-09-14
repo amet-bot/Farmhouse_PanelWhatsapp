@@ -3,7 +3,9 @@
   "configurations": [
     {
       "name": "farmhouse-backend",
-      "url": "http://127.0.0.1:8000"
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "main:app", "--app-dir", "C:\\Users\\PC\\.gemini\\antigravity\\scratch\\sistema-proyecto\\farmhouse-whatsapp-center\\backend", "--host", "127.0.0.1", "--port", "8002"],
+      "port": 8002
     },
     {
       "name": "farmhouse-catering-backend",

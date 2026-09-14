@@ -22,6 +22,7 @@ from routers import (
     push,
     menu,
     payments,
+    bot_flows,
 )
 
 logging.basicConfig(
@@ -129,6 +130,7 @@ app.include_router(menu.router, prefix=settings.API_V1_STR)
 app.include_router(payments.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router)
+app.include_router(bot_flows.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)
 
 # -----------------------------------------------------------------------------

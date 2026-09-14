@@ -282,6 +282,60 @@ a:focus-visible {
   overflow: hidden;
 }
 
+/* Escritorio/tablet: el menú vive replegado como una franja de íconos y solo se expande
+   con el mouse encima (o con foco de teclado), para que la conversación aproveche todo el
+   ancho disponible en vez de perder 240px fijos todo el tiempo. */
+@media (min-width: 769px) {
+  .app-shell {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+  .main-area {
+    grid-column: 2;
+  }
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 72px;
+    z-index: 40;
+    overflow-y: hidden;
+    transition: width 0.16s ease, box-shadow 0.16s ease;
+  }
+  .sidebar:hover,
+  .sidebar:has(:focus-visible) {
+    width: 240px;
+    overflow-y: auto;
+    box-shadow: 10px 0 28px rgba(0, 0, 0, 0.28);
+  }
+  .sidebar:not(:hover):not(:has(:focus-visible)) .brand {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .sidebar:not(:hover):not(:has(:focus-visible)) .brand-text,
+  .sidebar:not(:hover):not(:has(:focus-visible)) .nav-label,
+  .sidebar:not(:hover):not(:has(:focus-visible)) .nav-badge,
+  .sidebar:not(:hover):not(:has(:focus-visible)) .nav-section-title {
+    display: none;
+  }
+  .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn {
+    justify-content: center;
+  }
+  .sidebar:not(:hover):not(:has(:focus-visible)) .nav-left-group {
+    gap: 0;
+  }
+  .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-brand-logo {
+    max-width: 34px;
+    max-height: 30px;
+  }
+  /* El badge "Pronto" (::after, no es .nav-label) no estaba cubierto por las reglas de
+     arriba: con el menú angosto se envolvía en una segunda línea debajo del ícono. */
+  .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn.tool-upcoming .nav-left-group::after {
+    display: none;
+  }
+}
+
 /* ----------------------------------------------------------------------------
    3. SIDEBAR DE NAVEGACIÓN
    ---------------------------------------------------------------------------- */

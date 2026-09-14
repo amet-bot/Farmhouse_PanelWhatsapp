@@ -214,6 +214,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (navUsers) {
       navUsers.style.display = (user.role === 'admin') ? 'flex' : 'none';
     }
+    const navFlowEditor = document.getElementById('navFlowEditor');
+    if (navFlowEditor) {
+      navFlowEditor.style.display = (user.role === 'admin') ? 'flex' : 'none';
+    }
 
     // Inicialización Secuencial de Módulos
     await branchesModule.init();
@@ -491,6 +495,62 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('closeModalUsersList').addEventListener('click', () => {
     document.getElementById('modalUsersList').classList.remove('active');
   });
+
+  // Página normal (no modal) de Flujo Visual: ocupa el mismo espacio que la bandeja de
+  // conversaciones y se muestra en su lugar — nunca junto a ella.
+  const workspaceEl = document.getElementById('workspaceContainer');
+  const flowPageEl = document.getElementById('flowPageContainer');
+  const navFlowEditorBtn = document.getElementById('navFlowEditor');
+
+  const PAGES = {
+    conversations: { el: workspaceEl, navBtn: null },
+    flow: { el: flowPageEl, navBtn: navFlowEditorBtn },
+  };
+
+  function currentPageName() {
+    if (flowPageEl && !flowPageEl.hasAttribute('hidden')) return 'flow';
+    return 'conversations';
+  }
+
+  function showPage(name) {
+    Object.keys(PAGES).forEach((key) => {
+      const page = PAGES[key];
+      if (!page.el) return;
+      if (key === name) page.el.removeAttribute('hidden');
+      else page.el.setAttribute('hidden', '');
+    });
+    document.querySelectorAll('.sidebar .nav-btn').forEach((b) => b.classList.remove('active'));
+    if (PAGES[name] && PAGES[name].navBtn) PAGES[name].navBtn.classList.add('active');
+    if (name === 'flow') flowEditorModule.open('main_intake');
+  }
+
+  // Si la página actual es Flujo Visual y tiene cambios sin guardar, confirma antes de
+  // navegar a cualquier otro lado (incluso volver a abrirla desde cero pierde lo no guardado).
+  function confirmLeaveFlowIfNeeded() {
+    if (currentPageName() !== 'flow') return true;
+    if (!flowEditorModule.hasUnsavedChanges()) return true;
+    return window.confirm('Tienes cambios sin guardar en el flujo. ¿Salir de todas formas?');
+  }
+
+  navFlowEditorBtn?.addEventListener('click', () => { if (confirmLeaveFlowIfNeeded()) showPage('flow'); });
+  document.getElementById('btnFlowBack')?.addEventListener('click', () => { if (confirmLeaveFlowIfNeeded()) showPage('conversations'); });
+
+  // Los 3 botones de filtro del sidebar (Conversaciones/No asignadas/Todas) ya tienen su
+  // propio manejador en conversationsModule (filtra la bandeja). El de abajo corre en fase
+  // de CAPTURA -antes que ese- para volver primero a la vista de conversaciones, y para que,
+  // si hay cambios sin guardar en el flujo y el usuario cancela la confirmación, se detenga
+  // el clic ahí mismo (stopImmediatePropagation) y el filtro de conversationsModule nunca
+  // llegue a ejecutarse. Sin esto, cancelar igual dejaba el sidebar marcando un filtro
+  // distinto mientras la otra página seguía visible.
+  document.querySelector('.sidebar')?.addEventListener('click', (e) => {
+    if (!e.target.closest('.nav-btn[data-nav]')) return;
+    if (currentPageName() === 'conversations') return;
+    if (!confirmLeaveFlowIfNeeded()) {
+      e.stopImmediatePropagation();
+      return;
+    }
+    showPage('conversations');
+  }, true);
   document.getElementById('btnOpenAddUser').addEventListener('click', () => {
     usersModule.openAddModal();
   });

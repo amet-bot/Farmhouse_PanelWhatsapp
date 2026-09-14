@@ -49,7 +49,7 @@ const branchesModule = {
       btn.innerHTML = `
         <span class="nav-left-group">
           <span class="branch-dot" style="background-color:${escapedColor}"></span>
-          ${escapedName}
+          <span class="nav-label">${escapedName}</span>
         </span>
         <span class="nav-badge" id="badgeBranch_${branch.id}">0</span>
       `;
