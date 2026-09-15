@@ -11,12 +11,20 @@ class BotFlow(Base):
     deliberadamente una tabla de una sola fila por `key` (no versiones ni borradores en esta
     primera versión): guardar reemplaza el diagrama anterior por completo.
 
-    IMPORTANTE: esta tabla hoy es solo de LECTURA/ESCRITURA desde el panel. El bot real
-    (routers/webhooks.py) todavía NO la lee — sigue usando la máquina de estados escrita a
-    mano en services/auto_responses.py + _process_auto_flow_background. Conectar el motor
-    real del bot a este diagrama es un paso aparte, deliberadamente no incluido aquí (la
-    lógica real es mucho más compleja: sucursales dinámicas, interrupciones universales,
-    sub-flujo corporativo con retroceso — ver el comentario en la migración 016).
+    El bot real (routers/webhooks.py) SÍ lee este grafo en dos niveles:
+    1. Contenido (todos los nodos): el texto/opciones de cada paso se puede editar aquí y el
+       bot los usa tal cual (ver services/flow_content.py), con respaldo automático al texto
+       original si el nodo se rompe.
+    2. Secuencia (solo el sub-flujo de Pedido Corporativo/Evento, deliberadamente acotado):
+       las CONEXIONES entre esas 4 preguntas también se siguen de verdad (ver
+       services/flow_engine.py + `_advance_corporate_step` en webhooks.py), así que
+       reordenarlas ahí sí cambia qué pregunta sigue a cuál.
+    El resto de la lógica de control (sucursales dinámicas, interrupciones universales, pagos,
+    ayuda de gerente) sigue siendo la máquina de estados escrita a mano en
+    services/auto_responses.py + _process_auto_flow_background — convertir TODO el bot en un
+    grafo genérico requeriría un lenguaje de nodos tan complejo como el código mismo, con
+    demasiado riesgo para un bot que ya atiende clientes reales (decisión tomada con el
+    usuario el 2026-09-14).
     """
     __tablename__ = "bot_flows"
 

@@ -48,6 +48,7 @@ from services.order_flow_matcher import (
 )
 from services.push_service import notify_branch_new_message
 from services.flow_content import get_node_text, get_node_options
+from services import flow_engine
 from security.auth import create_menu_session_token
 
 logger = logging.getLogger("farmhouse.webhooks")
@@ -529,6 +530,96 @@ async def _send_corporate_location_question(db: Session, wa_service, conv: Conve
     question_text = get_node_text(db, "corporate_location_question", CORPORATE_LOCATION_QUESTION)
     await _send_interactive_buttons_message(db, wa_service, conv, contact, phone, question_text, _corporate_location_buttons(db))
 
+# Único tramo del bot donde las CONEXIONES del grafo `main_intake` (services/flow_engine.py)
+# deciden de verdad qué paso sigue, no solo el texto (ver docstring de models/bot_flow.py).
+# Nodo -> (constante de respaldo del texto, tipo de botones). `None` en el segundo valor es
+# mensaje de texto plano. Solo estos 5 nodos son "ejecutables" por el motor; cualquier otro
+# destino (el admin borró/renombró el nodo, o conectó algo fuera de este sub-flujo) se ignora
+# y cae al respaldo indicado por el caller — ver _advance_corporate_step.
+_CORPORATE_NODE_RENDER = {
+    "corporate_event_type_question": (CORPORATE_EVENT_TYPE_QUESTION, "event_type"),
+    "corporate_headcount_question": (CORPORATE_HEADCOUNT_QUESTION, None),
+    "corporate_date_question": (CORPORATE_DATE_QUESTION, None),
+    "corporate_location_question": (CORPORATE_LOCATION_QUESTION, "location"),
+    "corporate_location_after_combined": (CORPORATE_LOCATION_QUESTION_AFTER_COMBINED_ANSWER, "location"),
+}
+_CORPORATE_NODE_TO_STEP = {
+    "corporate_event_type_question": 1,
+    "corporate_headcount_question": 2,
+    "corporate_date_question": 3,
+    "corporate_location_question": 4,
+    "corporate_location_after_combined": 4,
+}
+
+
+async def _finish_corporate_intake(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Cierra el intake corporativo: mensaje de cierre al cliente, resumen interno para Sol
+    (visible solo en el panel) y pausa del bot. Se llega aquí tras las 4 preguntas en orden,
+    o antes si el admin reconectó algún paso directo al nodo 'corporate_closing' en el editor."""
+    conv.corporate_intake_step = None
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_closing", CORPORATE_INTAKE_CLOSING_MESSAGE))
+
+    summary_msg = Message(
+        conversation_id=conv.id, direction="outgoing", sender_type="system",
+        content=get_corporate_intake_summary(conv.corporate_intake_notes or ""),
+        is_internal=True, status="sent"
+    )
+    db.add(summary_msg)
+    conv.automation_paused = True
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(summary_msg)
+    await ws_manager.broadcast_to_branch(conv.branch_id, {
+        "type": "new_incoming_message",
+        "conversation_id": conv.id,
+        "branch_id": conv.branch_id,
+        "contact_name": contact.name,
+        "contact_phone": contact.phone,
+        "message": {
+            "id": summary_msg.id, "direction": summary_msg.direction, "sender_type": summary_msg.sender_type,
+            "content": summary_msg.content, "status": summary_msg.status, "created_at": summary_msg.created_at.isoformat()
+        },
+        "is_new_conversation": False
+    })
+
+
+async def _advance_corporate_step(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, from_node_id: str, port: int, fallback_node_id: str) -> None:
+    """
+    Avanza el intake corporativo desde `from_node_id`: le pregunta al grafo `main_intake` cuál
+    es el nodo conectado en (`from_node_id`, `port`) y renderiza ESE (ver
+    services/flow_engine.py). Si el grafo no tiene esa conexión, está roto, o el nodo destino
+    ya no es uno de los 5 reconocidos en `_CORPORATE_NODE_RENDER`, usa `fallback_node_id` — el
+    comportamiento de siempre.
+
+    Toda la VALIDACIÓN de la respuesta del cliente (¿qué botón tocó? ¿el texto trae fecha?) ya
+    ocurrió en el caller (_handle_corporate_intake_step); esta función solo decide y manda el
+    siguiente paso.
+    """
+    next_node_id = flow_engine.get_next_node_id(db, from_node_id, port, fallback_node_id)
+    if next_node_id not in _CORPORATE_NODE_TO_STEP and next_node_id != "corporate_closing":
+        next_node_id = fallback_node_id
+
+    if next_node_id == "corporate_closing":
+        await _finish_corporate_intake(db, wa_service, conv, contact, phone)
+        return
+
+    conv.corporate_intake_step = _CORPORATE_NODE_TO_STEP[next_node_id]
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    fallback_text, buttons_kind = _CORPORATE_NODE_RENDER[next_node_id]
+    text = get_node_text(db, next_node_id, fallback_text)
+    if buttons_kind == "event_type":
+        await _send_interactive_buttons_message(db, wa_service, conv, contact, phone, text, _corporate_event_type_buttons(db))
+    elif buttons_kind == "location":
+        await _send_interactive_buttons_message(db, wa_service, conv, contact, phone, text, _corporate_location_buttons(db))
+    else:
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, text)
+
+
 async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, interactive_id: str, message_type: str, text: str) -> None:
     """Procesa la respuesta del cliente a una de las 4 preguntas guiadas del Pedido
     Corporativo/Evento (opción 4), antes de pasarle la conversación a Sol."""
@@ -552,10 +643,7 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
             return
 
         _append_corporate_note(conv, f"Tipo de evento: {CORPORATE_EVENT_TYPE_LABELS[event_type]}")
-        conv.corporate_intake_step = 2
-        conv.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_headcount_question", CORPORATE_HEADCOUNT_QUESTION))
+        await _advance_corporate_step(db, wa_service, conv, contact, phone, "corporate_event_type_question", 0, "corporate_headcount_question")
         return
 
     if step == 2:
@@ -581,19 +669,11 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
         )
         if has_date_or_time:
             _append_corporate_note(conv, f"Fecha y hora (respuesta conjunta): {answer}")
-            conv.corporate_intake_step = 4
-        else:
-            conv.corporate_intake_step = 3
-        conv.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        if has_date_or_time:
-            await _send_interactive_buttons_message(
-                db, wa_service, conv, contact, phone,
-                get_node_text(db, "corporate_location_after_combined", CORPORATE_LOCATION_QUESTION_AFTER_COMBINED_ANSWER),
-                _corporate_location_buttons(db),
-            )
-        else:
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_date_question", CORPORATE_DATE_QUESTION))
+        await _advance_corporate_step(
+            db, wa_service, conv, contact, phone, "corporate_headcount_question",
+            1 if has_date_or_time else 0,
+            "corporate_location_after_combined" if has_date_or_time else "corporate_date_question",
+        )
         return
 
     if step == 3:
@@ -601,10 +681,7 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
             await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_date_retry", CORPORATE_DATE_RETRY))
             return
         _append_corporate_note(conv, f"Fecha y hora: {text.strip()}")
-        conv.corporate_intake_step = 4
-        conv.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        await _send_corporate_location_question(db, wa_service, conv, contact, phone)
+        await _advance_corporate_step(db, wa_service, conv, contact, phone, "corporate_date_question", 0, "corporate_location_question")
         return
 
     if step == 4:
@@ -625,36 +702,8 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
             return
 
         _append_corporate_note(conv, f"Lugar de entrega: {CORPORATE_LOCATION_LABELS[location]}")
-        conv.corporate_intake_step = None
-        conv.updated_at = datetime.now(timezone.utc)
-        db.commit()
-
-        await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_closing", CORPORATE_INTAKE_CLOSING_MESSAGE))
-
-        # Resumen interno (solo visible en el panel, nunca se manda al cliente) para que Sol vea
-        # de un vistazo lo ya conversado sin desplazarse por todo el historial del chat.
-        summary_msg = Message(
-            conversation_id=conv.id, direction="outgoing", sender_type="system",
-            content=get_corporate_intake_summary(conv.corporate_intake_notes or ""),
-            is_internal=True, status="sent"
-        )
-        db.add(summary_msg)
-        conv.automation_paused = True
-        conv.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(summary_msg)
-        await ws_manager.broadcast_to_branch(conv.branch_id, {
-            "type": "new_incoming_message",
-            "conversation_id": conv.id,
-            "branch_id": conv.branch_id,
-            "contact_name": contact.name,
-            "contact_phone": contact.phone,
-            "message": {
-                "id": summary_msg.id, "direction": summary_msg.direction, "sender_type": summary_msg.sender_type,
-                "content": summary_msg.content, "status": summary_msg.status, "created_at": summary_msg.created_at.isoformat()
-            },
-            "is_new_conversation": False
-        })
+        location_port = {"pickup": 0, "delivery": 1, "undecided": 2}[location]
+        await _advance_corporate_step(db, wa_service, conv, contact, phone, "corporate_location_question", location_port, "corporate_closing")
         return
 
 async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: str, msg_data: Dict[str, Any], msg_id: int):

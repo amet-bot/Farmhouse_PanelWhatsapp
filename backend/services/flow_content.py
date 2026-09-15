@@ -1,15 +1,19 @@
 """
 Contenido editable del bot real desde la pestaña "Flujo visual" (Fase 2).
 
-A diferencia de farmhouse-catering-center, aquí NO hay un motor que "camina" el grafo — la
-lógica de control (interrupciones universales, sucursales dinámicas, el sub-flujo corporativo
-con sus atajos) se queda tal cual en routers/webhooks.py, ya probada en producción. Este
-módulo resuelve una sola cosa: qué TEXTO/ETIQUETAS de botón mostrar para un paso dado, leyendo
-el grafo `main_intake` (tabla bot_flows) si el admin lo editó, y cayendo de vuelta al texto
-original (services/auto_responses.py) en cualquier otro caso — grafo ausente, nodo ausente,
-texto vacío, o (para opciones) una cantidad de botones que ya no coincide con lo que el código
-espera. Ese respaldo automático es lo que hace seguro este cambio: un diagrama roto o a medio
-editar nunca puede tumbar ni desviar una conversación real.
+A diferencia de farmhouse-catering-center, aquí la lógica de control (interrupciones
+universales, sucursales dinámicas) se queda tal cual en routers/webhooks.py, ya probada en
+producción — NO hay un motor genérico que "camina" todo el grafo. La única excepción,
+deliberadamente acotada, es el sub-flujo de 4 preguntas de Pedido Corporativo/Evento: ahí sí
+hay un motor mínimo (services/flow_engine.py) que sigue las CONEXIONES del grafo para decidir
+qué pregunta sigue (ver `_advance_corporate_step` en webhooks.py).
+
+Este módulo (`flow_content`) resuelve una sola cosa: qué TEXTO/ETIQUETAS de botón mostrar para
+un paso dado, leyendo el grafo `main_intake` (tabla bot_flows) si el admin lo editó, y cayendo
+de vuelta al texto original (services/auto_responses.py) en cualquier otro caso — grafo
+ausente, nodo ausente, texto vacío, o (para opciones) una cantidad de botones que ya no
+coincide con lo que el código espera. Ese respaldo automático es lo que hace seguro este
+cambio: un diagrama roto o a medio editar nunca puede tumbar ni desviar una conversación real.
 """
 import json
 import logging
@@ -45,6 +49,20 @@ def _node_by_id(graph: Dict[str, Any], node_id: str) -> Optional[Dict[str, Any]]
         if n.get("id") == node_id:
             return n
     return None
+
+
+def get_graph(db: Optional[Session]) -> Optional[Dict[str, Any]]:
+    """Punto de entrada público para módulos hermanos (ej. services/flow_engine.py) que
+    necesitan el grafo completo (nodos + conexiones), no solo el texto de un nodo."""
+    return _load_graph(db)
+
+
+def find_node(graph: Optional[Dict[str, Any]], node_id: str) -> Optional[Dict[str, Any]]:
+    """Igual que `get_node_text`/`get_node_options` internamente, pero expuesto para
+    módulos hermanos que ya tienen el grafo cargado (evita recargarlo/reparsear el JSON)."""
+    if not graph:
+        return None
+    return _node_by_id(graph, node_id)
 
 
 def get_node_text(db: Optional[Session], node_id: str, fallback: str, **template_vars: Any) -> str:
