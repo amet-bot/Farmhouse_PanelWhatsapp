@@ -98,6 +98,13 @@ def get_conversation(
     # Expiración perezosa del carrito activo si quedó abandonado (Punto 16). Se hace ANTES de
     # devolver la respuesta para que un refresh del panel (Test 10) siempre vea el estado real.
     expire_stale_carts_for_conversations(db, [conv.id])
+
+    # Marca la conversación como "abierta" ahora mismo: tanto el primer GET al seleccionarla
+    # como la sincronización silenciosa mientras sigue en pantalla pasan por aquí, así que
+    # basta este único punto para que needs_reminder deje de dispararse mientras el agente la
+    # tiene a la vista. Naive UTC a propósito (ver Conversation.needs_reminder).
+    conv.last_opened_at = datetime.utcnow()
+    db.commit()
     db.refresh(conv)
 
     # Cargar últimos 50 mensajes paginados cronológicamente (excluyendo borrados lógicos)

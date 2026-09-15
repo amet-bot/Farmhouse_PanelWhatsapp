@@ -14,6 +14,10 @@ const notificationModule = {
   unreadCount: 0,
   titleFlashInterval: null,
   originalTitle: 'Farmhouse WhatsApp Center',
+  // Cola del modal de recordatorio: si llegan varias conversaciones pendientes a la vez, se
+  // muestran una por una (nunca superpuestas) en vez de perderse o taparse entre sí.
+  reminderQueue: [],
+  reminderModalOpen: false,
 
   init() {
     this.originalTitle = document.title || 'Farmhouse WhatsApp Center';
@@ -114,6 +118,33 @@ const notificationModule = {
       osc2.stop(now + 0.55);
     } catch (e) {
       console.warn('[Audio Notification] Error reproduciendo sonido:', e);
+    }
+  },
+
+  /**
+   * Reproduce un tono de aviso suave (una sola nota grave) para el recordatorio de
+   * "no has abierto este chat" — deliberadamente distinto del chime de mensaje nuevo y del
+   * jingle de pedido, para que el oído lo distinga sin mirar la pantalla.
+   */
+  playReminderSound() {
+    if (!this.soundEnabled) return;
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, now); // C5
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.5);
+    } catch (e) {
+      console.warn('[Audio Reminder Notification] Error:', e);
     }
   },
 
@@ -253,6 +284,102 @@ const notificationModule = {
       convId: convId,
       type: 'order'
     });
+  },
+
+  /**
+   * Recordatorio de respuesta pendiente: el backend calcula needs_reminder (ver
+   * Conversation.needs_reminder) cuando el último mensaje es del cliente, pasaron >= 5
+   * minutos y nadie de la sucursal ha abierto la conversación. conversationsModule llama
+   * aquí una sola vez por conversación mientras siga pendiente (ver checkReminders).
+   */
+  notifyPendingReminder(conv) {
+    if (!this.canBeNotifiedAbout({ branch_id: conv.branch_id })) return;
+    const contactName = conv.contact ? conv.contact.name : 'Cliente';
+    const convId = conv.id;
+
+    this.playReminderSound();
+    this.unreadCount++;
+    this.startTitleAlert(`⏰ ${contactName}`);
+
+    if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        const notif = new Notification(`⏰ Recuerda responder • Farmhouse`, {
+          body: `${contactName} sigue esperando respuesta.`,
+          icon: '/assets/images/farmhouse-logo.png',
+          tag: `reminder-${convId}`,
+          renotify: true
+        });
+        notif.onclick = () => {
+          window.focus();
+          if (convId) chatModule.loadConversation(Number(convId));
+          notif.close();
+        };
+      } catch (e) {}
+    }
+
+    // A propósito NO es la tarjeta discreta de esquina (showFloatingCard): esto es un aviso
+    // que exige atención, así que va en un modal centrado que bloquea el resto de la pantalla
+    // hasta que el agente lo atienda o lo cierre.
+    this.queueReminderModal({ contactName, convId });
+  },
+
+  queueReminderModal({ contactName, convId }) {
+    this.reminderQueue.push({ contactName, convId });
+    this.processReminderQueue();
+  },
+
+  processReminderQueue() {
+    if (this.reminderModalOpen) return;
+    const next = this.reminderQueue.shift();
+    if (!next) return;
+    this.reminderModalOpen = true;
+    this.showReminderModal(next);
+  },
+
+  showReminderModal({ contactName, convId }) {
+    const overlay = document.createElement('div');
+    overlay.className = 'reminder-modal-overlay';
+
+    const initials = utils.getInitials(contactName);
+
+    overlay.innerHTML = `
+      <div class="reminder-modal-card">
+        <div class="reminder-modal-icon">⏰</div>
+        <div class="reminder-modal-avatar">${utils.escapeHtml(initials)}</div>
+        <h2 class="reminder-modal-title">¡Recuerda responder!</h2>
+        <p class="reminder-modal-text">
+          <strong>${utils.escapeHtml(contactName)}</strong> lleva más de 5 minutos esperando
+          respuesta y nadie ha abierto su chat todavía.
+        </p>
+        <div class="reminder-modal-actions">
+          <button class="btn-reminder-dismiss">Ahora no</button>
+          <button class="btn-reminder-open">Abrir conversación</button>
+        </div>
+      </div>
+    `;
+
+    const close = () => {
+      overlay.classList.add('dismissed');
+      setTimeout(() => {
+        overlay.remove();
+        this.reminderModalOpen = false;
+        this.processReminderQueue();
+      }, 200);
+    };
+
+    overlay.querySelector('.btn-reminder-open').addEventListener('click', () => {
+      if (convId) chatModule.loadConversation(Number(convId));
+      close();
+    });
+    overlay.querySelector('.btn-reminder-dismiss').addEventListener('click', close);
+    // Clic en el fondo también cierra (comportamiento estándar de modal), pero un clic dentro
+    // de la tarjeta no debe propagarse y cerrarlo por accidente.
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+
+    document.body.appendChild(overlay);
+    utils.renderIcons();
   },
 
   showFloatingCard({ title, preview, contactName, convId, type = 'message' }) {

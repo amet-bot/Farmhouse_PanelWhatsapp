@@ -28,6 +28,8 @@ class ConversationResponse(ConversationBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    last_opened_at: Optional[datetime] = None
+    needs_reminder: bool = False
     contact: Optional[ContactResponse] = None
     branch: Optional[BranchResponse] = None
     assigned_user: Optional[UserResponse] = None

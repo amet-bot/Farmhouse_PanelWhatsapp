@@ -4,6 +4,20 @@
 
 const utils = {
   /**
+   * El backend guarda y serializa las fechas en UTC pero SIN indicarlo en el string
+   * ("2026-09-14T19:19:27", sin "Z" ni offset) — convención "naive UTC" del backend (ver
+   * Conversation.needs_reminder). Sin este parche, `new Date(...)` con ese string lo
+   * interpreta como hora LOCAL del navegador en vez de UTC, y el panel se ve ~5 horas
+   * adelantado respecto a la hora real de Panamá (UTC-5). Si el string SÍ trae zona horaria
+   * (viene de otra fuente, o cambia el backend a futuro) se respeta tal cual.
+   */
+  _parseServerDate(isoString) {
+    if (!isoString) return null;
+    const hasTimezone = /Z$|[+-]\d{2}:?\d{2}$/.test(isoString);
+    return new Date(hasTimezone ? isoString : `${isoString}Z`);
+  },
+
+  /**
    * Escapa caracteres especiales HTML para prevenir ataques XSS almacenados y reflejados.
    * @param {string|any} str Texto a escapar
    * @returns {string} Texto seguro para inserción en el DOM
@@ -30,7 +44,7 @@ const utils = {
   formatTime(isoString) {
     if (!isoString) return '';
     try {
-      const date = new Date(isoString);
+      const date = this._parseServerDate(isoString);
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
       return '';
@@ -43,7 +57,7 @@ const utils = {
   formatDateTime(isoString) {
     if (!isoString) return '';
     try {
-      const date = new Date(isoString);
+      const date = this._parseServerDate(isoString);
       return date.toLocaleDateString('es-PA', {
         month: 'short',
         day: 'numeric',
@@ -61,7 +75,7 @@ const utils = {
   formatDate(isoString) {
     if (!isoString) return '';
     try {
-      const date = new Date(isoString);
+      const date = this._parseServerDate(isoString);
       return date.toLocaleDateString('es-PA', {
         year: 'numeric',
         month: 'short',

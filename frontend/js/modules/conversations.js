@@ -12,6 +12,11 @@ const conversationsModule = {
   currentPage: 0,
   pageSize: 50,
   hasMore: true,
+  // IDs de conversaciones para las que ya se disparó la alerta "recuerda responder" en esta
+  // pestaña, para no repetirla en cada refresco de 6s mientras siga pendiente. Se libera en
+  // cuanto needs_reminder vuelve a false (se abrió el chat o alguien respondió), así puede
+  // volver a alertar si el cliente escribe de nuevo más tarde.
+  remindedIds: new Set(),
 
   async init() {
     this.setupListeners();
@@ -113,6 +118,7 @@ const conversationsModule = {
       }
 
       this.hasMore = results.length === this.pageSize;
+      this.checkReminders(results);
       this.renderList();
       branchesModule.updateCounters();
       return this.conversations;
@@ -120,6 +126,28 @@ const conversationsModule = {
       console.error('Error cargando conversaciones:', e);
       return [];
     }
+  },
+
+  /**
+   * Recorre el listado recién cargado y dispara la alerta "recuerda responder" (una sola
+   * vez por conversación mientras siga pendiente) para las que el backend marcó con
+   * needs_reminder (ver Conversation.needs_reminder en el backend).
+   */
+  checkReminders(list) {
+    const stillPendingIds = new Set();
+    list.forEach(conv => {
+      if (!conv.needs_reminder) return;
+      stillPendingIds.add(conv.id);
+      if (!this.remindedIds.has(conv.id)) {
+        this.remindedIds.add(conv.id);
+        notificationModule.notifyPendingReminder(conv);
+      }
+    });
+    // Libera las que ya no están pendientes (se abrieron o se respondieron) para que puedan
+    // volver a alertar si el cliente escribe de nuevo más tarde.
+    this.remindedIds.forEach(id => {
+      if (!stillPendingIds.has(id)) this.remindedIds.delete(id);
+    });
   },
 
   renderList() {
@@ -145,6 +173,9 @@ const conversationsModule = {
       if (this.selectedId === conv.id) {
         item.classList.add('active');
       }
+      if (conv.needs_reminder) {
+        item.classList.add('needs-reminder');
+      }
 
       const contactName = conv.contact ? conv.contact.name : 'Cliente';
       const contactPhone = conv.contact ? conv.contact.phone : '';
@@ -162,6 +193,9 @@ const conversationsModule = {
         statusHtml = '<span class="status-badge status-open">Abierto</span>';
       } else if (conv.status === 'pending') {
         statusHtml = '<span class="status-badge status-pending">Pendiente</span>';
+      }
+      if (conv.needs_reminder) {
+        statusHtml += '<span class="status-badge status-reminder">⏰ Sin responder</span>';
       }
 
       // Preview seguro contra XSS (muestra el último mensaje real si existe)

@@ -1055,6 +1055,12 @@ a:focus-visible {
   border-color: var(--warning-border);
 }
 
+.status-badge.status-reminder {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
 /* ESTADO VACÍO (bandeja de conversaciones y panel de chat sin selección) */
 .empty-state {
   display: flex;
@@ -2589,6 +2595,10 @@ input:-webkit-autofill:focus {
   border-left-color: #f59e0b;
 }
 
+.floating-notif-card.notif-type-reminder {
+  border-left-color: #ef4444;
+}
+
 .floating-notif-avatar {
   width: 40px;
   height: 40px;
@@ -2688,6 +2698,132 @@ input:-webkit-autofill:focus {
 
 .floating-notif-card.notif-type-order .floating-notif-progress {
   background: #f59e0b;
+}
+
+.floating-notif-card.notif-type-reminder .floating-notif-progress {
+  background: #ef4444;
+}
+
+/* Modal centrado y bloqueante del recordatorio "recuerda responder" (deliberadamente más
+   agresivo que la tarjeta de esquina: exige que el agente lo cierre o abra el chat) */
+.reminder-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: rgba(15, 15, 20, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: reminderOverlayFadeIn 0.2s ease;
+}
+
+.reminder-modal-overlay.dismissed {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+@keyframes reminderOverlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.reminder-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  background: var(--bg-surface);
+  border: 3px solid #ef4444;
+  border-radius: 18px;
+  padding: 28px 24px 24px;
+  text-align: center;
+  box-shadow: 0 24px 60px -8px rgba(239, 68, 68, 0.45), 0 8px 24px rgba(0, 0, 0, 0.25);
+  animation: reminderCardShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97), reminderCardGlow 1.6s ease-in-out 0.5s infinite;
+}
+
+.reminder-modal-icon {
+  font-size: 40px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.reminder-modal-avatar {
+  width: 56px;
+  height: 56px;
+  margin: 4px auto 12px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 2px solid #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.reminder-modal-title {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #b91c1c;
+}
+
+.reminder-modal-text {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-main);
+}
+
+.reminder-modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.reminder-modal-actions button {
+  flex: 1;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-reminder-dismiss {
+  background: none;
+  border: 1.5px solid var(--line-light);
+  color: var(--text-muted);
+}
+
+.btn-reminder-dismiss:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.btn-reminder-open {
+  background: #ef4444;
+  border: 1.5px solid #ef4444;
+  color: #ffffff;
+}
+
+.btn-reminder-open:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+@keyframes reminderCardShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+
+@keyframes reminderCardGlow {
+  0%, 100% { box-shadow: 0 24px 60px -8px rgba(239, 68, 68, 0.45), 0 8px 24px rgba(0, 0, 0, 0.25); }
+  50% { box-shadow: 0 24px 70px -4px rgba(239, 68, 68, 0.75), 0 8px 24px rgba(0, 0, 0, 0.25); }
 }
 
 @keyframes slideInNotifCard {
@@ -2804,6 +2940,22 @@ input:-webkit-autofill:focus {
   }
   100% {
     background-color: inherit;
+  }
+}
+
+/* Recordatorio persistente: mensaje del cliente sin abrir hace >= 5 minutos (needs_reminder) */
+.conv-item.needs-reminder {
+  border-left: 3px solid #ef4444;
+  background-color: rgba(239, 68, 68, 0.06);
+  animation: convReminderPulse 2s ease-in-out infinite;
+}
+
+@keyframes convReminderPulse {
+  0%, 100% {
+    background-color: rgba(239, 68, 68, 0.06);
+  }
+  50% {
+    background-color: rgba(239, 68, 68, 0.14);
   }
 }
 
