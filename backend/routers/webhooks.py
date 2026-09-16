@@ -656,6 +656,342 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
         await _advance_corporate_step(db, wa_service, conv, contact, phone, "corporate_location_question", location_port, "corporate_closing")
         return
 
+# --- Pasos de _process_auto_flow_background, en el mismo orden en que se llaman ahí abajo ---
+#
+# Cada función de aquí es el cuerpo de un bloque numerado que antes vivía inline (ver
+# comentarios "0.", "1.", "2." ... dentro de _process_auto_flow_background). Se movieron tal
+# cual, sin cambiar su lógica ni el orden en que se evalúan sus condiciones — el objetivo es
+# solo que la secuencia de decisiones del bot quede visible en un solo lugar en vez de
+# enterrada en una función de cientos de líneas. Los bloques de 1-3 líneas (un solo
+# _send_*/return, o una condición trivial) se dejaron inline a propósito: envolverlos en una
+# función no habría hecho más legible nada.
+
+async def _step_confirm_web_menu_order(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, text: str) -> None:
+    """Bloque 0: pedido estructurado enviado desde la Web App de Menú (/menu). Ya trae
+    sucursal, entrega y pago resueltos (ver POST /api/orders/public); responde con un mensaje
+    cálido y empático según el tipo de entrega, y pausa el bot para que el agente de la
+    sucursal tome el control personal de la conversación."""
+    is_delivery = "DELIVERY" in text.upper() or (conv.delivery_type == "delivery")
+    is_card = "TARJETA" in text.upper() or (conv.payment_method == "card")
+    branch_name = conv.branch.name if conv.branch else "Farmhouse"
+    first_name = get_customer_first_name(contact.name)
+    greeting = f"¡Gracias por tu pedido, {first_name}!" if first_name else "¡Gracias por tu pedido!"
+    payment_labels = {"card": "Tarjeta", "yappy": "Yappy", "ach": "ACH / transferencia", "cash": "Efectivo"}
+    payment_label = payment_labels.get(conv.payment_method, "Por confirmar")
+    delivery_label = "Delivery" if is_delivery else "Retiro en sucursal"
+    next_step = (
+        "El equipo revisará tu dirección, te confirmará el costo de entrega"
+        + (" y te enviará el enlace de pago seguro." if is_card else " y coordinará el pago contigo.")
+        if is_delivery else
+        ("El equipo te enviará el enlace de pago y confirmará cuándo estará listo."
+         if is_card else "El equipo te confirmará cuándo estará listo para retirar.")
+    )
+    confirmation_text = (
+        f"{greeting} Ya lo tenemos registrado 🌿\n\n"
+        f"*Resumen*\n"
+        f"• {delivery_label}\n"
+        f"• Farmhouse {branch_name}\n"
+        f"• Pago: {payment_label}\n\n"
+        f"{next_step}\n\n"
+        "Si ves algo que quieras corregir, escríbelo aquí; la persona que continúe contigo podrá ver todo este contexto."
+    )
+
+    # automation_paused se marca ANTES de mandar el mensaje, no después: _send_and_log
+    # hace un solo commit con conv.updated_at, y al ya venir con automation_paused=True
+    # en el mismo objeto conv, ambos cambios quedan en ese mismo commit — el estado final
+    # es idéntico a cuando esto se escribía en un bloque aparte.
+    conv.automation_paused = True
+    await _send_plain_text_message(db, wa_service, conv, contact, phone, confirmation_text)
+
+async def _step_download_pending_media(db: Session, wa_service, conv: Conversation, message_type: str, msg_data: Dict[str, Any], incoming_msg: Optional[Message]) -> None:
+    """Bloque 1: descarga el archivo multimedia adjunto si existe y aún no fue descargado
+    inline. Nunca corta el procesamiento (no hay ningún `return` aquí ni en el llamador para
+    este bloque): solo actualiza el registro del mensaje y notifica al panel por WebSocket."""
+    if message_type != "text" and msg_data.get("media_id"):
+        if incoming_msg and not incoming_msg.media_url:
+            media_result = await wa_service.download_media(msg_data["media_id"])
+            if media_result:
+                saved_url = save_media_bytes(media_result["bytes"], media_result["mime_type"])
+                incoming_msg.media_url = saved_url
+                incoming_msg.media_mime_type = media_result["mime_type"]
+                incoming_msg.error_detail = None
+                db.commit()
+                db.refresh(incoming_msg)
+                logger.info(f"[Media Background] Archivo guardado para conv {conv.id}: {saved_url}")
+
+                # Emitir actualización en tiempo real por WebSocket
+                await ws_manager.broadcast_to_branch(conv.branch_id, {
+                    "type": "message_media_updated",
+                    "conversation_id": conv.id,
+                    "branch_id": conv.branch_id,
+                    "message_id": incoming_msg.id,
+                    "media_url": saved_url,
+                    "media_type": incoming_msg.media_type,
+                    "media_mime_type": incoming_msg.media_mime_type,
+                    "media_failed": False
+                })
+            else:
+                # La descarga inline (rápida) ya había fallado/expirado y este reintento en
+                # background también falló: en vez de dejar el mensaje eternamente en
+                # "Descargando..." (lo que reportó el usuario), se marca el fallo explícito
+                # para que el panel muestre un estado de error con botón "Reintentar" (que
+                # llama a POST /messages/{id}/retry-media reutilizando media_id).
+                incoming_msg.error_detail = MEDIA_DOWNLOAD_FAILED_MARKER
+                db.commit()
+                logger.warning(f"[Media Background] No se pudo descargar media_id={msg_data['media_id']} para conv {conv.id} (mensaje {incoming_msg.id}).")
+
+                await ws_manager.broadcast_to_branch(conv.branch_id, {
+                    "type": "message_media_updated",
+                    "conversation_id": conv.id,
+                    "branch_id": conv.branch_id,
+                    "message_id": incoming_msg.id,
+                    "media_url": None,
+                    "media_type": incoming_msg.media_type,
+                    "media_mime_type": incoming_msg.media_mime_type,
+                    "media_failed": True
+                })
+
+async def _step_handle_restart_or_cancel(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, navigation_intent: Optional[str]) -> None:
+    """Bloque 3 (interrupción universal): "reiniciar" o "cancelar" — limpia el contexto y
+    vuelve a mostrar el menú principal, con el mensaje que corresponde a cuál de las dos fue."""
+    await _reset_bot_context(db, conv)
+    await _send_plain_text_message(
+        db, wa_service, conv, contact, phone,
+        get_node_text(db, "restart_message", RESTART_MESSAGE) if navigation_intent == "restart" else get_node_text(db, "cancel_message", CANCEL_MESSAGE),
+    )
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+    await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+
+async def _step_handle_change_branch(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Bloque 3 (interrupción universal): "cambiar de sucursal" — limpia sucursal/agente/pago
+    asignados y vuelve a preguntar sucursal (si ya había un tipo de entrega/visita elegido) o
+    el menú principal completo (si no)."""
+    conv.branch_id = None
+    conv.assigned_user_id = None
+    conv.payment_method = None
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "change_branch_message", CHANGE_BRANCH_MESSAGE))
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+    if conv.delivery_type in ("visit", "delivery", "pickup"):
+        await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=conv.delivery_type)
+    else:
+        await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+
+async def _step_handle_change_order_type_or_back(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, navigation_intent: str, text: str, message_type: str) -> None:
+    """Bloque 3 (interrupción universal): "cambiar tipo de pedido" o "volver". Dentro del
+    intake corporativo, "volver" retrocede una pregunta conservando las respuestas anteriores;
+    fuera de él vuelve a Delivery/Retiro/Evento. Tiene dos caminos de salida (uno dentro del
+    `if` de corporativo, otro al final) — ambos terminaban en `return` en el bloque original,
+    así que aquí basta con que la función termine (ver el único `return` en el llamador)."""
+    if navigation_intent == "back" and conv.corporate_intake_step:
+        if conv.corporate_intake_step <= 1:
+            await _reset_bot_context(db, conv)
+            await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+        else:
+            conv.corporate_intake_step -= 1
+            note_lines = (conv.corporate_intake_notes or "").splitlines()
+            conv.corporate_intake_notes = "\n".join(note_lines[:-1]) or None
+            db.commit()
+            previous_node_by_step = {
+                1: "corporate_event_type_question",
+                2: "corporate_headcount_question",
+                3: "corporate_date_question",
+            }
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, "Claro, corrijámoslo.")
+            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+            await _render_corporate_node(db, wa_service, conv, contact, phone, previous_node_by_step[conv.corporate_intake_step])
+        return
+
+    desired_type = match_delivery_type_text(text) if message_type == "text" else None
+    await _reset_bot_context(db, conv)
+    if desired_type:
+        conv.delivery_type = desired_type
+        db.commit()
+        await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=desired_type)
+    else:
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "change_order_type_message", CHANGE_ORDER_TYPE_MESSAGE))
+        await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+
+async def _step_start_chat_order(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Bloque 2.55: "Pedir y pagar por chat" — pide describir el pedido en texto libre."""
+    conv.awaiting_chat_order_description = True
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "chat_order_intro_question", CHAT_ORDER_INTRO_QUESTION))
+
+async def _step_handle_chat_order_description(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Bloque 2.55 (continuación): ya llegó la descripción del pedido por chat, ahora se
+    resuelve el método de pago con una lista tocable."""
+    conv.awaiting_chat_order_description = False
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    payment_rows = list(CHAT_ORDER_PAYMENT_ROWS) + [NAV_RESTART_ROW]
+    await _send_interactive_list_message(
+        db, wa_service, conv, contact, phone,
+        get_node_text(db, "chat_order_payment_question", CHAT_ORDER_PAYMENT_QUESTION),
+        "Elegir opción", payment_rows, section_title="Método de pago",
+    )
+
+async def _step_handle_manager_help_yes(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Bloque 3.0: el cliente confirma que sí quiere ayuda adicional -> pasa a atención humana."""
+    branch_name = conv.branch.name if conv.branch else "Farmhouse"
+    ans_text = get_manager_assigned_message(branch_name, db=db)
+    await _handoff_to_human(db, wa_service, conv, contact, phone, ans_text)
+
+async def _step_handle_manager_help_no(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Bloque 3.0: el cliente dice que no necesita más ayuda."""
+    branch_name = conv.branch.name if conv.branch else "Farmhouse"
+    ans_text = get_manager_declined_message(branch_name, db=db)
+    await _send_plain_text_message(db, wa_service, conv, contact, phone, ans_text)
+
+async def _step_handle_manager_help_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Bloque 3.0: el cliente pide ver el menú digital de nuevo."""
+    await _send_digital_menu_link(db, wa_service, conv, contact, phone)
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+    await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
+
+async def _step_handle_corporate_option_selected(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Bloque 3.1: opción "Pedido Corporativo / Evento". Por defecto el bot no pregunta nada:
+    entrega de una el número del equipo de catering (ver CORPORATE_INTAKE_ENABLED en
+    auto_responses.py). Con el interruptor en True hace las 4 preguntas guiadas antes de
+    pasarle la conversación a Sol. Tiene dos caminos de salida (uno para cada valor de
+    CORPORATE_INTAKE_ENABLED) — ambos terminaban en `return` en el bloque original, así que
+    aquí basta con que la función termine (ver el único `return` en el llamador)."""
+    cat_branch = db.query(Branch).filter((Branch.code == "CAT") | (Branch.name.ilike("%catering%"))).first()
+    if cat_branch:
+        await _assign_conversation_branch(db, conv, cat_branch, "cliente seleccionó Pedido Corporativo / Evento")
+
+    if not CORPORATE_INTAKE_ENABLED:
+        await _send_plain_text_message(
+            db, wa_service, conv, contact, phone,
+            get_node_text(db, "corporate_catering_handoff", CORPORATE_CATERING_HANDOFF),
+        )
+        # Nota interna (no le llega al cliente): deja registro en el panel de que esta
+        # conversación era un prospecto de catering y a dónde se lo mandó, por si el
+        # equipo quiere darle seguimiento desde aquí.
+        db.add(Message(
+            conversation_id=conv.id, direction="outgoing", sender_type="system",
+            content=f"📋 Prospecto de catering: se le compartió el número del equipo de eventos ({CATERING_PHONE_DISPLAY}).",
+            is_internal=True, status="sent",
+        ))
+        conv.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        return
+
+    await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_intro", CORPORATE_INTAKE_INTRO))
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+
+    conv.corporate_intake_step = 1
+    conv.corporate_intake_notes = None
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    await _send_corporate_event_type_question(db, wa_service, conv, contact, phone)
+
+async def _step_detect_and_assign_branch(db: Session, conv: Conversation, interactive_id: str, message_type: str, text: str) -> bool:
+    """Bloque 4: detecta si el cliente seleccionó/mencionó una sucursal (por botón o por texto
+    libre) y la asigna a la conversación. Devuelve `branch_matched_now`, que el llamador
+    necesita para decidir el bloque 6."""
+    branch_matched_now = False
+    matched_via = None
+    matched_branch = None
+    if interactive_id.startswith("branch_"):
+        try:
+            selected_branch_id = int(interactive_id.replace("branch_", ""))
+            matched_branch = db.query(Branch).filter(Branch.id == selected_branch_id, Branch.active == True).first()
+        except Exception:
+            pass
+        matched_via = "interactive"
+    elif message_type == "text":
+        active_branches = db.query(Branch).filter(Branch.active == True).all()
+        matched_branch = match_branch_by_text(text, active_branches)
+        matched_via = "text"
+
+    if matched_branch and (conv.branch_id != matched_branch.id or branch_matched_now):
+        motivo = "el cliente tocó el menú de sucursales" if matched_via == "interactive" else "el cliente escribió el nombre de la sucursal"
+        await _assign_conversation_branch(db, conv, matched_branch, motivo)
+        branch_matched_now = True
+
+    return branch_matched_now
+
+async def _step_prompt_entry_when_context_missing(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, message_type: str, text: str) -> None:
+    """Bloque 7: todavía no hay ni tipo de entrega ni sucursal. Muestra el menú principal de
+    nuevo, salvo que ya se mostró hace menos de 3 minutos y el cliente no escribió algo que
+    sugiera que quiere retomar (en cuyo caso solo se reconoce el mensaje sin repetir el menú).
+    Nunca se omite una respuesta por completo."""
+    now = datetime.now(timezone.utc)
+    should_prompt = True
+    if conv.last_branch_prompt_at:
+        elapsed = (now - conv.last_branch_prompt_at.replace(tzinfo=timezone.utc)).total_seconds() if conv.last_branch_prompt_at.tzinfo else (datetime.utcnow() - conv.last_branch_prompt_at).total_seconds()
+        if elapsed < 180 and not (message_type == "text" and any(k in text.lower() for k in ["hola", "menu", "opciones", "buenas", "ayuda", "1", "2", "3", "4"])):
+            should_prompt = False
+
+    if should_prompt:
+        await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+        conv.last_branch_prompt_at = now
+        db.commit()
+    else:
+        await _send_unknown_main_prompt(db, wa_service, conv, contact, phone)
+
+async def _step_handle_payment_selection(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, interactive_id: str, message_type: str, text: str) -> bool:
+    """Bloque 8: si ya hay sucursal + tipo de entrega pero falta método de pago, intenta
+    resolverlo (por botón "pay_*" o por texto libre) y, si lo logra, cierra con el mensaje de
+    ese método y pasa a atención humana. Devuelve True si resolvió el pago (el llamador debe
+    `return` en ese caso); False si no hubo match, igual que el `if matched_payment:` original
+    que no tenía un `else` y seguía al bloque siguiente."""
+    matched_payment = None
+    if interactive_id.startswith("pay_"):
+        candidate = interactive_id.replace("pay_", "")
+        matched_payment = candidate if candidate in {"ach", "card", "yappy"} else None
+    elif message_type == "text":
+        matched_payment = match_payment_method_text(text)
+
+    if not matched_payment:
+        return False
+
+    conv.payment_method = matched_payment
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    payment_closing_messages = {
+        "ach": get_node_text(db, "payment_ach", ACH_PAYMENT_INSTRUCTIONS),
+        "card": get_node_text(db, "payment_card", CARD_PAYMENT_MESSAGE),
+        "yappy": get_node_text(db, "payment_yappy", YAPPY_PAYMENT_MESSAGE),
+    }
+    closing_text = payment_closing_messages.get(
+        conv.payment_method,
+        "¡Genial! Ya tenemos todo listo para arrancar 😊 En un momento alguien de nuestro equipo te atiende para tomar los detalles de tu pedido. ¡Gracias por tu paciencia!"
+    )
+    await _handoff_to_human(db, wa_service, conv, contact, phone, closing_text)
+    return True
+
+async def _step_recover_conversation_context(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, text: str) -> None:
+    """Bloque 9: recuperación contextual final. Todo mensaje que llega hasta aquí obtiene una
+    salida útil: repetir la decisión pertinente, ofrecer acciones o volver al inicio, nunca
+    quedarse en silencio. Es el último bloque de la función — sus varios `return` internos
+    equivalían a terminar _process_auto_flow_background, así que aquí basta con que la función
+    termine (ver el único `return` en el llamador, justo después de llamarla)."""
+    if conv.delivery_type == "visit" and conv.branch_id is not None:
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "visit_recovery_message", "Quiero asegurarme de ayudarte bien 😊"))
+        await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
+        return
+
+    if conv.delivery_type in ("delivery", "pickup") and conv.branch_id is not None:
+        await _send_after_menu_help_prompt(db, wa_service, conv, contact, phone)
+        return
+
+    last_bot_text = _last_public_bot_text(db, conv.id)
+    change_order_type_text = get_node_text(db, "change_order_type_message", CHANGE_ORDER_TYPE_MESSAGE)
+    if change_order_type_text in last_bot_text:
+        await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+    elif conv.delivery_type in ("visit", "delivery", "pickup"):
+        await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_body=get_node_text(db, "unknown_branch_message", UNKNOWN_BRANCH_MESSAGE))
+    else:
+        await _send_unknown_main_prompt(db, wa_service, conv, contact, phone)
+
 async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: str, msg_data: Dict[str, Any], msg_id: int):
     """
     Procesador en segundo plano para descargas de medios, lógica de estados y respuestas automáticas (Puntos 5 y 17).
@@ -708,37 +1044,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         #    cálido y empático según el tipo de entrega (Delivery o Retiro) y pausamos el bot para que
         #    el agente de la sucursal tome el control personal de la conversación.
         if message_type == "text" and "MI PEDIDO FARMHOUSE" in text.upper():
-            is_delivery = "DELIVERY" in text.upper() or (conv.delivery_type == "delivery")
-            is_card = "TARJETA" in text.upper() or (conv.payment_method == "card")
-            branch_name = conv.branch.name if conv.branch else "Farmhouse"
-            first_name = get_customer_first_name(contact.name)
-            greeting = f"¡Gracias por tu pedido, {first_name}!" if first_name else "¡Gracias por tu pedido!"
-            payment_labels = {"card": "Tarjeta", "yappy": "Yappy", "ach": "ACH / transferencia", "cash": "Efectivo"}
-            payment_label = payment_labels.get(conv.payment_method, "Por confirmar")
-            delivery_label = "Delivery" if is_delivery else "Retiro en sucursal"
-            next_step = (
-                "El equipo revisará tu dirección, te confirmará el costo de entrega"
-                + (" y te enviará el enlace de pago seguro." if is_card else " y coordinará el pago contigo.")
-                if is_delivery else
-                ("El equipo te enviará el enlace de pago y confirmará cuándo estará listo."
-                 if is_card else "El equipo te confirmará cuándo estará listo para retirar.")
-            )
-            confirmation_text = (
-                f"{greeting} Ya lo tenemos registrado 🌿\n\n"
-                f"*Resumen*\n"
-                f"• {delivery_label}\n"
-                f"• Farmhouse {branch_name}\n"
-                f"• Pago: {payment_label}\n\n"
-                f"{next_step}\n\n"
-                "Si ves algo que quieras corregir, escríbelo aquí; la persona que continúe contigo podrá ver todo este contexto."
-            )
-
-            # automation_paused se marca ANTES de mandar el mensaje, no después: _send_and_log
-            # hace un solo commit con conv.updated_at, y al ya venir con automation_paused=True
-            # en el mismo objeto conv, ambos cambios quedan en ese mismo commit — el estado final
-            # es idéntico a cuando esto se escribía en un bloque aparte.
-            conv.automation_paused = True
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, confirmation_text)
+            await _step_confirm_web_menu_order(db, wa_service, conv, contact, phone, text)
             return
 
         # 0.1 Atención humana solicitada explícitamente por el cliente. Si el bot ya está
@@ -750,49 +1056,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                 return
 
         # 1. Descargar archivo multimedia si existe y aún no fue descargado inline
-        if message_type != "text" and msg_data.get("media_id"):
-            if incoming_msg and not incoming_msg.media_url:
-                media_result = await wa_service.download_media(msg_data["media_id"])
-                if media_result:
-                    saved_url = save_media_bytes(media_result["bytes"], media_result["mime_type"])
-                    incoming_msg.media_url = saved_url
-                    incoming_msg.media_mime_type = media_result["mime_type"]
-                    incoming_msg.error_detail = None
-                    db.commit()
-                    db.refresh(incoming_msg)
-                    logger.info(f"[Media Background] Archivo guardado para conv {conv.id}: {saved_url}")
-
-                    # Emitir actualización en tiempo real por WebSocket
-                    await ws_manager.broadcast_to_branch(conv.branch_id, {
-                        "type": "message_media_updated",
-                        "conversation_id": conv.id,
-                        "branch_id": conv.branch_id,
-                        "message_id": incoming_msg.id,
-                        "media_url": saved_url,
-                        "media_type": incoming_msg.media_type,
-                        "media_mime_type": incoming_msg.media_mime_type,
-                        "media_failed": False
-                    })
-                else:
-                    # La descarga inline (rápida) ya había fallado/expirado y este reintento en
-                    # background también falló: en vez de dejar el mensaje eternamente en
-                    # "Descargando..." (lo que reportó el usuario), se marca el fallo explícito
-                    # para que el panel muestre un estado de error con botón "Reintentar" (que
-                    # llama a POST /messages/{id}/retry-media reutilizando media_id).
-                    incoming_msg.error_detail = MEDIA_DOWNLOAD_FAILED_MARKER
-                    db.commit()
-                    logger.warning(f"[Media Background] No se pudo descargar media_id={msg_data['media_id']} para conv {conv.id} (mensaje {incoming_msg.id}).")
-
-                    await ws_manager.broadcast_to_branch(conv.branch_id, {
-                        "type": "message_media_updated",
-                        "conversation_id": conv.id,
-                        "branch_id": conv.branch_id,
-                        "message_id": incoming_msg.id,
-                        "media_url": None,
-                        "media_type": incoming_msg.media_type,
-                        "media_mime_type": incoming_msg.media_mime_type,
-                        "media_failed": True
-                    })
+        await _step_download_pending_media(db, wa_service, conv, message_type, msg_data, incoming_msg)
 
         # 2. Si la conversación tiene automatización pausada por un agente, no responder
         if conv.automation_paused:
@@ -814,61 +1078,15 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             navigation_intent = "restart"
 
         if navigation_intent in ("restart", "cancel"):
-            await _reset_bot_context(db, conv)
-            await _send_plain_text_message(
-                db, wa_service, conv, contact, phone,
-                get_node_text(db, "restart_message", RESTART_MESSAGE) if navigation_intent == "restart" else get_node_text(db, "cancel_message", CANCEL_MESSAGE),
-            )
-            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-            await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+            await _step_handle_restart_or_cancel(db, wa_service, conv, contact, phone, navigation_intent)
             return
 
         if navigation_intent == "change_branch":
-            conv.branch_id = None
-            conv.assigned_user_id = None
-            conv.payment_method = None
-            conv.updated_at = datetime.now(timezone.utc)
-            db.commit()
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "change_branch_message", CHANGE_BRANCH_MESSAGE))
-            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-            if conv.delivery_type in ("visit", "delivery", "pickup"):
-                await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=conv.delivery_type)
-            else:
-                await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+            await _step_handle_change_branch(db, wa_service, conv, contact, phone)
             return
 
         if navigation_intent in ("change_order_type", "back"):
-            # Dentro del intake corporativo, "volver" retrocede una pregunta conservando
-            # las respuestas anteriores; fuera de él vuelve a Delivery/Retiro/Evento.
-            if navigation_intent == "back" and conv.corporate_intake_step:
-                if conv.corporate_intake_step <= 1:
-                    await _reset_bot_context(db, conv)
-                    await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
-                else:
-                    conv.corporate_intake_step -= 1
-                    note_lines = (conv.corporate_intake_notes or "").splitlines()
-                    conv.corporate_intake_notes = "\n".join(note_lines[:-1]) or None
-                    db.commit()
-                    previous_node_by_step = {
-                        1: "corporate_event_type_question",
-                        2: "corporate_headcount_question",
-                        3: "corporate_date_question",
-                    }
-                    await _send_plain_text_message(db, wa_service, conv, contact, phone, "Claro, corrijámoslo.")
-                    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-                    await _render_corporate_node(db, wa_service, conv, contact, phone, previous_node_by_step[conv.corporate_intake_step])
-                return
-
-            desired_type = match_delivery_type_text(text) if message_type == "text" else None
-            await _reset_bot_context(db, conv)
-            if desired_type:
-                conv.delivery_type = desired_type
-                db.commit()
-                await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=desired_type)
-            else:
-                await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "change_order_type_message", CHANGE_ORDER_TYPE_MESSAGE))
-                await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-                await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+            await _step_handle_change_order_type_or_back(db, wa_service, conv, contact, phone, navigation_intent, text, message_type)
             return
 
         # 2.55 "Pedir y pagar por chat": alternativa al Menú Digital web para quien ya sabe
@@ -876,22 +1094,11 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         # y luego resuelve el pago con una lista tocable en vez de depender de que escriba la
         # palabra ("tarjeta"/"yappy"/"ach") de la nada.
         if interactive_id == "chat_order_start":
-            conv.awaiting_chat_order_description = True
-            conv.updated_at = datetime.now(timezone.utc)
-            db.commit()
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "chat_order_intro_question", CHAT_ORDER_INTRO_QUESTION))
+            await _step_start_chat_order(db, wa_service, conv, contact, phone)
             return
 
         if conv.awaiting_chat_order_description and message_type == "text" and text.strip():
-            conv.awaiting_chat_order_description = False
-            conv.updated_at = datetime.now(timezone.utc)
-            db.commit()
-            payment_rows = list(CHAT_ORDER_PAYMENT_ROWS) + [NAV_RESTART_ROW]
-            await _send_interactive_list_message(
-                db, wa_service, conv, contact, phone,
-                get_node_text(db, "chat_order_payment_question", CHAT_ORDER_PAYMENT_QUESTION),
-                "Elegir opción", payment_rows, section_title="Método de pago",
-            )
+            await _step_handle_chat_order_description(db, wa_service, conv, contact, phone)
             return
 
         # 2.6 Si hay una pregunta guiada de Corporativo/Evento pendiente, esta respuesta es
@@ -912,19 +1119,13 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             manager_choice = match_manager_help(text)
 
         if manager_choice == "yes":
-            branch_name = conv.branch.name if conv.branch else "Farmhouse"
-            ans_text = get_manager_assigned_message(branch_name, db=db)
-            await _handoff_to_human(db, wa_service, conv, contact, phone, ans_text)
+            await _step_handle_manager_help_yes(db, wa_service, conv, contact, phone)
             return
         elif manager_choice == "no":
-            branch_name = conv.branch.name if conv.branch else "Farmhouse"
-            ans_text = get_manager_declined_message(branch_name, db=db)
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, ans_text)
+            await _step_handle_manager_help_no(db, wa_service, conv, contact, phone)
             return
         elif manager_choice == "menu":
-            await _send_digital_menu_link(db, wa_service, conv, contact, phone)
-            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-            await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
+            await _step_handle_manager_help_menu(db, wa_service, conv, contact, phone)
             return
 
         entry_intent = match_entry_intent(text) if message_type == "text" else None
@@ -961,36 +1162,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         # auto_responses.py). Con el interruptor en True vuelve a hacer las 4 preguntas guiadas
         # antes de pasarle la conversación a Sol.
         if main_option_matched == "corporate":
-            cat_branch = db.query(Branch).filter((Branch.code == "CAT") | (Branch.name.ilike("%catering%"))).first()
-            if cat_branch:
-                await _assign_conversation_branch(db, conv, cat_branch, "cliente seleccionó Pedido Corporativo / Evento")
-
-            if not CORPORATE_INTAKE_ENABLED:
-                await _send_plain_text_message(
-                    db, wa_service, conv, contact, phone,
-                    get_node_text(db, "corporate_catering_handoff", CORPORATE_CATERING_HANDOFF),
-                )
-                # Nota interna (no le llega al cliente): deja registro en el panel de que esta
-                # conversación era un prospecto de catering y a dónde se lo mandó, por si el
-                # equipo quiere darle seguimiento desde aquí.
-                db.add(Message(
-                    conversation_id=conv.id, direction="outgoing", sender_type="system",
-                    content=f"📋 Prospecto de catering: se le compartió el número del equipo de eventos ({CATERING_PHONE_DISPLAY}).",
-                    is_internal=True, status="sent",
-                ))
-                conv.updated_at = datetime.now(timezone.utc)
-                db.commit()
-                return
-
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_intro", CORPORATE_INTAKE_INTRO))
-            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-
-            conv.corporate_intake_step = 1
-            conv.corporate_intake_notes = None
-            conv.updated_at = datetime.now(timezone.utc)
-            db.commit()
-
-            await _send_corporate_event_type_question(db, wa_service, conv, contact, phone)
+            await _step_handle_corporate_option_selected(db, wa_service, conv, contact, phone)
             return
 
         # 3.2 Actualizar delivery_type si se seleccionó opción 1, 2 o 3
@@ -1000,25 +1172,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             db.commit()
 
         # 4. Detección de sucursal si el cliente seleccionó una sucursal
-        branch_matched_now = False
-        matched_via = None
-        matched_branch = None
-        if interactive_id.startswith("branch_"):
-            try:
-                selected_branch_id = int(interactive_id.replace("branch_", ""))
-                matched_branch = db.query(Branch).filter(Branch.id == selected_branch_id, Branch.active == True).first()
-            except Exception:
-                pass
-            matched_via = "interactive"
-        elif message_type == "text":
-            active_branches = db.query(Branch).filter(Branch.active == True).all()
-            matched_branch = match_branch_by_text(text, active_branches)
-            matched_via = "text"
-
-        if matched_branch and (conv.branch_id != matched_branch.id or branch_matched_now):
-            motivo = "el cliente tocó el menú de sucursales" if matched_via == "interactive" else "el cliente escribió el nombre de la sucursal"
-            await _assign_conversation_branch(db, conv, matched_branch, motivo)
-            branch_matched_now = True
+        branch_matched_now = await _step_detect_and_assign_branch(db, conv, interactive_id, message_type, text)
 
         # 5. Si se seleccionó o tiene delivery_type (visit, delivery, pickup) pero falta sucursal:
         if conv.delivery_type in ["visit", "delivery", "pickup"] and conv.branch_id is None:
@@ -1033,45 +1187,12 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         # 7. Si aún no hay contexto, mostrar entrada o recuperación contextual. Nunca se
         # omite una respuesta solo por haber mostrado el menú hace menos de tres minutos.
         if conv.delivery_type is None and conv.branch_id is None:
-            now = datetime.now(timezone.utc)
-            should_prompt = True
-            if conv.last_branch_prompt_at:
-                elapsed = (now - conv.last_branch_prompt_at.replace(tzinfo=timezone.utc)).total_seconds() if conv.last_branch_prompt_at.tzinfo else (datetime.utcnow() - conv.last_branch_prompt_at).total_seconds()
-                if elapsed < 180 and not (message_type == "text" and any(k in text.lower() for k in ["hola", "menu", "opciones", "buenas", "ayuda", "1", "2", "3", "4"])):
-                    should_prompt = False
-
-            if should_prompt:
-                await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
-                conv.last_branch_prompt_at = now
-                db.commit()
-            else:
-                await _send_unknown_main_prompt(db, wa_service, conv, contact, phone)
+            await _step_prompt_entry_when_context_missing(db, wa_service, conv, contact, phone, message_type, text)
             return
 
         # 8. Flujo de selección de pago (si aplica dentro del chat)
         if conv.branch_id is not None and conv.delivery_type in ["delivery", "pickup"] and conv.payment_method is None:
-            matched_payment = None
-            if interactive_id.startswith("pay_"):
-                candidate = interactive_id.replace("pay_", "")
-                matched_payment = candidate if candidate in {"ach", "card", "yappy"} else None
-            elif message_type == "text":
-                matched_payment = match_payment_method_text(text)
-
-            if matched_payment:
-                conv.payment_method = matched_payment
-                conv.updated_at = datetime.now(timezone.utc)
-                db.commit()
-
-                payment_closing_messages = {
-                    "ach": get_node_text(db, "payment_ach", ACH_PAYMENT_INSTRUCTIONS),
-                    "card": get_node_text(db, "payment_card", CARD_PAYMENT_MESSAGE),
-                    "yappy": get_node_text(db, "payment_yappy", YAPPY_PAYMENT_MESSAGE),
-                }
-                closing_text = payment_closing_messages.get(
-                    conv.payment_method,
-                    "¡Genial! Ya tenemos todo listo para arrancar 😊 En un momento alguien de nuestro equipo te atiende para tomar los detalles de tu pedido. ¡Gracias por tu paciencia!"
-                )
-                await _handoff_to_human(db, wa_service, conv, contact, phone, closing_text)
+            if await _step_handle_payment_selection(db, wa_service, conv, contact, phone, interactive_id, message_type, text):
                 return
 
         # 8.1 Archivos/comprobantes: acusar recibo y entregarlos a una persona. Antes este
@@ -1085,24 +1206,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
 
         # 9. Recuperación contextual. Todo mensaje obtiene una salida útil: repetir la
         # decisión pertinente, ofrecer acciones o volver al inicio, nunca quedarse en silencio.
-        if conv.delivery_type == "visit" and conv.branch_id is not None:
-            await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "visit_recovery_message", "Quiero asegurarme de ayudarte bien 😊"))
-            await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-            await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
-            return
-
-        if conv.delivery_type in ("delivery", "pickup") and conv.branch_id is not None:
-            await _send_after_menu_help_prompt(db, wa_service, conv, contact, phone)
-            return
-
-        last_bot_text = _last_public_bot_text(db, conv.id)
-        change_order_type_text = get_node_text(db, "change_order_type_message", CHANGE_ORDER_TYPE_MESSAGE)
-        if change_order_type_text in last_bot_text:
-            await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
-        elif conv.delivery_type in ("visit", "delivery", "pickup"):
-            await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_body=get_node_text(db, "unknown_branch_message", UNKNOWN_BRANCH_MESSAGE))
-        else:
-            await _send_unknown_main_prompt(db, wa_service, conv, contact, phone)
+        await _step_recover_conversation_context(db, wa_service, conv, contact, phone, text)
         return
     except Exception as e:
         logger.error(f"[AutoResponse Background Error] Conv ID {conv_id}: {e}", exc_info=True)
