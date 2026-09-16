@@ -12,8 +12,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=2.8.1">
-  <!-- Componente propio de la pestaña "Flujo visual" (diagrama de referencia + editor). -->
-  <link rel="stylesheet" href="css/flow-editor.css?v=1.0.0">
+  <!-- Componente propio de la pestaña "Flujo visual" (contenido real + mapa parcial del bot). -->
+  <link rel="stylesheet" href="css/flow-editor.css?v=1.5.0">
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -315,9 +315,9 @@
         </aside>
       </section>
 
-      <!-- Flujo Visual del Bot: página normal (no modal), solo admin. Diagrama de
-           referencia + editor + simulador de prueba — no controla al bot real todavía
-           (ver flow_editor.js y models/bot_flow.py para el alcance exacto). -->
+      <!-- Flujo Visual del Bot: página normal (no modal), solo admin. Permite editar el
+           contenido real del bot y una parte acotada de sus rutas; el resto es una guía
+           visual/simulación (ver flow_editor.js y models/bot_flow.py para el alcance exacto). -->
       <section class="flow-page" id="flowPageContainer" hidden>
         <div class="flow-page-header">
           <button type="button" class="btn-flow-back" id="btnFlowBack" title="Volver a conversaciones" aria-label="Volver a conversaciones">
@@ -325,12 +325,16 @@
           </button>
           <div>
             <h2><i data-lucide="git-branch"></i> Flujo Visual del Bot</h2>
-            <span class="flow-page-subtitle" id="flowEditorSubtitle">Camino principal (referencia visual)</span>
+            <span class="flow-page-subtitle" id="flowEditorSubtitle">Contenido real y mapa parcial del recorrido</span>
           </div>
-        </div>
-        <div class="flow-editor-banner" id="flowEditorBanner">
-          <span class="flow-editor-banner-dot"></span>
-          <span>Este diagrama <strong>no controla al bot real</strong> — es una referencia visual y editable del camino principal. Pruébalo con "Probar flujo" antes de guardar.</span>
+          <!-- Antes era una segunda fila propia (banner) que le quitaba bastante alto a la
+               zona de trabajo; ahora es una nota compacta de una sola línea, en la misma fila
+               del título, con el detalle completo en el tooltip (title) del ícono. -->
+          <div class="flow-editor-banner" id="flowEditorBanner" title="Los textos marcados como “Contenido real” se aplican al guardar. Solo las rutas marcadas como “Ruta real” cambian el orden del bot; lo demás sirve como referencia y simulación.">
+            <span class="flow-editor-banner-dot"></span>
+            <strong>Este editor sí cambia respuestas reales de WhatsApp</strong>
+            <i data-lucide="info"></i>
+          </div>
         </div>
         <div class="flow-editor-body" id="flowEditorRoot"><!-- Renderizado por flow_editor.js --></div>
       </section>
@@ -839,7 +843,7 @@
   <script src="js/modules/chat.js?v=3.7.0"></script>
   <script src="js/modules/push.js?v=3.4.0"></script>
   <script src="js/modules/notifications.js?v=3.5.0"></script>
-  <script src="js/modules/flow_editor.js?v=1.1.0"></script>
+  <script src="js/modules/flow_editor.js?v=1.7.2"></script>
   <script src="js/app.js?v=3.8.0"></script>
 </body>
 </html>

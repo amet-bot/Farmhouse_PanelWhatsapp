@@ -58,7 +58,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 20px;
+  padding: 10px 18px;
   border-bottom: 1px solid var(--line);
 }
 .btn-flow-back {
@@ -85,16 +85,30 @@
 .flow-page-header h2 svg, .flow-page-header h2 i { width: 16px; height: 16px; color: var(--green); }
 .flow-page-subtitle { font-size: 12px; color: var(--text-muted); }
 
+/* Nota compacta de una sola línea (antes era una segunda fila propia con dos oraciones) —
+   vive dentro de .flow-page-header, pegada al borde derecho; el detalle completo va en el
+   atributo title del contenedor (tooltip nativo al pasar el mouse por el ícono ⓘ), así que no
+   hace falta reservarle una segunda línea de alto a algo que no se lee todo el tiempo. */
 .flow-editor-banner {
+  margin-left: auto;
   flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 20px;
-  background: var(--panel-subtle);
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
+  gap: 6px;
+  max-width: 46%;
+  font-size: 11.5px;
   color: var(--text-secondary);
+  cursor: help;
+}
+.flow-editor-banner strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.flow-editor-banner svg, .flow-editor-banner i {
+  flex: none; width: 14px; height: 14px; color: var(--text-muted);
 }
 .flow-editor-banner-dot {
   width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex: none;
@@ -124,7 +138,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--line);
   background: var(--panel-bg);
 }
@@ -138,6 +152,18 @@
 }
 .btn-flow-layout:hover { border-color: var(--green); color: var(--green-dark); }
 .btn-flow-layout svg { width: 13px; height: 13px; }
+
+/* Botones para ocultar la paleta y/o el panel lateral y liberar espacio para el lienzo —
+   el estado (abierto/cerrado) se recuerda por navegador, ver PANEL_STORAGE_KEYS en flow_editor.js. */
+.flow-panel-toggle-group { display: flex; gap: 6px; padding-left: 4px; border-left: 1px solid var(--line); margin-left: 2px; }
+.btn-flow-panel-toggle {
+  display: flex; align-items: center; gap: 6px;
+  border: 1px solid var(--line); background: var(--panel-bg); color: var(--text-secondary);
+  padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 500;
+}
+.btn-flow-panel-toggle:hover { border-color: var(--green); color: var(--green-dark); }
+.btn-flow-panel-toggle.is-hidden { color: var(--text-muted); background: var(--panel-subtle); }
+.btn-flow-panel-toggle svg { width: 13px; height: 13px; flex: none; }
 .flow-stats {
   font-family: monospace;
   font-size: 11px;
@@ -194,6 +220,17 @@
   flex-direction: column;
   gap: 3px;
   overflow-y: auto;
+  transition: width .15s ease, padding .15s ease;
+}
+/* Colapsada: se oculta por completo (ancho 0) para dejarle todo el espacio al lienzo. El
+   botón de la barra superior ("Paleta") la vuelve a mostrar — no hace falta un botón propio
+   adentro, porque estando en 0px no hay dónde ponerlo. */
+.flow-palette.collapsed {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right: none;
+  overflow: hidden;
 }
 .flow-palette-title {
   font-size: 10px;
@@ -233,6 +270,7 @@
 .flow-legend-item { display: flex; align-items: flex-start; gap: 8px; padding: 5px 6px; }
 .flow-legend-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--type-color); margin-top: 4px; }
 .flow-legend-label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text-primary); }
+.flow-legend-label em { font-style: normal; font-weight: 500; color: var(--text-muted); }
 .flow-legend-desc { display: block; font-size: 10.5px; color: var(--text-muted); line-height: 1.4; }
 
 /* ---------- lienzo ---------- */
@@ -261,11 +299,24 @@
 .flow-canvas {
   position: relative;
   transform-origin: 0 0;
-  /* El zoom (botones +/-, rueda) anima aquí; arrastrar un nodo no toca este transform,
-     así que la transición no afecta el rendimiento del arrastre. */
-  transition: transform 0.12s ease-out;
+  /* Sin transición a propósito: el zoom corrige el scroll en el mismo instante en que cambia la
+     escala (para que el punto bajo el cursor no se mueva), y si la escala llegara animada
+     mientras el scroll ya saltó, el diagrama temblaría en cada giro de la rueda. */
 }
-.flow-conn-svg { position: absolute; inset: 0; overflow: visible; color: var(--line); }
+/* Las líneas se mezclan un poco con el gris del texto secundario: con el color de borde puro
+   (--line) quedaban tan claritas que, alejando el diagrama, el recorrido casi no se seguía. */
+.flow-conn-svg { position: absolute; inset: 0; overflow: visible; color: color-mix(in oklab, var(--text-muted) 45%, var(--line)); }
+
+/* Cartel del propio editor sobre el lienzo (no es un nodo ni se guarda): rotula el bloque de
+   tarjetas sueltas que va debajo del árbol principal. */
+.flow-canvas-note {
+  position: absolute; z-index: 1;
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+  border-top: 1px dashed var(--line); padding-top: 9px;
+  padding-right: 18px; max-width: 760px;
+  pointer-events: none; user-select: none;
+}
 
 .flow-zoom-controls {
   position: absolute; right: 16px; bottom: 16px; z-index: 4;
@@ -283,29 +334,73 @@
 .flow-zoom-pct {
   width: auto !important; padding: 0 8px; font-family: monospace; font-size: 11px; font-weight: 600;
 }
-.flow-conn-svg path.fconn { fill: none; stroke: currentColor; stroke-width: 2; }
-.flow-conn-svg path.fconn.selected { stroke: var(--green); stroke-width: 2.5; }
+.flow-conn-svg path.fconn { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.flow-conn-svg path.fconn.selected { stroke: var(--green); stroke-width: 2.4; }
 .flow-conn-svg path.fconn-ghost { fill: none; stroke: var(--green); stroke-width: 2; stroke-dasharray: 5 4; }
+/* Punta de flecha: sin ella, una línea entre dos figuras no dice hacia dónde va la conversación. */
+.flow-conn-svg .fconn-arrow-head { fill: var(--text-muted); }
+.flow-conn-svg .fconn-arrow-head.selected { fill: var(--green); }
+/* Etiqueta de la rama sobre la línea ("Delivery", "Retiro"…): dice qué tiene que elegir el
+   cliente para que la conversación tome ese camino. */
+.flow-conn-svg .fconn-label rect { fill: var(--panel-bg); stroke: var(--line); stroke-width: 1; }
+.flow-conn-svg .fconn-label text {
+  fill: var(--text-secondary); font-size: 9.5px; font-weight: 600;
+  font-family: inherit; letter-spacing: .01em; pointer-events: none;
+}
 .flow-conn-svg .fconn-del circle { fill: var(--panel-bg); stroke: var(--text-muted); stroke-width: 1; opacity: 0; }
 .flow-conn-svg .fconn-del-group:hover circle { opacity: 1; stroke: var(--red); }
 .flow-conn-svg .fconn-del text { fill: var(--text-muted); font-size: 11px; pointer-events: none; opacity: 0; }
 .flow-conn-svg .fconn-del-group:hover text { opacity: 1; fill: var(--red); }
 
+/* ---------- figuras de diagrama de flujo ----------
+   Cada tipo de paso usa la silueta clásica de un diagrama de flujo de programación (óvalo de
+   inicio/fin, rectángulo de proceso, rombo de decisión, romboide de datos del cliente…). La
+   figura se pinta en una capa aparte (.fnode-shape) y NO recortando .fnode, porque recortar el
+   nodo entero también recortaría los puertos de conexión, que sobresalen de sus bordes a
+   propósito. Son DOS capas: la de abajo pinta el contorno y la de arriba, 1.5px hacia adentro,
+   el relleno — hace falta así porque un `border` normal desaparece al aplicar clip-path. */
 .fnode {
   position: absolute;
-  background: var(--panel-bg);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
   user-select: none;
   z-index: 2;
+  cursor: grab;
+  filter: drop-shadow(0 1px 2px rgba(15, 30, 22, .07));
 }
-.fnode.selected { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft), var(--shadow); }
-.fnode-head {
-  display: flex; align-items: center; gap: 7px; padding: 7px 8px; cursor: grab;
-  border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; background: var(--panel-subtle);
+.fnode:active { cursor: grabbing; }
+.fnode-shape { position: absolute; inset: 0; background: color-mix(in oklab, var(--type-color) 42%, var(--line)); }
+.fnode-shape-fill { position: absolute; inset: 1.5px; background: color-mix(in oklab, var(--type-color) 5%, var(--panel-bg)); }
+.fnode.selected .fnode-shape { background: var(--green); }
+.fnode.selected .fnode-shape-fill { background: color-mix(in oklab, var(--green) 9%, var(--panel-bg)); }
+.fnode-inner { position: relative; z-index: 1; padding: 8px 10px 10px; }
+
+.fshape-process .fnode-shape, .fshape-process .fnode-shape-fill,
+.fshape-subprocess .fnode-shape, .fshape-subprocess .fnode-shape-fill { border-radius: 9px; }
+.fshape-terminal .fnode-shape, .fshape-terminal .fnode-shape-fill { border-radius: 999px; }
+.fshape-terminal .fnode-inner { padding: 11px 24px 13px; }
+/* Figura de espera: rectángulo con el lado derecho redondeado de punta a punta. */
+.fshape-delay .fnode-shape, .fshape-delay .fnode-shape-fill { border-radius: 9px 999px 999px 9px; }
+.fshape-delay .fnode-inner { padding: 8px 40px 10px 12px; }
+/* Rombo de decisión. El 34px de las puntas tiene que coincidir con DECISION_CAP en
+   flow_editor.js, que es donde se calcula sobre qué punto de la "V" de abajo va cada rama. */
+.fshape-decision .fnode-shape, .fshape-decision .fnode-shape-fill {
+  clip-path: polygon(50% 0, 100% 34px, 100% calc(100% - 34px), 50% 100%, 0 calc(100% - 34px), 0 34px);
 }
-.fnode-head:active { cursor: grabbing; }
+.fshape-decision .fnode-inner { padding: 40px 20px 42px; }
+/* Romboide: en un diagrama de flujo es "entrada de datos" — aquí, lo que escribe el cliente. */
+.fshape-input .fnode-shape, .fshape-input .fnode-shape-fill {
+  clip-path: polygon(15px 0, 100% 0, calc(100% - 15px) 100%, 0 100%);
+}
+.fshape-input .fnode-inner { padding: 8px 24px 10px; }
+/* Proceso del sistema (subproceso): rectángulo con las dos barras verticales de siempre. */
+.fshape-subprocess .fnode-shape-fill {
+  background-image: linear-gradient(var(--type-color), var(--type-color)), linear-gradient(var(--type-color), var(--type-color));
+  background-size: 1px 100%, 1px 100%;
+  background-position: 7px 0, calc(100% - 7px) 0;
+  background-repeat: no-repeat;
+}
+.fshape-subprocess .fnode-inner { padding: 8px 17px 10px; }
+
+.fnode-head { display: flex; align-items: center; gap: 7px; }
 .fnode-icon {
   flex: none; width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center;
   background: color-mix(in oklab, var(--type-color) 16%, var(--panel-bg)); color: var(--type-color);
@@ -316,21 +411,61 @@
 .fnode-del { flex: none; width: 17px; height: 17px; border-radius: 4px; display: none; align-items: center; justify-content: center; color: var(--text-muted); }
 .fnode:hover .fnode-del { display: flex; }
 .fnode-del:hover { background: #fde3e6; color: var(--red); }
-.fnode-body { padding: 8px 9px 10px; font-size: 11.5px; color: var(--text-secondary); }
+.fnode-body { padding: 7px 0 0; font-size: 11.5px; color: var(--text-secondary); }
 .fnode-body p { margin: 0; line-height: 1.5; white-space: pre-line; }
 .fnode-body .muted-line { color: var(--text-muted); font-size: 10.5px; margin-top: 4px; }
+
+/* Alcance real de cada nodo. El color comunica impacto sin depender únicamente del texto. */
+.fnode-impact {
+  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 7px;
+  border: 1px solid var(--line); border-radius: 999px; padding: 2px 7px;
+  font-size: 9px; line-height: 1.3; font-weight: 700; letter-spacing: .02em;
+}
+.fnode-impact-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.fnode-impact.route { color: #087f5b; background: #e6fcf5; border-color: #96f2d7; }
+.fnode-impact.content { color: #1864ab; background: #e7f5ff; border-color: #a5d8ff; }
+.fnode-impact.simulation { color: var(--text-muted); background: var(--panel-subtle); }
+[data-theme="dark"] .fnode-impact.route { color: #63e6be; background: rgba(18, 184, 134, .12); border-color: rgba(99, 230, 190, .35); }
+[data-theme="dark"] .fnode-impact.content { color: #74c0fc; background: rgba(34, 139, 230, .12); border-color: rgba(116, 192, 252, .35); }
 
 .fport { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--panel-bg); border: 2px solid var(--type-color); z-index: 3; }
 .fport-in { top: -6px; left: 50%; transform: translateX(-50%); }
 .fport-out-single { bottom: -6px; left: 50%; transform: translateX(-50%); }
 .fport-out { cursor: crosshair; }
+/* Salidas de un rombo: van apoyadas sobre la "V" de abajo de la figura (su posición exacta la
+   calcula flow_editor.js) y llevan el número de la opción, el mismo que se ve en la lista de
+   adentro del rombo — así se sabe qué rama sale de dónde sin tener que seguir la línea. */
+.fport-branch {
+  width: 15px; height: 15px; transform: translate(-50%, 50%);
+  display: grid; place-items: center;
+  font-size: 9px; font-weight: 700; line-height: 1;
+  color: var(--type-color); font-family: monospace;
+  background: var(--panel-bg);
+}
+.fport-branch:hover { background: var(--type-color); color: #fff; }
 
-.fopt-row { position: relative; display: flex; align-items: center; margin: 4px 0; }
-.fopt-chip { flex: 1; min-width: 0; font-size: 11px; font-weight: 500; color: var(--text-primary); background: var(--panel-subtle); border: 1px solid var(--line); border-radius: 999px; padding: 4px 20px 4px 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fopt-row .fport-out { position: absolute; right: -6px; top: 50%; transform: translateY(-50%); }
+.fopt-row { position: relative; display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.fopt-num {
+  flex: none; width: 14px; height: 14px; border-radius: 50%;
+  border: 1px solid var(--type-color); color: var(--type-color);
+  font-size: 8.5px; font-weight: 700; font-family: monospace;
+  display: grid; place-items: center;
+}
+.fopt-chip { flex: 1; min-width: 0; font-size: 11px; font-weight: 500; color: var(--text-primary); background: var(--panel-subtle); border: 1px solid var(--line); border-radius: 999px; padding: 4px 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Silueta chiquita del tipo de nodo, para la paleta y la leyenda: es la misma figura que se ve
+   en el lienzo, así se reconoce sin tener que leer el nombre. */
+.flow-shape-mini { flex: none; width: 30px; height: 16px; display: block; margin-top: 2px; }
+.flow-shape-mini svg { width: 30px; height: 16px; fill: color-mix(in oklab, var(--type-color) 12%, transparent); stroke: var(--type-color); stroke-width: 1.4; }
 
 /* ---------- inspector ---------- */
-.flow-inspector { flex: none; width: 292px; border-left: 1px solid var(--line); background: var(--panel-bg); display: flex; flex-direction: column; min-height: 0; }
+.flow-inspector {
+  flex: none; width: 292px; border-left: 1px solid var(--line); background: var(--panel-bg);
+  display: flex; flex-direction: column; min-height: 0;
+  transition: width .15s ease;
+}
+/* Colapsado igual que la paleta: ancho 0, se reabre con el botón "Panel" de la barra superior. */
+.flow-inspector.collapsed { width: 0; border-left: none; overflow: hidden; }
 .flow-insp-tabs { flex: none; display: flex; border-bottom: 1px solid var(--line); }
 .flow-insp-tab { flex: 1; padding: 10px 8px; font-size: 12px; font-weight: 600; color: var(--text-muted); background: transparent; border-bottom: 2px solid transparent; }
 .flow-insp-tab.active { color: var(--green-dark); border-bottom-color: var(--green); }
@@ -359,6 +494,21 @@
 .flow-empty-insp { display: flex; flex-direction: column; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 4px 2px; }
 .flow-empty-insp svg { width: 24px; height: 24px; color: var(--line); }
 
+.flow-impact-info {
+  flex: none; margin-bottom: 14px; padding: 10px 11px; border: 1px solid var(--line);
+  border-radius: 9px; background: var(--panel-subtle); color: var(--text-secondary);
+}
+.flow-impact-info > div { display: flex; align-items: center; gap: 6px; font-size: 11.5px; }
+.flow-impact-info p { margin: 5px 0 0; font-size: 10.5px; line-height: 1.45; }
+.flow-impact-info.route { border-color: #96f2d7; }
+.flow-impact-info.route > div { color: #087f5b; }
+.flow-impact-info.content { border-color: #a5d8ff; }
+.flow-impact-info.content > div { color: #1864ab; }
+[data-theme="dark"] .flow-impact-info.route { border-color: rgba(99, 230, 190, .35); }
+[data-theme="dark"] .flow-impact-info.route > div { color: #63e6be; }
+[data-theme="dark"] .flow-impact-info.content { border-color: rgba(116, 192, 252, .35); }
+[data-theme="dark"] .flow-impact-info.content > div { color: #74c0fc; }
+
 .fopt-list { display: flex; flex-direction: column; gap: 6px; }
 .fopt-item { display: flex; align-items: center; gap: 6px; }
 .fopt-item input { flex: 1; }
@@ -369,6 +519,12 @@
 .fopt-add:disabled { opacity: .45; }
 
 /* ---------- vista previa de chat ---------- */
+.flow-preview-note {
+  flex: none; display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px;
+  padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel-subtle); color: var(--text-muted); font-size: 10.5px; line-height: 1.4;
+}
+.flow-preview-note strong { color: var(--text-primary); font-size: 11px; }
 .fphone { display: flex; flex-direction: column; height: 100%; }
 .fphone-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 2px 10px; border-bottom: 1px solid var(--line); }
 .fphone-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--green), var(--green-dark)); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 11px; flex: none; }
