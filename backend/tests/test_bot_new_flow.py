@@ -226,7 +226,7 @@ def test_human_handoff_adds_internal_context_summary(client, clayton_branch, db_
     assert any("Contexto recopilado" in msg.content and "Delivery" in msg.content and "Tarjeta" in msg.content for msg in internal)
 
 
-def test_corporate_customer_can_answer_people_and_date_in_one_message(client, clayton_branch, db_session):
+def test_corporate_customer_can_answer_people_and_date_in_one_message(client, clayton_branch, db_session, corporate_intake_on):
     cat_branch = Branch(id=21, code="CAT", name="Catering", color="#e11d48", active=True)
     db_session.add(cat_branch)
     db_session.commit()
@@ -504,7 +504,7 @@ def test_option_1_visit_view_menu_flow(client, clayton_branch, db_session):
     assert any(MANAGER_HELP_QUESTION in m.content for m in msgs)
 
 
-def test_option_4_corporate_flow(client, clayton_branch, db_session):
+def test_option_4_corporate_flow(client, clayton_branch, db_session, corporate_intake_on):
     # El flujo de "Pedido Corporativo / Evento" hace 4 preguntas guiadas (tipo de evento,
     # cantidad de personas, fecha, lugar) antes de asignar la conversación a Sol y pausar el bot.
     cat_branch = Branch(id=10, code="CAT", name="Catering", color="#e11d48", active=True)

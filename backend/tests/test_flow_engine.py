@@ -82,7 +82,7 @@ def _post_button(client, phone, wamid, button_id, title):
     })
 
 
-def test_rewiring_the_graph_skips_a_corporate_step(client, clayton_branch, db_session):
+def test_rewiring_the_graph_skips_a_corporate_step(client, clayton_branch, db_session, corporate_intake_on):
     """Si el admin conecta 'Tipo de evento' directo a 'Lugar' (saltándose personas y fecha),
     el bot real debe respetarlo: tras el botón de tipo de evento, la siguiente pregunta debe
     ser la de lugar (step 4), no la de personas (step 2)."""
@@ -117,7 +117,7 @@ def test_rewiring_the_graph_skips_a_corporate_step(client, clayton_branch, db_se
     assert "Lugar de entrega" in conv.corporate_intake_notes
 
 
-def test_broken_graph_connection_falls_back_safely(client, clayton_branch, db_session):
+def test_broken_graph_connection_falls_back_safely(client, clayton_branch, db_session, corporate_intake_on):
     """Si la conexión del nodo actual apunta a un nodo que ya no existe (el admin lo borró),
     el bot debe seguir el comportamiento de siempre en vez de trabarse o perder la conversación."""
     cat_branch = Branch(id=31, code="CAT", name="Catering", color="#e11d48", active=True)

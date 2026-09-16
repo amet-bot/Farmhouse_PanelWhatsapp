@@ -88,6 +88,17 @@ const flowEditorModule = (function () {
     'corporate_date_question', 'corporate_location_question',
     'corporate_location_after_combined', 'corporate_closing',
   ]);
+  // Tramo apagado: el bot ya no hace las 4 preguntas del pedido corporativo — al elegir "Evento
+  // o empresa" entrega directo el número del equipo de catering (ver CORPORATE_INTAKE_ENABLED en
+  // services/auto_responses.py). Estas tarjetas se dejan a la vista porque el interruptor puede
+  // volver a encenderse, pero mientras tanto hay que decirlo: si no, alguien edita un texto aquí
+  // y se queda esperando verlo en WhatsApp.
+  const INACTIVE_NODE_IDS = new Set([
+    'corporate_intro', 'corporate_event_type_question', 'corporate_headcount_question',
+    'corporate_date_question', 'corporate_location_question',
+    'corporate_location_after_combined', 'corporate_closing', 'corporate_pause_action',
+    'corporate_invalid_option_retry', 'corporate_headcount_retry', 'corporate_date_retry',
+  ]);
   const REAL_CONTENT_NODE_IDS = new Set([
     'main_welcome', 'order_type_question',
     'branch_selection_menu_direct_body', 'branch_selection_visit_body',
@@ -103,9 +114,16 @@ const flowEditorModule = (function () {
     'restart_message', 'cancel_message', 'change_order_type_message', 'change_branch_message',
     'unknown_main_message', 'unknown_order_message', 'unknown_branch_message',
     'after_menu_help_question', 'visit_recovery_message', 'attachment_received_message',
+    'corporate_catering_handoff',
   ]);
 
   function nodeImpact(node) {
+    if (INACTIVE_NODE_IDS.has(node.id)) {
+      return {
+        kind: 'inactive', label: 'Fuera de uso',
+        help: 'El bot hoy no pasa por aquí: al elegir "Evento o empresa" entrega directo el número del equipo de catering. Este tramo queda guardado por si se vuelve a activar.',
+      };
+    }
     if (REAL_ROUTE_NODE_IDS.has(node.id)) {
       return {
         kind: 'route', label: 'Ruta real',

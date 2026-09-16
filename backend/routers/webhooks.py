@@ -23,6 +23,7 @@ from services.auto_responses import (
     MAIN_MENU_LIST_BUTTON, MAIN_MENU_LIST_ROWS, NAV_RESTART_ROW,
     BRANCH_SELECTION_BODY, BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY,
     BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON, BRANCH_SELECTION_MENU_DIRECT_BODY,
+    CORPORATE_INTAKE_ENABLED, CORPORATE_CATERING_HANDOFF, CATERING_PHONE_DISPLAY,
     CORPORATE_INTAKE_INTRO, CORPORATE_EVENT_TYPE_QUESTION, CORPORATE_EVENT_TYPE_BUTTONS,
     CORPORATE_EVENT_TYPE_LABELS, CORPORATE_HEADCOUNT_QUESTION, CORPORATE_HEADCOUNT_RETRY,
     CORPORATE_HEADCOUNT_RANGE_ROWS, CORPORATE_HEADCOUNT_RANGE_LABELS,
@@ -1090,12 +1091,31 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
             await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
             return
 
-        # 3.1 Opción 4: Pedido Corporativo / Evento — inicia las 4 preguntas guiadas antes de
-        # pasarle la conversación a Sol (el bot NO se pausa todavía, faltan las respuestas).
+        # 3.1 Opción 4: Pedido Corporativo / Evento. Por defecto el bot no pregunta nada: entrega
+        # de una el número del equipo de catering (ver CORPORATE_INTAKE_ENABLED en
+        # auto_responses.py). Con el interruptor en True vuelve a hacer las 4 preguntas guiadas
+        # antes de pasarle la conversación a Sol.
         if main_option_matched == "corporate":
             cat_branch = db.query(Branch).filter((Branch.code == "CAT") | (Branch.name.ilike("%catering%"))).first()
             if cat_branch:
                 await _assign_conversation_branch(db, conv, cat_branch, "cliente seleccionó Pedido Corporativo / Evento")
+
+            if not CORPORATE_INTAKE_ENABLED:
+                await _send_plain_text_message(
+                    db, wa_service, conv, contact, phone,
+                    get_node_text(db, "corporate_catering_handoff", CORPORATE_CATERING_HANDOFF),
+                )
+                # Nota interna (no le llega al cliente): deja registro en el panel de que esta
+                # conversación era un prospecto de catering y a dónde se lo mandó, por si el
+                # equipo quiere darle seguimiento desde aquí.
+                db.add(Message(
+                    conversation_id=conv.id, direction="outgoing", sender_type="system",
+                    content=f"📋 Prospecto de catering: se le compartió el número del equipo de eventos ({CATERING_PHONE_DISPLAY}).",
+                    is_internal=True, status="sent",
+                ))
+                conv.updated_at = datetime.now(timezone.utc)
+                db.commit()
+                return
 
             await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "corporate_intro", CORPORATE_INTAKE_INTRO))
             await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)

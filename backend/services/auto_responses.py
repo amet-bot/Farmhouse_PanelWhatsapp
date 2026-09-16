@@ -67,6 +67,29 @@ BRANCH_SELECTION_DELIVERY_BODY = "Delivery, entendido 🛵 ¿Desde cuál sucursa
 BRANCH_SELECTION_PICKUP_BODY = "Listo, sería para retirar 🛍️ ¿En cuál sucursal?"
 BRANCH_SELECTION_BUTTON = "Ver sucursales"
 
+# --------------------------------------------------------------------------------------------
+# Pedido Corporativo / Evento (catering)
+#
+# Hoy el bot NO hace las 4 preguntas guiadas: apenas el cliente elige "Evento o empresa" se le
+# pasa directamente el número del equipo de catering, que es quien coordina con Sol. La decisión
+# fue del negocio: se prefiere que la persona llegue rápido a un humano antes que contestar un
+# cuestionario. Las 4 preguntas quedan intactas en el código (y con sus pruebas) detrás de este
+# interruptor: poniéndolo en True el bot vuelve a hacerlas y a armarle el resumen a Sol, sin
+# ningún otro cambio.
+CORPORATE_INTAKE_ENABLED = False
+
+CATERING_PHONE_DISPLAY = "+507 6364-4572"
+CATERING_PHONE_WA_LINK = "https://wa.me/50763644572"
+
+# Se manda como texto normal a propósito, no dentro de un mensaje con botones: en WhatsApp, el
+# número y el enlace solo quedan tocables cuando van en un mensaje de texto común.
+CORPORATE_CATERING_HANDOFF = (
+    "¡Perfecto! 🎉 Los pedidos para eventos y empresas los coordina directamente nuestro equipo "
+    "de catering, que es quien trabaja con Sol para armarte la propuesta.\n\n"
+    f"Escríbeles por aquí y te atienden de una vez 👇\n📞 {CATERING_PHONE_DISPLAY}\n{CATERING_PHONE_WA_LINK}\n\n"
+    "¡Gracias por pensar en Farmhouse para tu evento! 😊"
+)
+
 CORPORATE_INTAKE_INTRO = (
     "¡Qué gran noticia! 🎉 En Farmhouse nos encanta atender pedidos corporativos, reuniones de oficina, catering y eventos especiales.\n\n"
     "Para armarte la mejor propuesta, te hago unas preguntas rápidas antes de comunicarte con Sol, nuestra encargada de eventos y cuentas corporativas 😊"

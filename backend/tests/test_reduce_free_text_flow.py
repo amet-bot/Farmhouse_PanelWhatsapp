@@ -76,7 +76,7 @@ def test_nav_restart_row_resets_conversation_like_typing_cancelar(client, clayto
     assert conv.branch_id is None
 
 
-def test_corporate_headcount_and_date_quick_pick_rows(client, db_session, monkeypatch):
+def test_corporate_headcount_and_date_quick_pick_rows(client, db_session, monkeypatch, corporate_intake_on):
     setup_env(monkeypatch)
     cat_branch = Branch(id=20, code="CAT", name="Catering", color="#e11d48", active=True)
     db_session.add(cat_branch)
@@ -110,7 +110,7 @@ def test_corporate_headcount_and_date_quick_pick_rows(client, db_session, monkey
     assert conv.automation_paused is True
 
 
-def test_corporate_headcount_escape_hatch_to_free_text(client, db_session, monkeypatch):
+def test_corporate_headcount_escape_hatch_to_free_text(client, db_session, monkeypatch, corporate_intake_on):
     """Tocar 'Escribir cantidad exacta' no avanza el paso: vuelve a pedir la respuesta en texto,
     y esa respuesta escrita sigue funcionando exactamente como antes de esta fase."""
     setup_env(monkeypatch)

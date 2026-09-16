@@ -425,6 +425,9 @@
 .fnode-impact.route { color: #087f5b; background: #e6fcf5; border-color: #96f2d7; }
 .fnode-impact.content { color: #1864ab; background: #e7f5ff; border-color: #a5d8ff; }
 .fnode-impact.simulation { color: var(--text-muted); background: var(--panel-subtle); }
+/* Tramo apagado: se ve, se puede editar, pero hoy el bot no pasa por ahí. */
+.fnode-impact.inactive { color: #a1670b; background: #fff4e0; border-color: #f4d29a; }
+[data-theme="dark"] .fnode-impact.inactive { color: #f0b860; background: rgba(240, 184, 96, .12); border-color: rgba(240, 184, 96, .32); }
 [data-theme="dark"] .fnode-impact.route { color: #63e6be; background: rgba(18, 184, 134, .12); border-color: rgba(99, 230, 190, .35); }
 [data-theme="dark"] .fnode-impact.content { color: #74c0fc; background: rgba(34, 139, 230, .12); border-color: rgba(116, 192, 252, .35); }
 
@@ -504,6 +507,10 @@
 .flow-impact-info.route > div { color: #087f5b; }
 .flow-impact-info.content { border-color: #a5d8ff; }
 .flow-impact-info.content > div { color: #1864ab; }
+.flow-impact-info.inactive { border-color: #f4d29a; }
+.flow-impact-info.inactive > div { color: #a1670b; }
+[data-theme="dark"] .flow-impact-info.inactive { border-color: rgba(240, 184, 96, .32); }
+[data-theme="dark"] .flow-impact-info.inactive > div { color: #f0b860; }
 [data-theme="dark"] .flow-impact-info.route { border-color: rgba(99, 230, 190, .35); }
 [data-theme="dark"] .flow-impact-info.route > div { color: #63e6be; }
 [data-theme="dark"] .flow-impact-info.content { border-color: rgba(116, 192, 252, .35); }

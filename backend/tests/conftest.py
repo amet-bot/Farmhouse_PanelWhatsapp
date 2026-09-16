@@ -26,6 +26,20 @@ def _no_bot_response_delay(monkeypatch):
     """Evita que la pausa 'humana' del bot (BOT_RESPONSE_DELAY_SECONDS) ralentice los tests."""
     monkeypatch.setattr(settings, "BOT_RESPONSE_DELAY_SECONDS", 0)
 
+
+@pytest.fixture
+def corporate_intake_on(monkeypatch):
+    """Enciende las 4 preguntas guiadas del pedido corporativo.
+
+    Hoy están apagadas (CORPORATE_INTAKE_ENABLED = False): al elegir "Evento o empresa" el bot
+    entrega directo el número del equipo de catering. Las preguntas siguen en el código y sus
+    pruebas siguen valiendo, así que se encienden con este fixture — el día que el negocio pida
+    volver a pedir contexto antes de pasar a Sol, basta cambiar la constante y estas pruebas ya
+    están cubriendo ese camino.
+    """
+    from routers import webhooks
+    monkeypatch.setattr(webhooks, "CORPORATE_INTAKE_ENABLED", True)
+
 # Base de datos SQLite en memoria para tests aislados
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
