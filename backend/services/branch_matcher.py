@@ -5,6 +5,16 @@ from typing import List, Optional
 
 from models.branch import Branch
 
+# Umbral mínimo de similitud (SequenceMatcher.ratio(), 0.0-1.0) para aceptar una coincidencia
+# aproximada por typos leves entre el texto del cliente y el nombre de una sucursal.
+# Calibrado a mano probando frases reales de clientes: 0.72 es el punto donde typos leves
+# de sucursales existentes ("obario", "clyton") siguen matcheando, pero nombres de sucursales
+# genuinamente distintas (ej. "Obarrio" vs "Costa del Este") ya no se confunden entre sí.
+# Si se agrega una sucursal nueva con nombre parecido a una existente, revisar
+# test_branch_matcher.py::test_similar_branch_names_do_not_get_confused antes de tocar este
+# número — subirlo o bajarlo puede hacer que ese test empiece a fallar.
+BRANCH_NAME_SIMILARITY_THRESHOLD = 0.72
+
 
 def normalize_text(text: str) -> str:
     """Quita acentos, pasa a minúsculas y limpia espacios extra."""
@@ -52,9 +62,9 @@ def match_branch_by_text(customer_text: str, branches: List[Branch]) -> Optional
             best_score = score
             best_branch = branch
 
-    # Umbral conservador: solo aceptamos la coincidencia aproximada si es
-    # bastante alta, para evitar asignar la sucursal equivocada por error.
-    if best_score >= 0.72:
+    # Solo aceptamos la coincidencia aproximada si es bastante alta, para evitar asignar
+    # la sucursal equivocada por error.
+    if best_score >= BRANCH_NAME_SIMILARITY_THRESHOLD:
         return best_branch
 
     return None
