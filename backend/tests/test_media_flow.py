@@ -96,7 +96,7 @@ def test_button_reply_is_not_stored_as_media(client, clayton_branch, db_session,
             "changes": [{
                 "value": {"messaging_product": "whatsapp", "messages": [
                     {"from": "50769998877", "id": "wamid.HBgLBUTTON001", "timestamp": "1725500000",
-                     "interactive": {"button_reply": {"id": "opt_delivery", "title": "Pedido a domicilio"}},
+                     "interactive": {"button_reply": {"id": "order_delivery", "title": "Pedido a domicilio"}},
                      "type": "interactive"}
                 ]},
                 "field": "messages"

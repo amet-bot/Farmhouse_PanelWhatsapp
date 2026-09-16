@@ -94,7 +94,10 @@ def _post_bot_message(client, phone, wamid, *, text=None, button_id=None, button
     })
 
 
-def test_quick_order_button_opens_delivery_pickup_corporate_choices(client, clayton_branch, db_session):
+def test_main_order_button_reshows_main_menu(client, clayton_branch, db_session):
+    # El botón "main_order" (de un mensaje viejo ya en el chat del cliente, de antes de que se
+    # quitara el submenú "Hacer un pedido") ya no abre una pantalla intermedia: el menú
+    # principal de siempre ya salta directo a Delivery/Retiro/Evento, así que basta reofrecerlo.
     phone = "50769990011"
     assert _post_bot_message(
         client, phone, "wamid.NATURAL01", button_id="main_order", button_title="Hacer un pedido"
@@ -106,7 +109,7 @@ def test_quick_order_button_opens_delivery_pickup_corporate_choices(client, clay
     outgoing = db_session.query(Message).filter(
         Message.conversation_id == conv.id, Message.direction == "outgoing"
     ).all()
-    assert any("¿Cómo quieres recibir tu pedido?" in msg.content for msg in outgoing)
+    assert any(MAIN_WELCOME_BODY in msg.content for msg in outgoing)
 
     assert _post_bot_message(
         client, phone, "wamid.NATURAL02", button_id="order_delivery", button_title="Delivery"
@@ -384,7 +387,7 @@ def test_option_2_delivery_flow(client, clayton_branch, db_session):
             "id": "WABA_ID",
             "changes": [{
                 "value": {"messaging_product": "whatsapp", "messages": [
-                    {"from": "50769993333", "id": "wamid.TEST04", "timestamp": "1725500000", "interactive": {"list_reply": {"id": "opt_delivery", "title": "2. Pedido a domicilio"}}, "type": "interactive"}
+                    {"from": "50769993333", "id": "wamid.TEST04", "timestamp": "1725500000", "interactive": {"list_reply": {"id": "order_delivery", "title": "2. Pedido a domicilio"}}, "type": "interactive"}
                 ]},
                 "field": "messages"
             }]
@@ -430,7 +433,7 @@ def test_option_3_pickup_flow(client, obarrio_branch, db_session):
             "id": "WABA_ID",
             "changes": [{
                 "value": {"messaging_product": "whatsapp", "messages": [
-                    {"from": "50769995555", "id": "wamid.TEST07", "timestamp": "1725500000", "interactive": {"list_reply": {"id": "opt_pickup", "title": "3. Retirar en local"}}, "type": "interactive"}
+                    {"from": "50769995555", "id": "wamid.TEST07", "timestamp": "1725500000", "interactive": {"list_reply": {"id": "order_pickup", "title": "3. Retirar en local"}}, "type": "interactive"}
                 ]},
                 "field": "messages"
             }]

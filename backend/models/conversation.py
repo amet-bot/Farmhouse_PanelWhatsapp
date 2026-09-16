@@ -29,6 +29,11 @@ class Conversation(Base):
     # el resumen interno que ve Sol al recibir la conversación.
     corporate_intake_step = Column(Integer, nullable=True)
     corporate_intake_notes = Column(Text, nullable=True)
+    # True mientras se espera que el cliente describa en texto libre qué quiere pedir, tras
+    # tocar "Pedir y pagar por chat" (alternativa al Menú Digital web). Se apaga en cuanto
+    # llega esa descripción, y de ahí en adelante el método de pago se resuelve con el mismo
+    # campo payment_method de siempre.
+    awaiting_chat_order_description = Column(Boolean, nullable=True)
     # Última vez que alguien de la sucursal abrió esta conversación (GET /conversations/{id},
     # tanto al seleccionarla como en la sincronización silenciosa mientras sigue abierta en
     # pantalla). Junto con needs_reminder, permite avisarle al panel "recuerda responder" si

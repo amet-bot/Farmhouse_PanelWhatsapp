@@ -40,19 +40,10 @@ def get_main_welcome_body(customer_name: Optional[str] = None, db: "Optional[Ses
 
 MAIN_WELCOME_BODY = get_main_welcome_body(None)
 
-# WhatsApp admite un máximo de tres respuestas rápidas, así que este set de 3 botones se usa
-# solo como recuperación (cuando el bot no entendió un texto libre). El menú de bienvenida
-# principal usa la lista de abajo, que sí puede mostrar las 5 opciones de una vez.
-MAIN_MENU_BUTTONS = [
-    {"id": "main_order", "title": "Hacer un pedido"},
-    {"id": "main_visit", "title": "Ver sucursales"},
-    {"id": "main_human", "title": "Hablar con alguien"},
-]
-
 # Menú de bienvenida como lista interactiva (hasta 10 filas): muestra Delivery/Retiro/Evento
-# directamente, sin el paso intermedio de "Hacer un pedido" -> submenú de tipo de entrega.
-# Los ids coinciden con los que ya reconoce el submenú de tipo de entrega (ORDER_TYPE_BUTTONS)
-# para no duplicar lógica de despacho en webhooks.py.
+# directamente, sin ningún paso intermedio de tipo de entrega. Es también la única UI de "menú
+# principal" del bot — cualquier otro punto que necesite reofrecer el menú reutiliza esta misma
+# lista (ver _send_main_welcome_menu en routers/webhooks.py), en vez de un set de botones aparte.
 MAIN_MENU_LIST_BUTTON = "Elegir opción"
 MAIN_MENU_LIST_ROWS = [
     {"id": "main_menu_direct", "title": "Ver el menú y pedir", "description": "Si ya sabes qué quieres, entra directo"},
@@ -63,14 +54,12 @@ MAIN_MENU_LIST_ROWS = [
     {"id": "main_human", "title": "Hablar con alguien", "description": "Te atiende una persona del equipo"},
 ]
 
-BRANCH_SELECTION_MENU_DIRECT_BODY = "¡Perfecto! 🍽️ ¿Desde cuál sucursal te gustaría pedir?"
+# Fila tocable que se agrega a las listas del flujo (evento corporativo, ubicación del evento,
+# ayuda del gerente, después del menú, sucursales, cantidad/fecha del evento) para que "empezar
+# de nuevo" nunca dependa de que el cliente recuerde escribir "cancelar" o "menú principal".
+NAV_RESTART_ROW = {"id": "nav_restart", "title": "🔄 Empezar de nuevo", "description": "Cancela y vuelve al menú principal"}
 
-ORDER_TYPE_QUESTION = "¡Claro! ¿Cómo quieres recibir tu pedido?"
-ORDER_TYPE_BUTTONS = [
-    {"id": "order_delivery", "title": "Delivery"},
-    {"id": "order_pickup", "title": "Retiro en local"},
-    {"id": "order_corporate", "title": "Evento / empresa"},
-]
+BRANCH_SELECTION_MENU_DIRECT_BODY = "¡Perfecto! 🍽️ ¿Desde cuál sucursal te gustaría pedir?"
 
 BRANCH_SELECTION_BODY = "¿Cuál de nuestras sucursales te gustaría contactar?"
 BRANCH_SELECTION_VISIT_BODY = "¿Cuál sucursal quieres consultar? Te mostraré su dirección y horario."
@@ -97,12 +86,33 @@ CORPORATE_EVENT_TYPE_LABELS = {
 
 CORPORATE_HEADCOUNT_QUESTION = (
     "Cuéntame un poco más: ¿para cuántas personas sería y qué fecha/hora tienes en mente? "
-    "Puedes responderme todo junto, por ejemplo: “25 personas, viernes 12 al mediodía”."
+    "Elige un rango aquí abajo, o si prefieres, respóndeme todo junto por escrito, por ejemplo: "
+    "“25 personas, viernes 12 al mediodía”."
 )
 CORPORATE_HEADCOUNT_RETRY = "¿Me confirmas para cuántas personas sería, aproximadamente?"
 
+# Rangos rápidos para no obligar a escribir un número exacto: Sol siempre confirma el dato
+# preciso por humano al recibir el intake, así que un rango aproximado alcanza en este paso.
+CORPORATE_HEADCOUNT_RANGE_ROWS = [
+    {"id": "hc_1_10", "title": "1 a 10 personas"},
+    {"id": "hc_11_30", "title": "11 a 30 personas"},
+    {"id": "hc_31_60", "title": "31 a 60 personas"},
+    {"id": "hc_60_plus", "title": "Más de 60 personas"},
+    {"id": "hc_type_exact", "title": "Cantidad exacta"},
+]
+CORPORATE_HEADCOUNT_RANGE_LABELS = {row["id"]: row["title"] for row in CORPORATE_HEADCOUNT_RANGE_ROWS if row["id"] != "hc_type_exact"}
+
 CORPORATE_DATE_QUESTION = "¡Genial! ¿Tienes fecha y hora en mente?"
 CORPORATE_DATE_RETRY = "¿Me compartes la fecha y hora que tienes en mente?"
+
+CORPORATE_DATE_QUICK_ROWS = [
+    {"id": "date_today", "title": "Hoy"},
+    {"id": "date_tomorrow", "title": "Mañana"},
+    {"id": "date_weekend", "title": "Este fin de semana"},
+    {"id": "date_next_week", "title": "La próxima semana"},
+    {"id": "date_type_exact", "title": "Fecha exacta"},
+]
+CORPORATE_DATE_QUICK_LABELS = {row["id"]: row["title"] for row in CORPORATE_DATE_QUICK_ROWS if row["id"] != "date_type_exact"}
 
 CORPORATE_LOCATION_QUESTION = "Última pregunta: ¿dónde te gustaría recibir el pedido?"
 
@@ -206,13 +216,23 @@ MENU_LINK_WARM_CLOSING = "Cualquier duda que tengas mientras armas tu pedido, aq
 
 # Recuperación contextual: evita silencios cuando una frase no coincide con una palabra clave.
 UNKNOWN_MAIN_MESSAGE = "No estoy completamente seguro de haber entendido 😅 ¿Cuál de estas opciones se parece más a lo que necesitas?"
-UNKNOWN_ORDER_MESSAGE = "Quiero ayudarte bien 😊 ¿Buscas delivery, retiro en una sucursal o un pedido para evento/empresa?"
 UNKNOWN_BRANCH_MESSAGE = "No logré identificar la sucursal. Elígela aquí o escríbeme su nombre."
 AFTER_MENU_HELP_QUESTION = "Mientras ves el menú, ¿hay algo más en lo que pueda ayudarte?"
 AFTER_MENU_HELP_BUTTONS = [
     {"id": "view_menu", "title": "Abrir el menú"},
     {"id": "change_branch", "title": "Cambiar sucursal"},
     {"id": "main_human", "title": "Hablar con alguien"},
+]
+# Fila extra de la lista "¿algo más?": para quien ya sabe qué quiere y prefiere no salir del
+# chat para pedir/pagar (en vez de usar el Menú Digital web).
+CHAT_ORDER_ROW = {"id": "chat_order_start", "title": "Pedir y pagar por chat", "description": "Sin salir de WhatsApp"}
+
+CHAT_ORDER_INTRO_QUESTION = "¡Perfecto! Cuéntame qué te gustaría pedir (platillos y cantidades) y lo dejamos listo para el pago 😊"
+CHAT_ORDER_PAYMENT_QUESTION = "¡Anotado! ¿Cómo prefieres pagar?"
+CHAT_ORDER_PAYMENT_ROWS = [
+    {"id": "pay_ach", "title": "ACH / Transferencia"},
+    {"id": "pay_card", "title": "Tarjeta"},
+    {"id": "pay_yappy", "title": "Yappy"},
 ]
 
 RESTART_MESSAGE = "Claro, empezamos de nuevo. No pasa nada 😊"
