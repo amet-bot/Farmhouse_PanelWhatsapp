@@ -136,29 +136,30 @@ async def _assign_conversation_branch(db: Session, conv: Conversation, branch: B
         "branch_id": conv.branch_id
     })
 
-async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
-    """Envía el menú principal de bienvenida de Farmhouse como lista interactiva (Delivery,
-    Retiro, Evento/empresa, Ver sucursales, Hablar con alguien), personalizado con el nombre
-    de WhatsApp del cliente cuando se conoce. Una lista en vez de 3 botones evita el paso
-    intermedio de "Hacer un pedido" -> submenú de tipo de entrega."""
-    welcome_body = get_main_welcome_body(contact.name, db=db)
-    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-    menu_res = await wa_service.send_interactive_list(
-        phone, welcome_body, MAIN_MENU_LIST_BUTTON, MAIN_MENU_LIST_ROWS, section_title="¿Qué te gustaría hacer?"
-    )
-    menu_wamid = None
-    if isinstance(menu_res, dict) and "messages" in menu_res and menu_res["messages"]:
-        menu_wamid = menu_res["messages"][0].get("id")
-
-    msg_content = welcome_body
-    menu_msg = Message(
+# Bloque repetido en cada _send_* que manda algo por WhatsApp: llamar a la API, sacar el
+# wamid de la respuesta, guardar el Message saliente y difundirlo al panel por WebSocket.
+# `send_awaitable` es la llamada ya construida (ej. wa_service.send_text_message(phone, texto))
+# para que cada _send_* elija el tipo de mensaje; `content` es lo que se guarda en el
+# historial, que a veces difiere de lo que WhatsApp muestra (ej. un botón CTA no repite el
+# link como texto, pero igual se guarda para que el panel lo pueda ver/copiar).
+# Solo cubre el caso is_internal=False (un mensaje que sí llegó al cliente): las 2 notas
+# internas del código (resumen de handoff, cierre corporativo) quedan aparte a propósito,
+# porque ya difieren entre sí en si incluyen "is_internal" en el payload del WebSocket —
+# unificarlas aquí forzaría a elegir cuál de las dos formas es la "correcta", que es una
+# decisión de contrato con el frontend y no un refactor mecánico.
+async def _send_and_log(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, send_awaitable, content: str) -> Message:
+    send_res = await send_awaitable
+    wamid = None
+    if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
+        wamid = send_res["messages"][0].get("id")
+    msg = Message(
         conversation_id=conv.id, direction="outgoing", sender_type="system",
-        content=msg_content, whatsapp_message_id=menu_wamid, is_internal=False, status="sent"
+        content=content, whatsapp_message_id=wamid, is_internal=False, status="sent"
     )
-    db.add(menu_msg)
+    db.add(msg)
     conv.updated_at = datetime.now(timezone.utc)
     db.commit()
-    db.refresh(menu_msg)
+    db.refresh(msg)
     await ws_manager.broadcast_to_branch(conv.branch_id, {
         "type": "new_incoming_message",
         "conversation_id": conv.id,
@@ -166,11 +167,25 @@ async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, c
         "contact_name": contact.name,
         "contact_phone": contact.phone,
         "message": {
-            "id": menu_msg.id, "direction": menu_msg.direction, "sender_type": menu_msg.sender_type,
-            "content": menu_msg.content, "status": menu_msg.status, "created_at": menu_msg.created_at.isoformat()
+            "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
+            "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
         },
         "is_new_conversation": False
     })
+    return msg
+
+async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Envía el menú principal de bienvenida de Farmhouse como lista interactiva (Delivery,
+    Retiro, Evento/empresa, Ver sucursales, Hablar con alguien), personalizado con el nombre
+    de WhatsApp del cliente cuando se conoce. Una lista en vez de 3 botones evita el paso
+    intermedio de "Hacer un pedido" -> submenú de tipo de entrega."""
+    welcome_body = get_main_welcome_body(contact.name, db=db)
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+    await _send_and_log(
+        db, wa_service, conv, contact, phone,
+        wa_service.send_interactive_list(phone, welcome_body, MAIN_MENU_LIST_BUTTON, MAIN_MENU_LIST_ROWS, section_title="¿Qué te gustaría hacer?"),
+        welcome_body,
+    )
     logger.info(f"[MainMenu] Menú principal enviado a {mask_phone(phone)} para Conv ID {conv.id}.")
 
 async def _send_unknown_main_prompt(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
@@ -218,30 +233,7 @@ async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversatio
         body_text = prompt_body or BRANCH_SELECTION_BODY
     if intro_text:
         await asyncio.sleep(0.3)
-        send_res = await wa_service.send_text_message(phone, intro_text)
-        intro_wamid = None
-        if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-            intro_wamid = send_res["messages"][0].get("id")
-        intro_msg = Message(
-            conversation_id=conv.id, direction="outgoing", sender_type="system",
-            content=intro_text, whatsapp_message_id=intro_wamid, is_internal=False, status="sent"
-        )
-        db.add(intro_msg)
-        conv.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(intro_msg)
-        await ws_manager.broadcast_to_branch(conv.branch_id, {
-            "type": "new_incoming_message",
-            "conversation_id": conv.id,
-            "branch_id": conv.branch_id,
-            "contact_name": contact.name,
-            "contact_phone": contact.phone,
-            "message": {
-                "id": intro_msg.id, "direction": intro_msg.direction, "sender_type": intro_msg.sender_type,
-                "content": intro_msg.content, "status": intro_msg.status, "created_at": intro_msg.created_at.isoformat()
-            },
-            "is_new_conversation": False
-        })
+        await _send_and_log(db, wa_service, conv, contact, phone, wa_service.send_text_message(phone, intro_text), intro_text)
 
     await asyncio.sleep(0.3)
     active_branches = db.query(Branch).filter(Branch.active == True).order_by(Branch.name).all()
@@ -254,30 +246,11 @@ async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversatio
         rows = [{"id": f"branch_{b.id}", "title": b.name[:24]} for b in active_branches[:9]]
     rows = rows + [NAV_RESTART_ROW]
 
-    menu_res = await wa_service.send_interactive_list(phone, body_text, BRANCH_SELECTION_BUTTON, rows)
-    menu_wamid = None
-    if isinstance(menu_res, dict) and "messages" in menu_res and menu_res["messages"]:
-        menu_wamid = menu_res["messages"][0].get("id")
-    menu_msg = Message(
-        conversation_id=conv.id, direction="outgoing", sender_type="system",
-        content=f"📋 {body_text}", whatsapp_message_id=menu_wamid, is_internal=False, status="sent"
+    await _send_and_log(
+        db, wa_service, conv, contact, phone,
+        wa_service.send_interactive_list(phone, body_text, BRANCH_SELECTION_BUTTON, rows),
+        f"📋 {body_text}",
     )
-    db.add(menu_msg)
-    conv.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(menu_msg)
-    await ws_manager.broadcast_to_branch(conv.branch_id, {
-        "type": "new_incoming_message",
-        "conversation_id": conv.id,
-        "branch_id": conv.branch_id,
-        "contact_name": contact.name,
-        "contact_phone": contact.phone,
-        "message": {
-            "id": menu_msg.id, "direction": menu_msg.direction, "sender_type": menu_msg.sender_type,
-            "content": menu_msg.content, "status": menu_msg.status, "created_at": menu_msg.created_at.isoformat()
-        },
-        "is_new_conversation": False
-    })
     logger.info(f"[BranchSelection] Menú de {len(rows)} sucursales enviado a {mask_phone(phone)} para Conv ID {conv.id}.")
 
 async def _send_interactive_list_message(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, body_text: str, button_text: str, rows: list, section_title: str = "Opciones") -> None:
@@ -285,30 +258,11 @@ async def _send_interactive_list_message(db: Session, wa_service, conv: Conversa
     fila) y lo registra/difunde. Toda pregunta del bot usa listas en vez de los 3 botones
     simples que permite Meta, para poder incluir siempre una fila de "empezar de nuevo" sin
     sacrificar una opción real."""
-    send_res = await wa_service.send_interactive_list(phone, body_text, button_text, rows, section_title=section_title)
-    wamid = None
-    if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-        wamid = send_res["messages"][0].get("id")
-    msg = Message(
-        conversation_id=conv.id, direction="outgoing", sender_type="system",
-        content=body_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
+    await _send_and_log(
+        db, wa_service, conv, contact, phone,
+        wa_service.send_interactive_list(phone, body_text, button_text, rows, section_title=section_title),
+        body_text,
     )
-    db.add(msg)
-    conv.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(msg)
-    await ws_manager.broadcast_to_branch(conv.branch_id, {
-        "type": "new_incoming_message",
-        "conversation_id": conv.id,
-        "branch_id": conv.branch_id,
-        "contact_name": contact.name,
-        "contact_phone": contact.phone,
-        "message": {
-            "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
-            "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
-        },
-        "is_new_conversation": False
-    })
 
 def _manager_help_rows(db: Session) -> list:
     titles = get_node_options(db, "manager_help_question", [b["title"] for b in MANAGER_HELP_BUTTONS])
@@ -362,60 +316,14 @@ async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, c
         body_text = get_node_text(db, "menu_link_generic_body", fallback_body, sucursal=branch_name)
         button_text = "Ver menú"
 
-    send_res_menu = await wa_service.send_cta_url_message(phone, body_text, button_text, menu_url)
-    wamid_menu = None
-    if isinstance(send_res_menu, dict) and "messages" in send_res_menu and send_res_menu["messages"]:
-        wamid_menu = send_res_menu["messages"][0].get("id")
     # El botón CTA no muestra el link como texto en WhatsApp, pero se guarda igual en el
     # registro interno para que el panel del agente pueda verlo/copiarlo si hace falta.
     stored_content = f"{body_text}\n\n[Botón: {button_text}] → {menu_url}"
-    msg_menu = Message(
-        conversation_id=conv.id, direction="outgoing", sender_type="system",
-        content=stored_content, whatsapp_message_id=wamid_menu, is_internal=False, status="sent"
-    )
-    db.add(msg_menu)
-    conv.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(msg_menu)
-    await ws_manager.broadcast_to_branch(conv.branch_id, {
-        "type": "new_incoming_message",
-        "conversation_id": conv.id,
-        "branch_id": conv.branch_id,
-        "contact_name": contact.name,
-        "contact_phone": contact.phone,
-        "message": {
-            "id": msg_menu.id, "direction": msg_menu.direction, "sender_type": msg_menu.sender_type,
-            "content": msg_menu.content, "status": msg_menu.status, "created_at": msg_menu.created_at.isoformat()
-        },
-        "is_new_conversation": False
-    })
+    await _send_and_log(db, wa_service, conv, contact, phone, wa_service.send_cta_url_message(phone, body_text, button_text, menu_url), stored_content)
 
 async def _send_plain_text_message(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, text: str) -> None:
     """Envía un mensaje de texto plano (ej. dirección/horario/maps de una sucursal), lo guarda y lo difunde por WebSocket."""
-    send_res = await wa_service.send_text_message(phone, text)
-    wamid = None
-    if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-        wamid = send_res["messages"][0].get("id")
-    msg = Message(
-        conversation_id=conv.id, direction="outgoing", sender_type="system",
-        content=text, whatsapp_message_id=wamid, is_internal=False, status="sent"
-    )
-    db.add(msg)
-    conv.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(msg)
-    await ws_manager.broadcast_to_branch(conv.branch_id, {
-        "type": "new_incoming_message",
-        "conversation_id": conv.id,
-        "branch_id": conv.branch_id,
-        "contact_name": contact.name,
-        "contact_phone": contact.phone,
-        "message": {
-            "id": msg.id, "direction": msg.direction, "sender_type": msg.sender_type,
-            "content": msg.content, "status": msg.status, "created_at": msg.created_at.isoformat()
-        },
-        "is_new_conversation": False
-    })
+    await _send_and_log(db, wa_service, conv, contact, phone, wa_service.send_text_message(phone, text), text)
 
 def _conversation_context_summary(conv: Conversation) -> str:
     """Resumen breve para el equipo cuando el cliente pide atención humana."""
@@ -825,32 +733,12 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                 "Si ves algo que quieras corregir, escríbelo aquí; la persona que continúe contigo podrá ver todo este contexto."
             )
 
-            send_res = await wa_service.send_text_message(phone, confirmation_text)
-            wamid = None
-            if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-                wamid = send_res["messages"][0].get("id")
-            confirmation_msg = Message(
-                conversation_id=conv.id, direction="outgoing", sender_type="system",
-                content=confirmation_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
-            )
-            db.add(confirmation_msg)
+            # automation_paused se marca ANTES de mandar el mensaje, no después: _send_and_log
+            # hace un solo commit con conv.updated_at, y al ya venir con automation_paused=True
+            # en el mismo objeto conv, ambos cambios quedan en ese mismo commit — el estado final
+            # es idéntico a cuando esto se escribía en un bloque aparte.
             conv.automation_paused = True
-            conv.updated_at = datetime.now(timezone.utc)
-            db.commit()
-            db.refresh(confirmation_msg)
-            await ws_manager.broadcast_to_branch(conv.branch_id, {
-                "type": "new_incoming_message",
-                "conversation_id": conv.id,
-                "branch_id": conv.branch_id,
-                "contact_name": contact.name,
-                "contact_phone": contact.phone,
-                "message": {
-                    "id": confirmation_msg.id, "direction": confirmation_msg.direction,
-                    "sender_type": confirmation_msg.sender_type, "content": confirmation_msg.content,
-                    "status": confirmation_msg.status, "created_at": confirmation_msg.created_at.isoformat()
-                },
-                "is_new_conversation": False
-            })
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, confirmation_text)
             return
 
         # 0.1 Atención humana solicitada explícitamente por el cliente. Si el bot ya está
@@ -1031,30 +919,7 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
         elif manager_choice == "no":
             branch_name = conv.branch.name if conv.branch else "Farmhouse"
             ans_text = get_manager_declined_message(branch_name, db=db)
-            send_res = await wa_service.send_text_message(phone, ans_text)
-            wamid = None
-            if isinstance(send_res, dict) and "messages" in send_res and send_res["messages"]:
-                wamid = send_res["messages"][0].get("id")
-            ans_msg = Message(
-                conversation_id=conv.id, direction="outgoing", sender_type="system",
-                content=ans_text, whatsapp_message_id=wamid, is_internal=False, status="sent"
-            )
-            db.add(ans_msg)
-            conv.updated_at = datetime.now(timezone.utc)
-            db.commit()
-            db.refresh(ans_msg)
-            await ws_manager.broadcast_to_branch(conv.branch_id, {
-                "type": "new_incoming_message",
-                "conversation_id": conv.id,
-                "branch_id": conv.branch_id,
-                "contact_name": contact.name,
-                "contact_phone": contact.phone,
-                "message": {
-                    "id": ans_msg.id, "direction": ans_msg.direction, "sender_type": ans_msg.sender_type,
-                    "content": ans_msg.content, "status": ans_msg.status, "created_at": ans_msg.created_at.isoformat()
-                },
-                "is_new_conversation": False
-            })
+            await _send_plain_text_message(db, wa_service, conv, contact, phone, ans_text)
             return
         elif manager_choice == "menu":
             await _send_digital_menu_link(db, wa_service, conv, contact, phone)
