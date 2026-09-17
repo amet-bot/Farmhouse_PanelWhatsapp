@@ -308,3 +308,15 @@ YAPPY_PAYMENT_MESSAGE = (
     "un botón con el monto exacto. Solo tendrás que abrirlo y aprobar la solicitud en tu aplicación Yappy. "
     "Nunca te pediremos tu PIN ni contraseña. 😊"
 )
+
+# Seguimiento automático (ver services/bot_followup.py): único mensaje que manda el bot si el
+# cliente se queda callado 5+ minutos después de que el bot le habló, para no dejarlo pensando
+# que quedó sin respuesta. Deliberadamente NO repite el menú/las opciones anteriores (ese es un
+# alcance mayor, no pedido todavía) — solo invita a seguir, en el mismo tono cálido del resto.
+#
+# Interruptor de emergencia, mismo patrón que CORPORATE_INTAKE_ENABLED: si algo se ve mal en
+# producción (o hay que probar en local con WHATSAPP_MODE=meta sin arriesgar un envío real),
+# se pone en False y el loop de bot_followup.py deja de mandar nada, sin esperar un deploy —
+# solo hace falta editar este archivo y reiniciar.
+BOT_FOLLOWUP_ENABLED = True
+BOT_FOLLOWUP_MESSAGE = "¿Sigues ahí? 😊 Cuando quieras seguimos justo donde lo dejamos — cualquier cosa, escríbeme."

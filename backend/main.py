@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request, status
@@ -24,6 +26,7 @@ from routers import (
     payments,
     bot_flows,
 )
+from services.bot_followup import run_followup_sweep_loop
 
 logging.basicConfig(
     level=logging.INFO,
@@ -54,7 +57,23 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("[Startup Config] Ejecutando en modo WHATSAPP_MODE=mock (simulación local).")
 
+    # Único loop en segundo plano del proyecto (ver services/bot_followup.py): NUNCA debe
+    # arrancar bajo pytest — TestClient(app) usado como context manager (ver tests/conftest.py)
+    # dispara este lifespan en cada uno de los 130+ tests, y este loop usa su propio
+    # SessionLocal (no el override de sesión de test), así que arrancaría contra la base de
+    # datos real de desarrollo/producción en segundo plano durante toda la suite.
+    followup_task = None
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        followup_task = asyncio.create_task(run_followup_sweep_loop())
+
     yield
+
+    if followup_task:
+        followup_task.cancel()
+        try:
+            await followup_task
+        except asyncio.CancelledError:
+            pass
 
 # Farmhouse WhatsApp Center - FastAPI Backend Server
 app = FastAPI(

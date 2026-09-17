@@ -34,6 +34,12 @@ class Conversation(Base):
     # llega esa descripción, y de ahí en adelante el método de pago se resuelve con el mismo
     # campo payment_method de siempre.
     awaiting_chat_order_description = Column(Boolean, nullable=True)
+    # Última vez que el bot mandó el mensaje de seguimiento ("¿seguimos?") por silencio del
+    # cliente (ver services/bot_followup.py). Se compara contra el created_at del último
+    # mensaje visible para que sea un único aviso por cada pausa del cliente: si vuelve a
+    # escribir y luego se queda callado más adelante, sí puede recibir otro seguimiento,
+    # porque en ese momento el último mensaje ya es más reciente que este timestamp.
+    bot_followup_sent_at = Column(DateTime, nullable=True)
     # Última vez que alguien de la sucursal abrió esta conversación (GET /conversations/{id},
     # tanto al seleccionarla como en la sincronización silenciosa mientras sigue abierta en
     # pantalla). Junto con needs_reminder, permite avisarle al panel "recuerda responder" si
