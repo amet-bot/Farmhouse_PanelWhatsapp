@@ -54,6 +54,7 @@ from services.order_flow_matcher import (
 from services.push_service import notify_branch_new_message
 from services.flow_content import get_node_text, get_node_options
 from services import flow_engine
+from services.faq_bot import answer_faq
 from security.auth import create_menu_session_token
 
 logger = logging.getLogger("farmhouse.webhooks")
@@ -1203,6 +1204,15 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
                 get_node_text(db, "attachment_received_message", "Recibí tu archivo, gracias 📎 Ya se lo compartí al equipo para que lo revise y continúe contigo por aquí."),
             )
             return
+
+        # 8.5 Respaldo de preguntas frecuentes con IA (ver services/faq_bot.py). Solo texto
+        # libre (nunca un botón sin coincidencia) y solo si el respaldo está encendido y sabe
+        # responder con certeza; si no, cae exactamente igual que antes al bloque 9.
+        if message_type == "text" and text.strip():
+            faq_answer = await answer_faq(text)
+            if faq_answer:
+                await _send_plain_text_message(db, wa_service, conv, contact, phone, faq_answer)
+                return
 
         # 9. Recuperación contextual. Todo mensaje obtiene una salida útil: repetir la
         # decisión pertinente, ofrecer acciones o volver al inicio, nunca quedarse en silencio.

@@ -79,6 +79,15 @@ class Settings(BaseSettings):
     # escrita por una persona y no como una respuesta instantánea. Se puede poner en 0 en tests.
     BOT_RESPONSE_DELAY_SECONDS: float = 1.2
 
+    # Respaldo de preguntas frecuentes con IA (ver services/faq_bot.py): solo se activa cuando
+    # el mensaje del cliente no coincide con ningún botón/intención conocida del flujo guiado
+    # (Bloque 9 de _process_auto_flow_background en routers/webhooks.py) — nunca reemplaza esa
+    # lógica ya probada con clientes reales. Apagado por defecto: hay que poner la API key Y
+    # encender el interruptor a propósito.
+    FAQ_BOT_ENABLED: bool = False
+    ANTHROPIC_API_KEY: Optional[str] = None
+    ANTHROPIC_MODEL: str = "claude-haiku-4-5-20251001"
+
     # Web Push (Notificaciones push del navegador vía VAPID)
     VAPID_PUBLIC_KEY: Optional[str] = None
     VAPID_PRIVATE_KEY: Optional[str] = None
@@ -151,6 +160,11 @@ class Settings(BaseSettings):
                 logging.getLogger("farmhouse.config").warning(
                     "[Config Warning] Yappy está habilitado pero faltan: %s", ", ".join(missing)
                 )
+
+        if self.FAQ_BOT_ENABLED and not str(self.ANTHROPIC_API_KEY or "").strip():
+            logging.getLogger("farmhouse.config").warning(
+                "[Config Warning] FAQ_BOT_ENABLED está en True pero falta ANTHROPIC_API_KEY."
+            )
 
 def mask_secret(secret: Optional[str], keep_chars: int = 4) -> str:
     """Enmascara cadenas sensibles para que no se filtren en logs."""
