@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=2.8.1">
+  <link rel="stylesheet" href="css/style.css?v=2.9.0">
   <!-- Componente propio de la pestaña "Flujo visual" (contenido real + mapa parcial del bot). -->
   <link rel="stylesheet" href="css/flow-editor.css?v=1.6.0">
   <!-- Lucide Icons CDN -->
@@ -152,10 +152,10 @@
           <div class="panel-header-title">Conversaciones</div>
 
           <div class="filter-tabs">
-            <button class="tab-btn" data-tab="todas">Todas</button>
-            <button class="tab-btn active" data-tab="abiertas">Abiertas</button>
-            <button class="tab-btn" data-tab="no-asignadas">No asignadas</button>
-            <button class="tab-btn" data-tab="pendientes">Pendientes</button>
+            <button class="tab-btn" data-tab="todas">Todas <span class="tab-count" id="tabCountTodas">0</span></button>
+            <button class="tab-btn active" data-tab="abiertas">Abiertas <span class="tab-count" id="tabCountAbiertas">0</span></button>
+            <button class="tab-btn" data-tab="no-asignadas">No asignadas <span class="tab-count" id="tabCountNoAsignadas">0</span></button>
+            <button class="tab-btn" data-tab="pendientes">Pendientes <span class="tab-count" id="tabCountPendientes">0</span></button>
           </div>
 
           <div class="conversation-scroll-list" id="conversationList">
@@ -190,6 +190,16 @@
           <!-- Feed de Mensajes -->
           <div class="chat-messages" id="chatMessages">
             <!-- Mensajes inyectados dinámicamente -->
+          </div>
+
+          <!-- Respuestas rápidas: solo rellenan el campo de texto de abajo con un mensaje
+               sugerido (ver chat.js#insertQuickReply); el agente sigue revisando y pulsando
+               "Enviar" como siempre, no disparan ninguna acción por sí solas. -->
+          <div class="quick-reply-row" id="quickReplyRow">
+            <button type="button" class="quick-reply-pill" data-quick-reply="menu"><i data-lucide="book-open"></i> Ver productos</button>
+            <button type="button" class="quick-reply-pill" data-quick-reply="order"><i data-lucide="package-search"></i> Estado de mi pedido</button>
+            <button type="button" class="quick-reply-pill" data-quick-reply="hours"><i data-lucide="clock"></i> Horarios y sucursales</button>
+            <button type="button" class="quick-reply-pill" data-quick-reply="human"><i data-lucide="headset"></i> Hablar con un asesor</button>
           </div>
 
           <!-- Caja para Responder -->
@@ -831,19 +841,19 @@
   </div>
 
   <!-- Scripts JavaScript Modularizados y Seguros -->
-  <script src="js/utils.js?v=3.4.0"></script>
+  <script src="js/utils.js?v=3.5.0"></script>
   <script src="js/api.js?v=3.5.0"></script>
   <script src="js/ws.js?v=3.4.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/modules/branches.js?v=3.5.0"></script>
+  <script src="js/modules/branches.js?v=3.6.0"></script>
   <script src="js/modules/users.js?v=3.4.0"></script>
   <script src="js/modules/devices.js?v=3.4.0"></script>
   <script src="js/modules/contacts.js?v=1.0.0"></script>
   <script src="js/modules/conversations.js?v=3.4.0"></script>
-  <script src="js/modules/chat.js?v=3.7.0"></script>
+  <script src="js/modules/chat.js?v=3.8.0"></script>
   <script src="js/modules/push.js?v=3.4.0"></script>
   <script src="js/modules/notifications.js?v=3.5.0"></script>
   <script src="js/modules/flow_editor.js?v=1.8.0"></script>
-  <script src="js/app.js?v=3.8.0"></script>
+  <script src="js/app.js?v=3.9.0"></script>
 </body>
 </html>

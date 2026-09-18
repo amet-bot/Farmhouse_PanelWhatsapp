@@ -87,6 +87,37 @@ const utils = {
   },
 
   /**
+   * Etiqueta del separador de fecha entre mensajes de días distintos (ej: "Hoy", "Ayer",
+   * "8 de septiembre"). `dateKey` agrupa por día en la misma zona horaria usada para mostrar
+   * la hora (ver formatTime), para que el separador y la hora de cada burbuja siempre
+   * coincidan con el mismo día.
+   */
+  formatDateSeparator(isoString) {
+    if (!isoString) return { key: '', label: '' };
+    try {
+      const date = this._parseServerDate(isoString);
+      const now = new Date();
+      const key = date.toLocaleDateString('es-PA');
+      const todayKey = now.toLocaleDateString('es-PA');
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayKey = yesterday.toLocaleDateString('es-PA');
+
+      let label;
+      if (key === todayKey) {
+        label = 'Hoy';
+      } else if (key === yesterdayKey) {
+        label = 'Ayer';
+      } else {
+        label = date.toLocaleDateString('es-PA', { day: 'numeric', month: 'long' });
+      }
+      return { key, label };
+    } catch (e) {
+      return { key: '', label: '' };
+    }
+  },
+
+  /**
    * Genera las iniciales de un nombre (ej: "Juan Pérez" -> "JP")
    */
   getInitials(name) {

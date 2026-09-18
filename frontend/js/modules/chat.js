@@ -272,6 +272,26 @@ const chatModule = {
     utils.renderIcons();
   },
 
+  /**
+   * Respuestas rápidas (ver index.html#quickReplyRow): solo rellenan el campo de texto con un
+   * mensaje sugerido para que el agente lo revise/ajuste y lo envíe como cualquier otro
+   * mensaje — no llaman a ninguna API ni disparan una acción por sí solas.
+   */
+  insertQuickReply(kind) {
+    const templates = {
+      menu: 'Claro, te comparto nuestro menú para que veas todos los productos disponibles 😊',
+      order: '¿Me confirmas tu nombre o número de pedido para revisar el estado?',
+      hours: 'Nuestro horario es de Lunes a Domingo, 10:30 AM a 9:30 PM. ¿Te comparto la dirección de la sucursal más cercana?',
+      human: 'Con gusto te comunico con un asesor para que te ayude personalmente.',
+    };
+    const text = templates[kind];
+    const input = document.getElementById('messageInput');
+    if (!text || !input) return;
+    input.value = text;
+    input.focus();
+    input.setSelectionRange(text.length, text.length);
+  },
+
   renderMessages() {
     const container = document.getElementById('chatMessages');
     if (!container || !this.currentConversation) return;
@@ -298,7 +318,17 @@ const chatModule = {
       return;
     }
 
+    let lastDateKey = null;
     messages.forEach(msg => {
+      const { key: dateKey, label: dateLabel } = utils.formatDateSeparator(msg.created_at);
+      if (dateKey && dateKey !== lastDateKey) {
+        lastDateKey = dateKey;
+        const sep = document.createElement('div');
+        sep.className = 'date-separator';
+        sep.textContent = dateLabel;
+        container.appendChild(sep);
+      }
+
       const msgDiv = document.createElement('div');
       const isOutgoing = msg.direction === 'outgoing';
       const isInternal = msg.is_internal || false;

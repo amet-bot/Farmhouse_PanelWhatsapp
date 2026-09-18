@@ -35,6 +35,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // 2.05 Respuestas rápidas del chat: solo rellenan el campo de texto con un mensaje sugerido
+  // (ver chat.js#insertQuickReply), el agente sigue revisando y pulsando "Enviar" como siempre.
+  document.getElementById('quickReplyRow')?.addEventListener('click', (e) => {
+    const pill = e.target.closest('.quick-reply-pill');
+    if (pill) chatModule.insertQuickReply(pill.dataset.quickReply);
+  });
+
   // 2.1 Menú lateral como panel deslizante en celular (hamburguesa + fondo + botón cerrar)
   const sidebarEl = document.querySelector('.sidebar');
   const sidebarBackdrop = document.getElementById('sidebarBackdrop');

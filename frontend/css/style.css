@@ -7,35 +7,35 @@
    ---------------------------------------------------------------------------- */
 :root, [data-theme="light"] {
   /* Fondos y Superficies */
-  --bg-primary: #f4f5f7;
-  --bg-secondary: #f8fafc;
+  --bg-primary: #f5f9f8;
+  --bg-secondary: #f0f6f4;
   --panel-bg: #ffffff;
   --panel-elevated: #ffffff;
-  --panel-subtle: #f8fafc;
-  --panel-footer: #fafafa;
-  --line: #e5e7eb;
-  --line-light: #f1f5f9;
+  --panel-subtle: #eff6f3;
+  --panel-footer: #f5f9f8;
+  --line: #e1ebe8;
+  --line-light: #ecf3f1;
 
   /* Textos */
-  --text-primary: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #6b7280;
+  --text-primary: #14212b;
+  --text-secondary: #3d4e56;
+  --text-muted: #667985;
   --text-inverse: #ffffff;
 
   /* Marca Farmhouse */
-  --green: #16a34a;
-  --green-dark: #0f7a36;
-  --green-soft: #eaf7ee;
-  --green-soft-text: #15803d;
-  --green-border: #bbf7d0;
+  --green: #00b96b;
+  --green-dark: #00a85a;
+  --green-soft: #e7f8ef;
+  --green-soft-text: #00834d;
+  --green-border: #b9ebd2;
 
   /* Sidebar */
-  --nav-bg: #08212e;
+  --nav-bg: #123c46;
   --nav-border: rgba(255, 255, 255, 0.08);
   --nav-hover: rgba(255, 255, 255, 0.08);
-  --nav-active: linear-gradient(90deg, #159447, #1fb35d);
-  --nav-text: #e2e8f0;
-  --nav-text-muted: #8ea2b0;
+  --nav-active: linear-gradient(90deg, #00a85a, #00b96b);
+  --nav-text: #e2ece9;
+  --nav-text-muted: #93b0b6;
 
   /* Acentos y Semántica */
   --blue: #2563eb;
@@ -81,32 +81,32 @@
 
   /* Form / Inputs */
   --input-bg: #ffffff;
-  --input-border: #d1d5db;
-  --input-text: #111827;
-  --input-focus: #16a34a;
+  --input-border: #d7e4e0;
+  --input-text: #14212b;
+  --input-focus: #00b96b;
 
   /* Chat y Burbujas */
-  --chat-bg: radial-gradient(circle at 10px 10px, rgba(16, 185, 129, 0.03) 1px, transparent 1px) 0 0 / 20px 20px, #faf8f5;
+  --chat-bg: radial-gradient(circle at 10px 10px, rgba(0, 185, 107, 0.035) 1px, transparent 1px) 0 0 / 20px 20px, #fbfdfc;
   --msg-in-bg: #ffffff;
-  --msg-in-text: #111827;
-  --msg-in-border: #e2e8f0;
-  --msg-out-bg: #dcf7d8;
-  --msg-out-text: #14532d;
-  --msg-out-border: #ccecc8;
+  --msg-in-text: #14212b;
+  --msg-in-border: #e1ebe8;
+  --msg-out-bg: #dff6ea;
+  --msg-out-text: #0f3d26;
+  --msg-out-border: #c6ecd8;
   --msg-note-bg: #fefce8;
   --msg-note-border: #facc15;
   --msg-note-text: #854d0e;
 
   /* Tablas y Modales */
-  --table-header-bg: #f8fafc;
-  --table-row-hover: #f8fafc;
+  --table-header-bg: #f0f6f4;
+  --table-row-hover: #f0f6f4;
   --modal-backdrop: rgba(15, 23, 42, 0.55);
-  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.04);
-  --shadow: 0 2px 6px rgba(17, 24, 39, 0.05), 0 8px 20px -4px rgba(17, 24, 39, 0.07);
-  --shadow-lg: 0 12px 20px -6px rgba(17, 24, 39, 0.12), 0 24px 48px -12px rgba(17, 24, 39, 0.16);
-  --shadow-glow-green: 0 4px 14px rgba(22, 163, 74, 0.28);
+  --shadow-sm: 0 1px 2px rgba(20, 33, 43, 0.04);
+  --shadow: 0 2px 6px rgba(20, 33, 43, 0.04), 0 8px 20px -4px rgba(20, 33, 43, 0.06);
+  --shadow-lg: 0 12px 20px -6px rgba(20, 33, 43, 0.1), 0 24px 48px -12px rgba(20, 33, 43, 0.14);
+  --shadow-glow-green: 0 4px 14px rgba(0, 185, 107, 0.25);
   --radius: 16px;
-  --radius-sm: 10px;
+  --radius-sm: 12px;
 
   /* Superficies genéricas (usadas por notificaciones flotantes y controles sueltos) */
   --bg-surface: var(--panel-bg);
@@ -800,6 +800,62 @@ a:focus-visible {
   font-size: 11px;
 }
 
+/* Barra superior oscura (azul petróleo), a juego con el sidebar: sustituye el fondo claro
+   base de cada control interno por overlays translúcidos blancos, igual que .nav-btn en el
+   sidebar, en vez de depender de --panel-subtle/--text-primary (pensados para fondo claro). */
+.topbar {
+  background: var(--nav-bg);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.topbar .btn-hamburger,
+.topbar .status-indicator,
+.topbar .top-select-group select,
+.topbar .search-box input,
+.topbar .topbar-cluster,
+.topbar .notif-bell {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #eef5f3;
+}
+
+.topbar .top-select-group select:focus,
+.topbar .search-box input:focus {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.topbar .top-select-group label,
+.topbar .search-box span,
+.topbar #topDevBadgeText,
+.topbar .user-profile small {
+  color: rgba(238, 245, 243, 0.65);
+}
+
+.topbar .search-box input::placeholder {
+  color: rgba(238, 245, 243, 0.5);
+}
+
+.topbar .user-profile strong {
+  color: #fff;
+}
+
+.topbar .topbar-cluster .theme-toggle-btn:hover,
+.topbar .topbar-cluster .sound-toggle-btn:hover,
+.topbar .topbar-cluster .notif-bell:hover {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: none;
+}
+
+.topbar .topbar-cluster .sound-toggle-btn.active {
+  background: rgba(0, 185, 107, 0.25);
+  color: #6ee7b0;
+}
+
+.topbar .notif-bell.notif-active {
+  color: #6ee7b0;
+  border-color: rgba(0, 185, 107, 0.4);
+}
+
 /* ----------------------------------------------------------------------------
    5. WORKSPACE (3 COLUMNAS RESPONSIVAS CON ALTURA COMPLETA)
    ---------------------------------------------------------------------------- */
@@ -808,8 +864,8 @@ a:focus-visible {
   height: 100%;
   display: grid;
   grid-template-columns: 340px minmax(400px, 1fr) 290px;
-  gap: 10px;
-  padding: 10px;
+  gap: 16px;
+  padding: 16px;
   overflow: hidden;
 }
 
@@ -871,6 +927,24 @@ a:focus-visible {
   background: var(--green);
   color: #fff;
   border-color: var(--green);
+}
+
+.tab-btn.active .tab-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+/* Contador dentro de cada chip de filtro (ver conversations.js#renderTabCounts) */
+.tab-count {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
 }
 
 .conversation-scroll-list {
@@ -1266,6 +1340,20 @@ a:focus-visible {
   line-height: 1.5;
 }
 
+/* Cápsula centrada que separa mensajes de días distintos (ver chat.js#renderMessages) */
+.date-separator {
+  align-self: center;
+  margin: 4px 0;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
 .msg-bubble {
   position: relative;
   width: fit-content;
@@ -1497,6 +1585,44 @@ a:focus-visible {
 }
 
 /* COMPOSITOR INFERIOR FIJO */
+/* Fila de respuestas rápidas: atajos que rellenan el compositor con un texto sugerido
+   (ver chat.js#insertQuickReply). Puramente un atajo de redacción para el agente: no envía
+   nada por sí sola, el agente conserva el control de revisar y pulsar "Enviar". */
+.quick-reply-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px 0;
+  flex-shrink: 0;
+}
+
+.quick-reply-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.quick-reply-pill i,
+.quick-reply-pill svg {
+  color: var(--green);
+  width: 14px;
+  height: 14px;
+}
+
+.quick-reply-pill:hover {
+  background: var(--green-soft);
+  border-color: var(--green-border);
+  transform: translateY(-1px);
+}
+
 .chat-composer {
   border-top: 1px solid var(--line);
   background: var(--panel-bg);

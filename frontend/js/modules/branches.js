@@ -102,17 +102,33 @@ const branchesModule = {
 
   async updateCounters() {
     try {
-      const convs = await api.get('/conversations/?status=abiertas&limit=100');
+      // Las 4 llamadas son independientes entre sí: se disparan en paralelo (antes eran
+      // secuenciales) para que actualizar los contadores tome el tiempo de la más lenta, no
+      // la suma de las 4.
+      const [convs, unassigned, allConvs, pending] = await Promise.all([
+        api.get('/conversations/?status=abiertas&limit=100'),
+        api.get('/conversations/?status=no-asignadas&limit=100'),
+        api.get('/conversations/?status=todas&limit=100'),
+        api.get('/conversations/?status=pendientes&limit=100'),
+      ]);
+
       const badgeConv = document.getElementById('badgeConversaciones');
       if (badgeConv) badgeConv.textContent = convs.length;
+      const tabAbiertas = document.getElementById('tabCountAbiertas');
+      if (tabAbiertas) tabAbiertas.textContent = convs.length;
 
-      const unassigned = await api.get('/conversations/?status=no-asignadas&limit=100');
       const badgeUnassigned = document.querySelector('[data-nav="no-asignadas"] .nav-badge');
       if (badgeUnassigned) badgeUnassigned.textContent = unassigned.length;
+      const tabUnassigned = document.getElementById('tabCountNoAsignadas');
+      if (tabUnassigned) tabUnassigned.textContent = unassigned.length;
 
-      const allConvs = await api.get('/conversations/?status=todas&limit=100');
       const badgeAll = document.querySelector('[data-nav="todas"] .nav-badge');
       if (badgeAll) badgeAll.textContent = allConvs.length;
+      const tabAll = document.getElementById('tabCountTodas');
+      if (tabAll) tabAll.textContent = allConvs.length;
+
+      const tabPending = document.getElementById('tabCountPendientes');
+      if (tabPending) tabPending.textContent = pending.length;
 
       this.branches.forEach(b => {
         const count = convs.filter(c => c.branch_id === b.id).length;
