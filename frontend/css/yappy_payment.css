@@ -52,6 +52,27 @@ h1 { margin: 7px 0 10px; color: var(--green); font: 700 27px/1.2 Poppins, sans-s
 .phone-input:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
 .yappy-button-wrap { min-height: 52px; }
 .yappy-button-wrap btn-yappy { width: 100%; }
+.confirm-panel {
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+}
+.confirm-text { margin: 0 0 14px; color: var(--text); font-size: 14px; line-height: 1.5; }
+.confirm-text strong { color: var(--green); }
+.confirm-actions { display: flex; gap: 10px; }
+.confirm-btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.confirm-btn-secondary { border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+.confirm-btn-primary { border: none; background: var(--green); color: #fff; }
 .demo-banner {
   margin-bottom: 14px;
   padding: 8px 12px;

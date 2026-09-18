@@ -11,6 +11,10 @@
   const phoneInput = document.getElementById("yappyPhone");
   const demoBanner = document.getElementById("demoBanner");
   const demoButton = document.getElementById("demoPayButton");
+  const confirmPanel = document.getElementById("confirmPanel");
+  const confirmPhone = document.getElementById("confirmPhone");
+  const confirmYesButton = document.getElementById("confirmYes");
+  const confirmNoButton = document.getElementById("confirmNo");
 
   function normalizedPhoneDigits(value) {
     let digits = String(value || "").replace(/\D/g, "");
@@ -18,9 +22,45 @@
     return digits;
   }
 
+  function formatPhoneDisplay(digits) {
+    return digits.length === 8 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : digits;
+  }
+
   function setStatus(message, type = "") {
     statusBox.textContent = message;
     statusBox.className = `payment-status${type ? ` ${type}` : ""}`;
+  }
+
+  // Antes de mandar la solicitud de pago, se le muestra al cliente el número que va a usar y
+  // se le pide confirmarlo — así, si se equivocó al escribirlo, lo corrige antes de que se
+  // dispare la solicitud real en vez de después.
+  function askPhoneConfirmation(phoneDigits, controlEl, onConfirm) {
+    confirmPhone.textContent = formatPhoneDisplay(phoneDigits);
+    confirmPanel.hidden = false;
+    controlEl.hidden = true;
+    phoneInput.disabled = true;
+    setStatus("Confirma que el número de arriba es tu cuenta de Yappy antes de continuar.");
+
+    function cleanup() {
+      confirmPanel.hidden = true;
+      phoneInput.disabled = false;
+      confirmYesButton.removeEventListener("click", handleYes);
+      confirmNoButton.removeEventListener("click", handleNo);
+    }
+    function handleYes() {
+      cleanup();
+      controlEl.hidden = false;
+      onConfirm();
+    }
+    function handleNo() {
+      cleanup();
+      controlEl.hidden = false;
+      setStatus("Corrige tu número de Yappy y vuelve a tocar el botón.");
+      phoneInput.focus();
+      phoneInput.select();
+    }
+    confirmYesButton.addEventListener("click", handleYes);
+    confirmNoButton.addEventListener("click", handleNo);
   }
 
   async function responseJson(response) {
@@ -43,12 +83,14 @@
         phoneInput.focus();
         return;
       }
-      demoButton.disabled = true;
-      setStatus("Simulación: creando tu solicitud segura en Yappy…");
-      setTimeout(() => {
-        setStatus("✅ Simulación exitosa. Así se vería para tu cliente — actívalo con tus credenciales de Yappy Comercial para que sea un cobro real.", "success");
-        demoButton.disabled = false;
-      }, 1400);
+      askPhoneConfirmation(phoneDigits, demoButton, () => {
+        demoButton.disabled = true;
+        setStatus("Simulación: creando tu solicitud segura en Yappy…");
+        setTimeout(() => {
+          setStatus("✅ Simulación exitosa. Así se vería para tu cliente — actívalo con tus credenciales de Yappy Comercial para que sea un cobro real.", "success");
+          demoButton.disabled = false;
+        }, 1400);
+      });
     });
   }
 
@@ -93,20 +135,22 @@
           phoneInput.focus();
           return;
         }
-        button.isButtonLoading = true;
-        setStatus("Creando tu solicitud segura en Yappy…");
-        try {
-          const session = await fetch("/api/payments/yappy/session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
-            body: JSON.stringify({ order_code: orderCode, token: paymentToken, phone: phoneDigits }),
-          }).then(responseJson);
-          button.eventPayment(session);
-          setStatus("Solicitud enviada. Revisa la sección Pendientes en tu aplicación Yappy.");
-        } catch (error) {
-          button.isButtonLoading = false;
-          setStatus(error.message, "error");
-        }
+        askPhoneConfirmation(phoneDigits, buttonWrap, async () => {
+          button.isButtonLoading = true;
+          setStatus("Creando tu solicitud segura en Yappy…");
+          try {
+            const session = await fetch("/api/payments/yappy/session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
+              body: JSON.stringify({ order_code: orderCode, token: paymentToken, phone: phoneDigits }),
+            }).then(responseJson);
+            button.eventPayment(session);
+            setStatus("Solicitud enviada. Revisa la sección Pendientes en tu aplicación Yappy.");
+          } catch (error) {
+            button.isButtonLoading = false;
+            setStatus(error.message, "error");
+          }
+        });
       });
       button.addEventListener("eventSuccess", () => {
         button.isButtonLoading = false;

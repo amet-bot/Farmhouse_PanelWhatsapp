@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -6,11 +7,11 @@ from decimal import Decimal
 from datetime import datetime, timezone
 from typing import List, Optional
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from config import get_all_official_whatsapp_numbers, get_whatsapp_number_for_branch
-from database import get_db
+from database import get_db, SessionLocal
 from models.order import Order
 from models.conversation import Conversation
 from models.contact import Contact
@@ -38,6 +39,12 @@ ITBMS_RATE = Decimal("0.07") # 7% impuesto ITBMS en Panamá
 
 PAYMENT_METHOD_LABELS = {"yappy": "Yappy", "ach": "ACH / Transferencia", "card": "Tilopay (Tarjeta)"}
 WA_NUMBER_RE = re.compile(r"^\d{8,15}$")
+
+# Espera antes de mandar el botón de Yappy para que le llegue al cliente DESPUÉS de su propio
+# mensaje de confirmación del pedido (y de la respuesta del bot con el resumen) — si se manda
+# de inmediato, el botón puede llegarle antes de esos mensajes y aparecer fuera de contexto.
+# Los tests lo bajan a 0 (ver _enable_yappy en test_yappy_payments.py) para no esperar de verdad.
+YAPPY_BUTTON_SEND_DELAY_SECONDS = 10
 
 
 def _delivery_quote(branch: Branch, delivery_type: str, latitude: Optional[float], longitude: Optional[float], *, require_pin: bool) -> tuple[Optional[Decimal], Decimal]:
@@ -101,9 +108,53 @@ def resolve_whatsapp_destination(branch_code: str, origin_wa: Optional[str]) -> 
 
     return branch_number
 
+async def _send_delayed_yappy_button(
+    conv_id: int,
+    contact_phone: str,
+    whatsapp_phone_number_id: Optional[str],
+    order_code: str,
+    payment_message: str,
+    payment_url: str,
+) -> None:
+    """Corre en segundo plano (ver BackgroundTasks en create_public_order): espera
+    YAPPY_BUTTON_SEND_DELAY_SECONDS y recién ahí manda el botón. Abre su propia sesión de DB
+    porque la del request ya se cerró para cuando esto corre."""
+    await asyncio.sleep(YAPPY_BUTTON_SEND_DELAY_SECONDS)
+    db = SessionLocal()
+    try:
+        wamid = None
+        message_status = "sent"
+        error_detail = None
+        try:
+            send_result = await get_whatsapp_service(whatsapp_phone_number_id).send_cta_url_message(
+                contact_phone, payment_message, "Pagar con Yappy", payment_url
+            )
+            if isinstance(send_result, dict) and send_result.get("messages"):
+                wamid = send_result["messages"][0].get("id")
+        except Exception as exc:
+            message_status = "failed"
+            error_detail = str(exc)[:500]
+            logger.error("[PublicOrder] No se pudo enviar el enlace Yappy del pedido %s: %s", order_code, exc)
+        db.add(Message(
+            conversation_id=conv_id,
+            direction="outgoing",
+            sender_type="system",
+            content=f"{payment_message}\n{payment_url}",
+            is_internal=False,
+            whatsapp_message_id=wamid,
+            status=message_status,
+            error_detail=error_detail,
+            created_at=datetime.utcnow(),
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+
 @router.post("/public", response_model=PublicOrderResponse)
 async def create_public_order(
     order_in: PublicOrderCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """
@@ -302,31 +353,10 @@ async def create_public_order(
             f"Tu pedido {order_code} por ${total:.2f} está listo para pagar con Yappy. "
             "Toca el botón para recibir y aprobar la solicitud en tu aplicación Yappy."
         )
-        wamid = None
-        message_status = "sent"
-        error_detail = None
-        try:
-            send_result = await get_whatsapp_service(conv.whatsapp_phone_number_id).send_cta_url_message(
-                contact.phone, payment_message, "Pagar con Yappy", payment_url
-            )
-            if isinstance(send_result, dict) and send_result.get("messages"):
-                wamid = send_result["messages"][0].get("id")
-        except Exception as exc:
-            message_status = "failed"
-            error_detail = str(exc)[:500]
-            logger.error("[PublicOrder] No se pudo enviar el enlace Yappy del pedido %s: %s", order_code, exc)
-        db.add(Message(
-            conversation_id=conv.id,
-            direction="outgoing",
-            sender_type="system",
-            content=f"{payment_message}\n{payment_url}",
-            is_internal=False,
-            whatsapp_message_id=wamid,
-            status=message_status,
-            error_detail=error_detail,
-            created_at=now,
-        ))
-        db.commit()
+        background_tasks.add_task(
+            _send_delayed_yappy_button,
+            conv.id, contact.phone, conv.whatsapp_phone_number_id, order_code, payment_message, payment_url,
+        )
 
     logger.info(f"[PublicOrder] Comanda {order_code} creada desde /menu para conv {conv.id} (Total: ${total})")
 

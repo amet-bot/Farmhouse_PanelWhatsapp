@@ -25,6 +25,12 @@ def _enable_yappy(monkeypatch):
     monkeypatch.setattr(settings, "YAPPY_SECRET_KEY", secret)
     monkeypatch.setattr(settings, "YAPPY_DOMAIN", "https://farmhouse.example")
     monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "https://farmhouse.example")
+    # El botón real espera unos segundos antes de mandarse (ver YAPPY_BUTTON_SEND_DELAY_SECONDS
+    # en routers/orders.py) — en los tests no hace falta esperar de verdad. La tarea en segundo
+    # plano abre su propia sesión de DB (SessionLocal), así que también hay que apuntarla a la
+    # base de datos de prueba o escribiría en la real.
+    monkeypatch.setattr("routers.orders.YAPPY_BUTTON_SEND_DELAY_SECONDS", 0)
+    monkeypatch.setattr("routers.orders.SessionLocal", TestingSessionLocal)
     return secret
 
 
