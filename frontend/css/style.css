@@ -867,6 +867,22 @@ a:focus-visible {
   gap: 16px;
   padding: 16px;
   overflow: hidden;
+  transition: grid-template-columns 0.2s ease;
+}
+
+/* Ocultar el panel de contacto/pedido para darle más ancho al chat (botón en la cabecera del
+   chat, ver btnToggleDetail en chat.js — el mismo botón que en celular abre/cierra el cajón).
+   Escritorio únicamente: en la media query ≤1100px .workspace ya usa solo 2 columnas y
+   .panel-details es un cajón superpuesto, así que esta regla de 3 columnas no debe aplicar ahí. */
+@media (min-width: 1101px) {
+  .workspace.details-collapsed {
+    grid-template-columns: 340px minmax(400px, 1fr) 0px;
+  }
+  .workspace.details-collapsed .panel-details {
+    overflow: hidden;
+    padding: 0;
+    border-left: none;
+  }
 }
 
 .card-panel {
@@ -3234,6 +3250,15 @@ input:-webkit-autofill:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Se enciende en verde mientras el panel de contacto/pedido está oculto (ver
+   details-collapsed en chat.js), para que quede claro que el botón sí hizo algo — sin esto,
+   ocultar el panel se sentía como que el clic no pasó nada. */
+.btn-toggle-details.active {
+  color: var(--green-soft-text);
+  background: var(--green-soft);
+  border-color: var(--green-border);
 }
 
 .alert-danger-box {

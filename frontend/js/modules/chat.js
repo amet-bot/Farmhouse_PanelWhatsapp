@@ -261,11 +261,28 @@ const chatModule = {
       });
     }
 
-    // Conectar botón de panel deslizable en tablet / móvil
+    // Un mismo botón, dos comportamientos según el ancho de pantalla — cada uno lo controla
+    // su propia regla CSS (una solo existe en la media query ≤1100px, la otra ≤solo fuera de
+    // ella), así que alternar las dos clases a la vez es seguro: la que no aplica en ese ancho
+    // simplemente no tiene ningún efecto visual.
+    //  - Celular/tablet (≤1100px, ya existía): abre/cierra el panel como un cajón encima del chat.
+    //  - Escritorio (nuevo, a pedido del usuario): oculta la tercera columna por completo para
+    //    darle más ancho al chat, y recuerda la preferencia por navegador.
     const btnToggle = document.getElementById('btnToggleDetail');
+    const workspaceEl = document.getElementById('workspaceContainer');
+    const DETAILS_COLLAPSED_KEY = 'farmhouse_details_panel_collapsed';
+    if (workspaceEl) {
+      let collapsedByDefault = false;
+      try { collapsedByDefault = localStorage.getItem(DETAILS_COLLAPSED_KEY) === '1'; } catch (e) { /* modo privado: arranca visible */ }
+      workspaceEl.classList.toggle('details-collapsed', collapsedByDefault);
+      btnToggle?.classList.toggle('active', collapsedByDefault);
+    }
     if (btnToggle) {
       btnToggle.addEventListener('click', () => {
         document.querySelector('.panel-details')?.classList.toggle('active');
+        const collapsed = workspaceEl ? workspaceEl.classList.toggle('details-collapsed') : false;
+        btnToggle.classList.toggle('active', collapsed);
+        try { localStorage.setItem(DETAILS_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch (e) { /* modo privado: no se guarda, no pasa nada */ }
       });
     }
 
