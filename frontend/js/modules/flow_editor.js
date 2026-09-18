@@ -114,7 +114,7 @@ const flowEditorModule = (function () {
     'restart_message', 'cancel_message', 'change_order_type_message', 'change_branch_message',
     'unknown_main_message', 'unknown_order_message', 'unknown_branch_message',
     'after_menu_help_question', 'visit_recovery_message', 'attachment_received_message',
-    'corporate_catering_handoff', 'bot_followup_message',
+    'corporate_catering_handoff', 'bot_followup_message', 'yappy_payment_success_message',
   ]);
 
   function nodeImpact(node) {

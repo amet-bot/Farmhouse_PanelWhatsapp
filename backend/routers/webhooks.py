@@ -18,6 +18,7 @@ from models.conversation import Conversation
 from models.message import Message
 from models.branch import Branch
 from services.whatsapp_service import get_whatsapp_service
+from services.yappy_payment import is_yappy_configured
 from services.websocket_manager import ws_manager
 from services.auto_responses import (
     MAIN_MENU_LIST_BUTTON, MAIN_MENU_LIST_ROWS, NAV_RESTART_ROW,
@@ -674,19 +675,33 @@ async def _step_confirm_web_menu_order(db: Session, wa_service, conv: Conversati
     sucursal tome el control personal de la conversación."""
     is_delivery = "DELIVERY" in text.upper() or (conv.delivery_type == "delivery")
     is_card = "TARJETA" in text.upper() or (conv.payment_method == "card")
+    # Yappy real (con credenciales cargadas): el botón de pago ya se mandó por WhatsApp desde
+    # /api/orders/public, en el mismo instante en que se creó el pedido — antes de que el
+    # cliente llegara a escribir este texto. El "pago exitoso" que confirma todo llega solo
+    # cuando el IPN real de Yappy lo confirme (ver routers/payments._notify_customer_payment_success),
+    # nunca antes. Si Yappy no está configurado (hoy), no se manda ningún botón, así que el
+    # texto no debe insinuar que ya se envió uno — cae al mismo "coordinará el pago contigo"
+    # de siempre.
+    is_yappy_active = conv.payment_method == "yappy" and is_yappy_configured()
     branch_name = conv.branch.name if conv.branch else "Farmhouse"
     first_name = get_customer_first_name(contact.name)
     greeting = f"¡Gracias por tu pedido, {first_name}!" if first_name else "¡Gracias por tu pedido!"
     payment_labels = {"card": "Tarjeta", "yappy": "Yappy", "ach": "ACH / transferencia", "cash": "Efectivo"}
     payment_label = payment_labels.get(conv.payment_method, "Por confirmar")
     delivery_label = "Delivery" if is_delivery else "Retiro en sucursal"
-    next_step = (
-        "El equipo revisará tu dirección, te confirmará el costo de entrega"
-        + (" y te enviará el enlace de pago seguro." if is_card else " y coordinará el pago contigo.")
-        if is_delivery else
-        ("El equipo te enviará el enlace de pago y confirmará cuándo estará listo."
-         if is_card else "El equipo te confirmará cuándo estará listo para retirar.")
-    )
+    if is_yappy_active:
+        next_step = (
+            "Arriba te dejamos el botón para pagar con Yappy 📱 En cuanto completes el pago, "
+            "te confirmamos aquí mismo — no hace falta que hagas nada más."
+        )
+    else:
+        next_step = (
+            "El equipo revisará tu dirección, te confirmará el costo de entrega"
+            + (" y te enviará el enlace de pago seguro." if is_card else " y coordinará el pago contigo.")
+            if is_delivery else
+            ("El equipo te enviará el enlace de pago y confirmará cuándo estará listo."
+             if is_card else "El equipo te confirmará cuándo estará listo para retirar.")
+        )
     confirmation_text = (
         f"{greeting} Ya lo tenemos registrado 🌿\n\n"
         f"*Resumen*\n"

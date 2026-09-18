@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 from config import settings
 from database import get_db
 from models.order import Order
+from services.auto_responses import get_yappy_payment_success_message
 from services.websocket_manager import ws_manager
+from services.whatsapp_service import get_whatsapp_service
 from services.yappy_payment import (
     YappyConfigurationError,
     YappyGatewayError,
@@ -159,6 +161,8 @@ async def yappy_ipn(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado."
         )
 
+    was_already_paid = order.payment_status == "paid"
+
     status_map = {"E": "paid", "R": "rejected", "C": "cancelled", "X": "expired"}
     new_payment_status = status_map.get(payment_status)
     if new_payment_status is None:
@@ -181,6 +185,15 @@ async def yappy_ipn(
     if confirmation_number:
         order.payment_confirmation_number = confirmation_number
     db.commit()
+
+    # Al cliente solo se le avisa en el instante exacto en que el pago se confirma de verdad
+    # (firma de Yappy ya verificada arriba, nunca por suposición) — no en cada IPN que llegue
+    # mientras siga "paid", así Yappy puede reintentar la notificación sin que el cliente
+    # reciba el mismo "pago exitoso" varias veces.
+    just_got_paid = (not was_already_paid) and order.payment_status == "paid"
+    if just_got_paid:
+        await _notify_customer_payment_success(db, order)
+
     await ws_manager.broadcast_to_branch(
         order.branch_id,
         {
@@ -193,3 +206,24 @@ async def yappy_ipn(
         },
     )
     return {"success": True, "payment_status": order.payment_status}
+
+
+async def _notify_customer_payment_success(db: Session, order: Order) -> None:
+    """Le avisa al CLIENTE (no solo al panel) que su pedido ya está pagado y confirmado —
+    hoy esta notificación no existía: el IPN solo actualizaba el estado interno."""
+    conv = order.conversation
+    contact = conv.contact if conv else None
+    if not conv or not contact or not contact.phone:
+        logger.warning(
+            "[Yappy IPN] Orden %s se marcó pagada pero no tiene conversación/contacto válido para avisarle al cliente.",
+            order.order_code,
+        )
+        return
+
+    # Import diferido: evita un ciclo de imports, mismo motivo que en services/bot_followup.py
+    # (routers.webhooks no necesita este módulo).
+    from routers.webhooks import _send_plain_text_message
+
+    wa_service = get_whatsapp_service(conv.whatsapp_phone_number_id)
+    text = get_yappy_payment_success_message(order.order_code, db=db)
+    await _send_plain_text_message(db, wa_service, conv, contact, contact.phone, text)

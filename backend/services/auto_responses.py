@@ -320,3 +320,13 @@ YAPPY_PAYMENT_MESSAGE = (
 # solo hace falta editar este archivo y reiniciar.
 BOT_FOLLOWUP_ENABLED = True
 BOT_FOLLOWUP_MESSAGE = "¿Sigues ahí? 😊 Cuando quieras seguimos justo donde lo dejamos — cualquier cosa, escríbeme."
+
+# Confirmación al cliente cuando Yappy avisa (por el IPN real, con firma verificada — nunca por
+# suposición) que el pago de su pedido se completó. Ver routers/payments.yappy_ipn: se manda
+# UNA sola vez, justo cuando payment_status pasa a "paid" por primera vez.
+def get_yappy_payment_success_message(order_code: str, db: "Optional[Session]" = None) -> str:
+    fallback = (
+        f"¡Pago recibido con éxito! ✅ Tu pedido *{order_code}* ya está confirmado y en preparación. "
+        f"¡Gracias por tu compra! 🌿"
+    )
+    return get_node_text(db, "yappy_payment_success_message", fallback, pedido=order_code)
