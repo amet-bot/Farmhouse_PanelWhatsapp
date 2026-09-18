@@ -42,7 +42,11 @@ def test_yappy_order_sends_signed_payment_link_to_whatsapp(
     assert data["payment_url"].startswith(
         "https://farmhouse.example/pago-yappy?order=FH-"
     )
-    assert "Pagar%20con%20Yappy" in data["whatsapp_url"]
+    # El link NO va como texto plano en el mensaje que el cliente confirma (whatsapp_url):
+    # ese mismo enlace ya llega como un botón real y tocable en un mensaje aparte (abajo),
+    # repetirlo como URL suelta en el resumen del pedido sería redundante y se ve mal.
+    assert "pago-yappy" not in data["whatsapp_url"]
+    assert "Pagar%20con%20Yappy" not in data["whatsapp_url"]
     message = (
         db_session.query(Message)
         .filter(Message.conversation_id == data["conversation_id"])

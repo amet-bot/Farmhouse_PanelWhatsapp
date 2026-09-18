@@ -286,14 +286,15 @@ async def create_public_order(
     db.refresh(order)
     db.refresh(conv)
 
-    # 5. Construir el mensaje estructurado que el cliente confirmará en WhatsApp. Si Yappy
-    # está activo, el mismo enlace también llega como botón desde la cuenta de Farmhouse.
+    # 5. Construir el mensaje estructurado que el cliente confirmará en WhatsApp. El link de
+    # pago NO se agrega acá a propósito: cuando Yappy está activo, ese mismo enlace ya llega
+    # como un botón real y tocable desde la cuenta de Farmhouse (ver más abajo) — repetirlo
+    # como texto plano en el mensaje del cliente sería redundante y se ve mal (una URL larga
+    # suelta en medio del resumen del pedido).
     payment_url = None
     if order_in.payment_method == "yappy" and is_yappy_configured():
         payment_url = build_yappy_payment_url(order_code)
     whatsapp_text = _build_whatsapp_order_text(order_code, branch.name, line_items, order_in, delivery_cost, total)
-    if payment_url:
-        whatsapp_text += f"\nPagar con Yappy: {payment_url}"
     whatsapp_url = f"https://wa.me/{whatsapp_destination}?text={quote(whatsapp_text)}"
 
     if payment_url:
