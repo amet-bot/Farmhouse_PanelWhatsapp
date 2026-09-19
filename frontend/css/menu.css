@@ -997,6 +997,11 @@ a:focus-visible {
 }
 .checkout-step-body { padding: 0 16px 16px; }
 
+/* .option-pill define display:flex, que le gana al [hidden] nativo (display:none) por
+   especificidad — sin esto, el botón de Tilopay quedaba invisible en el atributo pero
+   renderizado igual. */
+.tilopay-option[hidden] { display: none !important; }
+
 .address-search-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; position: relative; }
 .address-search-row .text-input { margin: 0; }
 .address-suggestions {

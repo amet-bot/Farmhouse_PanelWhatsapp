@@ -266,9 +266,10 @@ CHAT_ORDER_ROW = {"id": "chat_order_start", "title": "Pedir y pagar por chat", "
 
 CHAT_ORDER_INTRO_QUESTION = "¡Perfecto! Cuéntame qué te gustaría pedir (platillos y cantidades) y lo dejamos listo para el pago 😊"
 CHAT_ORDER_PAYMENT_QUESTION = "¡Anotado! ¿Cómo prefieres pagar?"
+# "Tarjeta" (Tilopay) se saca de acá a propósito: Farmhouse todavía no está afiliado con Tilopay.
+# Ver también menu.html (botón con `hidden`) y _step_handle_payment_selection en webhooks.py.
 CHAT_ORDER_PAYMENT_ROWS = [
     {"id": "pay_ach", "title": "ACH / Transferencia"},
-    {"id": "pay_card", "title": "Tarjeta"},
     {"id": "pay_yappy", "title": "Yappy"},
 ]
 

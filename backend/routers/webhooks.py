@@ -991,12 +991,14 @@ async def _step_handle_payment_selection(db: Session, wa_service, conv: Conversa
     ese método y pasa a atención humana. Devuelve True si resolvió el pago (el llamador debe
     `return` en ese caso); False si no hubo match, igual que el `if matched_payment:` original
     que no tenía un `else` y seguía al bloque siguiente."""
+    # "card" (Tilopay) queda fuera de las dos formas de match a propósito: Farmhouse todavía no
+    # está afiliado con Tilopay. Ver el mismo criterio en CHAT_ORDER_PAYMENT_ROWS y en menu.html.
     matched_payment = None
     if interactive_id.startswith("pay_"):
         candidate = interactive_id.replace("pay_", "")
-        matched_payment = candidate if candidate in {"ach", "card", "yappy"} else None
+        matched_payment = candidate if candidate in {"ach", "yappy"} else None
     elif message_type == "text":
-        matched_payment = match_payment_method_text(text)
+        matched_payment = match_payment_method_text(text, allowed=["yappy", "ach"])
 
     if not matched_payment:
         return False

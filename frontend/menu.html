@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="/css/menu.css?v=3.7.0">
+  <link rel="stylesheet" href="/css/menu.css?v=3.7.1">
 </head>
 <body>
 
@@ -195,7 +195,10 @@
           </div>
 
           <div id="paymentOptions" class="option-pills payment-pills checkout-substep">
-            <button type="button" class="option-pill payment-card-option tilopay-option" data-payment="card" aria-label="Pagar con Tilopay, tarjeta de crédito o débito">
+            <!-- Oculto hasta que Farmhouse esté afiliado con Tilopay: no se borra el markup, solo se
+                 agrega `hidden` (ver PAYMENT_METHOD_LABELS en routers/orders.py, que sigue mostrando
+                 "Tilopay (Tarjeta)" para pedidos viejos que ya usaron este método). -->
+            <button type="button" class="option-pill payment-card-option tilopay-option" data-payment="card" aria-label="Pagar con Tilopay, tarjeta de crédito o débito" hidden>
               <span class="payment-brand tilopay-brand">Tilopay</span>
               <small>Tarjeta de crédito/débito</small>
             </button>

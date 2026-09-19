@@ -10,7 +10,10 @@ from models.contact import Contact
 from models.conversation import Conversation
 from models.message import Message
 from models.branch import Branch
-from services.auto_responses import AFTER_MENU_HELP_QUESTION, CHAT_ORDER_INTRO_QUESTION, CHAT_ORDER_PAYMENT_QUESTION
+from services.auto_responses import (
+    AFTER_MENU_HELP_QUESTION, CHAT_ORDER_INTRO_QUESTION, CHAT_ORDER_PAYMENT_QUESTION,
+    CHAT_ORDER_PAYMENT_ROWS,
+)
 
 
 def setup_env(monkeypatch):
@@ -165,3 +168,26 @@ def test_chat_order_and_pay_without_leaving_whatsapp(client, clayton_branch, db_
     db_session.refresh(conv)
     assert conv.payment_method == "yappy"
     assert conv.automation_paused is True
+
+
+def test_card_payment_is_disabled_until_tilopay_is_affiliated(client, clayton_branch, db_session, monkeypatch):
+    """Farmhouse todavía no está afiliado con Tilopay (ver menu.html, el botón queda con
+    `hidden`): "tarjeta" no debe resolver como método de pago, ni por texto libre, ni por un
+    botón pay_card viejo que ya le haya llegado a algún cliente antes de este cambio."""
+    setup_env(monkeypatch)
+    phone = "50769980006"
+    assert _post_interactive(client, phone, "wamid.C01", "order_pickup", "Retiro en local").status_code == 200
+    assert _post_interactive(client, phone, "wamid.C02", f"branch_{clayton_branch.id}", "Clayton").status_code == 200
+
+    contact = db_session.query(Contact).filter(Contact.phone.contains("69980006")).first()
+    conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
+
+    assert _post_text(client, phone, "wamid.C03", "quiero pagar con tarjeta").status_code == 200
+    db_session.refresh(conv)
+    assert conv.payment_method is None
+
+    assert _post_interactive(client, phone, "wamid.C04", "pay_card", "Tarjeta").status_code == 200
+    db_session.refresh(conv)
+    assert conv.payment_method is None
+
+    assert not any(row["id"] == "pay_card" for row in CHAT_ORDER_PAYMENT_ROWS)
