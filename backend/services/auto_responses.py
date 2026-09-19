@@ -233,6 +233,15 @@ def get_branch_delivery_info_message(branch_code: str, branch_name: str, db: "Op
     opening = get_node_text(db, "branch_delivery_opening", fallback_opening, sucursal=branch_name)
     return get_branch_info_message(branch_name, branch_code, opening)
 
+# Respuesta a "Ver horarios" / "Ver ubicación" en la lista "¿algo más?" tras el Menú Digital:
+# mismo contenido para ambas preguntas (dirección + horario + maps ya vienen juntos), con una
+# apertura neutral en vez de las de arriba (que dan por hecho que el cliente ya va a visitar o
+# retirar en ese momento).
+def get_branch_quick_info_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None) -> str:
+    fallback_opening = f"Esto es lo que tenemos de nuestra sucursal de *{branch_name}*:"
+    opening = get_node_text(db, "branch_quick_info_opening", fallback_opening, sucursal=branch_name)
+    return get_branch_info_message(branch_name, branch_code, opening)
+
 # Cierre cálido tras mandar el botón del Menú Digital en delivery/pickup: deja la puerta abierta
 # sin forzar otra decisión de botones (el bot ya detecta por texto libre si piden un humano).
 MENU_LINK_WARM_CLOSING = "Cualquier duda que tengas mientras armas tu pedido, aquí estamos para ayudarte con todo gusto 😊"
@@ -241,8 +250,13 @@ MENU_LINK_WARM_CLOSING = "Cualquier duda que tengas mientras armas tu pedido, aq
 UNKNOWN_MAIN_MESSAGE = "No estoy completamente seguro de haber entendido 😅 ¿Cuál de estas opciones se parece más a lo que necesitas?"
 UNKNOWN_BRANCH_MESSAGE = "No logré identificar la sucursal. Elígela aquí o escríbeme su nombre."
 AFTER_MENU_HELP_QUESTION = "Mientras ves el menú, ¿hay algo más en lo que pueda ayudarte?"
+# "Abrir el menú" se quitó de acá: justo se le mandó el botón del Menú Digital en este mismo
+# turno, así que repetirlo de inmediato se sentía redundante. En su lugar van las dos preguntas
+# más comunes según el negocio (horario y ubicación) — las dos mandan la misma info de la
+# sucursal ya asignada (ver get_branch_quick_info_message) y vuelven a mostrar esta lista.
 AFTER_MENU_HELP_BUTTONS = [
-    {"id": "view_menu", "title": "Abrir el menú"},
+    {"id": "branch_hours", "title": "Ver horarios"},
+    {"id": "branch_location", "title": "Ver ubicación"},
     {"id": "change_branch", "title": "Cambiar sucursal"},
     {"id": "main_human", "title": "Hablar con alguien"},
 ]

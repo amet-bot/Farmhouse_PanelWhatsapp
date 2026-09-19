@@ -35,7 +35,8 @@ from services.auto_responses import (
     CORPORATE_INTAKE_CLOSING_MESSAGE, get_corporate_intake_summary,
     MANAGER_HELP_QUESTION, MANAGER_HELP_BUTTONS,
     get_main_welcome_body, get_branch_visit_message, get_branch_pickup_info_message,
-    get_branch_delivery_info_message, MENU_LINK_WARM_CLOSING, get_manager_assigned_message,
+    get_branch_delivery_info_message, get_branch_quick_info_message,
+    MENU_LINK_WARM_CLOSING, get_manager_assigned_message,
     get_manager_declined_message,
     ACH_PAYMENT_INSTRUCTIONS, CARD_PAYMENT_MESSAGE, YAPPY_PAYMENT_MESSAGE,
     UNKNOWN_MAIN_MESSAGE, UNKNOWN_BRANCH_MESSAGE,
@@ -849,6 +850,20 @@ async def _step_handle_change_order_type_or_back(db: Session, wa_service, conv: 
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
 
+async def _step_handle_branch_info_request(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Bloque 2.65: "Ver horarios" / "Ver ubicación" en la lista "¿algo más?" tras el Menú
+    Digital — las dos preguntas más comunes según el negocio. Responde con la info de la
+    sucursal ya asignada y vuelve a mostrar la misma lista, para no dejar la conversación sin
+    ninguna opción tocable."""
+    branch_name = conv.branch.name if conv.branch else "Farmhouse"
+    branch_code = conv.branch.code if conv.branch else ""
+    await _send_plain_text_message(
+        db, wa_service, conv, contact, phone,
+        get_branch_quick_info_message(branch_code, branch_name, db=db),
+    )
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+    await _send_after_menu_help_prompt(db, wa_service, conv, contact, phone)
+
 async def _step_start_chat_order(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
     """Bloque 2.55: "Pedir y pagar por chat" — pide describir el pedido en texto libre."""
     conv.awaiting_chat_order_description = True
@@ -1144,6 +1159,11 @@ async def _process_auto_flow_background_locked(conv_id: int, contact_id: int, ph
 
         if conv.awaiting_chat_order_description and message_type == "text" and text.strip():
             await _step_handle_chat_order_description(db, wa_service, conv, contact, phone)
+            return
+
+        # 2.65 "Ver horarios" / "Ver ubicación" desde la lista "¿algo más?" tras el Menú Digital.
+        if interactive_id in ("branch_hours", "branch_location"):
+            await _step_handle_branch_info_request(db, wa_service, conv, contact, phone)
             return
 
         # 2.6 Si hay una pregunta guiada de Corporativo/Evento pendiente, esta respuesta es
