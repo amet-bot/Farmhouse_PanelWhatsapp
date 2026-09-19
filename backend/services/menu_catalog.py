@@ -16,12 +16,13 @@ PROJECT_ROOT = BACKEND_DIR.parent
 CSV_PATH = PROJECT_ROOT / "database" / "farmhouse_catalog_meta.csv"
 
 # Categorías del CSV (columna custom_label_0) que son adicionales/premiums, no platos independientes.
-ADDON_CATEGORIES = {"Premiums", "Toastie Add-ons", "Smoothie Extras"}
+ADDON_CATEGORIES = {"Premiums", "Toastie Add-ons", "Smoothie Extras", "Acai Add-ons"}
 
 # Agrupación de categorías del CSV en las pestañas (pills) del menú digital.
 TAB_DEFINITIONS = [
     {"key": "salads", "label": "🥗 Salads", "categories": ["Salads"], "addon_category": "Premiums"},
-    {"key": "bowls", "label": "🍚 Bowls & Açaí", "categories": ["Bowls"], "addon_category": "Premiums"},
+    {"key": "bowls", "label": "🍚 Bowls", "categories": ["Bowls"], "addon_category": "Premiums"},
+    {"key": "acai", "label": "🍇 Açaí Bowl", "categories": ["Acai Bowl"], "addon_category": "Acai Add-ons"},
     {"key": "wraps", "label": "🌯 Wraps", "categories": ["Wraps"], "addon_category": None},
     {"key": "byo", "label": "🥣 Build Your Own", "categories": ["Build Your Own"], "addon_category": "Premiums"},
     {"key": "toasties", "label": "🥪 Toasties", "categories": ["Toasties"], "addon_category": "Toastie Add-ons"},
