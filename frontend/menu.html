@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="/css/menu.css?v=3.6.0">
+  <link rel="stylesheet" href="/css/menu.css?v=3.7.0">
 </head>
 <body>
 
@@ -166,8 +166,9 @@
               </button>
             </div>
             <div class="address-search-row">
-              <input id="deliveryAddress" class="text-input delivery-address-input" type="text" placeholder="Busca una dirección o mueve el pin...">
+              <input id="deliveryAddress" class="text-input delivery-address-input" type="text" placeholder="Busca una dirección o mueve el pin..." autocomplete="off">
               <button type="button" id="btnSearchAddress" class="btn-address-search">Buscar</button>
+              <div id="addressSuggestions" class="address-suggestions" hidden></div>
             </div>
             <div id="deliveryMap" class="delivery-map" aria-label="Mapa para seleccionar ubicación"></div>
             <p class="map-attribution-note">Toca el mapa o arrastra el pin verde. Las sucursales aparecen identificadas.</p>
@@ -251,6 +252,6 @@
   <div id="toast" class="menu-toast" hidden role="status" aria-live="polite"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="/js/modules/menu_app.js?v=3.6.0"></script>
+  <script src="/js/modules/menu_app.js?v=3.7.0"></script>
 </body>
 </html>

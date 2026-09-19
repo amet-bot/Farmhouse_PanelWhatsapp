@@ -324,6 +324,7 @@
   }
 
   async function searchDeliveryAddress() {
+    hideAddressSuggestions();
     const input = el("deliveryAddress");
     const query = input ? input.value.trim() : "";
     if (!query) return showToast("Escribe una dirección para buscarla.", true);
@@ -340,6 +341,51 @@
       showToast("No se pudo buscar ahora. Puedes tocar el punto directamente en el mapa.", true);
     } finally {
       if (button) button.disabled = false;
+    }
+  }
+
+  // Sugerencias en vivo mientras el cliente escribe (Nominatim/OSM, gratis, sin API key).
+  // Distinto de searchDeliveryAddress: ese busca UN resultado al tocar "Buscar"/Enter; esto
+  // muestra varias opciones tocables a medida que escribe, como un autocompletado.
+  let addressSuggestTimer = null;
+  let addressSuggestAbort = null;
+
+  function hideAddressSuggestions() {
+    const box = el("addressSuggestions");
+    if (box) { box.hidden = true; box.innerHTML = ""; }
+  }
+
+  function renderAddressSuggestions(results) {
+    const box = el("addressSuggestions");
+    if (!box) return;
+    if (!results.length) { hideAddressSuggestions(); return; }
+    box.innerHTML = results.map((r, i) => `<button type="button" class="address-suggestion" data-idx="${i}">${escapeHtml(r.display_name)}</button>`).join("");
+    box.hidden = false;
+    box.querySelectorAll(".address-suggestion").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const picked = results[Number(btn.dataset.idx)];
+        const input = el("deliveryAddress");
+        if (input) input.value = picked.display_name;
+        hideAddressSuggestions();
+        setDeliveryPin(Number(picked.lat), Number(picked.lon), false);
+        updateCheckoutStatus();
+      });
+    });
+  }
+
+  async function fetchAddressSuggestions(query) {
+    if (!query || query.trim().length < 3) { hideAddressSuggestions(); return; }
+    if (addressSuggestAbort) addressSuggestAbort.abort();
+    addressSuggestAbort = new AbortController();
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=pa&q=${encodeURIComponent(query)}`,
+        { signal: addressSuggestAbort.signal }
+      );
+      if (!response.ok) return;
+      renderAddressSuggestions(await response.json());
+    } catch (error) {
+      if (error.name !== "AbortError") hideAddressSuggestions();
     }
   }
 
@@ -1192,11 +1238,20 @@
       deliveryAddressInput.addEventListener("input", () => {
         updateCheckoutStatus();
         scheduleCartSync();
+        clearTimeout(addressSuggestTimer);
+        const query = deliveryAddressInput.value;
+        addressSuggestTimer = setTimeout(() => fetchAddressSuggestions(query), 350);
       });
       deliveryAddressInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter") { event.preventDefault(); searchDeliveryAddress(); }
+        if (event.key === "Escape") hideAddressSuggestions();
       });
     }
+
+    document.addEventListener("click", (event) => {
+      const row = el("deliveryAddress") ? el("deliveryAddress").closest(".address-search-row") : null;
+      if (row && !row.contains(event.target)) hideAddressSuggestions();
+    });
 
     const deliveryReferenceInput = el("deliveryReference");
     if (deliveryReferenceInput) deliveryReferenceInput.addEventListener("input", () => scheduleCartSync());

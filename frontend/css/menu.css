@@ -997,8 +997,37 @@ a:focus-visible {
 }
 .checkout-step-body { padding: 0 16px 16px; }
 
-.address-search-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.address-search-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; position: relative; }
 .address-search-row .text-input { margin: 0; }
+.address-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--fh-panel);
+  border: 1px solid var(--fh-line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.address-suggestion {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--fh-line);
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--fh-text);
+  cursor: pointer;
+}
+.address-suggestion:last-child { border-bottom: 0; }
+.address-suggestion:hover, .address-suggestion:focus-visible { background: var(--fh-green-soft); }
 .btn-address-search {
   border: 0;
   border-radius: var(--radius-xs);
