@@ -66,6 +66,25 @@ router = APIRouter(prefix="/webhooks", tags=["Webhooks Meta WhatsApp"])
 # distinta de settings.BOT_RESPONSE_DELAY_SECONDS que es la pausa inicial antes de la primera respuesta.
 BUBBLE_PACE_DELAY_SECONDS = 0.4
 
+# Un lock de asyncio por conversación: _process_auto_flow_background pausa ~1-2s (para simular
+# que el bot "está escribiendo") antes de releer el estado y responder. Si el mismo cliente
+# manda dos mensajes seguidos sin esperar esa respuesta, dos ejecuciones de esta función corren
+# a la vez para la misma conversación — la segunda puede releer el estado ANTES de que la
+# primera confirme su cambio (ej. corporate_intake_step), procesar el mensaje como si nada
+# hubiera avanzado, y perder la respuesta del cliente en silencio. El lock serializa ambas
+# ejecuciones por conversation_id para que la segunda siempre vea el estado ya confirmado por
+# la primera. Se queda en memoria un Lock por cada conversación que haya escrito alguna vez
+# (nunca se borra): a la escala de un solo restaurante esto es un puñado de KB, no vale la pena
+# la complejidad de limpiarlo.
+_conversation_locks: dict[int, asyncio.Lock] = {}
+
+def _get_conversation_lock(conv_id: int) -> asyncio.Lock:
+    lock = _conversation_locks.get(conv_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _conversation_locks[conv_id] = lock
+    return lock
+
 def verify_meta_signature(raw_body: bytes, signature_header: Optional[str]) -> bool:
     """
     Valida la firma HMAC-SHA256 del webhook de Meta contra META_APP_SECRET (Punto 2).
@@ -1012,7 +1031,17 @@ async def _process_auto_flow_background(conv_id: int, contact_id: int, phone: st
     """
     Procesador en segundo plano para descargas de medios, lógica de estados y respuestas automáticas (Puntos 5 y 17).
     Desacoplado del ciclo HTTP para respuesta ultrarrápida a Meta.
+
+    Solo hace de wrapper: toma el lock de esta conversación (ver _get_conversation_lock más
+    arriba) antes de llamar al procesamiento real, para que dos mensajes seguidos del mismo
+    cliente nunca se procesen en paralelo — el segundo espera a que el primero termine (incluida
+    su respuesta) antes de releer el estado y decidir la suya.
     """
+    async with _get_conversation_lock(conv_id):
+        await _process_auto_flow_background_locked(conv_id, contact_id, phone, msg_data, msg_id)
+
+
+async def _process_auto_flow_background_locked(conv_id: int, contact_id: int, phone: str, msg_data: Dict[str, Any], msg_id: int):
     db = SessionLocal()
     try:
         conv = db.query(Conversation).filter(Conversation.id == conv_id, Conversation.deleted_at.is_(None)).first()
