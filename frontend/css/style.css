@@ -381,6 +381,20 @@ a:focus-visible {
   margin-bottom: 14px;
 }
 
+/* El logo/nombre del sidebar es ahora un link de vuelta al Panel General (ver index.html). */
+.brand-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+
+.brand-link:hover,
+.brand-link:focus-visible {
+  background: var(--nav-hover);
+}
+
 .brand-logo-wrap {
   display: flex;
   align-items: center;

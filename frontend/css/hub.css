@@ -1,0 +1,224 @@
+/* ============================================================================
+   FARMHOUSE - PANEL GENERAL (HUB DE SISTEMAS)
+   Se apoya en las variables de tema/color definidas en style.css (:root, [data-theme]),
+   así que el modo claro/oscuro funciona acá sin lógica adicional.
+   ============================================================================ */
+
+body {
+  margin: 0;
+  background: var(--bg-primary);
+  font-family: 'Inter', sans-serif;
+  color: var(--text-primary);
+}
+
+/* ---- Pantalla de login (a pantalla completa, no modal flotante) ---- */
+.hub-login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* .hub-login-screen define display:flex, que le gana al [hidden] nativo (display:none) por
+   especificidad — sin esto, la pantalla de login se quedaba pegada aunque hub.js pusiera
+   hidden=true al entrar. Mismo bug ya visto con el botón de Tilopay (ver style.css). */
+.hub-login-screen[hidden] {
+  display: none !important;
+}
+
+.hub-login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+/* ---- Encabezado del panel general ---- */
+.hub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 18px 28px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.hub-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hub-header-brand img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.hub-header-titles .hub-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.hub-header-titles .hub-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.hub-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hub-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.hub-logout-btn:hover,
+.hub-logout-btn:focus-visible {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+  outline: none;
+}
+
+.hub-logout-btn i {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---- Grilla de tarjetas de sistema ---- */
+.hub-main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
+}
+
+.hub-intro {
+  margin-bottom: 28px;
+}
+
+.hub-intro h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.hub-intro p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.hub-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.hub-card:hover,
+.hub-card:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+  border-color: var(--green-border);
+  outline: none;
+}
+
+.hub-card-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
+.hub-card-icon i {
+  width: 24px;
+  height: 24px;
+}
+
+.hub-card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.hub-card-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.hub-card.disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.hub-card.disabled:hover,
+.hub-card.disabled:focus-visible {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+  border-color: var(--line);
+}
+
+.hub-card.disabled .hub-card-icon {
+  background: var(--panel-subtle);
+  color: var(--text-muted);
+}
+
+.hub-card-badge {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--panel-subtle);
+  color: var(--text-muted);
+  border: 1px solid var(--line);
+}
+
+@media (max-width: 560px) {
+  .hub-header { padding: 14px 16px; }
+  .hub-main { padding: 28px 16px 48px; }
+}

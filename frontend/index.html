@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=2.9.1">
+  <link rel="stylesheet" href="css/style.css?v=2.9.2">
   <!-- Componente propio de la pestaña "Flujo visual" (contenido real + mapa parcial del bot). -->
   <link rel="stylesheet" href="css/flow-editor.css?v=1.6.0">
   <!-- Lucide Icons CDN -->
@@ -24,7 +24,7 @@
       <button class="btn-sidebar-close" id="btnSidebarClose" aria-label="Cerrar menú">
         <i data-lucide="x"></i>
       </button>
-      <div class="brand">
+      <a class="brand brand-link" href="/hub" title="Volver al Panel General">
         <div class="brand-logo-wrap">
           <img src="assets/images/farmhouse-logo.png" alt="Farmhouse" class="sidebar-brand-logo" onerror="this.style.display='none'; document.getElementById('sidebarFallbackIcon').style.display='grid';" />
           <div class="brand-mark brand-mark-fallback" id="sidebarFallbackIcon" style="display:none">
@@ -35,7 +35,7 @@
           <div class="brand-name">farmhouse</div>
           <div class="brand-sub">WHATSAPP CENTER</div>
         </div>
-      </div>
+      </a>
 
       <!-- Bandeja -->
       <button class="nav-btn active" data-nav="conversaciones">

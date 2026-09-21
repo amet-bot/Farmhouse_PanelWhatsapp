@@ -85,7 +85,9 @@ def notify_branch_new_message(db: Session, branch_id: Optional[int], title: str,
     payload = {
         "title": title,
         "body": (body or "Nuevo mensaje")[:100],
-        "url": f"/?conversation_id={conversation_id}",
+        # "/app" (no "/"): "/" ahora es el Panel General de sistemas, no el Centro WhatsApp — un
+        # clic en la notificación debe abrir la conversación directo, sin pasar por el hub.
+        "url": f"/app?conversation_id={conversation_id}",
         "conversation_id": conversation_id
     }
     for sub in subs:

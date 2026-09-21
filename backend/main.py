@@ -180,9 +180,17 @@ if frontend_dir.exists():
     if (frontend_dir / "js").exists():
         app.mount("/js", StaticFiles(directory=str(frontend_dir / "js")), name="js")
 
+    # "/" es ahora el Panel General (hub de sistemas): WhatsApp Center pasó a ser uno de varios
+    # sistemas internos, no el punto de entrada único. Ver push_service.py, que enlaza a "/app"
+    # (no a "/") para que un clic en una notificación abra la conversación directo, sin pasar
+    # primero por el hub.
     @app.get("/", include_in_schema=False)
     def serve_root():
-        return FileResponse(str(frontend_dir / "index.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+        return FileResponse(str(frontend_dir / "hub.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+    @app.get("/hub", include_in_schema=False)
+    def serve_hub():
+        return FileResponse(str(frontend_dir / "hub.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     @app.get("/app", include_in_schema=False)
     def serve_frontend():

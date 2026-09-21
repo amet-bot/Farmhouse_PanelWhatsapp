@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel General Farmhouse</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=2.9.2">
+  <link rel="stylesheet" href="css/hub.css?v=1.0.2">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <!-- Pantalla de inicio de sesión: se muestra hasta confirmar que hay sesión activa -->
+  <div class="hub-login-screen" id="hubLoginScreen">
+    <div class="hub-login-card">
+      <div class="modal-header login-modal-header">
+        <div class="login-brand-header">
+          <div class="brand-logo-wrap">
+            <img src="assets/images/farmhouse-logo.png" alt="Farmhouse" class="login-brand-logo" onerror="this.style.display='none'; document.getElementById('loginFallbackIcon').style.display='grid';" />
+            <div class="brand-mark brand-mark-fallback" id="loginFallbackIcon" style="display:none">
+              <i data-lucide="sprout"></i>
+            </div>
+          </div>
+          <div>
+            <h3>Panel General Farmhouse</h3>
+            <span class="modal-subtitle">Inicio de Sesión Oficial</span>
+          </div>
+        </div>
+      </div>
+      <form id="loginForm" autocomplete="on">
+        <div class="modal-body">
+          <div id="loginError" class="login-error-box" style="display:none"></div>
+          <div>
+            <label class="modal-label" for="username">Usuario / Código de Empleado:</label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              autocomplete="username"
+              class="modal-input"
+              placeholder="admin, carlos01..."
+              required
+            />
+          </div>
+          <div>
+            <label class="modal-label" for="password">Contraseña:</label>
+            <div style="position:relative;display:flex;align-items:center">
+              <input
+                type="password"
+                id="password"
+                name="password"
+                autocomplete="current-password"
+                class="modal-input"
+                placeholder="••••••••"
+                required
+                style="padding-right:38px"
+              />
+              <button
+                type="button"
+                id="btnTogglePassword"
+                class="btn-toggle-password"
+                title="Mostrar/Ocultar contraseña"
+                aria-label="Mostrar u ocultar contraseña"
+              >
+                <i data-lucide="eye" id="passwordEyeIcon"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" id="btnLoginSubmit" class="btn-primary" style="width:100%">Iniciar sesión</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Panel general: solo visible con sesión confirmada -->
+  <div class="hub-main-wrap" id="hubMain" hidden>
+    <header class="hub-header">
+      <div class="hub-header-brand">
+        <img src="assets/images/farmhouse-logo.png" alt="Farmhouse" onerror="this.style.display='none'">
+        <div class="hub-header-titles">
+          <p class="hub-title">Grupo Col Rizado</p>
+          <span class="hub-subtitle">Panel General de Sistemas</span>
+        </div>
+      </div>
+      <div class="hub-header-actions">
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="hubAgentAvatar">AD</div>
+          <div>
+            <strong id="hubAgentName">Administrador</strong>
+            <small id="hubAgentRole">ADMIN</small>
+          </div>
+        </div>
+        <button class="hub-logout-btn" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="hub-main">
+      <div class="hub-intro">
+        <h1>¿A qué sistema querés entrar?</h1>
+        <p>Elegí un sistema para continuar.</p>
+      </div>
+
+      <div class="hub-grid">
+        <div class="hub-card" data-href="/app" tabindex="0" role="button" aria-label="Entrar a Centro WhatsApp">
+          <div class="hub-card-icon"><i data-lucide="message-square"></i></div>
+          <h2 class="hub-card-title">Centro WhatsApp</h2>
+          <p class="hub-card-desc">Conversaciones, pedidos y atención al cliente por WhatsApp.</p>
+        </div>
+
+        <div class="hub-card disabled" aria-disabled="true" aria-label="Contabilidad, próximamente">
+          <span class="hub-card-badge">Pronto</span>
+          <div class="hub-card-icon"><i data-lucide="calculator"></i></div>
+          <h2 class="hub-card-title">Contabilidad</h2>
+          <p class="hub-card-desc">Gastos, ingresos y reportes financieros de Farmhouse.</p>
+        </div>
+
+        <div class="hub-card disabled" aria-disabled="true" aria-label="Inventario y Abastecimiento, próximamente">
+          <span class="hub-card-badge">Pronto</span>
+          <div class="hub-card-icon"><i data-lucide="package"></i></div>
+          <h2 class="hub-card-title">Inventario y Abastecimiento</h2>
+          <p class="hub-card-desc">Merma, cargamentos por sucursal y gasto por sucursal.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/utils.js?v=3.5.0"></script>
+  <script src="js/api.js?v=3.5.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/modules/hub.js?v=1.0.0"></script>
+</body>
+</html>
