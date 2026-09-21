@@ -22,6 +22,7 @@ from services.yappy_payment import is_yappy_configured
 from services.websocket_manager import ws_manager
 from services.auto_responses import (
     MAIN_MENU_LIST_BUTTON, MAIN_MENU_LIST_ROWS, NAV_RESTART_ROW,
+    ENTRY_GATE_BUTTONS, get_entry_gate_body,
     BRANCH_SELECTION_BODY, BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY,
     BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON, BRANCH_SELECTION_MENU_DIRECT_BODY,
     CORPORATE_INTAKE_ENABLED, CORPORATE_CATERING_HANDOFF, CATERING_PHONE_DISPLAY,
@@ -209,6 +210,24 @@ async def _send_main_welcome_menu(db: Session, wa_service, conv: Conversation, c
         welcome_body,
     )
     logger.info(f"[MainMenu] Menú principal enviado a {mask_phone(phone)} para Conv ID {conv.id}.")
+
+def _entry_gate_buttons(db: Session) -> list:
+    titles = get_node_options(db, "entry_gate", [b["title"] for b in ENTRY_GATE_BUTTONS])
+    return [{"id": b["id"], "title": t} for b, t in zip(ENTRY_GATE_BUTTONS, titles)]
+
+async def _send_entry_gate(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Portón de entrada: el PRIMER mensaje que el bot manda en una conversación nueva. En vez
+    del menú de 6 opciones, pregunta solo si atiende el asistente o una persona, para que quien
+    quiera un humano llegue en un toque (ver ENTRY_GATE_BUTTONS en services/auto_responses.py
+    para el porqué y para el detalle de que el botón de la persona reusa el id "main_human")."""
+    body = get_entry_gate_body(contact.name, db=db)
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+    await _send_and_log(
+        db, wa_service, conv, contact, phone,
+        wa_service.send_interactive_buttons(phone, body, _entry_gate_buttons(db)),
+        body,
+    )
+    logger.info(f"[EntryGate] Portón asistente/persona enviado a {mask_phone(phone)} para Conv ID {conv.id}.")
 
 async def _send_unknown_main_prompt(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
     """Recuperación contextual cuando no hay nada más específico que ofrecer: mismo menú
@@ -979,7 +998,15 @@ async def _step_prompt_entry_when_context_missing(db: Session, wa_service, conv:
             should_prompt = False
 
     if should_prompt:
-        await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+        # La primerísima vez que el bot saluda en esta conversación va el portón
+        # asistente/persona en lugar del menú de 6 opciones. `last_branch_prompt_at` sirve
+        # justo de marcador de "ya saludé aquí alguna vez": solo se escribe dos líneas más
+        # abajo y nunca se limpia (tampoco en _reset_bot_context), así que el portón se ve una
+        # sola vez por conversación y "Empezar de nuevo" sigue cayendo en el menú principal.
+        if conv.last_branch_prompt_at is None:
+            await _send_entry_gate(db, wa_service, conv, contact, phone)
+        else:
+            await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
         conv.last_branch_prompt_at = now
         db.commit()
     else:
@@ -1131,6 +1158,13 @@ async def _process_auto_flow_background_locked(conv_id: int, contact_id: int, ph
 
         if interactive_id == "main_human":
             await _handoff_to_human(db, wa_service, conv, contact, phone)
+            return
+
+        # La otra mitad del portón de entrada: seguir con el asistente abre el menú principal de
+        # siempre. (La opción "Hablar con alguien" no necesita rama propia: usa el id
+        # "main_human" que acaba de atenderse aquí arriba.)
+        if interactive_id == "entry_gate_bot":
+            await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
             return
 
         navigation_intent = match_navigation_intent(text) if message_type == "text" else None

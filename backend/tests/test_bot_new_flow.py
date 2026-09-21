@@ -6,7 +6,7 @@ from models.contact import Contact
 from models.message import Message
 from models.branch import Branch
 from services.auto_responses import (
-    MAIN_WELCOME_BODY, CORPORATE_INTAKE_CLOSING_MESSAGE,
+    MAIN_WELCOME_BODY, ENTRY_GATE_BODY, CORPORATE_INTAKE_CLOSING_MESSAGE,
     MANAGER_HELP_QUESTION, MENU_LINK_WARM_CLOSING
 )
 
@@ -18,7 +18,7 @@ def setup_webhook_env(monkeypatch):
         pass
     monkeypatch.setattr("routers.webhooks.notify_branch_new_message", mock_push)
 
-def test_initial_any_message_triggers_main_welcome_menu(client, clayton_branch, db_session):
+def test_initial_any_message_triggers_entry_gate(client, clayton_branch, db_session):
     payload = {
         "object": "whatsapp_business_account",
         "entry": [{
@@ -43,7 +43,9 @@ def test_initial_any_message_triggers_main_welcome_menu(client, clayton_branch, 
 
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
     assert len(msgs) >= 1
-    assert MAIN_WELCOME_BODY in msgs[-1].content
+    # El primer contacto abre con el portón de dos botones, no con el menú de 6 opciones.
+    assert ENTRY_GATE_BODY in msgs[-1].content
+    assert MAIN_WELCOME_BODY not in "\n".join(m.content for m in msgs)
 
 
 def test_initial_message_greets_customer_by_whatsapp_name(client, clayton_branch, db_session):
@@ -92,6 +94,79 @@ def _post_bot_message(client, phone, wamid, *, text=None, button_id=None, button
             "field": "messages",
         }]}],
     })
+
+
+def test_entry_gate_bot_button_opens_main_menu(client, clayton_branch, db_session):
+    # Rama 1 del portón: "Usar el asistente" lleva al menú principal de siempre y deja el bot
+    # activo (nadie del equipo tiene que intervenir).
+    phone = "50769990021"
+    assert _post_bot_message(client, phone, "wamid.GATE01", text="Hola").status_code == 200
+    assert _post_bot_message(
+        client, phone, "wamid.GATE02", button_id="entry_gate_bot", button_title="Usar el asistente"
+    ).status_code == 200
+
+    contact = db_session.query(Contact).filter(Contact.phone.contains("69990021")).first()
+    conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
+    assert conv.automation_paused is False
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert ENTRY_GATE_BODY in outgoing[0].content
+    assert any(MAIN_WELCOME_BODY in m.content for m in outgoing)
+
+
+def test_entry_gate_human_button_hands_off_without_menu(client, clayton_branch, db_session):
+    # Rama 2 del portón: "Hablar con alguien" (id main_human, el mismo del menú principal) pausa
+    # el bot, deja la nota de contexto para el equipo y nunca muestra el menú de 6 opciones.
+    phone = "50769990022"
+    assert _post_bot_message(client, phone, "wamid.GATE03", text="Hola").status_code == 200
+    assert _post_bot_message(
+        client, phone, "wamid.GATE04", button_id="main_human", button_title="Hablar con alguien"
+    ).status_code == 200
+
+    contact = db_session.query(Contact).filter(Contact.phone.contains("69990022")).first()
+    conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
+    assert conv.automation_paused is True
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert any("Ya compartí tu solicitud con nuestro equipo" in m.content for m in outgoing)
+    assert any(m.is_internal and "Contexto recopilado" in m.content for m in outgoing)
+    assert not any(MAIN_WELCOME_BODY in m.content for m in outgoing)
+
+
+def test_entry_gate_is_shown_only_once_per_conversation(client, clayton_branch, db_session):
+    # El portón es el arranque, no un paso recurrente: "Empezar de nuevo" vuelve al menú
+    # principal, que es justo lo que promete la etiqueta de esa fila.
+    phone = "50769990023"
+    assert _post_bot_message(client, phone, "wamid.GATE05", text="Hola").status_code == 200
+    assert _post_bot_message(
+        client, phone, "wamid.GATE06", button_id="nav_restart", button_title="🔄 Empezar de nuevo"
+    ).status_code == 200
+
+    contact = db_session.query(Contact).filter(Contact.phone.contains("69990023")).first()
+    conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert sum(1 for m in outgoing if ENTRY_GATE_BODY in m.content) == 1
+    assert any(MAIN_WELCOME_BODY in m.content for m in outgoing)
+
+
+def test_entry_gate_does_not_block_customer_who_already_knows_what_they_want(client, clayton_branch, db_session):
+    # Quien escribe directo lo que quiere no tiene que pasar por el portón: la detección de
+    # intención sigue corriendo antes del bloque de entrada.
+    phone = "50769990024"
+    assert _post_bot_message(client, phone, "wamid.GATE07", text="Quiero un delivery").status_code == 200
+
+    contact = db_session.query(Contact).filter(Contact.phone.contains("69990024")).first()
+    conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
+    assert conv.delivery_type == "delivery"
+    outgoing = db_session.query(Message).filter(
+        Message.conversation_id == conv.id, Message.direction == "outgoing"
+    ).all()
+    assert not any(ENTRY_GATE_BODY in m.content for m in outgoing)
+    assert any("Delivery, entendido" in m.content for m in outgoing)
 
 
 def test_main_order_button_reshows_main_menu(client, clayton_branch, db_session):

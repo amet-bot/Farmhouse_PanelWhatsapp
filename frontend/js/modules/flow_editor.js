@@ -100,7 +100,7 @@ const flowEditorModule = (function () {
     'corporate_invalid_option_retry', 'corporate_headcount_retry', 'corporate_date_retry',
   ]);
   const REAL_CONTENT_NODE_IDS = new Set([
-    'main_welcome', 'order_type_question',
+    'entry_gate', 'main_welcome', 'order_type_question',
     'branch_selection_menu_direct_body', 'branch_selection_visit_body',
     'branch_selection_delivery_body', 'branch_selection_pickup_body',
     'branch_visit_opening', 'branch_pickup_opening', 'branch_delivery_opening',

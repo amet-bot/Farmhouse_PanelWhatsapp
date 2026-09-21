@@ -40,6 +40,43 @@ def get_main_welcome_body(customer_name: Optional[str] = None, db: "Optional[Ses
 
 MAIN_WELCOME_BODY = get_main_welcome_body(None)
 
+
+# --------------------------------------------------------------------------------------------
+# Portón de entrada (primer mensaje de una conversación nueva)
+#
+# Antes de ofrecer el menú de 6 opciones, el bot pregunta una sola cosa: ¿te atiendo yo o
+# prefieres una persona? Así quien solo quiere un humano llega en un toque, sin leer un menú que
+# no le sirve. Deliberadamente acotado al INICIO: "Empezar de nuevo"/"cancelar" siguen volviendo
+# al menú principal, que es justo lo que promete la etiqueta de esa fila (decisión tomada con el
+# usuario el 2026-09-21). Ver _send_entry_gate y _step_prompt_entry_when_context_missing en
+# routers/webhooks.py.
+#
+# El botón de la persona reusa a propósito el MISMO id "main_human" de la fila del menú
+# principal: así lo atiende el manejador universal que ya existe en
+# _process_auto_flow_background y no aparece un segundo camino de handoff que pueda quedar
+# desincronizado con el primero.
+#
+# Los títulos no pasan de 20 caracteres (tope de WhatsApp para botones de respuesta).
+ENTRY_GATE_BUTTONS = [
+    {"id": "entry_gate_bot", "title": "Usar el asistente"},
+    {"id": "main_human", "title": "Hablar con alguien"},
+]
+
+
+def get_entry_gate_body(customer_name: Optional[str] = None, db: "Optional[Session]" = None) -> str:
+    """Pregunta de entrada, personalizada con el nombre real de WhatsApp igual que el saludo
+    del menú principal (ver get_main_welcome_body)."""
+    first_name = get_customer_first_name(customer_name)
+    saludo = f"¡Hola, {first_name}! 👋" if first_name else "¡Hola! 👋"
+    fallback = (
+        f"{saludo} Soy el asistente de Farmhouse 🌿\n\n"
+        "¿Quieres que te ayude yo con tu pedido, o prefieres hablar de una vez con alguien del equipo?"
+    )
+    return get_node_text(db, "entry_gate", fallback, saludo=saludo)
+
+
+ENTRY_GATE_BODY = get_entry_gate_body(None)
+
 # Menú de bienvenida como lista interactiva (hasta 10 filas): muestra Delivery/Retiro/Evento
 # directamente, sin ningún paso intermedio de tipo de entrega. Es también la única UI de "menú
 # principal" del bot — cualquier otro punto que necesite reofrecer el menú reutiliza esta misma
