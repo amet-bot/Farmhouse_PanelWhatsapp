@@ -1,9 +1,10 @@
 /* ============================================================================
    FARMHOUSE - INVENTARIO Y ABASTECIMIENTO
-   La página real calca la vista previa del Panel General (hub.css → .hub-mock-*): rail de
-   navegación a la izquierda, columna de lista y panel de detalle a la derecha. Misma paleta
-   premium --inv-* que el hub para el modo oscuro; el modo claro reusa los tokens de style.css
-   en vez de inventar un tema nuevo.
+   Rail de navegación a la izquierda, columna de lista y panel de detalle a la derecha. La
+   forma salió de la vista previa que el Panel General mostraba de este módulo; esa vista previa
+   ya no existe (era decorativa y estorbaba), pero la estructura quedó porque funciona. Misma
+   paleta premium --inv-* que el hub para el modo oscuro; el modo claro reusa los tokens de
+   style.css en vez de inventar un tema nuevo.
 
    Ojo con [hidden]: cualquier selector que defina `display` sobre un elemento que el JS oculta
    con `hidden` le gana al [hidden] nativo por especificidad (mismo bug ya visto con Tilopay y
@@ -205,7 +206,7 @@ body {
 }
 
 /* ============================================================================
-   3. RAIL DE NAVEGACIÓN (calca .hub-mock-sidebar)
+   3. RAIL DE NAVEGACIÓN
    ============================================================================ */
 /* `height` fija (no `max-height` + align-self:start): con la altura del contenido, el panel del
    rail cortaba a media pantalla y debajo asomaba el fondo de la página, como una costura. */
@@ -573,7 +574,7 @@ body {
 }
 
 /* ============================================================================
-   6. ESPACIO DE TRABAJO: lista + detalle (calca .hub-mock-items-col / .hub-mock-detail)
+   6. ESPACIO DE TRABAJO: lista + detalle
    ============================================================================ */
 .inv-workspace {
   display: grid;
@@ -769,6 +770,34 @@ body {
   overflow-y: auto;
   max-height: 660px;
   min-width: 0;
+}
+
+/* Solo existe en celular, donde la lista y el detalle se turnan como dos pantallas. En
+   escritorio conviven lado a lado y no hay a dónde volver. */
+.inv-detail-back {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 14px;
+  padding: 9px 14px 9px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--inv-border);
+  background: var(--inv-panel-2);
+  color: var(--inv-text-secondary);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inv-detail-back i { width: 15px; height: 15px; }
+
+.inv-detail-back:hover,
+.inv-detail-back:focus-visible {
+  background: var(--inv-green-soft);
+  color: var(--inv-green-soft-text);
+  border-color: var(--inv-green-border);
+  outline: none;
 }
 
 .inv-detail-header {
@@ -1273,8 +1302,16 @@ body {
 .toast-banner i { width: 16px; height: 16px; }
 
 /* ============================================================================
-   9. ADAPTACIÓN A PANTALLAS CHICAS
+   9. PANTALLAS CHICAS
+   El celular no es la versión angosta del escritorio: acá la página cambia de forma.
+   · El rail lateral baja y se vuelve una barra de pestañas fija, al alcance del pulgar.
+   · Lista y detalle dejan de convivir y pasan a turnarse como dos pantallas (ver la clase
+     `is-detail` que pone inventory.js): antes el detalle quedaba debajo de toda la lista,
+     fuera de pantalla, y tocar una fila no parecía hacer nada.
+   · Se saca todo scroll anidado: manda el scroll de la página.
+   · El encabezado se comprime a una sola fila y el modal ocupa la pantalla entera.
    ============================================================================ */
+
 @media (max-width: 1100px) {
   .inv-workspace { grid-template-columns: minmax(0, 1fr); }
   .inv-list-col { border-right: none; border-bottom: 1px solid var(--inv-border); }
@@ -1284,24 +1321,21 @@ body {
 @media (max-width: 900px) {
   .inv-shell { grid-template-columns: minmax(0, 1fr); }
 
-  /* El rail pasa a ser una tira horizontal de pestañas. La barra de desplazamiento se oculta
-     (sigue desplazándose con el dedo): en escritorio-con-mouse se dibujaba gruesa debajo de las
-     pestañas y parecía un elemento más de la interfaz. */
+  /* ---- El rail se vuelve barra de pestañas inferior ---- */
   .inv-sidebar {
-    position: static;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 60;
     height: auto;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    border-right: none;
-    border-bottom: 1px solid var(--inv-border);
-    padding: 10px 12px;
+    overflow: visible;
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: stretch;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--inv-panel);
+    border-right: none;
+    border-top: 1px solid var(--inv-border);
+    box-shadow: 0 -10px 30px -22px rgba(0, 0, 0, .75);
   }
-
-  .inv-sidebar::-webkit-scrollbar { display: none; }
 
   .inv-sidebar-title,
   .inv-nav-sep,
@@ -1309,24 +1343,202 @@ body {
   .inv-sidebar-foot { display: none; }
 
   .inv-nav {
+    flex: 1;
     flex-direction: row;
-    gap: 6px;
+    gap: 2px;
   }
 
-  .inv-nav-item { white-space: nowrap; width: auto; }
+  /* Ícono arriba, etiqueta abajo: las cuatro secciones entran sin recortarse ni desplazarse,
+     que era el problema de la tira horizontal (Proveedores quedaba fuera de pantalla). */
+  .inv-nav-item {
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+    padding: 7px 2px;
+    border-radius: 12px;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.2;
+  }
 
-  .inv-content { padding: 20px 16px 48px; }
+  .inv-nav-item i { width: 19px; height: 19px; }
+
+  .inv-nav-item span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* El contenido deja lugar para la barra de pestañas. */
+  .inv-content { padding: 18px 14px calc(92px + env(safe-area-inset-bottom, 0px)); }
+
   .inv-header { padding: 12px 16px; }
-  .inv-view-head h1 { font-size: 19px; }
+  .inv-view-head h1 { font-size: 20px; }
+
+  /* ---- Lista y detalle se turnan ---- */
+  .inv-list-col { border-bottom: none; }
+  .inv-workspace .inv-detail { display: none; }
+  .inv-workspace.is-detail .inv-list-col { display: none; }
+  .inv-workspace.is-detail .inv-detail { display: block; }
+
+  .inv-detail-back { display: inline-flex; }
+
+  /* Nada de scroll dentro del scroll: la lista crece y manda la página. */
+  .inv-list { max-height: none; overflow: visible; }
+  .inv-detail { max-height: none; overflow: visible; padding: 18px 16px 22px; }
+
+  /* Objetivos de toque cómodos. */
+  .inv-row { padding: 13px 14px; min-height: 60px; }
+  .inv-toolbar { padding: 12px 14px; }
+  .inv-load-more { padding: 15px 12px; }
 }
 
 @media (max-width: 640px) {
+  /* ---- Encabezado en una sola fila ---- */
+  .inv-header {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .inv-back { padding: 8px; }
+  .inv-back span { display: none; }
+
+  .inv-header-titles { min-width: 0; }
+
+  .inv-header-titles .inv-title {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .inv-header-titles .inv-subtitle { display: none; }
+
+  .inv-header-actions { gap: 7px; flex-wrap: nowrap; }
+  /* Solo se oculta el bloque de nombre y rol; el avatar es el otro div hijo directo y tiene que
+     seguir ahí, si no el pill del usuario queda como un punto vacío. */
+  .inv-header-actions .user-profile > div:not(.profile-avatar) { display: none; }
+  .inv-header-actions .user-profile { padding: 4px; gap: 0; }
+  .inv-logout-btn { padding: 9px 11px; }
+  .inv-logout-btn span { display: none; }
+
+  /* ---- Cabecera de vista: título y acción en la misma línea ---- */
+  .inv-view-head {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .inv-view-head h1 { font-size: 19px; }
+  .inv-view-head p { display: none; }
+
+  .inv-primary-btn {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    font-size: 12.5px;
+  }
+
+  .inv-kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .inv-kpi { padding: 14px; }
+  .inv-kpi-value { font-size: 22px; }
+
+  .inv-panel { padding: 16px; }
   .inv-field-row { grid-template-columns: 1fr; }
-  .inv-metrics { grid-template-columns: 1fr; }
+  .inv-metrics { grid-template-columns: 1fr 1fr; }
+
+  /* ---- Filas a dos alturas: el nombre deja de cortarse a la mitad ---- */
+  .inv-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "thumb info amount"
+      "thumb badge badge";
+    align-items: center;
+    gap: 3px 11px;
+  }
+
+  .inv-row-thumb { grid-area: thumb; align-self: start; margin-top: 2px; }
+  .inv-row-info { grid-area: info; }
+  .inv-row-amount { grid-area: amount; }
+  .inv-row .inv-badge { grid-area: badge; justify-self: start; }
+
+  /* ---- La tabla del detalle se apila: 4 columnas no entran en 390px ---- */
+  .inv-detail-table,
+  .inv-detail-table tbody,
+  .inv-detail-table tfoot,
+  .inv-detail-table tr,
+  .inv-detail-table td { display: block; width: 100%; }
+
+  .inv-detail-table thead { display: none; }
+
+  .inv-detail-table tbody tr {
+    padding: 11px 12px;
+    margin-bottom: 8px;
+    border: 1px solid var(--inv-border);
+    border-radius: var(--radius-sm);
+    background: var(--inv-panel-2);
+  }
+
+  .inv-detail-table tbody td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    border-bottom: none;
+    text-align: right;
+  }
+
+  .inv-detail-table tbody td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--inv-text-muted);
+    text-align: left;
+  }
+
+  .inv-detail-table td.inv-td-name {
+    font-weight: 700;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--inv-border-light);
+  }
+
+  .inv-detail-table td.inv-td-name::before { content: none; }
+
+  .inv-detail-table td.inv-td-total-label { display: none; }
+
+  .inv-detail-table tfoot td {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 12px 0;
+  }
+
+  .inv-detail-table tfoot td::before {
+    content: attr(data-label);
+    color: var(--inv-green-soft-text);
+  }
+
+  /* ---- El modal toma la pantalla entera ---- */
+  .modal-backdrop { padding: 0; }
+
+  .modal-card {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    border: none;
+  }
 
   .inv-lines-head { display: none; }
 
-  /* Cada línea pasa a ser una tarjeta apilada con sus propias etiquetas. */
+  /* Cada línea del cargamento pasa a ser una tarjeta apilada con sus propias etiquetas. */
   .inv-line-row {
     grid-template-columns: 1fr 1fr;
     gap: 10px;
@@ -1362,12 +1574,12 @@ body {
     font-weight: 600;
   }
 
-  /* En vez de pelear por el ancho con el total, el pie del modal se apila: el total ocupa su
-     propia fila (etiqueta y cifra a los extremos) y los botones van debajo, a ancho completo. */
+  /* El pie del modal se apila: el total en su fila, los botones a ancho completo debajo. */
   .inv-modal-footer {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   }
 
   .inv-total-box {
@@ -1377,6 +1589,7 @@ body {
   }
 
   .inv-modal-footer-actions { flex: 1; }
+
   .inv-modal-footer-actions .btn-secondary,
   .inv-submit-btn { flex: 1; min-width: 0; }
 

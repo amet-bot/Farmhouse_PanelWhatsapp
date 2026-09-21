@@ -1,6 +1,6 @@
 /* ============================================================================
    FARMHOUSE - PANEL GENERAL (HUB DE SISTEMAS)
-   Portal selector + vista previa grande. La pantalla de login sigue usando las variables
+   Selector de sistemas en una sola columna. La pantalla de login sigue usando las variables
    compartidas de style.css sin cambios; el launcher post-login usa una paleta propia --hub-*
    (más "premium", pensada para el modo oscuro) definida acá, con equivalentes claros que
    reusan los tokens ya existentes de style.css para no inventar un tema claro nuevo.
@@ -150,31 +150,21 @@ body {
 }
 
 /* ============================================================================
-   LAUNCHER: selector (izquierda, ~30%) + vista previa grande (derecha, ~70%)
+   LAUNCHER: una sola columna centrada
+   Antes esto era el selector a la izquierda y una vista previa enorme a la derecha, armada con
+   datos inventados. La vista previa se fue: no dejaba usar nada y en celular empujaba el botón
+   de entrar a dos mil píxeles de scroll. Ahora las tarjetas de sistema SON la entrada — se toca
+   una y se entra — así que el launcher es una columna angosta que se lee igual en un monitor
+   que en un teléfono, sin layout aparte para cada uno.
    ============================================================================ */
 .hub-launcher {
-  max-width: 1680px;
+  width: 100%;
+  max-width: 560px;
   margin: 0 auto;
-  padding: 32px 32px 48px;
-  display: grid;
-  grid-template-columns: minmax(320px, 30%) 1fr;
-  gap: 28px;
-  align-items: start;
-}
-
-.hub-launcher-left {
+  padding: 40px 24px 56px;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  position: sticky;
-  top: 32px;
-}
-
-.hub-launcher-right {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  min-width: 0;
 }
 
 /* ---- Intro ---- */
@@ -248,14 +238,19 @@ body {
   outline-offset: 2px;
 }
 
-.hub-system-card.selected {
+/* Ya no hay estado "elegido" (antes marcaba cuál sistema mostraba la vista previa): ahora la
+   tarjeta se toca y se entra, así que el realce corresponde al hover y al foco de teclado. */
+.hub-system-card:hover:not(.coming-soon),
+.hub-system-card:focus-visible {
   background: var(--hub-panel-2);
   border-color: var(--hub-green);
   box-shadow: 0 0 0 1px var(--hub-green), 0 12px 28px -12px rgba(22, 230, 161, .35);
+  outline: none;
 }
 
 .hub-system-card.coming-soon {
   opacity: 0.72;
+  cursor: default;
 }
 
 .hub-system-icon {
@@ -341,10 +336,13 @@ body {
   transition: color 0.15s ease, transform 0.15s ease;
 }
 
-.hub-system-card.selected .hub-system-chevron {
+.hub-system-card:hover:not(.coming-soon) .hub-system-chevron,
+.hub-system-card:focus-visible .hub-system-chevron {
   color: var(--hub-green);
   transform: translateX(2px);
 }
+
+.hub-system-card.coming-soon .hub-system-chevron { visibility: hidden; }
 
 .hub-system-chevron i {
   width: 18px;
@@ -386,862 +384,49 @@ body {
   color: var(--hub-text-secondary);
 }
 
-/* ============================================================================
-   VISTA PREVIA (derecha)
-   ============================================================================ */
-.hub-preview-card {
-  background: var(--hub-panel);
-  border: 1px solid var(--hub-border);
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
-
-.hub-preview-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 22px 26px;
-  flex-wrap: wrap;
-}
-
-.hub-preview-header-title {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-
-.hub-preview-icon {
-  flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: var(--hub-green-soft);
-  color: var(--hub-green);
-}
-
-.hub-preview-icon i {
-  width: 20px;
-  height: 20px;
-}
-
-.hub-preview-header-title h2 {
-  margin: 0 0 2px;
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--hub-text);
-}
-
-.hub-preview-header-title p {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--hub-text-secondary);
-}
-
-.hub-cta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
-  border-radius: 999px;
-  border: none;
-  background: linear-gradient(135deg, var(--hub-green), #0FBE85);
-  color: #06281d;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
-  box-shadow: 0 10px 24px -10px rgba(22, 230, 161, .55);
-  white-space: nowrap;
-}
-
-.hub-cta:hover:not(.disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px -10px rgba(22, 230, 161, .6);
-}
-
-.hub-cta i {
-  width: 16px;
-  height: 16px;
-}
-
-.hub-cta.disabled {
-  cursor: default;
-  opacity: 0.55;
-  background: var(--hub-panel-2);
-  color: var(--hub-text-muted);
-  box-shadow: none;
-}
-
-.hub-preview-body {
-  border-top: 1px solid var(--hub-border);
-  min-height: 460px;
-}
-
-/* ---- Estado "Próximamente" ---- */
-.hub-preview-coming-soon {
-  min-height: 460px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  text-align: center;
-  color: var(--hub-text-muted);
-}
-
-.hub-preview-lock {
-  width: 52px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  background: var(--hub-panel-2);
-  color: var(--hub-text-muted);
-  margin-bottom: 4px;
-}
-
-.hub-preview-lock i {
-  width: 24px;
-  height: 24px;
-}
-
-.hub-preview-coming-soon h3 {
-  margin: 0;
-  font-size: 16px;
-  color: var(--hub-text);
-}
-
-.hub-preview-coming-soon p {
-  margin: 0;
-  font-size: 13px;
-}
-
-/* ---- Grilla interna de la app simulada (sidebar + lista + detalle/chat) ---- */
-.hub-preview-app {
-  display: grid;
-  grid-template-columns: 168px 1fr 1fr;
-  min-height: 460px;
-}
-
-.hub-mock-sidebar {
-  border-right: 1px solid var(--hub-border);
-  background: var(--hub-panel-2);
-  padding: 16px 12px;
-}
-
-.hub-mock-sidebar-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--hub-text);
-  padding: 6px 8px 14px;
-}
-
-.hub-mock-sidebar-title i {
-  width: 16px;
-  height: 16px;
-  color: var(--hub-green);
-}
-
-.hub-mock-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.hub-mock-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 8px;
-  border-radius: 8px;
-  font-size: 12px;
-  color: var(--hub-text-secondary);
-}
-
-.hub-mock-nav-item i {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.hub-mock-nav-item.active {
-  background: var(--hub-green-soft);
-  color: var(--hub-green);
-  font-weight: 600;
-}
-
-/* ---- Columna de artículos (Inventario) ---- */
-.hub-mock-items-col {
-  border-right: 1px solid var(--hub-border);
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.hub-mock-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--hub-border);
-}
-
-.hub-mock-search {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 9px;
-  background: var(--hub-panel-2);
-  border: 1px solid var(--hub-border);
-  min-width: 0;
-}
-
-.hub-mock-search i {
-  width: 14px;
-  height: 14px;
-  color: var(--hub-text-muted);
-  flex-shrink: 0;
-}
-
-.hub-mock-search input {
-  border: none;
-  background: none;
-  outline: none;
-  font-size: 12.5px;
-  color: var(--hub-text);
-  width: 100%;
-  font-family: inherit;
-}
-
-.hub-mock-search input::placeholder {
-  color: var(--hub-text-muted);
-}
-
-.hub-mock-new-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: 9px;
-  border: none;
-  background: var(--hub-blue);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: default;
-}
-
-.hub-mock-new-btn i {
-  width: 14px;
-  height: 14px;
-}
-
-.hub-mock-more-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  border: 1px solid var(--hub-border);
-  background: transparent;
-  color: var(--hub-text-muted);
-  cursor: default;
-  flex-shrink: 0;
-}
-
-.hub-mock-more-btn i {
-  width: 15px;
-  height: 15px;
-}
-
-.hub-mock-list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--hub-text-secondary);
-  border-bottom: 1px solid var(--hub-border);
-}
-
-.hub-mock-branch-filter {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 500;
-  color: var(--hub-text-muted);
-}
-
-.hub-mock-branch-filter i {
-  width: 13px;
-  height: 13px;
-}
-
-.hub-mock-item-list {
-  flex: 1;
-  overflow-y: auto;
-  max-height: 400px;
-}
-
-.hub-mock-item-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 11px 16px;
-  border: none;
-  border-bottom: 1px solid var(--hub-border);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  font-family: inherit;
-  color: inherit;
-}
-
-.hub-mock-item-row:hover {
-  background: var(--hub-panel-2);
-}
-
-.hub-mock-item-row.active {
-  background: var(--hub-green-soft);
-  box-shadow: inset 2px 0 0 var(--hub-green);
-}
-
-.hub-mock-item-thumb {
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9px;
-  background: var(--hub-panel-2);
-  color: var(--hub-cyan);
-}
-
-.hub-mock-item-thumb i {
-  width: 16px;
-  height: 16px;
-}
-
-.hub-mock-item-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.hub-mock-item-info strong {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--hub-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hub-mock-item-info small {
-  font-size: 11px;
-  color: var(--hub-text-muted);
-}
-
-.hub-mock-item-status {
-  flex-shrink: 0;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.hub-mock-item-status.ok {
-  background: rgba(22, 230, 161, .14);
-  color: var(--hub-green);
-}
-
-.hub-mock-item-status.low {
-  background: rgba(245, 158, 11, .16);
-  color: #f59e0b;
-}
-
-.hub-mock-item-qty {
-  flex-shrink: 0;
-  width: 28px;
-  text-align: right;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--hub-text);
-}
-
-.hub-mock-empty {
-  padding: 24px 16px;
-  text-align: center;
-  color: var(--hub-text-muted);
-  font-size: 12.5px;
-}
-
-/* ---- Panel de detalle (Inventario) ---- */
-.hub-mock-detail {
-  padding: 18px 20px;
-  overflow-y: auto;
-  max-height: 460px;
-}
-
-.hub-mock-detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.hub-mock-detail-thumb {
-  width: 56px;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  background: var(--hub-panel-2);
-  color: var(--hub-cyan);
-}
-
-.hub-mock-detail-thumb i {
-  width: 26px;
-  height: 26px;
-}
-
-.hub-mock-detail h3 {
-  margin: 0 0 2px;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--hub-text);
-}
-
-.hub-mock-detail-sku {
-  margin: 0 0 10px;
-  font-size: 12px;
-  color: var(--hub-text-muted);
-}
-
-.hub-mock-detail-desc {
-  margin: 0 0 16px;
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--hub-text-secondary);
-}
-
-.hub-mock-metrics {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 18px;
-}
-
-.hub-mock-metrics div {
-  padding: 12px;
-  border-radius: 11px;
-  background: var(--hub-panel-2);
-  border: 1px solid var(--hub-border);
-}
-
-.hub-mock-metrics span {
-  display: block;
-  font-size: 10.5px;
-  color: var(--hub-text-muted);
-  margin-bottom: 4px;
-}
-
-.hub-mock-metrics strong {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--hub-text);
-}
-
-.hub-mock-metrics small {
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--hub-text-muted);
-}
-
-.hub-mock-detail-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.hub-mock-detail-section-header > span {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--hub-text-muted);
-}
-
-.hub-mock-edit-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 11px;
-  border-radius: 8px;
-  border: 1px solid var(--hub-border);
-  background: transparent;
-  color: var(--hub-text-secondary);
-  font-size: 11.5px;
-  cursor: default;
-}
-
-.hub-mock-edit-btn i {
-  width: 12px;
-  height: 12px;
-}
-
-.hub-mock-detail-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.hub-mock-detail-rows div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 12.5px;
-}
-
-.hub-mock-detail-rows span {
-  color: var(--hub-text-muted);
-}
-
-.hub-mock-detail-rows strong {
-  color: var(--hub-text);
-  font-weight: 600;
-  text-align: right;
-}
-
-/* ---- Vista previa Centro WhatsApp ---- */
-.hub-mock-conv-list {
-  border-right: 1px solid var(--hub-border);
-  overflow-y: auto;
-  max-height: 460px;
-}
-
-.hub-mock-conv-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--hub-border);
-  cursor: default;
-}
-
-.hub-mock-conv-row.active {
-  background: var(--hub-green-soft);
-}
-
-.hub-mock-conv-avatar {
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--hub-green-soft);
-  color: var(--hub-green);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.hub-mock-conv-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.hub-mock-conv-info strong {
-  font-size: 12.5px;
-  color: var(--hub-text);
-}
-
-.hub-mock-conv-info small {
-  font-size: 11px;
-  color: var(--hub-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hub-mock-conv-meta {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-
-.hub-mock-conv-meta small {
-  font-size: 10.5px;
-  color: var(--hub-text-muted);
-}
-
-.hub-mock-unread-badge {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--hub-green);
-  color: #06281d;
-  font-size: 10px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.hub-mock-chat {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.hub-mock-chat-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--hub-border);
-}
-
-.hub-mock-chat-header strong {
-  display: block;
-  font-size: 12.5px;
-  color: var(--hub-text);
-}
-
-.hub-mock-chat-header small {
-  font-size: 11px;
-  color: var(--hub-text-muted);
-}
-
-.hub-mock-chat-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px 18px;
-  overflow-y: auto;
-}
-
-.hub-mock-bubble {
-  max-width: 78%;
-  padding: 9px 13px;
-  border-radius: 14px;
-  font-size: 12.5px;
-  line-height: 1.45;
-}
-
-.hub-mock-bubble.in {
-  align-self: flex-start;
-  background: var(--hub-panel-2);
-  color: var(--hub-text);
-  border-bottom-left-radius: 4px;
-}
-
-.hub-mock-bubble.out {
-  align-self: flex-end;
-  background: var(--hub-green);
-  color: #06281d;
-  border-bottom-right-radius: 4px;
-}
-
-.hub-mock-order-card {
-  align-self: flex-start;
-  width: 78%;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--hub-panel-2);
-  border: 1px solid var(--hub-border);
-}
-
-.hub-mock-order-card-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--hub-text);
-  margin-bottom: 8px;
-}
-
-.hub-mock-order-card-title i {
-  width: 13px;
-  height: 13px;
-  color: var(--hub-green);
-}
-
-.hub-mock-order-card-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--hub-text-secondary);
-  margin-bottom: 4px;
-}
-
-.hub-mock-order-card-total {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--hub-text);
-  padding-top: 8px;
-  margin-top: 4px;
-  border-top: 1px solid var(--hub-border);
-}
-
-/* ---- Franja de beneficios ---- */
-.hub-feature-strip {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-}
-
-.hub-feature-strip[hidden] {
-  display: none !important;
-}
-
-.hub-feature-tile {
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
-  padding: 16px;
-  border-radius: 14px;
-  background: var(--hub-panel);
-  border: 1px solid var(--hub-border);
-}
-
-.hub-feature-icon {
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: var(--hub-green-soft);
-  color: var(--hub-green);
-}
-
-.hub-feature-icon i {
-  width: 16px;
-  height: 16px;
-}
-
-.hub-feature-tile strong {
-  display: block;
-  font-size: 12.5px;
-  color: var(--hub-text);
-  margin-bottom: 2px;
-}
-
-.hub-feature-tile p {
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--hub-text-muted);
-  line-height: 1.4;
-}
-
 /* ---- Firma institucional ---- */
 .hub-signature {
-  align-self: flex-end;
-  margin: 4px 6px 0 0;
-  font-size: 12.5px;
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 12px;
   font-style: italic;
   color: var(--hub-text-muted);
 }
 
 /* ============================================================================
-   RESPONSIVE
+   PANTALLAS CHICAS
+   El launcher ya es una sola columna centrada, así que en celular solo hay que apretar
+   los espacios y comprimir el encabezado a una fila.
    ============================================================================ */
-@media (max-width: 1280px) {
-  .hub-launcher {
-    grid-template-columns: minmax(300px, 34%) 1fr;
-    padding: 28px 24px 40px;
-    gap: 22px;
-  }
-}
-
-@media (max-width: 1024px) {
-  .hub-launcher {
-    grid-template-columns: 1fr;
-  }
-  .hub-launcher-left {
-    position: static;
-  }
-  .hub-preview-app {
-    grid-template-columns: 1fr 1fr;
-  }
-  .hub-mock-sidebar {
-    display: none;
-  }
-}
-
 @media (max-width: 720px) {
-  .hub-header { padding: 14px 16px; }
-  .hub-launcher { padding: 22px 16px 40px; gap: 20px; }
-  .hub-preview-app {
-    grid-template-columns: 1fr;
+  .hub-header { padding: 12px 14px; gap: 10px; flex-wrap: nowrap; }
+  .hub-header-brand { min-width: 0; }
+  .hub-header-brand img { max-height: 34px; }
+  .hub-header-titles { min-width: 0; }
+
+  .hub-header-titles .hub-title {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .hub-mock-items-col {
-    border-right: 0;
-    border-bottom: 1px solid var(--hub-border);
-  }
-  .hub-mock-conv-list {
-    border-right: 0;
-    border-bottom: 1px solid var(--hub-border);
-    max-height: 220px;
-  }
-  .hub-mock-item-list {
-    max-height: 260px;
-  }
-  .hub-mock-metrics {
-    grid-template-columns: 1fr 1fr;
-  }
-  .hub-feature-strip {
-    grid-template-columns: 1fr 1fr;
-  }
-  .hub-preview-header {
-    padding: 18px 18px;
-  }
-  .hub-cta {
-    width: 100%;
-    justify-content: center;
-  }
+
+  .hub-header-titles .hub-subtitle { display: none; }
+
+  .hub-header-actions { gap: 7px; flex-wrap: nowrap; }
+  /* Solo el bloque de nombre y rol: el avatar es el otro div hijo directo y se queda. */
+  .hub-header-actions .user-profile > div:not(.profile-avatar) { display: none; }
+  .hub-header-actions .user-profile { padding: 4px; gap: 0; }
+  .hub-logout-btn { padding: 9px 11px; }
+  .hub-logout-btn span { display: none; }
+
+  .hub-launcher { padding: 20px 16px 36px; gap: 20px; }
+  .hub-intro h1 { font-size: 22px; }
+  .hub-system-card { padding: 15px; gap: 12px; }
+  .hub-institutional-card { padding: 18px; }
 }
 
 @media (max-width: 480px) {
-  .hub-feature-strip {
-    grid-template-columns: 1fr;
-  }
-  .hub-mock-metrics {
-    grid-template-columns: 1fr;
-  }
+  .hub-system-title-row { flex-wrap: wrap; }
+  .hub-system-tags { gap: 5px; }
 }

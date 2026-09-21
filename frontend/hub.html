@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=2.9.2">
-  <link rel="stylesheet" href="css/hub.css?v=2.0.0">
+  <link rel="stylesheet" href="css/hub.css?v=3.0.0">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -111,52 +111,29 @@
     </header>
 
     <main class="hub-launcher">
-      <section class="hub-launcher-left">
-        <div class="hub-intro">
-          <span class="hub-eyebrow">Bienvenido al sistema</span>
-          <h1>¿A qué sistema querés entrar?</h1>
-          <p>Elegí un sistema para continuar.</p>
-        </div>
+      <div class="hub-intro">
+        <span class="hub-eyebrow">Bienvenido al sistema</span>
+        <h1>¿A qué sistema querés entrar?</h1>
+        <p>Tocá un sistema para entrar.</p>
+      </div>
 
-        <div class="hub-system-list" id="systemList"><!-- Renderizado por hub.js desde SYSTEMS --></div>
+      <div class="hub-system-list" id="systemList"><!-- Renderizado por hub.js desde SYSTEMS --></div>
 
-        <div class="hub-institutional-card">
-          <svg class="hub-institutional-swoosh" viewBox="0 0 220 40" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M0 30 C 40 5, 80 35, 120 15 S 200 5, 220 20" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-          <p class="hub-institutional-title">Gestión integrada<br>para un mejor negocio.</p>
-          <p class="hub-institutional-sub">Tres sistemas, un mismo propósito.</p>
-        </div>
-      </section>
+      <div class="hub-institutional-card">
+        <svg class="hub-institutional-swoosh" viewBox="0 0 220 40" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0 30 C 40 5, 80 35, 120 15 S 200 5, 220 20" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <p class="hub-institutional-title">Gestión integrada<br>para un mejor negocio.</p>
+        <p class="hub-institutional-sub">Tres sistemas, un mismo propósito.</p>
+      </div>
 
-      <section class="hub-launcher-right">
-        <div class="hub-preview-card">
-          <div class="hub-preview-header">
-            <div class="hub-preview-header-title">
-              <span class="hub-preview-icon" id="previewIcon"><i data-lucide="package"></i></span>
-              <div>
-                <h2 id="previewTitle">Vista previa</h2>
-                <p id="previewSubtitle">Elegí un sistema para ver el detalle.</p>
-              </div>
-            </div>
-            <button type="button" class="hub-cta" id="btnEnterSystem">
-              <span id="btnEnterSystemLabel">Entrar al sistema</span>
-              <i data-lucide="arrow-right"></i>
-            </button>
-          </div>
-          <div class="hub-preview-body" id="previewBody"><!-- Renderizado por hub.js según el sistema elegido --></div>
-        </div>
-
-        <div class="hub-feature-strip" id="featureStrip"><!-- Renderizado por hub.js --></div>
-
-        <p class="hub-signature">Tu crecimiento, nuestro compromiso.</p>
-      </section>
+      <p class="hub-signature">Tu crecimiento, nuestro compromiso.</p>
     </main>
   </div>
 
   <script src="js/utils.js?v=3.5.0"></script>
   <script src="js/api.js?v=3.5.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/modules/hub.js?v=2.0.0"></script>
+  <script src="js/modules/hub.js?v=3.0.0"></script>
 </body>
 </html>

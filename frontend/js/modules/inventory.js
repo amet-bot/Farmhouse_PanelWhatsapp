@@ -1,15 +1,14 @@
 /**
  * Farmhouse - Inventario y Abastecimiento
  *
- * La página real calca la vista previa del Panel General (ver hub.js → renderInventoryPreview*):
- * rail de navegación + columna de lista + panel de detalle. Cuatro vistas reales sobre los
+ * Rail de navegación + columna de lista + panel de detalle, con cuatro vistas reales sobre los
  * endpoints que ya existen — Resumen, Cargamentos, Insumos y Proveedores. Merma, Gasto por
  * sucursal, Lotes y Reportes siguen siendo "Próximamente" en el rail, sin vista propia.
  *
  * Nada de stock acá: el backend solo registra ENTRADAS (Shipment), así que la página nunca habla
- * de existencias ni de "bajo stock" — eso lo promete la vista previa del hub con datos mock y
- * necesita salidas (Merma) para ser cierto. Lo que sí se puede decir con lo que hay es cuánto
- * entró, cuándo, de quién y a qué costo; sobre eso se arman las métricas.
+ * de existencias ni de "bajo stock" — para eso hacen falta salidas, o sea Merma. Lo que sí se
+ * puede decir con lo que hay es cuánto entró, cuándo, de quién y a qué costo; sobre eso se arman
+ * las métricas.
  *
  * Dos conjuntos de datos, a propósito:
  *   · state.shipments  — la lista paginada de la vista Cargamentos. Respeta el filtro de
@@ -72,6 +71,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const esc = (v) => utils.escapeHtml(v);
+
+  // ==========================================================================
+  // Maestro-detalle en celular
+  // En pantalla ancha la lista y el detalle conviven lado a lado. En celular no caben: el
+  // detalle quedaba debajo de toda la lista, fuera de la pantalla, y tocar una fila no parecía
+  // hacer nada. Acá la lista y el detalle pasan a ser dos pantallas que se turnan (la clase
+  // `is-detail` sobre el .inv-workspace decide cuál se ve) y el detalle abre con "Volver".
+  // ==========================================================================
+  const isMobileLayout = () => window.matchMedia('(max-width: 900px)').matches;
+
+  const detailBackHtml = () => `
+    <button type="button" class="inv-detail-back">
+      <i data-lucide="arrow-left"></i> Volver a la lista
+    </button>`;
+
+  function openDetailOnMobile(fromEl) {
+    if (!isMobileLayout()) return;
+    fromEl.closest('.inv-workspace')?.classList.add('is-detail');
+    window.scrollTo({ top: 0 });
+  }
+
+  function closeAllMobileDetails() {
+    document.querySelectorAll('.inv-workspace.is-detail').forEach((ws) => ws.classList.remove('is-detail'));
+  }
+
+  document.addEventListener('click', (e) => {
+    const back = e.target.closest('.inv-detail-back');
+    if (!back) return;
+    back.closest('.inv-workspace')?.classList.remove('is-detail');
+    window.scrollTo({ top: 0 });
+  });
+
+  // Al volver a pantalla ancha, lista y detalle vuelven a convivir: la clase ya no aplica.
+  window.matchMedia('(max-width: 900px)').addEventListener('change', (ev) => {
+    if (!ev.matches) closeAllMobileDetails();
+  });
 
   const emptyStateHtml = (icon, title, text) => `
     <div class="inv-empty">
@@ -170,6 +205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function setView(view) {
     if (!VIEWS[view]) return;
     state.view = view;
+    closeAllMobileDetails();
     Object.entries(VIEWS).forEach(([key, id]) => { $(id).hidden = key !== view; });
     document.querySelectorAll('#invNav .inv-nav-item').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.view === view);
@@ -431,6 +467,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.selected.shipment = Number(row.dataset.shipmentId);
         setView('cargamentos');
         renderShipmentList();
+        openDetailOnMobile(document.getElementById('shipmentList'));
       });
     });
     utils.renderIcons();
@@ -500,6 +537,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       row.addEventListener('click', () => {
         state.selected.shipment = Number(row.dataset.shipmentId);
         renderShipmentList();
+        // `row` ya quedó desprendido del DOM al re-renderizar la lista: closest() sobre él
+        // devuelve null. Se usa el contenedor, que sigue vivo dentro del .inv-workspace.
+        openDetailOnMobile($('shipmentList'));
       });
     });
 
@@ -521,22 +561,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       const subtotal = l.unit_cost != null ? money(Number(l.quantity) * Number(l.unit_cost)) : '—';
       return `
         <tr>
-          <td>${esc(l.item_name)}</td>
-          <td class="num">${esc(qty(l.quantity))} ${esc(l.unit)}</td>
-          <td class="num">${l.unit_cost != null ? money(l.unit_cost) : '—'}</td>
-          <td class="num">${subtotal}</td>
+          <td class="inv-td-name" data-label="Insumo">${esc(l.item_name)}</td>
+          <td class="num" data-label="Cantidad">${esc(qty(l.quantity))} ${esc(l.unit)}</td>
+          <td class="num" data-label="Costo unit.">${l.unit_cost != null ? money(l.unit_cost) : '—'}</td>
+          <td class="num" data-label="Subtotal">${subtotal}</td>
         </tr>`;
     }).join('');
 
     const footHtml = s.total_cost != null ? `
       <tfoot>
         <tr>
-          <td colspan="3">Total</td>
-          <td class="num">${money(s.total_cost)}</td>
+          <td colspan="3" class="inv-td-total-label">Total</td>
+          <td class="num" data-label="Total">${money(s.total_cost)}</td>
         </tr>
       </tfoot>` : '';
 
     detail.innerHTML = `
+      ${detailBackHtml()}
       <div class="inv-detail-header">
         <span class="inv-detail-thumb"><i data-lucide="truck"></i></span>
         <span class="inv-badge ok">Cargamento #${s.id}</span>
@@ -631,6 +672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       row.addEventListener('click', () => {
         state.selected.item = Number(row.dataset.itemId);
         renderItemList();
+        openDetailOnMobile($('itemList'));
       });
     });
 
@@ -653,6 +695,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const branches = Array.from(stats.branches);
 
     detail.innerHTML = `
+      ${detailBackHtml()}
       <div class="inv-detail-header">
         <span class="inv-detail-thumb"><i data-lucide="package"></i></span>
         ${stats.shipments ? '<span class="inv-badge ok">Recibido</span>' : '<span class="inv-badge warn">Sin registros</span>'}
@@ -726,6 +769,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       row.addEventListener('click', () => {
         state.selected.supplier = Number(row.dataset.supplierId);
         renderSupplierList();
+        openDetailOnMobile($('supplierList'));
       });
     });
 
@@ -747,6 +791,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const items = Array.from(stats.items);
 
     detail.innerHTML = `
+      ${detailBackHtml()}
       <div class="inv-detail-header">
         <span class="inv-detail-thumb"><i data-lucide="building-2"></i></span>
         ${sup.active ? '<span class="inv-badge ok">Activo</span>' : '<span class="inv-badge muted">Inactivo</span>'}
