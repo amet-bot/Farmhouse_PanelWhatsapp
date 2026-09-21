@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventario y Abastecimiento</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=2.9.2">
+  <link rel="stylesheet" href="css/inventory.css?v=1.0.1">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <div class="inv-gate" id="invGate">
+    <p>Verificando sesión...</p>
+  </div>
+
+  <div class="inv-wrap" id="invMain" hidden>
+    <header class="inv-header">
+      <a class="inv-back" href="/hub" title="Volver al Panel General">
+        <i data-lucide="arrow-left"></i>
+        <span>Panel General</span>
+      </a>
+      <div class="inv-header-titles">
+        <p class="inv-title">Inventario y Abastecimiento</p>
+        <span class="inv-subtitle">Cargamentos por sucursal</span>
+      </div>
+      <div class="inv-header-actions">
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="invAgentAvatar">AD</div>
+          <div>
+            <strong id="invAgentName">Administrador</strong>
+            <small id="invAgentRole">ADMIN</small>
+          </div>
+        </div>
+        <button class="inv-logout-btn" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="inv-main">
+      <div class="inv-pronto-row">
+        <span class="inv-pronto-pill">Merma <b>Pronto</b></span>
+        <span class="inv-pronto-pill">Gasto por sucursal <b>Pronto</b></span>
+      </div>
+
+      <section class="inv-card">
+        <h2 class="inv-card-title">Registrar cargamento</h2>
+
+        <div class="inv-field-row">
+          <div class="inv-field">
+            <label class="modal-label">Sucursal</label>
+            <div id="branchFixedBadge" class="inv-branch-badge" hidden></div>
+            <select id="branchSelect" class="modal-input" hidden></select>
+          </div>
+          <div class="inv-field">
+            <label class="modal-label" for="supplierInput">Proveedor (opcional)</label>
+            <input type="text" id="supplierInput" class="modal-input" placeholder="Distribuidora...">
+          </div>
+        </div>
+
+        <div class="inv-field">
+          <label class="modal-label" for="notesInput">Notas (opcional)</label>
+          <textarea id="notesInput" class="modal-input" rows="2" placeholder="Observaciones del cargamento..."></textarea>
+        </div>
+
+        <div id="shipmentError" class="login-error-box" style="display:none"></div>
+        <div id="shipmentFeedback" class="inv-feedback-box" style="display:none"></div>
+
+        <div class="inv-lines" id="shipmentLines"></div>
+
+        <button type="button" class="inv-add-line-btn" id="btnAddLine">
+          <i data-lucide="plus"></i> Agregar insumo
+        </button>
+
+        <div class="inv-submit-row">
+          <button type="button" class="btn-primary" id="btnSubmitShipment">Registrar cargamento</button>
+        </div>
+      </section>
+
+      <section class="inv-card">
+        <h2 class="inv-card-title">Historial de cargamentos</h2>
+        <div id="shipmentsHistoryEmpty" class="inv-empty" hidden>Todavía no hay cargamentos registrados.</div>
+        <div class="inv-table-wrap">
+          <table class="inv-table" id="shipmentsTable" hidden>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th id="colBranch" hidden>Sucursal</th>
+                <th>Proveedor</th>
+                <th>Ítems</th>
+                <th>Total</th>
+                <th>Registrado por</th>
+              </tr>
+            </thead>
+            <tbody id="shipmentsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Plantilla de una fila de línea de cargamento (item + cantidad + costo + quitar) -->
+  <template id="shipmentLineTemplate">
+    <div class="inv-line-row">
+      <div class="inv-line-item">
+        <input type="text" class="modal-input inv-item-input" placeholder="Buscar o crear insumo..." autocomplete="off">
+        <div class="inv-item-suggestions" hidden></div>
+        <small class="inv-line-unit"></small>
+      </div>
+      <input type="number" class="modal-input inv-line-qty" placeholder="Cantidad" min="0" step="0.001">
+      <input type="number" class="modal-input inv-line-cost" placeholder="Costo unit. (opcional)" min="0" step="0.01">
+      <button type="button" class="inv-line-remove" title="Quitar" aria-label="Quitar insumo">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+  </template>
+
+  <script src="js/utils.js?v=3.5.0"></script>
+  <script src="js/api.js?v=3.5.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/modules/inventory.js?v=1.0.0"></script>
+</body>
+</html>

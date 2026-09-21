@@ -1,0 +1,384 @@
+/* ============================================================================
+   FARMHOUSE - INVENTARIO Y ABASTECIMIENTO (CARGAMENTOS)
+   Se apoya en las variables de tema/color de style.css, igual que hub.css. Ojo con [hidden]:
+   ningún selector acá define `display` sobre .inv-wrap / #invGate / .inv-item-suggestions, para
+   no repetir el bug de especificidad ya visto con Tilopay y con el login del hub.
+   ============================================================================ */
+
+body {
+  margin: 0;
+  background: var(--bg-primary);
+  font-family: 'Inter', sans-serif;
+  color: var(--text-primary);
+}
+
+.inv-gate {
+  padding: 60px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ---- Encabezado ---- */
+.inv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 18px 28px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.inv-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.inv-back:hover,
+.inv-back:focus-visible {
+  background: var(--panel-subtle);
+  outline: none;
+}
+
+.inv-back i {
+  width: 16px;
+  height: 16px;
+}
+
+.inv-header-titles {
+  flex: 1;
+  min-width: 160px;
+}
+
+.inv-header-titles .inv-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.inv-header-titles .inv-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.inv-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.inv-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.inv-logout-btn:hover,
+.inv-logout-btn:focus-visible {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+  outline: none;
+}
+
+.inv-logout-btn i {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---- Contenido principal ---- */
+.inv-main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.inv-pronto-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.inv-pronto-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--panel-subtle);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.inv-pronto-pill b {
+  color: var(--text-secondary);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.inv-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.inv-card-title {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.inv-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.inv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.inv-field-row .inv-field {
+  margin-bottom: 0;
+}
+
+.inv-branch-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--green-soft);
+  color: var(--green-soft-text);
+  font-weight: 600;
+  font-size: 14px;
+  width: fit-content;
+}
+
+/* Mismo bug de especificidad [hidden] ya visto con Tilopay y el login del hub: display:inline-flex
+   le gana al [hidden] nativo si no se lo overridea explícito. */
+.inv-branch-badge[hidden] {
+  display: none !important;
+}
+
+.inv-feedback-box {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--green-soft);
+  color: var(--green-soft-text);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+/* ---- Líneas de cargamento ---- */
+.inv-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 12px;
+}
+
+.inv-line-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.inv-line-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inv-line-unit {
+  color: var(--text-muted);
+  font-size: 11px;
+  min-height: 14px;
+}
+
+.inv-item-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  z-index: 20;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.inv-item-suggestion {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.inv-item-suggestion:last-child {
+  border-bottom: 0;
+}
+
+.inv-item-suggestion:hover,
+.inv-item-suggestion:focus-visible {
+  background: var(--green-soft);
+}
+
+.inv-item-suggestion small {
+  color: var(--text-muted);
+}
+
+.inv-item-suggestion-create {
+  color: var(--green-dark);
+  font-weight: 600;
+}
+
+.inv-line-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-top: 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.inv-line-remove:hover,
+.inv-line-remove:focus-visible {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+  outline: none;
+}
+
+.inv-line-remove i {
+  width: 16px;
+  height: 16px;
+}
+
+.inv-add-line-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--green-dark);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.inv-add-line-btn:hover,
+.inv-add-line-btn:focus-visible {
+  background: var(--green-soft);
+  border-color: var(--green-border);
+  outline: none;
+}
+
+.inv-add-line-btn i {
+  width: 15px;
+  height: 15px;
+}
+
+.inv-submit-row {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.inv-submit-row .btn-primary {
+  min-width: 220px;
+}
+
+/* ---- Historial ---- */
+.inv-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.inv-table-wrap {
+  overflow-x: auto;
+}
+
+.inv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.inv-table th {
+  text-align: left;
+  padding: 8px 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--line);
+}
+
+.inv-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line-light);
+  vertical-align: top;
+}
+
+.inv-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .inv-header { padding: 14px 16px; }
+  .inv-main { padding: 24px 16px 48px; }
+  .inv-field-row { grid-template-columns: 1fr; }
+  .inv-line-row { grid-template-columns: 1fr; }
+  .inv-line-remove { justify-self: flex-end; width: auto; padding: 0 10px; }
+}

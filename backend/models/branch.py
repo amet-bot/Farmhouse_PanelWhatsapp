@@ -25,3 +25,4 @@ class Branch(Base):
     devices = relationship("Device", back_populates="branch")
     conversations = relationship("Conversation", back_populates="branch")
     orders = relationship("Order", back_populates="branch")
+    shipments = relationship("Shipment", back_populates="branch")
