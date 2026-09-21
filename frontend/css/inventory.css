@@ -151,6 +151,43 @@ body {
   margin: 0 0 16px;
   font-size: 16px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inv-card-title i {
+  width: 18px;
+  height: 18px;
+  color: var(--green-dark);
+}
+
+.inv-card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.inv-card-header-row .inv-card-title {
+  margin-bottom: 0;
+}
+
+.inv-count-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--panel-subtle);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.inv-count-pill[hidden] {
+  display: none !important;
 }
 
 .inv-field-row {
@@ -158,6 +195,10 @@ body {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   margin-bottom: 16px;
+}
+
+.inv-supplier-wrap {
+  position: relative;
 }
 
 .inv-field {
@@ -373,6 +414,26 @@ body {
 
 .inv-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.inv-table tbody tr {
+  transition: background 0.1s ease;
+}
+
+.inv-table tbody tr:hover {
+  background: var(--panel-subtle);
+}
+
+.inv-th-right {
+  text-align: right;
+}
+
+.inv-total-cell {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--green-dark);
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {

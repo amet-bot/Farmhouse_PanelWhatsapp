@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const branchFixedBadge = document.getElementById('branchFixedBadge');
   const branchSelect = document.getElementById('branchSelect');
   const supplierInput = document.getElementById('supplierInput');
+  const supplierSuggestions = document.getElementById('supplierSuggestions');
   const notesInput = document.getElementById('notesInput');
   const linesContainer = document.getElementById('shipmentLines');
   const btnAddLine = document.getElementById('btnAddLine');
@@ -26,9 +27,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const shipmentsTable = document.getElementById('shipmentsTable');
   const shipmentsTableBody = document.getElementById('shipmentsTableBody');
   const shipmentsHistoryEmpty = document.getElementById('shipmentsHistoryEmpty');
+  const shipmentsCount = document.getElementById('shipmentsCount');
 
   let fixedBranchId = null;
   let isGlobalScope = false;
+  let selectedSupplierId = '';
 
   // ---- Tema ----
   function applyTheme(theme) {
@@ -165,8 +168,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Un solo listener delegado para cerrar sugerencias al hacer clic afuera (en vez de uno por fila).
   document.addEventListener('click', (e) => {
     document.querySelectorAll('.inv-item-suggestions').forEach((box) => {
-      const row = box.closest('.inv-line-row');
-      if (row && !row.contains(e.target)) {
+      const container = box.closest('.inv-line-row') || box.closest('.inv-supplier-wrap');
+      if (container && !container.contains(e.target)) {
         box.hidden = true;
         box.innerHTML = '';
       }
@@ -175,8 +178,73 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   btnAddLine?.addEventListener('click', () => createLineRow());
 
+  // ---- Autocomplete de proveedor (calcado del de ítems, pero a nivel de página: solo hay un
+  // proveedor por cargamento, no una fila por línea) ----
+  function hideSupplierSuggestions() {
+    supplierSuggestions.hidden = true;
+    supplierSuggestions.innerHTML = '';
+  }
+
+  function selectSupplier(supplier) {
+    supplierInput.value = supplier.name;
+    selectedSupplierId = String(supplier.id);
+    hideSupplierSuggestions();
+  }
+
+  function renderSupplierSuggestions(results, query) {
+    const trimmed = query.trim();
+    const exactMatch = results.some((r) => r.name.trim().toLowerCase() === trimmed.toLowerCase());
+    let html = results.map((r, i) =>
+      `<button type="button" class="inv-item-suggestion" data-idx="${i}">${utils.escapeHtml(r.name)}</button>`
+    ).join('');
+    if (!exactMatch) {
+      html += `<button type="button" class="inv-item-suggestion inv-item-suggestion-create" data-create="1">+ Crear "${utils.escapeHtml(trimmed)}"</button>`;
+    }
+    supplierSuggestions.innerHTML = html;
+    supplierSuggestions.hidden = false;
+    supplierSuggestions.querySelectorAll('.inv-item-suggestion').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (btn.dataset.create) {
+          try {
+            const created = await api.post('/inventory/suppliers', { name: trimmed });
+            selectSupplier(created);
+          } catch (err) {
+            showError(err.message || 'No se pudo crear el proveedor.');
+          }
+          return;
+        }
+        selectSupplier(results[Number(btn.dataset.idx)]);
+      });
+    });
+  }
+
+  let supplierReqId = 0;
+  async function fetchSupplierSuggestions(query) {
+    if (!query || query.trim().length < 3) { hideSupplierSuggestions(); return; }
+    const reqId = ++supplierReqId;
+    try {
+      const results = await api.get(`/inventory/suppliers?q=${encodeURIComponent(query.trim())}`);
+      if (reqId !== supplierReqId) return;
+      renderSupplierSuggestions(results, query);
+    } catch (err) {
+      if (reqId === supplierReqId) hideSupplierSuggestions();
+    }
+  }
+
+  let supplierDebounce;
+  supplierInput?.addEventListener('input', () => {
+    selectedSupplierId = '';
+    clearTimeout(supplierDebounce);
+    const query = supplierInput.value;
+    supplierDebounce = setTimeout(() => fetchSupplierSuggestions(query), 350);
+  });
+  supplierInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideSupplierSuggestions();
+  });
+
   function resetForm() {
     supplierInput.value = '';
+    selectedSupplierId = '';
     notesInput.value = '';
     linesContainer.innerHTML = '';
     createLineRow();
@@ -234,12 +302,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (!items.length) { showError('Agrega al menos un ítem.'); return; }
 
+    const supplierText = supplierInput.value.trim();
+    if (supplierText && !selectedSupplierId) {
+      showError('Elegí un proveedor de la lista (o creá uno nuevo), o dejá el campo vacío.');
+      return;
+    }
+
     btnSubmitShipment.disabled = true;
     btnSubmitShipment.textContent = 'Registrando...';
     try {
       await api.post('/inventory/shipments', {
         branch_id: branchId,
-        supplier: supplierInput.value.trim() || null,
+        supplier_id: selectedSupplierId ? Number(selectedSupplierId) : null,
         notes: notesInput.value.trim() || null,
         items,
       });
@@ -268,10 +342,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!shipments.length) {
       shipmentsHistoryEmpty.hidden = false;
       shipmentsTable.hidden = true;
+      shipmentsCount.hidden = true;
       return;
     }
     shipmentsHistoryEmpty.hidden = true;
     shipmentsTable.hidden = false;
+    shipmentsCount.hidden = false;
+    shipmentsCount.textContent = shipments.length === 1 ? '1 cargamento' : `${shipments.length} cargamentos`;
     shipmentsTableBody.innerHTML = shipments.map((s) => {
       const itemsText = s.items.map((i) => `${i.item_name} (${Number(i.quantity)} ${i.unit})`).join(', ');
       const totalText = s.total_cost != null ? `$${Number(s.total_cost).toFixed(2)}` : '—';
@@ -279,9 +356,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `<tr>
         <td>${utils.formatDateTime(s.received_at)}</td>
         ${branchCell}
-        <td>${utils.escapeHtml(s.supplier || '—')}</td>
+        <td>${utils.escapeHtml(s.supplier_name || '—')}</td>
         <td>${utils.escapeHtml(itemsText)}</td>
-        <td>${totalText}</td>
+        <td class="inv-total-cell">${totalText}</td>
         <td>${utils.escapeHtml(s.received_by_name)}</td>
       </tr>`;
     }).join('');

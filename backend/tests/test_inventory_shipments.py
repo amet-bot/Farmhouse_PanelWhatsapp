@@ -11,6 +11,34 @@ def _create_item(client, headers, name, unit="kg", category="Insumo"):
     return res.json()
 
 
+def _create_supplier(client, headers, name, phone=None):
+    res = client.post(
+        "/api/inventory/suppliers",
+        json={"name": name, "phone": phone},
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+    return res.json()
+
+
+def test_create_supplier_and_autocomplete_finds_it(client, clayton_agent, clayton_device):
+    headers = auth_headers_for(clayton_agent, clayton_device.device_id)
+    supplier = _create_supplier(client, headers, "Distribuidora ABC", phone="6000-0000")
+    assert supplier["name"] == "Distribuidora ABC"
+    assert supplier["phone"] == "6000-0000"
+
+    res = client.get("/api/inventory/suppliers?q=distrib", headers=headers)
+    assert res.status_code == 200
+    assert "Distribuidora ABC" in [s["name"] for s in res.json()]
+
+
+def test_creating_same_supplier_twice_returns_existing(client, clayton_agent, clayton_device):
+    headers = auth_headers_for(clayton_agent, clayton_device.device_id)
+    first = _create_supplier(client, headers, "Proveedor Uno")
+    second = _create_supplier(client, headers, "proveedor uno") # coincide sin importar mayúsculas
+    assert first["id"] == second["id"]
+
+
 def test_create_item_and_autocomplete_finds_it(client, clayton_agent, clayton_device):
     headers = auth_headers_for(clayton_agent, clayton_device.device_id)
     item = _create_item(client, headers, "Tomate")
@@ -32,12 +60,13 @@ def test_creating_same_item_twice_returns_existing(client, clayton_agent, clayto
 def test_agent_can_register_shipment_for_own_branch(client, clayton_branch, clayton_agent, clayton_device):
     headers = auth_headers_for(clayton_agent, clayton_device.device_id)
     item = _create_item(client, headers, "Pechuga de pollo", unit="lb")
+    supplier = _create_supplier(client, headers, "Distribuidora ABC")
 
     res = client.post(
         "/api/inventory/shipments",
         json={
             "branch_id": clayton_branch.id,
-            "supplier": "Distribuidora ABC",
+            "supplier_id": supplier["id"],
             "items": [{"inventory_item_id": item["id"], "quantity": "10", "unit_cost": "3.25"}],
         },
         headers=headers,
@@ -47,9 +76,44 @@ def test_agent_can_register_shipment_for_own_branch(client, clayton_branch, clay
     assert data["branch_id"] == clayton_branch.id
     assert data["branch_name"] == "Clayton"
     assert data["received_by_name"] == "Agente Clayton"
+    assert data["supplier_id"] == supplier["id"]
+    assert data["supplier_name"] == "Distribuidora ABC"
     assert len(data["items"]) == 1
     assert data["items"][0]["item_name"] == "Pechuga de pollo"
     assert data["total_cost"] == "32.50"
+
+
+def test_shipment_without_supplier_is_allowed(client, clayton_branch, clayton_agent, clayton_device):
+    headers = auth_headers_for(clayton_agent, clayton_device.device_id)
+    item = _create_item(client, headers, "Papel toalla", unit="unidad")
+
+    res = client.post(
+        "/api/inventory/shipments",
+        json={
+            "branch_id": clayton_branch.id,
+            "items": [{"inventory_item_id": item["id"], "quantity": "5"}],
+        },
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+    assert res.json()["supplier_id"] is None
+    assert res.json()["supplier_name"] is None
+
+
+def test_shipment_with_unknown_supplier_id_fails(client, clayton_branch, clayton_agent, clayton_device):
+    headers = auth_headers_for(clayton_agent, clayton_device.device_id)
+    item = _create_item(client, headers, "Servilletas", unit="unidad")
+
+    res = client.post(
+        "/api/inventory/shipments",
+        json={
+            "branch_id": clayton_branch.id,
+            "supplier_id": 999999,
+            "items": [{"inventory_item_id": item["id"], "quantity": "1"}],
+        },
+        headers=headers,
+    )
+    assert res.status_code == 404
 
 
 def test_agent_cannot_register_shipment_for_other_branch(

@@ -9,6 +9,7 @@ from models.order import Order
 from models.push_subscription import PushSubscription
 from models.bot_flow import BotFlow
 from models.inventory_item import InventoryItem
+from models.supplier import Supplier
 from models.shipment import Shipment, ShipmentItem
 
-__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription", "BotFlow", "InventoryItem", "Shipment", "ShipmentItem"]
+__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription", "BotFlow", "InventoryItem", "Supplier", "Shipment", "ShipmentItem"]

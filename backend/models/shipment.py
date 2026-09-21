@@ -15,12 +15,13 @@ class Shipment(Base):
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
     received_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     received_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    supplier = Column(String(150), nullable=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     branch = relationship("Branch", back_populates="shipments")
     received_by_user = relationship("User", foreign_keys=[received_by_user_id])
+    supplier = relationship("Supplier", back_populates="shipments")
     items = relationship("ShipmentItem", back_populates="shipment", cascade="all, delete-orphan")
 
 

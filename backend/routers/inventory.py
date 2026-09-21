@@ -9,10 +9,12 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models.inventory_item import InventoryItem
+from models.supplier import Supplier
 from models.shipment import Shipment, ShipmentItem
 from models.user import User
 from schemas.inventory import (
     InventoryItemCreate, InventoryItemResponse,
+    SupplierCreate, SupplierResponse,
     ShipmentCreate, ShipmentResponse, ShipmentItemResponse,
 )
 from security.auth import get_current_authorized_user
@@ -46,7 +48,8 @@ def _serialize_shipment(shipment: Shipment) -> ShipmentResponse:
         received_by_user_id=shipment.received_by_user_id,
         received_by_name=shipment.received_by_user.name,
         received_at=shipment.received_at,
-        supplier=shipment.supplier,
+        supplier_id=shipment.supplier_id,
+        supplier_name=(shipment.supplier.name if shipment.supplier else None),
         notes=shipment.notes,
         created_at=shipment.created_at,
         items=items,
@@ -98,6 +101,46 @@ def create_inventory_item(
     return item
 
 
+@router.get("/suppliers", response_model=List[SupplierResponse])
+def search_suppliers(
+    q: str = Query("", max_length=150),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """Autocomplete del catálogo de proveedores (calcado de search_inventory_items)."""
+    query = db.query(Supplier).filter(Supplier.active == True)
+    q = q.strip()
+    if q:
+        query = query.filter(Supplier.name.ilike(f"%{q}%"))
+    return query.order_by(Supplier.name.asc()).limit(8).all()
+
+
+@router.post("/suppliers", response_model=SupplierResponse, status_code=status.HTTP_201_CREATED)
+def create_supplier(
+    supplier_in: SupplierCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """Cualquier usuario logueado puede crear un proveedor nuevo (calcado de create_inventory_item)."""
+    name = supplier_in.name.strip()
+    existing = db.query(Supplier).filter(Supplier.name.ilike(name)).first()
+    if existing:
+        return existing
+
+    supplier = Supplier(name=name, phone=(supplier_in.phone or None))
+    db.add(supplier)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing = db.query(Supplier).filter(Supplier.name.ilike(name)).first()
+        if existing:
+            return existing
+        raise
+    db.refresh(supplier)
+    return supplier
+
+
 @router.post("/shipments", response_model=ShipmentResponse, status_code=status.HTTP_201_CREATED)
 def create_shipment(
     shipment_in: ShipmentCreate,
@@ -112,6 +155,14 @@ def create_shipment(
 
     check_target_branch_valid(db, shipment_in.branch_id)
 
+    if shipment_in.supplier_id is not None:
+        supplier = db.query(Supplier).filter(Supplier.id == shipment_in.supplier_id).first()
+        if not supplier:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="El proveedor seleccionado no existe."
+            )
+
     item_ids = [line.inventory_item_id for line in shipment_in.items]
     found_items = db.query(InventoryItem).filter(InventoryItem.id.in_(item_ids)).all()
     missing = set(item_ids) - {i.id for i in found_items}
@@ -125,7 +176,7 @@ def create_shipment(
         branch_id=shipment_in.branch_id,
         received_by_user_id=current_user.id,
         received_at=shipment_in.received_at or datetime.now(timezone.utc),
-        supplier=(shipment_in.supplier or None),
+        supplier_id=shipment_in.supplier_id,
         notes=(shipment_in.notes or None),
     )
     for line in shipment_in.items:

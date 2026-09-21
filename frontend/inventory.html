@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=2.9.2">
-  <link rel="stylesheet" href="css/inventory.css?v=1.0.1">
+  <link rel="stylesheet" href="css/inventory.css?v=1.1.0">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -57,7 +57,7 @@
       </div>
 
       <section class="inv-card">
-        <h2 class="inv-card-title">Registrar cargamento</h2>
+        <h2 class="inv-card-title"><i data-lucide="truck"></i> Registrar cargamento</h2>
 
         <div class="inv-field-row">
           <div class="inv-field">
@@ -67,7 +67,10 @@
           </div>
           <div class="inv-field">
             <label class="modal-label" for="supplierInput">Proveedor (opcional)</label>
-            <input type="text" id="supplierInput" class="modal-input" placeholder="Distribuidora...">
+            <div class="inv-supplier-wrap">
+              <input type="text" id="supplierInput" class="modal-input" placeholder="Buscar o crear proveedor..." autocomplete="off">
+              <div id="supplierSuggestions" class="inv-item-suggestions" hidden></div>
+            </div>
           </div>
         </div>
 
@@ -91,7 +94,10 @@
       </section>
 
       <section class="inv-card">
-        <h2 class="inv-card-title">Historial de cargamentos</h2>
+        <div class="inv-card-header-row">
+          <h2 class="inv-card-title"><i data-lucide="history"></i> Historial de cargamentos</h2>
+          <span class="inv-count-pill" id="shipmentsCount" hidden></span>
+        </div>
         <div id="shipmentsHistoryEmpty" class="inv-empty" hidden>Todavía no hay cargamentos registrados.</div>
         <div class="inv-table-wrap">
           <table class="inv-table" id="shipmentsTable" hidden>
@@ -101,7 +107,7 @@
                 <th id="colBranch" hidden>Sucursal</th>
                 <th>Proveedor</th>
                 <th>Ítems</th>
-                <th>Total</th>
+                <th class="inv-th-right">Total</th>
                 <th>Registrado por</th>
               </tr>
             </thead>
@@ -131,6 +137,6 @@
   <script src="js/utils.js?v=3.5.0"></script>
   <script src="js/api.js?v=3.5.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/modules/inventory.js?v=1.0.0"></script>
+  <script src="js/modules/inventory.js?v=1.1.0"></script>
 </body>
 </html>
