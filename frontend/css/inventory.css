@@ -1,21 +1,57 @@
 /* ============================================================================
    FARMHOUSE - INVENTARIO Y ABASTECIMIENTO (CARGAMENTOS)
-   Se apoya en las variables de tema/color de style.css, igual que hub.css. Ojo con [hidden]:
-   ningún selector acá define `display` sobre .inv-wrap / #invGate / .inv-item-suggestions, para
-   no repetir el bug de especificidad ya visto con Tilopay y con el login del hub.
+   Misma paleta premium --inv-* que usa el hub (hub.css) para el modo oscuro, así la página real
+   no se sienta "más simple" que la vista previa del Panel General. El modo claro reusa los tokens
+   ya existentes de style.css, igual que hace hub.css. Ojo con [hidden]: ningún selector acá
+   define `display` sobre .inv-wrap / #invGate / .inv-item-suggestions, para no repetir el bug de
+   especificidad ya visto con Tilopay y con el login del hub.
    ============================================================================ */
+
+:root, [data-theme="light"] {
+  --inv-bg: var(--bg-primary);
+  --inv-panel: var(--panel-bg);
+  --inv-panel-2: var(--panel-subtle);
+  --inv-border: var(--line);
+  --inv-border-light: var(--line-light);
+  --inv-text: var(--text-primary);
+  --inv-text-secondary: var(--text-secondary);
+  --inv-text-muted: var(--text-muted);
+  --inv-green: var(--green);
+  --inv-green-soft: var(--green-soft);
+  --inv-green-soft-text: var(--green-soft-text);
+  --inv-green-dark: var(--green-dark);
+  --inv-green-border: var(--green-border);
+  --inv-cyan: #0891b2;
+}
+
+[data-theme="dark"] {
+  --inv-bg: #07111F;
+  --inv-panel: #0C1728;
+  --inv-panel-2: #101D30;
+  --inv-border: rgba(100, 140, 190, .18);
+  --inv-border-light: rgba(100, 140, 190, .12);
+  --inv-text: #F5F7FB;
+  --inv-text-secondary: #8FA4C6;
+  --inv-text-muted: #6B84AC;
+  --inv-green: #16E6A1;
+  --inv-green-soft: rgba(22, 230, 161, .12);
+  --inv-green-soft-text: #16E6A1;
+  --inv-green-dark: #16E6A1;
+  --inv-green-border: rgba(22, 230, 161, .4);
+  --inv-cyan: #24C7FF;
+}
 
 body {
   margin: 0;
-  background: var(--bg-primary);
+  background: var(--inv-bg);
   font-family: 'Inter', sans-serif;
-  color: var(--text-primary);
+  color: var(--inv-text);
 }
 
 .inv-gate {
   padding: 60px 24px;
   text-align: center;
-  color: var(--text-muted);
+  color: var(--inv-text-muted);
   font-size: 14px;
 }
 
@@ -26,9 +62,9 @@ body {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
-  padding: 18px 28px;
-  background: var(--panel-bg);
-  border-bottom: 1px solid var(--line);
+  padding: 20px 32px;
+  background: var(--inv-panel);
+  border-bottom: 1px solid var(--inv-border);
 }
 
 .inv-back {
@@ -36,7 +72,7 @@ body {
   align-items: center;
   gap: 6px;
   text-decoration: none;
-  color: var(--text-secondary);
+  color: var(--inv-text-secondary);
   font-size: 13px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
@@ -45,7 +81,7 @@ body {
 
 .inv-back:hover,
 .inv-back:focus-visible {
-  background: var(--panel-subtle);
+  background: var(--inv-panel-2);
   outline: none;
 }
 
@@ -63,11 +99,12 @@ body {
   margin: 0;
   font-size: 15px;
   font-weight: 800;
+  color: var(--inv-text);
 }
 
 .inv-header-titles .inv-subtitle {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--inv-text-muted);
 }
 
 .inv-header-actions {
@@ -77,15 +114,23 @@ body {
   flex-wrap: wrap;
 }
 
+.inv-header-actions .theme-toggle-btn,
+.inv-header-actions .user-profile {
+  border: 1px solid var(--inv-border);
+  border-radius: 999px;
+  background: var(--inv-panel-2);
+  color: var(--inv-text);
+}
+
 .inv-logout-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text-secondary);
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--inv-border);
+  background: var(--inv-panel-2);
+  color: var(--inv-text-secondary);
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -126,48 +171,61 @@ body {
   gap: 5px;
   padding: 5px 12px;
   border-radius: 999px;
-  background: var(--panel-subtle);
-  border: 1px solid var(--line);
-  color: var(--text-muted);
+  background: var(--inv-panel-2);
+  border: 1px solid var(--inv-border);
+  color: var(--inv-text-muted);
   font-size: 12px;
 }
 
 .inv-pronto-pill b {
-  color: var(--text-secondary);
+  color: var(--inv-cyan);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .inv-card {
-  background: var(--panel-bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 24px;
+  background: var(--inv-panel);
+  border: 1px solid var(--inv-border);
+  border-radius: 20px;
+  padding: 26px;
   box-shadow: var(--shadow-sm);
 }
 
+.inv-card-header-row,
 .inv-card-title {
-  margin: 0 0 16px;
-  font-size: 16px;
-  font-weight: 700;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
-.inv-card-title i {
+.inv-card-title {
+  margin: 0 0 18px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--inv-text);
+}
+
+.inv-card-icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: var(--inv-green-soft);
+  color: var(--inv-green-dark);
+}
+
+.inv-card-icon i {
   width: 18px;
   height: 18px;
-  color: var(--green-dark);
 }
 
 .inv-card-header-row {
-  display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .inv-card-header-row .inv-card-title {
@@ -179,9 +237,9 @@ body {
   align-items: center;
   padding: 3px 10px;
   border-radius: 999px;
-  background: var(--panel-subtle);
-  border: 1px solid var(--line);
-  color: var(--text-muted);
+  background: var(--inv-panel-2);
+  border: 1px solid var(--inv-border);
+  color: var(--inv-text-muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -217,8 +275,8 @@ body {
   align-items: center;
   padding: 10px 14px;
   border-radius: var(--radius-sm);
-  background: var(--green-soft);
-  color: var(--green-soft-text);
+  background: var(--inv-green-soft);
+  color: var(--inv-green-soft-text);
   font-weight: 600;
   font-size: 14px;
   width: fit-content;
@@ -233,8 +291,8 @@ body {
 .inv-feedback-box {
   padding: 10px 14px;
   border-radius: var(--radius-sm);
-  background: var(--green-soft);
-  color: var(--green-soft-text);
+  background: var(--inv-green-soft);
+  color: var(--inv-green-soft-text);
   font-size: 13px;
   margin-bottom: 12px;
 }
@@ -262,7 +320,7 @@ body {
 }
 
 .inv-line-unit {
-  color: var(--text-muted);
+  color: var(--inv-text-muted);
   font-size: 11px;
   min-height: 14px;
 }
@@ -272,8 +330,8 @@ body {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--panel-bg);
-  border: 1px solid var(--line);
+  background: var(--inv-panel);
+  border: 1px solid var(--inv-border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow);
   z-index: 20;
@@ -287,11 +345,11 @@ body {
   text-align: left;
   padding: 9px 12px;
   border: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--inv-border);
   background: none;
   font-family: inherit;
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--inv-text);
   cursor: pointer;
 }
 
@@ -301,15 +359,15 @@ body {
 
 .inv-item-suggestion:hover,
 .inv-item-suggestion:focus-visible {
-  background: var(--green-soft);
+  background: var(--inv-green-soft);
 }
 
 .inv-item-suggestion small {
-  color: var(--text-muted);
+  color: var(--inv-text-muted);
 }
 
 .inv-item-suggestion-create {
-  color: var(--green-dark);
+  color: var(--inv-green-dark);
   font-weight: 600;
 }
 
@@ -321,9 +379,9 @@ body {
   height: 38px;
   margin-top: 2px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
+  border: 1px solid var(--inv-border);
   background: transparent;
-  color: var(--text-muted);
+  color: var(--inv-text-muted);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
@@ -347,9 +405,9 @@ body {
   gap: 6px;
   padding: 8px 14px;
   border-radius: var(--radius-sm);
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--inv-border);
   background: transparent;
-  color: var(--green-dark);
+  color: var(--inv-green-dark);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -358,8 +416,8 @@ body {
 
 .inv-add-line-btn:hover,
 .inv-add-line-btn:focus-visible {
-  background: var(--green-soft);
-  border-color: var(--green-border);
+  background: var(--inv-green-soft);
+  border-color: var(--inv-green-border);
   outline: none;
 }
 
@@ -376,11 +434,23 @@ body {
 
 .inv-submit-row .btn-primary {
   min-width: 220px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--inv-green), #0FBE85);
+  color: #06281d;
+  border: none;
+  box-shadow: 0 10px 24px -10px rgba(22, 230, 161, .55);
+  font-weight: 700;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.inv-submit-row .btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px -10px rgba(22, 230, 161, .6);
 }
 
 /* ---- Historial ---- */
 .inv-empty {
-  color: var(--text-muted);
+  color: var(--inv-text-muted);
   font-size: 13px;
   padding: 20px 0;
   text-align: center;
@@ -399,17 +469,18 @@ body {
 .inv-table th {
   text-align: left;
   padding: 8px 10px;
-  color: var(--text-muted);
+  color: var(--inv-text-muted);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--inv-border);
 }
 
 .inv-table td {
   padding: 10px;
-  border-bottom: 1px solid var(--line-light);
+  border-bottom: 1px solid var(--inv-border-light);
   vertical-align: top;
+  color: var(--inv-text);
 }
 
 .inv-table tbody tr:last-child td {
@@ -421,7 +492,7 @@ body {
 }
 
 .inv-table tbody tr:hover {
-  background: var(--panel-subtle);
+  background: var(--inv-panel-2);
 }
 
 .inv-th-right {
@@ -432,7 +503,7 @@ body {
   text-align: right;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--green-dark);
+  color: var(--inv-green-dark);
   white-space: nowrap;
 }
 
