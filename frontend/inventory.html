@@ -12,16 +12,19 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=2.9.2">
-  <link rel="stylesheet" href="css/inventory.css?v=2.0.0">
+  <link rel="stylesheet" href="css/inventory.css?v=3.0.0">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 
   <div class="inv-gate" id="invGate">
+    <span class="inv-gate-spinner" aria-hidden="true"></span>
     <p>Verificando sesión...</p>
   </div>
 
-  <div class="inv-wrap" id="invMain" hidden>
+  <div class="inv-app" id="invMain" hidden>
+
+    <!-- ================= Encabezado ================= -->
     <header class="inv-header">
       <a class="inv-back" href="/hub" title="Volver al Panel General">
         <i data-lucide="arrow-left"></i>
@@ -29,7 +32,7 @@
       </a>
       <div class="inv-header-titles">
         <p class="inv-title">Inventario y Abastecimiento</p>
-        <span class="inv-subtitle">Cargamentos por sucursal</span>
+        <span class="inv-subtitle" id="invHeaderScope">Cargamentos por sucursal</span>
       </div>
       <div class="inv-header-actions">
         <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
@@ -50,21 +53,198 @@
       </div>
     </header>
 
-    <main class="inv-main">
-      <div class="inv-pronto-row">
-        <span class="inv-pronto-pill">Merma <b>Pronto</b></span>
-        <span class="inv-pronto-pill">Gasto por sucursal <b>Pronto</b></span>
-      </div>
+    <div class="inv-shell">
 
-      <section class="inv-card">
-        <h2 class="inv-card-title"><span class="inv-card-icon"><i data-lucide="truck"></i></span> Registrar cargamento</h2>
+      <!-- ================= Navegación lateral ================= -->
+      <aside class="inv-sidebar">
+        <div class="inv-sidebar-title"><i data-lucide="package"></i> Inventario</div>
+        <nav class="inv-nav" id="invNav">
+          <button type="button" class="inv-nav-item active" data-view="resumen"><i data-lucide="layout-dashboard"></i> <span>Resumen</span></button>
+          <button type="button" class="inv-nav-item" data-view="cargamentos"><i data-lucide="truck"></i> <span>Cargamentos</span></button>
+          <button type="button" class="inv-nav-item" data-view="insumos"><i data-lucide="layout-list"></i> <span>Insumos</span></button>
+          <button type="button" class="inv-nav-item" data-view="proveedores"><i data-lucide="building-2"></i> <span>Proveedores</span></button>
+        </nav>
+        <div class="inv-nav-sep">Próximamente</div>
+        <nav class="inv-nav inv-nav-soon">
+          <span class="inv-nav-item soon"><i data-lucide="trending-down"></i> <span>Merma</span></span>
+          <span class="inv-nav-item soon"><i data-lucide="bar-chart-3"></i> <span>Gasto por sucursal</span></span>
+          <span class="inv-nav-item soon"><i data-lucide="calendar-clock"></i> <span>Lotes y vencimientos</span></span>
+          <span class="inv-nav-item soon"><i data-lucide="file-text"></i> <span>Reportes</span></span>
+        </nav>
+        <div class="inv-sidebar-foot">
+          <span class="inv-scope-label">Alcance</span>
+          <strong id="invScopeValue">&mdash;</strong>
+        </div>
+      </aside>
+
+      <!-- ================= Contenido ================= -->
+      <section class="inv-content">
+
+        <!-- ---------- Resumen ---------- -->
+        <div class="inv-view" id="viewResumen">
+          <div class="inv-view-head">
+            <div>
+              <h1>Resumen</h1>
+              <p id="resumenSubtitle">Lo que entró a tus sucursales.</p>
+            </div>
+            <button type="button" class="inv-primary-btn" data-open-shipment>
+              <i data-lucide="plus"></i> Nuevo cargamento
+            </button>
+          </div>
+
+          <div class="inv-kpi-row" id="kpiRow"></div>
+
+          <div class="inv-panel-grid">
+            <div class="inv-panel">
+              <div class="inv-panel-head">
+                <h2>Top insumos recibidos</h2>
+                <span class="inv-panel-note" id="topItemsNote">Últimos 30 días</span>
+              </div>
+              <div class="inv-bars" id="topItemsBars"></div>
+            </div>
+            <div class="inv-panel">
+              <div class="inv-panel-head">
+                <h2>Últimos cargamentos</h2>
+                <button type="button" class="inv-link-btn" data-goto-view="cargamentos">Ver todos <i data-lucide="arrow-right"></i></button>
+              </div>
+              <div class="inv-mini-list" id="recentShipments"></div>
+            </div>
+          </div>
+
+          <div class="inv-panel" id="branchPanel" hidden>
+            <div class="inv-panel-head">
+              <h2>Cargamentos por sucursal</h2>
+              <span class="inv-panel-note">Últimos 30 días</span>
+            </div>
+            <div class="inv-bars" id="branchBars"></div>
+          </div>
+        </div>
+
+        <!-- ---------- Cargamentos ---------- -->
+        <div class="inv-view" id="viewCargamentos" hidden>
+          <div class="inv-view-head">
+            <div>
+              <h1>Cargamentos</h1>
+              <p>Todo lo que recibió cada sucursal, con su detalle.</p>
+            </div>
+            <button type="button" class="inv-primary-btn" data-open-shipment>
+              <i data-lucide="plus"></i> Nuevo cargamento
+            </button>
+          </div>
+
+          <div class="inv-workspace">
+            <div class="inv-list-col">
+              <div class="inv-toolbar">
+                <div class="inv-search">
+                  <i data-lucide="search"></i>
+                  <input type="text" id="shipmentSearch" placeholder="Buscar por proveedor, insumo o quien lo cargó...">
+                </div>
+                <select id="shipmentBranchFilter" class="inv-filter-select" hidden></select>
+              </div>
+              <div class="inv-list-header">
+                <span id="shipmentsCount">Cargamentos</span>
+                <span class="inv-list-header-meta" id="shipmentsScopeLabel"></span>
+              </div>
+              <div class="inv-list" id="shipmentList"></div>
+              <button type="button" class="inv-load-more" id="btnLoadMore" hidden>Cargar más cargamentos</button>
+            </div>
+            <div class="inv-detail" id="shipmentDetail"></div>
+          </div>
+        </div>
+
+        <!-- ---------- Insumos ---------- -->
+        <div class="inv-view" id="viewInsumos" hidden>
+          <div class="inv-view-head">
+            <div>
+              <h1>Insumos</h1>
+              <p>El catálogo compartido por todas las sucursales.</p>
+            </div>
+            <button type="button" class="inv-primary-btn" id="btnNewItem">
+              <i data-lucide="plus"></i> Nuevo insumo
+            </button>
+          </div>
+
+          <div class="inv-workspace">
+            <div class="inv-list-col">
+              <div class="inv-toolbar">
+                <div class="inv-search">
+                  <i data-lucide="search"></i>
+                  <input type="text" id="itemSearch" placeholder="Buscar insumo, unidad o categoría...">
+                </div>
+              </div>
+              <div class="inv-list-header">
+                <span id="itemsCount">Insumos</span>
+                <span class="inv-list-header-meta">Ordenados A-Z</span>
+              </div>
+              <div class="inv-list" id="itemList"></div>
+            </div>
+            <div class="inv-detail" id="itemDetail"></div>
+          </div>
+        </div>
+
+        <!-- ---------- Proveedores ---------- -->
+        <div class="inv-view" id="viewProveedores" hidden>
+          <div class="inv-view-head">
+            <div>
+              <h1>Proveedores</h1>
+              <p>Quién te abastece y cuánto pesa cada uno.</p>
+            </div>
+            <button type="button" class="inv-primary-btn" id="btnNewSupplier">
+              <i data-lucide="plus"></i> Nuevo proveedor
+            </button>
+          </div>
+
+          <div class="inv-workspace">
+            <div class="inv-list-col">
+              <div class="inv-toolbar">
+                <div class="inv-search">
+                  <i data-lucide="search"></i>
+                  <input type="text" id="supplierSearch" placeholder="Buscar proveedor o teléfono...">
+                </div>
+              </div>
+              <div class="inv-list-header">
+                <span id="suppliersCount">Proveedores</span>
+                <span class="inv-list-header-meta">Ordenados A-Z</span>
+              </div>
+              <div class="inv-list" id="supplierList"></div>
+            </div>
+            <div class="inv-detail" id="supplierDetail"></div>
+          </div>
+        </div>
+
+      </section>
+    </div>
+  </div>
+
+  <!-- ================= Modal: registrar cargamento ================= -->
+  <div class="modal-backdrop" id="modalShipment">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div class="inv-modal-title">
+          <span class="inv-card-icon"><i data-lucide="truck"></i></span>
+          <div>
+            <h3>Registrar cargamento</h3>
+            <span class="modal-subtitle">Lo que acaba de llegar a la sucursal.</span>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="modalShipment" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="shipmentError" class="login-error-box" style="display:none"></div>
 
         <div class="inv-field-row">
           <div class="inv-field">
-            <label class="modal-label">Sucursal</label>
+            <label class="modal-label" for="branchSelect">Sucursal</label>
             <div id="branchFixedBadge" class="inv-branch-badge" hidden></div>
             <select id="branchSelect" class="modal-input" hidden></select>
           </div>
+          <div class="inv-field">
+            <label class="modal-label" for="receivedAtInput">Fecha de recepción</label>
+            <input type="datetime-local" id="receivedAtInput" class="modal-input">
+          </div>
+        </div>
+
+        <div class="inv-field-row">
           <div class="inv-field">
             <label class="modal-label" for="supplierInput">Proveedor (opcional)</label>
             <div class="inv-supplier-wrap">
@@ -72,71 +252,153 @@
               <div id="supplierSuggestions" class="inv-item-suggestions" hidden></div>
             </div>
           </div>
+          <div class="inv-field">
+            <label class="modal-label" for="notesInput">Notas (opcional)</label>
+            <input type="text" id="notesInput" class="modal-input" placeholder="Observaciones del cargamento...">
+          </div>
         </div>
 
-        <div class="inv-field">
-          <label class="modal-label" for="notesInput">Notas (opcional)</label>
-          <textarea id="notesInput" class="modal-input" rows="2" placeholder="Observaciones del cargamento..."></textarea>
+        <div class="inv-lines-head">
+          <span>Insumos recibidos</span>
+          <span>Cantidad</span>
+          <span>Costo unit.</span>
+          <span>Subtotal</span>
+          <span></span>
         </div>
-
-        <div id="shipmentError" class="login-error-box" style="display:none"></div>
-        <div id="shipmentFeedback" class="inv-feedback-box" style="display:none"></div>
-
         <div class="inv-lines" id="shipmentLines"></div>
 
         <button type="button" class="inv-add-line-btn" id="btnAddLine">
           <i data-lucide="plus"></i> Agregar insumo
         </button>
-
-        <div class="inv-submit-row">
-          <button type="button" class="btn-primary" id="btnSubmitShipment">Registrar cargamento</button>
+      </div>
+      <div class="modal-footer inv-modal-footer">
+        <div class="inv-total-box">
+          <span>Total del cargamento</span>
+          <strong id="shipmentTotal">$0.00</strong>
         </div>
-      </section>
-
-      <section class="inv-card">
-        <div class="inv-card-header-row">
-          <h2 class="inv-card-title"><span class="inv-card-icon"><i data-lucide="history"></i></span> Historial de cargamentos</h2>
-          <span class="inv-count-pill" id="shipmentsCount" hidden></span>
+        <div class="inv-modal-footer-actions">
+          <button type="button" class="btn-secondary" data-close-modal="modalShipment">Cancelar</button>
+          <button type="button" class="btn-primary inv-submit-btn" id="btnSubmitShipment">Registrar cargamento</button>
         </div>
-        <div id="shipmentsHistoryEmpty" class="inv-empty" hidden>Todavía no hay cargamentos registrados.</div>
-        <div class="inv-table-wrap">
-          <table class="inv-table" id="shipmentsTable" hidden>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th id="colBranch" hidden>Sucursal</th>
-                <th>Proveedor</th>
-                <th>Ítems</th>
-                <th class="inv-th-right">Total</th>
-                <th>Registrado por</th>
-              </tr>
-            </thead>
-            <tbody id="shipmentsTableBody"></tbody>
-          </table>
-        </div>
-      </section>
-    </main>
+      </div>
+    </div>
   </div>
 
-  <!-- Plantilla de una fila de línea de cargamento (item + cantidad + costo + quitar) -->
+  <!-- ================= Modal: nuevo insumo ================= -->
+  <div class="modal-backdrop" id="modalItem">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div class="inv-modal-title">
+          <span class="inv-card-icon"><i data-lucide="layout-list"></i></span>
+          <div>
+            <h3>Nuevo insumo</h3>
+            <span class="modal-subtitle">Se agrega al catálogo de todas las sucursales.</span>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="modalItem" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="itemError" class="login-error-box" style="display:none"></div>
+        <div class="inv-field">
+          <label class="modal-label" for="newItemName">Nombre</label>
+          <input type="text" id="newItemName" class="modal-input" placeholder="Fresa, Envase 16oz, Granola...">
+        </div>
+        <div class="inv-field">
+          <label class="modal-label" for="newItemUnit">Unidad</label>
+          <input type="text" id="newItemUnit" class="modal-input" placeholder="kg, lb, unidad, caja, litro..." list="unitOptions">
+          <datalist id="unitOptions">
+            <option value="kg"></option>
+            <option value="lb"></option>
+            <option value="unidad"></option>
+            <option value="caja"></option>
+            <option value="litro"></option>
+            <option value="galón"></option>
+            <option value="paquete"></option>
+            <option value="bolsa"></option>
+          </datalist>
+          <small class="inv-field-hint">Cómo lo vas a contar cada vez que llegue.</small>
+        </div>
+        <div class="inv-field">
+          <label class="modal-label" for="newItemCategory">Categoría (opcional)</label>
+          <input type="text" id="newItemCategory" class="modal-input" placeholder="Insumo, Empaque, Bebida..." list="categoryOptions">
+          <datalist id="categoryOptions"></datalist>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-close-modal="modalItem">Cancelar</button>
+        <button type="button" class="btn-primary" id="btnSaveItem">Crear insumo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= Modal: nuevo proveedor ================= -->
+  <div class="modal-backdrop" id="modalSupplier">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div class="inv-modal-title">
+          <span class="inv-card-icon"><i data-lucide="building-2"></i></span>
+          <div>
+            <h3>Nuevo proveedor</h3>
+            <span class="modal-subtitle">Se agrega al catálogo de todas las sucursales.</span>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="modalSupplier" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="supplierError" class="login-error-box" style="display:none"></div>
+        <div class="inv-field">
+          <label class="modal-label" for="newSupplierName">Nombre</label>
+          <input type="text" id="newSupplierName" class="modal-input" placeholder="Distribuidora Del Campo S.A.">
+        </div>
+        <div class="inv-field">
+          <label class="modal-label" for="newSupplierPhone">Teléfono (opcional)</label>
+          <input type="tel" id="newSupplierPhone" class="modal-input" placeholder="+507 6000-0000">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-close-modal="modalSupplier">Cancelar</button>
+        <button type="button" class="btn-primary" id="btnSaveSupplier">Crear proveedor</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plantilla de una fila de línea de cargamento (insumo + cantidad + costo + subtotal + quitar).
+       Cada celda lleva su propio <span class="inv-line-label">, invisible en escritorio (la
+       cabecera .inv-lines-head hace de encabezado de columna) y visible al apilarse en móvil. -->
   <template id="shipmentLineTemplate">
     <div class="inv-line-row">
       <div class="inv-line-item">
+        <span class="inv-line-label">Insumo</span>
         <input type="text" class="modal-input inv-item-input" placeholder="Buscar o crear insumo..." autocomplete="off">
         <div class="inv-item-suggestions" hidden></div>
         <small class="inv-line-unit"></small>
       </div>
-      <input type="number" class="modal-input inv-line-qty" placeholder="Cantidad" min="0" step="0.001">
-      <input type="number" class="modal-input inv-line-cost" placeholder="Costo unit. (opcional)" min="0" step="0.01">
+      <div class="inv-line-cell">
+        <span class="inv-line-label">Cantidad</span>
+        <input type="number" class="modal-input inv-line-qty" placeholder="0" min="0" step="0.001">
+      </div>
+      <div class="inv-line-cell">
+        <span class="inv-line-label">Costo unit.</span>
+        <input type="number" class="modal-input inv-line-cost" placeholder="Opcional" min="0" step="0.01">
+      </div>
+      <div class="inv-line-cell inv-line-subtotal-cell">
+        <span class="inv-line-label">Subtotal</span>
+        <span class="inv-line-subtotal">&mdash;</span>
+      </div>
       <button type="button" class="inv-line-remove" title="Quitar" aria-label="Quitar insumo">
         <i data-lucide="x"></i>
       </button>
     </div>
   </template>
 
+  <div id="toastNotification" class="toast-banner">
+    <span id="toastIconSlot"><i data-lucide="check" id="toastIcon"></i></span>
+    <span id="toastMessage">Operación realizada con éxito.</span>
+  </div>
+
   <script src="js/utils.js?v=3.5.0"></script>
   <script src="js/api.js?v=3.5.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/modules/inventory.js?v=1.1.0"></script>
+  <script src="js/modules/inventory.js?v=2.0.0"></script>
 </body>
 </html>

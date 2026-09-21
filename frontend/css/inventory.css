@@ -1,10 +1,14 @@
 /* ============================================================================
-   FARMHOUSE - INVENTARIO Y ABASTECIMIENTO (CARGAMENTOS)
-   Misma paleta premium --inv-* que usa el hub (hub.css) para el modo oscuro, así la página real
-   no se sienta "más simple" que la vista previa del Panel General. El modo claro reusa los tokens
-   ya existentes de style.css, igual que hace hub.css. Ojo con [hidden]: ningún selector acá
-   define `display` sobre .inv-wrap / #invGate / .inv-item-suggestions, para no repetir el bug de
-   especificidad ya visto con Tilopay y con el login del hub.
+   FARMHOUSE - INVENTARIO Y ABASTECIMIENTO
+   La página real calca la vista previa del Panel General (hub.css → .hub-mock-*): rail de
+   navegación a la izquierda, columna de lista y panel de detalle a la derecha. Misma paleta
+   premium --inv-* que el hub para el modo oscuro; el modo claro reusa los tokens de style.css
+   en vez de inventar un tema nuevo.
+
+   Ojo con [hidden]: cualquier selector que defina `display` sobre un elemento que el JS oculta
+   con `hidden` le gana al [hidden] nativo por especificidad (mismo bug ya visto con Tilopay y
+   con el login del hub). Por eso el bloque de guardas justo debajo de los tokens: cada clase
+   ocultable se neutraliza ahí una sola vez, en lugar de repetir el parche disperso.
    ============================================================================ */
 
 :root, [data-theme="light"] {
@@ -22,6 +26,12 @@
   --inv-green-dark: var(--green-dark);
   --inv-green-border: var(--green-border);
   --inv-cyan: #0891b2;
+  --inv-amber: #b45309;
+  --inv-amber-soft: rgba(245, 158, 11, .14);
+  /* Pista del gráfico de barras: un paso más claro del mismo verde, nunca un gris neutro,
+     para que el estado se lea a lo largo de toda la barra (ver skill de dataviz). */
+  --inv-bar-track: var(--green-soft);
+  --inv-bar-fill: var(--green);
 }
 
 [data-theme="dark"] {
@@ -39,6 +49,22 @@
   --inv-green-dark: #16E6A1;
   --inv-green-border: rgba(22, 230, 161, .4);
   --inv-cyan: #24C7FF;
+  --inv-amber: #F0B23C;
+  --inv-amber-soft: rgba(245, 158, 11, .16);
+  --inv-bar-track: rgba(22, 230, 161, .13);
+  --inv-bar-fill: #16E6A1;
+}
+
+/* ---- Guardas de [hidden] (ver cabecera) ---- */
+.inv-gate[hidden],
+.inv-app[hidden],
+.inv-view[hidden],
+.inv-panel[hidden],
+.inv-branch-badge[hidden],
+.inv-filter-select[hidden],
+.inv-load-more[hidden],
+.inv-item-suggestions[hidden] {
+  display: none !important;
 }
 
 body {
@@ -48,23 +74,54 @@ body {
   color: var(--inv-text);
 }
 
+/* ============================================================================
+   1. PUERTA DE ENTRADA (mientras se verifica la sesión)
+   ============================================================================ */
 .inv-gate {
-  padding: 60px 24px;
-  text-align: center;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
   color: var(--inv-text-muted);
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
-/* ---- Encabezado ---- */
+.inv-gate p { margin: 0; }
+
+.inv-gate-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--inv-border);
+  border-top-color: var(--inv-green);
+  animation: invSpin 0.7s linear infinite;
+}
+
+@keyframes invSpin { to { transform: rotate(360deg); } }
+
+/* ============================================================================
+   2. ESTRUCTURA
+   ============================================================================ */
+.inv-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
 .inv-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
-  padding: 20px 32px;
+  padding: 16px 28px;
   background: var(--inv-panel);
   border-bottom: 1px solid var(--inv-border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
 .inv-back {
@@ -85,15 +142,9 @@ body {
   outline: none;
 }
 
-.inv-back i {
-  width: 16px;
-  height: 16px;
-}
+.inv-back i { width: 16px; height: 16px; }
 
-.inv-header-titles {
-  flex: 1;
-  min-width: 160px;
-}
+.inv-header-titles { flex: 1; min-width: 160px; }
 
 .inv-header-titles .inv-title {
   margin: 0;
@@ -144,66 +195,821 @@ body {
   outline: none;
 }
 
-.inv-logout-btn i {
-  width: 16px;
-  height: 16px;
+.inv-logout-btn i { width: 16px; height: 16px; }
+
+.inv-shell {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  align-items: start;
 }
 
-/* ---- Contenido principal ---- */
-.inv-main {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 32px 24px 64px;
+/* ============================================================================
+   3. RAIL DE NAVEGACIÓN (calca .hub-mock-sidebar)
+   ============================================================================ */
+/* `height` fija (no `max-height` + align-self:start): con la altura del contenido, el panel del
+   rail cortaba a media pantalla y debajo asomaba el fondo de la página, como una costura. */
+.inv-sidebar {
+  position: sticky;
+  top: 69px;
+  height: calc(100vh - 69px);
+  overflow-y: auto;
+  padding: 18px 12px;
+  background: var(--inv-panel-2);
+  border-right: 1px solid var(--inv-border);
+}
+
+.inv-sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--inv-text);
+  padding: 6px 8px 14px;
+}
+
+.inv-sidebar-title i { width: 16px; height: 16px; color: var(--inv-green); }
+
+.inv-nav {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 2px;
 }
 
-.inv-pronto-row {
+.inv-nav-item {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  color: var(--inv-text-secondary);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.inv-nav-item i { width: 15px; height: 15px; flex-shrink: 0; }
+
+.inv-nav-item:hover,
+.inv-nav-item:focus-visible {
+  background: var(--inv-panel);
+  color: var(--inv-text);
+  outline: none;
+}
+
+.inv-nav-item.active {
+  background: var(--inv-green-soft);
+  color: var(--inv-green-soft-text);
+  font-weight: 600;
+}
+
+.inv-nav-item.soon {
+  color: var(--inv-text-muted);
+  opacity: 0.6;
+  cursor: default;
+}
+
+.inv-nav-item.soon:hover { background: transparent; color: var(--inv-text-muted); }
+
+.inv-nav-sep {
+  padding: 18px 10px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--inv-text-muted);
+}
+
+.inv-sidebar-foot {
+  margin-top: 20px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--inv-panel);
+  border: 1px solid var(--inv-border);
+}
+
+.inv-scope-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--inv-text-muted);
+  margin-bottom: 3px;
+}
+
+.inv-sidebar-foot strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--inv-text);
+}
+
+/* ============================================================================
+   4. CONTENIDO Y CABECERA DE VISTA
+   ============================================================================ */
+.inv-content {
+  padding: 28px 32px 56px;
+  min-width: 0;
+}
+
+.inv-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: invViewIn 0.18s ease-out;
+}
+
+@keyframes invViewIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.inv-view-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
-.inv-pronto-pill {
+.inv-view-head h1 {
+  margin: 0 0 3px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--inv-text);
+}
+
+.inv-view-head p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--inv-text-muted);
+}
+
+.inv-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, var(--inv-green), #0FBE85);
+  color: #06281d;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 24px -12px rgba(22, 230, 161, .6);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.inv-primary-btn:hover,
+.inv-primary-btn:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px -12px rgba(22, 230, 161, .7);
+  outline: none;
+}
+
+.inv-primary-btn i { width: 15px; height: 15px; }
+
+.inv-link-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: var(--inv-panel-2);
-  border: 1px solid var(--inv-border);
-  color: var(--inv-text-muted);
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: inherit;
   font-size: 12px;
+  font-weight: 600;
+  color: var(--inv-green-soft-text);
+  cursor: pointer;
 }
 
-.inv-pronto-pill b {
-  color: var(--inv-cyan);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.inv-link-btn i { width: 13px; height: 13px; }
+.inv-link-btn:hover { text-decoration: underline; }
+
+/* ============================================================================
+   5. RESUMEN: fichas de dato y barras
+   ============================================================================ */
+.inv-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
 }
 
-.inv-card {
+.inv-kpi {
+  padding: 18px;
+  border-radius: 16px;
   background: var(--inv-panel);
   border: 1px solid var(--inv-border);
-  border-radius: 20px;
-  padding: 26px;
   box-shadow: var(--shadow-sm);
 }
 
-.inv-card-header-row,
-.inv-card-title {
+.inv-kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--inv-text-muted);
+  margin-bottom: 10px;
+}
+
+.inv-kpi-label i { width: 14px; height: 14px; color: var(--inv-cyan); }
+
+/* Cifras grandes con las figuras proporcionales por defecto: tabular-nums es para columnas
+   que deben alinearse, no para un número suelto de 26px (ver skill de dataviz). */
+.inv-kpi-value {
+  display: block;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--inv-text);
+  line-height: 1.1;
+}
+
+.inv-kpi-sub {
+  display: block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--inv-text-muted);
+}
+
+.inv-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.inv-panel {
+  padding: 20px;
+  border-radius: 18px;
+  background: var(--inv-panel);
+  border: 1px solid var(--inv-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.inv-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.inv-panel-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--inv-text);
+}
+
+.inv-panel-note {
+  font-size: 11px;
+  color: var(--inv-text-muted);
+}
+
+/* ---- Barras horizontales (una sola serie: sin leyenda, valor en la punta) ---- */
+.inv-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.inv-bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 12px;
+}
+
+.inv-bar-name {
+  font-size: 12.5px;
+  color: var(--inv-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inv-bar-value {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--inv-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-bar-track {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--inv-bar-track);
+  overflow: hidden;
+}
+
+/* display:block es obligatorio: es un <span> dentro del track y, como inline, ignoraría el
+   height:100% y la barra se vería vacía. */
+.inv-bar-fill {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: var(--inv-bar-fill);
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---- Lista compacta del resumen ---- */
+.inv-mini-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.inv-mini-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 2px;
+  border: none;
+  border-bottom: 1px solid var(--inv-border-light);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.inv-mini-row:last-child { border-bottom: none; }
+.inv-mini-row:hover { background: var(--inv-panel-2); }
+
+.inv-mini-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.inv-mini-info strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--inv-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inv-mini-info small { font-size: 11px; color: var(--inv-text-muted); }
+
+.inv-mini-amount {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--inv-green-soft-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================================
+   6. ESPACIO DE TRABAJO: lista + detalle (calca .hub-mock-items-col / .hub-mock-detail)
+   ============================================================================ */
+.inv-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
+  border-radius: 18px;
+  background: var(--inv-panel);
+  border: 1px solid var(--inv-border);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.inv-list-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--inv-border);
+}
+
+.inv-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--inv-border);
+}
+
+.inv-search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--inv-panel-2);
+  border: 1px solid var(--inv-border);
+  min-width: 0;
+  transition: border-color 0.15s ease;
+}
+
+.inv-search:focus-within { border-color: var(--inv-green-border); }
+
+.inv-search i { width: 14px; height: 14px; color: var(--inv-text-muted); flex-shrink: 0; }
+
+.inv-search input {
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 12.5px;
+  color: var(--inv-text);
+  width: 100%;
+  font-family: inherit;
+}
+
+.inv-search input::placeholder { color: var(--inv-text-muted); }
+
+.inv-filter-select {
+  flex-shrink: 0;
+  max-width: 190px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--inv-panel-2);
+  border: 1px solid var(--inv-border);
+  color: var(--inv-text);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.inv-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--inv-text-secondary);
+  border-bottom: 1px solid var(--inv-border);
+}
+
+.inv-list-header-meta { font-weight: 500; color: var(--inv-text-muted); }
+
+.inv-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 560px;
+}
+
+.inv-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  border-bottom: 1px solid var(--inv-border-light);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.inv-row:hover { background: var(--inv-panel-2); }
+
+.inv-row.active {
+  background: var(--inv-green-soft);
+  box-shadow: inset 2px 0 0 var(--inv-green);
+}
+
+.inv-row-thumb {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--inv-panel-2);
+  color: var(--inv-cyan);
+}
+
+.inv-row.active .inv-row-thumb { background: var(--inv-panel); }
+
+.inv-row-thumb i { width: 16px; height: 16px; }
+
+.inv-row-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.inv-row-info strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--inv-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inv-row-info small {
+  font-size: 11px;
+  color: var(--inv-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inv-badge {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.inv-badge.ok { background: var(--inv-green-soft); color: var(--inv-green-soft-text); }
+.inv-badge.warn { background: var(--inv-amber-soft); color: var(--inv-amber); }
+.inv-badge.muted { background: var(--inv-panel-2); color: var(--inv-text-muted); }
+
+.inv-row-amount {
+  flex-shrink: 0;
+  min-width: 56px;
+  text-align: right;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--inv-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-load-more {
+  padding: 12px;
+  border: none;
+  border-top: 1px solid var(--inv-border);
+  background: transparent;
+  color: var(--inv-green-soft-text);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inv-load-more:hover { background: var(--inv-panel-2); }
+
+/* ---- Panel de detalle ---- */
+.inv-detail {
+  padding: 22px;
+  overflow-y: auto;
+  max-height: 660px;
+  min-width: 0;
+}
+
+.inv-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.inv-detail-thumb {
+  width: 54px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--inv-panel-2);
+  color: var(--inv-cyan);
+}
+
+.inv-detail-thumb i { width: 25px; height: 25px; }
+
+.inv-detail h3 {
+  margin: 0 0 2px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--inv-text);
+}
+
+.inv-detail-sub {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--inv-text-muted);
+}
+
+.inv-detail-note {
+  margin: 0 0 16px;
+  padding: 11px 13px;
+  border-radius: 11px;
+  background: var(--inv-panel-2);
+  border-left: 2px solid var(--inv-green);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--inv-text-secondary);
+}
+
+.inv-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.inv-metrics > div {
+  padding: 12px;
+  border-radius: 11px;
+  background: var(--inv-panel-2);
+  border: 1px solid var(--inv-border);
+}
+
+.inv-metrics span {
+  display: block;
+  font-size: 10.5px;
+  color: var(--inv-text-muted);
+  margin-bottom: 4px;
+}
+
+.inv-metrics strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--inv-text);
+}
+
+.inv-metrics small {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--inv-text-muted);
+}
+
+.inv-detail-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 9px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--inv-text-muted);
+}
+
+.inv-detail-rows > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--inv-border-light);
+  font-size: 12.5px;
+}
+
+.inv-detail-rows > div:last-child { border-bottom: none; }
+.inv-detail-rows span { color: var(--inv-text-muted); flex-shrink: 0; }
+.inv-detail-rows strong { font-weight: 600; color: var(--inv-text); text-align: right; }
+
+/* Sin esto el tel: queda con el azul subrayado por defecto del navegador, ilegible sobre el
+   panel oscuro y fuera de la paleta. */
+.inv-detail-rows a {
+  color: var(--inv-green-soft-text);
+  text-decoration: none;
+}
+
+.inv-detail-rows a:hover,
+.inv-detail-rows a:focus-visible { text-decoration: underline; }
+
+.inv-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  margin-bottom: 18px;
+}
+
+.inv-detail-table th {
+  text-align: left;
+  padding: 7px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--inv-text-muted);
+  border-bottom: 1px solid var(--inv-border);
+}
+
+.inv-detail-table td {
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--inv-border-light);
+  color: var(--inv-text);
+}
+
+.inv-detail-table tbody tr:last-child td { border-bottom: none; }
+
+.inv-detail-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.inv-detail-table tfoot td {
+  padding-top: 11px;
+  border-top: 1px solid var(--inv-border);
+  font-weight: 700;
+  color: var(--inv-green-soft-text);
+}
+
+.inv-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.inv-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--inv-panel-2);
+  border: 1px solid var(--inv-border);
+  font-size: 11.5px;
+  color: var(--inv-text-secondary);
+}
+
+/* ---- Estados vacíos ---- */
+.inv-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--inv-text-muted);
+}
+
+.inv-empty-icon {
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--inv-panel-2);
+  color: var(--inv-text-muted);
+}
+
+.inv-empty-icon i { width: 21px; height: 21px; }
+
+.inv-empty strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--inv-text);
+}
+
+.inv-empty p {
+  margin: 0;
+  font-size: 12.5px;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* ---- Esqueletos de carga ---- */
+.inv-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--inv-border-light);
+}
+
+.inv-sk {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--inv-panel-2) 25%, var(--inv-border-light) 50%, var(--inv-panel-2) 75%);
+  background-size: 200% 100%;
+  animation: invShimmer 1.3s ease-in-out infinite;
+}
+
+.inv-sk-thumb { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; }
+.inv-sk-line { height: 10px; flex: 1; }
+.inv-sk-line.short { max-width: 70px; flex: none; width: 70px; }
+
+@keyframes invShimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* ============================================================================
+   7. MODAL DE CARGAMENTO
+   ============================================================================ */
+.inv-modal-title {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.inv-card-title {
-  margin: 0 0 18px;
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--inv-text);
 }
 
 .inv-card-icon {
@@ -218,57 +1024,28 @@ body {
   color: var(--inv-green-dark);
 }
 
-.inv-card-icon i {
-  width: 18px;
-  height: 18px;
-}
-
-.inv-card-header-row {
-  justify-content: space-between;
-  margin-bottom: 18px;
-}
-
-.inv-card-header-row .inv-card-title {
-  margin-bottom: 0;
-}
-
-.inv-count-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--inv-panel-2);
-  border: 1px solid var(--inv-border);
-  color: var(--inv-text-muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.inv-count-pill[hidden] {
-  display: none !important;
-}
+.inv-card-icon i { width: 18px; height: 18px; }
 
 .inv-field-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.inv-supplier-wrap {
-  position: relative;
+  gap: 14px;
 }
 
 .inv-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+  min-width: 0;
 }
 
-.inv-field-row .inv-field {
-  margin-bottom: 0;
+.inv-field-hint {
+  font-size: 11px;
+  color: var(--inv-text-muted);
 }
+
+.inv-supplier-wrap { position: relative; }
 
 .inv-branch-badge {
   display: inline-flex;
@@ -282,34 +1059,35 @@ body {
   width: fit-content;
 }
 
-/* Mismo bug de especificidad [hidden] ya visto con Tilopay y el login del hub: display:inline-flex
-   le gana al [hidden] nativo si no se lo overridea explícito. */
-.inv-branch-badge[hidden] {
-  display: none !important;
+/* ---- Cabecera de columnas + líneas ---- */
+.inv-lines-head,
+.inv-line-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) 110px 120px 92px 38px;
+  gap: 10px;
+  align-items: start;
 }
 
-.inv-feedback-box {
-  padding: 10px 14px;
-  border-radius: var(--radius-sm);
-  background: var(--inv-green-soft);
-  color: var(--inv-green-soft-text);
-  font-size: 13px;
-  margin-bottom: 12px;
+.inv-lines-head {
+  padding: 6px 2px;
+  margin-top: 4px;
+  border-bottom: 1px solid var(--inv-border);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--inv-text-muted);
 }
 
-/* ---- Líneas de cargamento ---- */
+.inv-lines-head span:nth-child(2),
+.inv-lines-head span:nth-child(3),
+.inv-lines-head span:nth-child(4) { text-align: right; }
+
 .inv-lines {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin: 4px 0 12px;
-}
-
-.inv-line-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr auto;
-  gap: 10px;
-  align-items: start;
+  margin: 12px 0;
 }
 
 .inv-line-item {
@@ -317,6 +1095,33 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+}
+
+.inv-line-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* La cabecera .inv-lines-head hace de encabezado en escritorio; estas etiquetas solo aparecen
+   cuando las filas se apilan en móvil. */
+.inv-line-label { display: none; }
+
+.inv-line-qty,
+.inv-line-cost { text-align: right; }
+
+.inv-line-subtotal-cell { justify-content: flex-start; }
+
+.inv-line-subtotal {
+  display: block;
+  padding: 11px 2px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--inv-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .inv-line-unit {
@@ -353,18 +1158,12 @@ body {
   cursor: pointer;
 }
 
-.inv-item-suggestion:last-child {
-  border-bottom: 0;
-}
+.inv-item-suggestion:last-child { border-bottom: 0; }
 
 .inv-item-suggestion:hover,
-.inv-item-suggestion:focus-visible {
-  background: var(--inv-green-soft);
-}
+.inv-item-suggestion:focus-visible { background: var(--inv-green-soft); }
 
-.inv-item-suggestion small {
-  color: var(--inv-text-muted);
-}
+.inv-item-suggestion small { color: var(--inv-text-muted); }
 
 .inv-item-suggestion-create {
   color: var(--inv-green-dark);
@@ -377,7 +1176,6 @@ body {
   justify-content: center;
   width: 38px;
   height: 38px;
-  margin-top: 2px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--inv-border);
   background: transparent;
@@ -394,10 +1192,7 @@ body {
   outline: none;
 }
 
-.inv-line-remove i {
-  width: 16px;
-  height: 16px;
-}
+.inv-line-remove i { width: 16px; height: 16px; }
 
 .inv-add-line-btn {
   display: inline-flex;
@@ -408,6 +1203,7 @@ body {
   border: 1px dashed var(--inv-border);
   background: transparent;
   color: var(--inv-green-dark);
+  font-family: inherit;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -421,96 +1217,169 @@ body {
   outline: none;
 }
 
-.inv-add-line-btn i {
-  width: 15px;
-  height: 15px;
+.inv-add-line-btn i { width: 15px; height: 15px; }
+
+.inv-modal-footer {
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
-.inv-submit-row {
-  margin-top: 20px;
+.inv-total-box {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  gap: 1px;
 }
 
-.inv-submit-row .btn-primary {
-  min-width: 220px;
+.inv-total-box span {
+  font-size: 11px;
+  color: var(--inv-text-muted);
+}
+
+.inv-total-box strong {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--inv-green-soft-text);
+}
+
+.inv-modal-footer-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.inv-submit-btn {
   border-radius: 999px;
+  min-width: 190px;
   background: linear-gradient(135deg, var(--inv-green), #0FBE85);
   color: #06281d;
   border: none;
-  box-shadow: 0 10px 24px -10px rgba(22, 230, 161, .55);
   font-weight: 700;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.inv-submit-row .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px -10px rgba(22, 230, 161, .6);
+.inv-submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ============================================================================
+   8. TOAST
+   utils.showToast() pone las clases `toast-banner toast-<tipo> active`, pero style.css solo
+   define `.toast-banner.success/.error/.warning` y ningún `.active` — así que el aviso quedaba
+   con `display:none` para siempre. Se define acá (solo esta página) en vez de tocar style.css,
+   para no encender de golpe avisos que hoy están mudos en el Centro WhatsApp.
+   ============================================================================ */
+.toast-banner.active { display: flex; }
+.toast-banner.toast-success { background: var(--success-badge-bg); color: var(--success-text); border: 1px solid var(--success-border); }
+.toast-banner.toast-error { background: var(--danger-badge-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
+.toast-banner.toast-warning { background: var(--warning-badge-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
+.toast-banner.toast-info { background: var(--info-badge-bg); color: var(--info-text); border: 1px solid var(--info-border); }
+.toast-banner i { width: 16px; height: 16px; }
+
+/* ============================================================================
+   9. ADAPTACIÓN A PANTALLAS CHICAS
+   ============================================================================ */
+@media (max-width: 1100px) {
+  .inv-workspace { grid-template-columns: minmax(0, 1fr); }
+  .inv-list-col { border-right: none; border-bottom: 1px solid var(--inv-border); }
+  .inv-detail { max-height: none; }
 }
 
-/* ---- Historial ---- */
-.inv-empty {
-  color: var(--inv-text-muted);
-  font-size: 13px;
-  padding: 20px 0;
-  text-align: center;
-}
+@media (max-width: 900px) {
+  .inv-shell { grid-template-columns: minmax(0, 1fr); }
 
-.inv-table-wrap {
-  overflow-x: auto;
-}
+  /* El rail pasa a ser una tira horizontal de pestañas. La barra de desplazamiento se oculta
+     (sigue desplazándose con el dedo): en escritorio-con-mouse se dibujaba gruesa debajo de las
+     pestañas y parecía un elemento más de la interfaz. */
+  .inv-sidebar {
+    position: static;
+    height: auto;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    border-right: none;
+    border-bottom: 1px solid var(--inv-border);
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
-.inv-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
+  .inv-sidebar::-webkit-scrollbar { display: none; }
 
-.inv-table th {
-  text-align: left;
-  padding: 8px 10px;
-  color: var(--inv-text-muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  border-bottom: 1px solid var(--inv-border);
-}
+  .inv-sidebar-title,
+  .inv-nav-sep,
+  .inv-nav-soon,
+  .inv-sidebar-foot { display: none; }
 
-.inv-table td {
-  padding: 10px;
-  border-bottom: 1px solid var(--inv-border-light);
-  vertical-align: top;
-  color: var(--inv-text);
-}
+  .inv-nav {
+    flex-direction: row;
+    gap: 6px;
+  }
 
-.inv-table tbody tr:last-child td {
-  border-bottom: 0;
-}
+  .inv-nav-item { white-space: nowrap; width: auto; }
 
-.inv-table tbody tr {
-  transition: background 0.1s ease;
-}
-
-.inv-table tbody tr:hover {
-  background: var(--inv-panel-2);
-}
-
-.inv-th-right {
-  text-align: right;
-}
-
-.inv-total-cell {
-  text-align: right;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--inv-green-dark);
-  white-space: nowrap;
+  .inv-content { padding: 20px 16px 48px; }
+  .inv-header { padding: 12px 16px; }
+  .inv-view-head h1 { font-size: 19px; }
 }
 
 @media (max-width: 640px) {
-  .inv-header { padding: 14px 16px; }
-  .inv-main { padding: 24px 16px 48px; }
   .inv-field-row { grid-template-columns: 1fr; }
-  .inv-line-row { grid-template-columns: 1fr; }
-  .inv-line-remove { justify-self: flex-end; width: auto; padding: 0 10px; }
+  .inv-metrics { grid-template-columns: 1fr; }
+
+  .inv-lines-head { display: none; }
+
+  /* Cada línea pasa a ser una tarjeta apilada con sus propias etiquetas. */
+  .inv-line-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--inv-border);
+    border-radius: var(--radius-sm);
+    background: var(--inv-panel-2);
+  }
+
+  .inv-line-item { grid-column: 1 / -1; }
+
+  .inv-line-label {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--inv-text-muted);
+  }
+
+  .inv-line-subtotal { padding: 9px 2px; text-align: left; }
+
+  .inv-line-remove {
+    grid-column: 1 / -1;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .inv-line-remove::after {
+    content: 'Quitar';
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* En vez de pelear por el ancho con el total, el pie del modal se apila: el total ocupa su
+     propia fila (etiqueta y cifra a los extremos) y los botones van debajo, a ancho completo. */
+  .inv-modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .inv-total-box {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .inv-modal-footer-actions { flex: 1; }
+  .inv-modal-footer-actions .btn-secondary,
+  .inv-submit-btn { flex: 1; min-width: 0; }
+
+  .inv-toolbar { flex-wrap: wrap; }
+  .inv-filter-select { max-width: none; width: 100%; }
 }

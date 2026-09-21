@@ -60,15 +60,20 @@ def _serialize_shipment(shipment: Shipment) -> ShipmentResponse:
 @router.get("/items", response_model=List[InventoryItemResponse])
 def search_inventory_items(
     q: str = Query("", max_length=150),
+    limit: int = Query(8, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_authorized_user),
 ):
-    """Autocomplete del catálogo (insumos y productos mezclados, ver InventoryItem)."""
+    """
+    Autocomplete del catálogo (insumos y productos mezclados, ver InventoryItem).
+    `limit` por defecto 8 para el autocomplete; la pantalla de catálogo de /inventario pide
+    más de una vez para listar el catálogo entero.
+    """
     query = db.query(InventoryItem).filter(InventoryItem.active == True)
     q = q.strip()
     if q:
         query = query.filter(InventoryItem.name.ilike(f"%{q}%"))
-    return query.order_by(InventoryItem.name.asc()).limit(8).all()
+    return query.order_by(InventoryItem.name.asc()).limit(limit).all()
 
 
 @router.post("/items", response_model=InventoryItemResponse, status_code=status.HTTP_201_CREATED)
@@ -104,15 +109,16 @@ def create_inventory_item(
 @router.get("/suppliers", response_model=List[SupplierResponse])
 def search_suppliers(
     q: str = Query("", max_length=150),
+    limit: int = Query(8, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_authorized_user),
 ):
-    """Autocomplete del catálogo de proveedores (calcado de search_inventory_items)."""
+    """Autocomplete del catálogo de proveedores (calcado de search_inventory_items, `limit` incluido)."""
     query = db.query(Supplier).filter(Supplier.active == True)
     q = q.strip()
     if q:
         query = query.filter(Supplier.name.ilike(f"%{q}%"))
-    return query.order_by(Supplier.name.asc()).limit(8).all()
+    return query.order_by(Supplier.name.asc()).limit(limit).all()
 
 
 @router.post("/suppliers", response_model=SupplierResponse, status_code=status.HTTP_201_CREATED)
