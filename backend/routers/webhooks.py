@@ -78,6 +78,11 @@ BUBBLE_PACE_DELAY_SECONDS = 0.4
 # la primera. Se queda en memoria un Lock por cada conversación que haya escrito alguna vez
 # (nunca se borra): a la escala de un solo restaurante esto es un puñado de KB, no vale la pena
 # la complejidad de limpiarlo.
+#
+# En las PRUEBAS sí se limpia, entre test y test (ver _clean_conversation_locks en
+# tests/conftest.py). Allá los ids de conversación vuelven a empezar en 1 con cada base nueva y
+# cada TestClient levanta su propio event loop, así que sin limpiar se reusaba un Lock de un
+# loop en otro y la suite fallaba cada tanto sin motivo aparente.
 _conversation_locks: dict[int, asyncio.Lock] = {}
 
 def _get_conversation_lock(conv_id: int) -> asyncio.Lock:

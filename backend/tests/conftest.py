@@ -27,6 +27,26 @@ def _no_bot_response_delay(monkeypatch):
     monkeypatch.setattr(settings, "BOT_RESPONSE_DELAY_SECONDS", 0)
 
 
+@pytest.fixture(autouse=True)
+def _clean_conversation_locks():
+    """
+    Vacía el diccionario de locks por conversación de routers/webhooks.py antes de cada test.
+
+    Ese diccionario vive a nivel de módulo y nunca se limpia, lo cual está bien en producción:
+    los ids de conversación son únicos para siempre y hay un solo event loop. En las pruebas no:
+    cada test arma una base nueva (los ids vuelven a empezar en 1) y cada TestClient levanta un
+    event loop propio, así que un asyncio.Lock creado en el loop de un test se reusaba en el
+    loop de otro. Eso funciona casi siempre y falla de vez en cuando — que es peor que fallar
+    siempre, porque hace desconfiar de toda la suite.
+
+    Se limpia acá y no en el módulo para no cargar producción con un problema que no tiene.
+    """
+    from routers import webhooks
+    webhooks._conversation_locks.clear()
+    yield
+    webhooks._conversation_locks.clear()
+
+
 @pytest.fixture
 def corporate_intake_on(monkeypatch):
     """Enciende las 4 preguntas guiadas del pedido corporativo.
