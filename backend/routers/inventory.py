@@ -17,10 +17,12 @@ from models.user import User
 from models.waste import WasteRecord, WasteItem
 from schemas.inventory import (
     InventoryItemCreate, InventoryItemResponse,
+    InvuStatusResponse, InvuSyncResult,
     SupplierCreate, SupplierResponse,
     ShipmentCreate, ShipmentResponse, ShipmentItemResponse,
     StockRowResponse, WasteCreate, WasteItemResponse, WasteReasonResponse, WasteResponse,
 )
+from services import invu_client, invu_sync
 from security.auth import get_current_authorized_user
 from security.access_control import check_target_branch_valid
 
@@ -147,7 +149,21 @@ def create_supplier(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_authorized_user),
 ):
-    """Cualquier usuario logueado puede crear un proveedor nuevo (calcado de create_inventory_item)."""
+    """
+    Crea un proveedor en el panel. Calcado de create_inventory_item, con una diferencia:
+
+    **Si la integración con Invu está configurada, esto se rechaza.** Los proveedores se dan de
+    alta en Invu, que es donde tienen RUC y contacto; dejar crearlos también acá produciría uno
+    que en Invu no existe y que la próxima sincronización no sabría emparejar. Cuando NO hay
+    credenciales el camino sigue abierto, porque si no el sistema se quedaría sin ninguna forma
+    de cargar un proveedor hasta que alguien configure la integración.
+    """
+    if invu_client.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Los proveedores se dan de alta en Invu. Cargalo allá y sincronizá desde Proveedores.",
+        )
+
     name = supplier_in.name.strip()
     existing = db.query(Supplier).filter(Supplier.name.ilike(name)).first()
     if existing:
@@ -546,3 +562,66 @@ def list_stock(
         ))
 
     return filas
+
+
+# ==========================================================================
+# Invu POS: de dónde vienen los proveedores
+# ==========================================================================
+@router.get("/invu/status", response_model=InvuStatusResponse)
+def invu_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Si la integración manda o no, y desde cuándo. La pantalla lo necesita para saber si mostrar
+    "Nuevo proveedor" o "Sincronizar con Invu": son excluyentes.
+    """
+    configurada = invu_client.is_configured()
+    return InvuStatusResponse(
+        configured=configurada,
+        last_synced_at=(invu_sync.ultima_sincronizacion(db) if configurada else None),
+        synced_count=db.query(func.count(Supplier.id)).filter(
+            Supplier.invu_id.isnot(None), Supplier.active == True
+        ).scalar() or 0,
+        inactive_count=db.query(func.count(Supplier.id)).filter(
+            Supplier.invu_id.isnot(None), Supplier.active == False
+        ).scalar() or 0,
+        local_count=db.query(func.count(Supplier.id)).filter(
+            Supplier.invu_id.is_(None), Supplier.active == True
+        ).scalar() or 0,
+    )
+
+
+@router.post("/invu/sync-suppliers", response_model=InvuSyncResult)
+def sync_suppliers_from_invu(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Trae los proveedores de Invu ahora mismo.
+
+    Pasada COMPLETA, no incremental: el sweep diario ya hace la incremental, y quien aprieta
+    este botón normalmente es alguien que sospecha que algo no está: darle solo "lo que cambió
+    desde la última vez" sería contestarle con la misma foto que no le sirvió.
+    """
+    if not invu_client.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La integración con Invu no está configurada en el servidor.",
+        )
+
+    try:
+        resumen = invu_sync.sync_providers(db)
+    except invu_client.InvuError as e:
+        # Un problema hablando con Invu no es un error del panel: se cuenta tal cual, con el
+        # mensaje que sirve para ir a arreglarlo.
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+
+    logger.info(f"Sincronización de proveedores pedida por {current_user.name}: {resumen}")
+    return InvuSyncResult(
+        received=resumen["recibidos"],
+        created=resumen["creados"],
+        linked=resumen["enlazados"],
+        updated=resumen["actualizados"],
+        synced_at=resumen["sincronizado_en"],
+    )

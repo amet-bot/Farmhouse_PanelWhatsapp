@@ -30,6 +30,15 @@ class SupplierResponse(BaseModel):
     name: str
     phone: Optional[str] = None
     active: bool
+    # Lo que viene de Invu. `invu_id` presente significa "este proveedor se sincroniza": la
+    # pantalla lo usa para mostrarlo como de solo lectura y marcar su origen.
+    invu_id: Optional[int] = None
+    code: Optional[str] = None
+    tax_id: Optional[str] = None
+    contact_name: Optional[str] = None
+    email: Optional[str] = None
+    delivery_day: Optional[int] = None
+    synced_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -153,3 +162,29 @@ class StockRowResponse(BaseModel):
     # sucursal, y elegir cualquiera sería inventar. Lo usa el formulario de merma para estimar
     # la pérdida antes de guardar; el número que vale es el que calcula el servidor al grabar.
     last_unit_cost: Optional[Decimal] = None
+
+
+# ==========================================================================
+# Invu POS
+# ==========================================================================
+class InvuStatusResponse(BaseModel):
+    """
+    Si Invu manda sobre los proveedores. `configured=False` significa que el panel sigue
+    administrándolos como antes: la pantalla usa esto para decidir entre "Nuevo proveedor" y
+    "Sincronizar con Invu", que son excluyentes.
+    """
+    configured: bool
+    last_synced_at: Optional[datetime] = None
+    # Solo los ACTIVOS, que son los que el catálogo lista. Contar también los inactivos hacía
+    # que la nota dijera "5 vienen de Invu" arriba de una lista de 4.
+    synced_count: int = 0
+    inactive_count: int = 0    # vinieron de Invu pero allá están apagados
+    local_count: int = 0       # cargados a mano en el panel, sin equivalente en Invu
+
+
+class InvuSyncResult(BaseModel):
+    received: int              # cuántos devolvió Invu
+    created: int               # altas nuevas en el panel
+    linked: int                # ya existían acá con el mismo nombre y quedaron emparejados
+    updated: int               # ya estaban sincronizados y algún dato cambió
+    synced_at: datetime

@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=2.9.2">
-  <link rel="stylesheet" href="css/inventory.css?v=3.2.0">
+  <link rel="stylesheet" href="css/inventory.css?v=3.3.0">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -202,6 +202,14 @@
             <button type="button" class="inv-primary-btn" id="btnNewSupplier">
               <i data-lucide="plus"></i> Nuevo proveedor
             </button>
+            <button type="button" class="inv-primary-btn" id="btnSyncInvu" hidden>
+              <i data-lucide="refresh-cw"></i> Sincronizar con Invu
+            </button>
+          </div>
+
+          <div class="inv-invu-note" id="invuNote" hidden>
+            <i data-lucide="link"></i>
+            <span></span>
           </div>
 
           <div class="inv-workspace">
@@ -209,7 +217,7 @@
               <div class="inv-toolbar">
                 <div class="inv-search">
                   <i data-lucide="search"></i>
-                  <input type="text" id="supplierSearch" placeholder="Buscar proveedor o teléfono...">
+                  <input type="text" id="supplierSearch" placeholder="Buscar proveedor, RUC o teléfono...">
                 </div>
               </div>
               <div class="inv-list-header">
@@ -571,6 +579,6 @@
   <script src="js/utils.js?v=3.5.0"></script>
   <script src="js/api.js?v=3.5.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/modules/inventory.js?v=2.2.0"></script>
+  <script src="js/modules/inventory.js?v=2.3.0"></script>
 </body>
 </html>

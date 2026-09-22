@@ -88,6 +88,20 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: Optional[str] = None
     ANTHROPIC_MODEL: str = "claude-haiku-4-5-20251001"
 
+    # Invu POS — de donde salen los proveedores.
+    # Las credenciales se crean en el panel de Invu (Configuración de administrador → caja de
+    # usuarios → nuevo usuario tipo "API Administrator" o "API Basic"), y su documentación
+    # insiste en crearlo A NIVEL DE SUCURSAL, no desde la central.
+    # Sin usuario y contraseña la integración queda apagada y el panel sigue administrando sus
+    # proveedores como hasta ahora: no se puede dejar el sistema sin forma de cargar uno solo
+    # porque todavía no llegaron las credenciales.
+    INVU_API_BASE_URL: str = "https://api6.invupos.com"
+    INVU_API_USERNAME: Optional[str] = None
+    INVU_API_PASSWORD: Optional[str] = None
+
+    def is_invu_configured(self) -> bool:
+        return bool(self.INVU_API_USERNAME and self.INVU_API_PASSWORD)
+
     # Web Push (Notificaciones push del navegador vía VAPID)
     VAPID_PUBLIC_KEY: Optional[str] = None
     VAPID_PRIVATE_KEY: Optional[str] = None

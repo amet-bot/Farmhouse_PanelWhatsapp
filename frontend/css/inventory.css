@@ -73,6 +73,8 @@
 .inv-filter-select[hidden],
 .inv-load-more[hidden],
 .inv-stock-note[hidden],
+.inv-invu-note[hidden],
+.inv-primary-btn[hidden],
 .inv-item-suggestions[hidden] {
   display: none !important;
 }
@@ -1813,4 +1815,63 @@ body {
 
   .inv-stock-table { padding: 0 12px 12px; }
   .inv-check { font-size: 11.5px; }
+}
+
+
+/* ============================================================================
+   INVU POS
+   Los proveedores se dan de alta en Invu y acá se sincronizan. La pantalla tiene que decir eso
+   sin que nadie lo pregunte: de dónde viene cada uno y cuándo fue la última vez que se trajeron.
+   ============================================================================ */
+
+/* Azul y no el verde de la marca: esto no es Farmhouse, es un sistema de afuera. El mismo
+   criterio por el que Comunicación Interna usa azul — el verde se reserva para lo propio. */
+.inv-badge.invu {
+  background: rgba(37, 99, 235, .1);
+  color: #1d4ed8;
+}
+
+[data-theme="dark"] .inv-badge.invu {
+  background: rgba(76, 141, 255, .16);
+  color: #7FB0FF;
+}
+
+.inv-invu-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--inv-border);
+  border-left: 3px solid #2563eb;
+  border-radius: 10px;
+  background: rgba(37, 99, 235, .06);
+  color: var(--inv-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+[data-theme="dark"] .inv-invu-note {
+  border-left-color: #4C8DFF;
+  background: rgba(76, 141, 255, .08);
+}
+
+.inv-invu-note i {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #2563eb;
+}
+
+[data-theme="dark"] .inv-invu-note i { color: #7FB0FF; }
+
+/* El botón de sincronizar gira mientras trabaja: es una llamada a una API de afuera y puede
+   tardar unos segundos, así que tiene que verse que está pasando algo. */
+#btnSyncInvu:disabled i {
+  animation: invSpin 1s linear infinite;
+}
+
+@keyframes invSpin {
+  to { transform: rotate(360deg); }
 }

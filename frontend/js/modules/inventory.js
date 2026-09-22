@@ -63,6 +63,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Existencias de la sucursal elegida en el modal de merma, para poder mostrar "te quedan 4"
     // al lado de cada línea sin pedirle una consulta al servidor por cada tecla.
     wasteStock: new Map(),
+
+    // ---- Invu POS ----
+    // Cuando la integración está configurada, Invu es la fuente de verdad de los proveedores:
+    // el panel deja de crearlos y pasa a sincronizarlos. Lo decide el servidor, no la pantalla.
+    invu: { configured: false, last_synced_at: null, synced_count: 0, local_count: 0 },
   };
 
   // ==========================================================================
@@ -78,6 +83,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const pluralize = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+  // Invu guarda el día de entrega como número. Su documentación no dice desde qué día cuenta,
+  // así que se muestra la traducción más común (1 = lunes) y, si el número se sale del rango,
+  // el número pelado en vez de inventar un día.
+  const DIAS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+  const diaDeEntrega = (n) => DIAS[Number(n) - 1] || `Día ${n}`;
 
   const daysAgoIso = (days) => {
     const d = new Date();
@@ -335,6 +346,79 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     renderWasteList();
   }
+
+  async function loadInvuStatus() {
+    try {
+      state.invu = await api.get('/inventory/invu/status');
+    } catch (err) {
+      // Si no se puede preguntar, se asume que el panel manda: es el comportamiento de
+      // siempre y el que no deja a nadie sin poder cargar un proveedor.
+      state.invu = { configured: false, last_synced_at: null, synced_count: 0, local_count: 0 };
+    }
+    applyInvuMode();
+  }
+
+  /** Muestra el botón que corresponde y explica de dónde salen los proveedores. */
+  function applyInvuMode() {
+    const { configured, last_synced_at, synced_count, inactive_count, local_count } = state.invu;
+
+    $('btnNewSupplier').hidden = configured;
+    $('btnSyncInvu').hidden = !configured;
+
+    const note = $('invuNote');
+    if (!configured) {
+      note.hidden = true;
+      return;
+    }
+
+    // La fecha va seguida de "·" y no de un punto: `formatDateTime` ya devuelve "10:31 a. m.",
+    // que termina en punto, y encadenarle otro dejaba "a. m..".
+    const cuando = last_synced_at
+      ? `Última sincronización el ${utils.formatDateTime(last_synced_at)}`
+      : 'Todavía no se sincronizó ninguna vez';
+
+    const detalle = [`${synced_count} de esta lista ${synced_count === 1 ? 'viene' : 'vienen'} de Invu`];
+    if (inactive_count) {
+      detalle.push(`${inactive_count} más ${inactive_count === 1 ? 'está inactivo' : 'están inactivos'} allá y no se ${inactive_count === 1 ? 'muestra' : 'muestran'}`);
+    }
+    if (local_count) {
+      detalle.push(`${pluralize(local_count, 'proveedor', 'proveedores')} se cargó a mano y no está en Invu`);
+    }
+
+    note.hidden = false;
+    note.querySelector('span').textContent =
+      `Los proveedores se dan de alta en Invu y se sincronizan solos una vez al día. ` +
+      `${cuando} · ${detalle.join('; ')}.`;
+    utils.renderIcons();
+  }
+
+  $('btnSyncInvu')?.addEventListener('click', async () => {
+    const btn = $('btnSyncInvu');
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="refresh-cw"></i> Sincronizando...';
+    utils.renderIcons();
+    try {
+      const r = await api.post('/inventory/invu/sync-suppliers', {});
+      const partes = [];
+      if (r.created) partes.push(`${r.created} nuevo${r.created === 1 ? '' : 's'}`);
+      if (r.linked) partes.push(`${r.linked} emparejado${r.linked === 1 ? '' : 's'} con los que ya estaban`);
+      if (r.updated) partes.push(`${r.updated} actualizado${r.updated === 1 ? '' : 's'}`);
+      utils.showToast(
+        partes.length
+          ? `Invu devolvió ${r.received}: ${partes.join(', ')}.`
+          : `Invu devolvió ${r.received} proveedores; no había nada que cambiar.`,
+        'success'
+      );
+      await Promise.all([loadCatalogs(), loadInvuStatus()]);
+      renderSupplierList();
+    } catch (err) {
+      utils.showToast(err.message || 'No se pudo sincronizar con Invu.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="refresh-cw"></i> Sincronizar con Invu';
+      utils.renderIcons();
+    }
+  });
 
   async function loadWasteAnalytics() {
     try {
@@ -890,7 +974,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderSupplierList() {
     const q = state.search.supplier.trim().toLowerCase();
     const rows = state.suppliers.filter((s) =>
-      !q || `${s.name} ${s.phone || ''}`.toLowerCase().includes(q)
+      !q || `${s.name} ${s.phone || ''} ${s.tax_id || ''} ${s.contact_name || ''} ${s.code || ''}`.toLowerCase().includes(q)
     );
 
     $('suppliersCount').textContent = rows.length ? pluralize(rows.length, 'proveedor', 'proveedores') : 'Proveedores';
@@ -899,7 +983,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!rows.length) {
       list.innerHTML = q
         ? emptyStateHtml('search-x', 'Sin resultados', 'Ningún proveedor coincide con esa búsqueda.')
-        : emptyStateHtml('building-2', 'Sin proveedores', 'Creá el primero o agregalo al vuelo mientras registrás un cargamento.');
+        : (state.invu.configured
+            ? emptyStateHtml('building-2', 'Sin proveedores', 'Se cargan en Invu. Apretá "Sincronizar con Invu" para traerlos.')
+            : emptyStateHtml('building-2', 'Sin proveedores', 'Creá el primero o agregalo al vuelo mientras registrás un cargamento.'));
       renderSupplierDetail();
       utils.renderIcons();
       return;
@@ -915,8 +1001,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span class="inv-row-thumb"><i data-lucide="building-2"></i></span>
           <span class="inv-row-info">
             <strong>${esc(sup.name)}</strong>
-            <small>${esc(sup.phone || 'Sin teléfono')}</small>
+            <small>${esc(sup.tax_id || sup.phone || 'Sin teléfono')}</small>
           </span>
+          ${sup.invu_id ? '<span class="inv-badge invu" title="Viene de Invu">Invu</span>' : ''}
           <span class="inv-badge ${stats.shipments ? 'ok' : 'muted'}">${pluralize(stats.shipments, 'cargamento', 'cargamentos')}</span>
           <span class="inv-row-amount">${stats.spend > 0 ? money(stats.spend) : '—'}</span>
         </button>`;
@@ -951,6 +1038,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${detailBackHtml()}
       <div class="inv-detail-header">
         <span class="inv-detail-thumb"><i data-lucide="building-2"></i></span>
+        ${sup.invu_id ? '<span class="inv-badge invu">Invu</span>' : ''}
         ${sup.active ? '<span class="inv-badge ok">Activo</span>' : '<span class="inv-badge muted">Inactivo</span>'}
       </div>
       <h3>${esc(sup.name)}</h3>
@@ -967,8 +1055,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="inv-detail-section-header"><span>Detalles</span></div>
       <div class="inv-detail-rows">
         <div><span>Teléfono</span><strong>${sup.phone ? `<a href="tel:${esc(sup.phone)}">${esc(sup.phone)}</a>` : '—'}</strong></div>
+        ${sup.tax_id ? `<div><span>RUC</span><strong>${esc(sup.tax_id)}</strong></div>` : ''}
+        ${sup.contact_name ? `<div><span>Contacto</span><strong>${esc(sup.contact_name)}</strong></div>` : ''}
+        ${sup.email ? `<div><span>Correo</span><strong><a href="mailto:${esc(sup.email)}">${esc(sup.email)}</a></strong></div>` : ''}
+        ${sup.delivery_day ? `<div><span>Día de entrega</span><strong>${esc(diaDeEntrega(sup.delivery_day))}</strong></div>` : ''}
         <div><span>Último cargamento</span><strong>${stats.last ? esc(utils.formatDate(stats.last.toISOString())) : 'Nunca'}</strong></div>
         <div><span>Sucursales que atiende</span><strong>${stats.branches.size ? esc(Array.from(stats.branches).join(', ')) : '—'}</strong></div>
+        ${sup.invu_id
+          ? `<div><span>Origen</span><strong>Invu${sup.code ? ` · ${esc(sup.code)}` : ''}${sup.synced_at ? ` · sincronizado ${esc(utils.formatDateTime(sup.synced_at))}` : ''}</strong></div>`
+          : (state.invu.configured ? '<div><span>Origen</span><strong>Cargado en el panel, no está en Invu</strong></div>' : '')}
       </div>`;
     utils.renderIcons();
   }
@@ -1239,8 +1334,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     let html = results.map((r, i) =>
       `<button type="button" class="inv-item-suggestion" data-idx="${i}">${esc(r.name)}${r.phone ? ` <small>(${esc(r.phone)})</small>` : ''}</button>`
     ).join('');
-    if (!exactMatch) {
+    // Con Invu configurado no se ofrece crear: el proveedor se da de alta allá. Si no está en
+    // la lista es que falta cargarlo o sincronizar, y decirlo es más útil que abrir un
+    // formulario cuyo guardado el servidor va a rechazar.
+    if (!exactMatch && !state.invu.configured) {
       html += `<button type="button" class="inv-item-suggestion inv-item-suggestion-create" data-create="1">+ Crear "${esc(trimmed)}"</button>`;
+    }
+    if (!results.length && state.invu.configured) {
+      html = '<div class="inv-item-suggestion-empty">No está en Invu. Cargalo allá y sincronizá desde Proveedores.</div>';
     }
     supplierSuggestions.innerHTML = html;
     supplierSuggestions.hidden = false;
@@ -1950,6 +2051,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadWaste({ reset: true }),
     loadWasteAnalytics(),
     loadStock(),
+    loadInvuStatus(),
   ]);
 
   renderResumen();

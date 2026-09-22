@@ -29,6 +29,7 @@ from routers import (
     internal_chat,
 )
 from services.bot_followup import run_followup_sweep_loop
+from services import invu_sync
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,14 +69,21 @@ async def lifespan(app: FastAPI):
     if "PYTEST_CURRENT_TEST" not in os.environ:
         followup_task = asyncio.create_task(run_followup_sweep_loop())
 
+    # Segundo loop: trae los proveedores de Invu al arrancar y una vez por día. Misma guarda de
+    # pytest y, además, no arranca si la integración no tiene credenciales (ver invu_sync).
+    invu_task = None
+    if invu_sync.debe_arrancar_loop():
+        invu_task = asyncio.create_task(invu_sync.run_provider_sync_loop())
+
     yield
 
-    if followup_task:
-        followup_task.cancel()
-        try:
-            await followup_task
-        except asyncio.CancelledError:
-            pass
+    for task in (followup_task, invu_task):
+        if task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 # Farmhouse WhatsApp Center - FastAPI Backend Server
 app = FastAPI(
