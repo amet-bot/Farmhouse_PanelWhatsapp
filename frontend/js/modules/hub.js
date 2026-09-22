@@ -32,6 +32,15 @@ const SYSTEMS = [
     status: 'coming-soon',
   },
   {
+    id: 'interno',
+    name: 'Comunicación Interna',
+    description: 'Mensajería entre el personal de todas las sucursales.',
+    tags: ['Equipo', 'Sucursales', 'Mensajes'],
+    icon: 'messages-square',
+    status: 'active',
+    route: '/interno',
+  },
+  {
     id: 'inventario',
     name: 'Inventario y Abastecimiento',
     description: 'Cargamentos por sucursal. Merma y gasto: próximamente.',

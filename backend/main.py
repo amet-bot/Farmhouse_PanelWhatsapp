@@ -26,6 +26,7 @@ from routers import (
     payments,
     bot_flows,
     inventory,
+    internal_chat,
 )
 from services.bot_followup import run_followup_sweep_loop
 
@@ -152,6 +153,7 @@ app.include_router(webhooks.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router)
 app.include_router(bot_flows.router, prefix=settings.API_V1_STR)
 app.include_router(inventory.router, prefix=settings.API_V1_STR)
+app.include_router(internal_chat.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)
 
 # -----------------------------------------------------------------------------
@@ -212,6 +214,11 @@ if frontend_dir.exists():
         @app.get("/inventario", include_in_schema=False)
         def serve_inventory():
             return FileResponse(str(frontend_dir / "inventory.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+    if (frontend_dir / "internal.html").exists():
+        @app.get("/interno", include_in_schema=False)
+        def serve_internal():
+            return FileResponse(str(frontend_dir / "internal.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     if (frontend_dir / "manifest.json").exists():
         @app.get("/manifest.json", include_in_schema=False)

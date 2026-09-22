@@ -117,6 +117,14 @@ class ConnectionManager:
             self._forget(dead)
         return delivered
 
+    def online_user_ids(self) -> Set[int]:
+        """
+        Quiénes tienen al menos una conexión abierta ahora mismo. Lo usa Comunicación Interna
+        para el punto de "en línea": es el estado real de las conexiones y no un campo en la
+        base que haya que mantener al día y que quede mintiendo si un proceso se cae.
+        """
+        return set(self.active_users.keys())
+
     # ------------------------------------------------------------------
     # Difusión
     # ------------------------------------------------------------------

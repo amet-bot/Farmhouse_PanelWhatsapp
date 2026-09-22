@@ -1,0 +1,793 @@
+/* ============================================================================
+   FARMHOUSE - COMUNICACIÓN INTERNA
+   Mensajería entre el personal. Comparte las superficies y la tipografía del resto de la suite
+   (hub.css, inventory.css) para que se sienta el mismo producto, pero el acento NO es el verde
+   de marca: es un azul corporativo. El verde en esta casa significa "Farmhouse de cara al
+   cliente"; acá adentro no hay cliente, hay equipo, y el tono más sobrio es lo que pidió el
+   encargo. También va todo un paso más denso y con esquinas menos redondeadas que Inventario.
+
+   Ojo con [hidden]: cualquier selector que defina `display` sobre un elemento que el JS oculta
+   con `hidden` le gana al [hidden] nativo por especificidad. De ahí el bloque de guardas.
+   ============================================================================ */
+
+:root, [data-theme="light"] {
+  --int-bg: var(--bg-primary);
+  --int-panel: var(--panel-bg);
+  --int-panel-2: var(--panel-subtle);
+  --int-border: var(--line);
+  --int-border-light: var(--line-light);
+  --int-text: var(--text-primary);
+  --int-text-secondary: var(--text-secondary);
+  --int-text-muted: var(--text-muted);
+  --int-accent: #2563eb;
+  --int-accent-soft: #eff6ff;
+  --int-accent-text: #1d4ed8;
+  --int-accent-border: #bfdbfe;
+  --int-mine-bg: #2563eb;
+  --int-mine-text: #ffffff;
+  --int-online: #16a34a;
+}
+
+[data-theme="dark"] {
+  --int-bg: #070D18;
+  --int-panel: #0B1421;
+  --int-panel-2: #101B2C;
+  --int-border: rgba(110, 145, 195, .18);
+  --int-border-light: rgba(110, 145, 195, .11);
+  --int-text: #F2F5FA;
+  --int-text-secondary: #93A6C4;
+  --int-text-muted: #6E84A6;
+  --int-accent: #4C8DFF;
+  --int-accent-soft: rgba(76, 141, 255, .14);
+  --int-accent-text: #7FB0FF;
+  --int-accent-border: rgba(76, 141, 255, .38);
+  --int-mine-bg: #2C63C4;
+  --int-mine-text: #F2F7FF;
+  --int-online: #2ED47A;
+}
+
+/* ---- Guardas de [hidden] ---- */
+.int-gate[hidden],
+.int-app[hidden],
+.int-pane[hidden],
+.int-chat-empty[hidden],
+.int-chat-live[hidden],
+.int-chat-kind[hidden],
+.int-tab-count[hidden],
+.int-unread[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: var(--int-bg);
+  font-family: 'Inter', sans-serif;
+  color: var(--int-text);
+}
+
+/* ============================================================================
+   1. PUERTA DE ENTRADA
+   ============================================================================ */
+.int-gate {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--int-text-muted);
+  font-size: 13.5px;
+}
+
+.int-gate p { margin: 0; }
+
+.int-gate-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--int-border);
+  border-top-color: var(--int-accent);
+  animation: intSpin 0.7s linear infinite;
+}
+
+@keyframes intSpin { to { transform: rotate(360deg); } }
+
+/* ============================================================================
+   2. ESTRUCTURA
+   La app ocupa exactamente el alto de la ventana y NO scrollea: el único scroll vive dentro
+   de la lista y del panel de mensajes. Es lo que hace que el redactor quede siempre fijo abajo,
+   como en cualquier mensajería, en vez de irse de pantalla al crecer la conversación.
+   ============================================================================ */
+.int-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.int-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 13px 24px;
+  background: var(--int-panel);
+  border-bottom: 1px solid var(--int-border);
+  flex-shrink: 0;
+}
+
+.int-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--int-text-secondary);
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+
+.int-back:hover,
+.int-back:focus-visible { background: var(--int-panel-2); outline: none; }
+
+.int-back i { width: 16px; height: 16px; }
+
+.int-header-titles { flex: 1; min-width: 150px; }
+
+.int-header-titles .int-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--int-text);
+}
+
+.int-header-titles .int-subtitle { font-size: 12px; color: var(--int-text-muted); }
+
+.int-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.int-header-actions .theme-toggle-btn,
+.int-header-actions .user-profile {
+  border: 1px solid var(--int-border);
+  border-radius: 999px;
+  background: var(--int-panel-2);
+  color: var(--int-text);
+}
+
+/* Estado de la conexión en vivo: si el WebSocket se cae, los mensajes dejan de llegar solos
+   y quien está del otro lado merece saberlo antes de suponer que nadie le contesta. */
+.int-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--int-border);
+  background: var(--int-panel-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--int-text-muted);
+}
+
+.int-conn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--int-text-muted);
+  flex-shrink: 0;
+}
+
+.int-conn.online .int-conn-dot { background: var(--int-online); }
+.int-conn.online { color: var(--int-text-secondary); }
+.int-conn.offline .int-conn-dot { background: var(--red); }
+.int-conn.offline { color: var(--danger-text); border-color: var(--danger-border); background: var(--danger-bg); }
+
+.int-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--int-border);
+  background: var(--int-panel-2);
+  color: var(--int-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.int-logout-btn:hover,
+.int-logout-btn:focus-visible {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+  outline: none;
+}
+
+.int-logout-btn i { width: 16px; height: 16px; }
+
+.int-shell {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+
+/* ============================================================================
+   3. COLUMNA IZQUIERDA
+   ============================================================================ */
+.int-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--int-panel);
+  border-right: 1px solid var(--int-border);
+}
+
+.int-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 10px 0;
+  border-bottom: 1px solid var(--int-border);
+  flex-shrink: 0;
+}
+
+.int-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 8px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--int-text-muted);
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease;
+}
+
+.int-tab i { width: 15px; height: 15px; }
+
+.int-tab:hover { color: var(--int-text); }
+
+.int-tab.active {
+  color: var(--int-accent-text);
+  border-bottom-color: var(--int-accent);
+}
+
+.int-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--int-accent);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.int-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.int-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--int-panel-2);
+  border: 1px solid var(--int-border);
+  flex-shrink: 0;
+  transition: border-color 0.15s ease;
+}
+
+.int-search:focus-within { border-color: var(--int-accent-border); }
+
+.int-search i { width: 14px; height: 14px; color: var(--int-text-muted); flex-shrink: 0; }
+
+.int-search input {
+  border: none;
+  background: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--int-text);
+  width: 100%;
+  min-width: 0;
+}
+
+.int-search input::placeholder { color: var(--int-text-muted); }
+
+.int-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+
+.int-group-label {
+  padding: 12px 14px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--int-text-muted);
+}
+
+.int-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 4px 11px;
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  border-left: 2px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.int-row:hover { background: var(--int-panel-2); }
+
+.int-row.active {
+  background: var(--int-accent-soft);
+  border-left-color: var(--int-accent);
+}
+
+.int-row-avatar { grid-row: span 2; align-self: start; }
+
+.int-avatar {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--int-panel-2);
+  border: 1px solid var(--int-border);
+  color: var(--int-text-secondary);
+  font-size: 12.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* El canal del equipo no es una persona: se distingue por el ícono y por el tinte del acento. */
+.int-avatar.is-channel {
+  background: var(--int-accent-soft);
+  border-color: var(--int-accent-border);
+  color: var(--int-accent-text);
+}
+
+.int-avatar.is-channel i { width: 18px; height: 18px; }
+
+.int-avatar .int-presence {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--int-online);
+  border: 2px solid var(--int-panel);
+}
+
+.int-row-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.int-row-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--int-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.int-row-preview {
+  font-size: 12px;
+  color: var(--int-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.int-row.has-unread .int-row-name { font-weight: 700; }
+.int-row.has-unread .int-row-preview { color: var(--int-text-secondary); font-weight: 500; }
+
+.int-row-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.int-row-time {
+  font-size: 10.5px;
+  color: var(--int-text-muted);
+  white-space: nowrap;
+}
+
+.int-unread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--int-accent);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+/* Etiqueta de sucursal: el dato que más importa en una empresa multisucursal. */
+.int-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--int-panel-2);
+  border: 1px solid var(--int-border);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--int-text-muted);
+  white-space: nowrap;
+}
+
+.int-chip.role { background: var(--int-accent-soft); border-color: var(--int-accent-border); color: var(--int-accent-text); }
+
+.int-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 40px 22px;
+  text-align: center;
+  color: var(--int-text-muted);
+  font-size: 12.5px;
+}
+
+.int-empty strong { font-size: 13px; color: var(--int-text); }
+.int-empty p { margin: 0; line-height: 1.5; }
+
+/* ============================================================================
+   4. CONVERSACIÓN
+   ============================================================================ */
+.int-chat {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--int-bg);
+}
+
+.int-chat-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  color: var(--int-text-muted);
+  padding: 24px;
+}
+
+.int-empty-icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: var(--int-panel-2);
+  border: 1px solid var(--int-border);
+  color: var(--int-text-muted);
+}
+
+.int-empty-icon i { width: 26px; height: 26px; }
+
+.int-chat-empty strong { font-size: 15px; color: var(--int-text); }
+
+.int-chat-empty p { margin: 0; max-width: 320px; font-size: 13px; line-height: 1.55; }
+
+.int-chat-live {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.int-chat-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--int-panel);
+  border-bottom: 1px solid var(--int-border);
+  flex-shrink: 0;
+}
+
+.int-chat-back {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--int-border);
+  background: var(--int-panel-2);
+  color: var(--int-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.int-chat-back i { width: 17px; height: 17px; }
+
+.int-chat-headings { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+
+.int-chat-headings strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--int-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.int-chat-headings small { font-size: 11.5px; color: var(--int-text-muted); }
+
+.int-chat-kind {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--int-accent-soft);
+  border: 1px solid var(--int-accent-border);
+  color: var(--int-accent-text);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+/* ---- Mensajes ---- */
+.int-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 20px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.int-day {
+  align-self: center;
+  margin: 14px 0 10px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--int-panel-2);
+  border: 1px solid var(--int-border);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--int-text-muted);
+}
+
+/* align-items: flex-start es lo que hace que la burbuja se ajuste al texto. Sin eso, al ser
+   un contenedor flex en columna, se estira hasta el max-width y un "ok" ocupa media pantalla. */
+.int-msg {
+  max-width: min(74%, 620px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.int-msg.mine { align-self: flex-end; align-items: flex-end; }
+
+/* Cuando el mismo autor encadena mensajes, solo el primero lleva su nombre: en un canal con
+   seis personas, repetir el nombre en cada burbuja es ruido. */
+.int-msg-author {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--int-accent-text);
+  padding: 0 4px;
+  margin-top: 10px;
+}
+
+.int-bubble {
+  padding: 9px 13px;
+  border-radius: 12px;
+  background: var(--int-panel);
+  border: 1px solid var(--int-border);
+  color: var(--int-text);
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.int-msg.mine .int-bubble {
+  background: var(--int-mine-bg);
+  border-color: transparent;
+  color: var(--int-mine-text);
+}
+
+.int-msg-time {
+  font-size: 10px;
+  color: var(--int-text-muted);
+  padding: 0 4px;
+}
+
+/* ---- Redactor ---- */
+.int-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 12px 20px 6px;
+  background: var(--int-panel);
+  border-top: 1px solid var(--int-border);
+  flex-shrink: 0;
+}
+
+/* box-sizing explícito: autoGrow() asigna scrollHeight a la altura, y scrollHeight incluye el
+   relleno. Con content-box las dos medidas no hablan el mismo idioma y aparece una barra de
+   desplazamiento de un par de píxeles aunque el texto entre. */
+.int-composer textarea {
+  flex: 1;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  min-height: 42px;
+  max-height: 160px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--int-border);
+  background: var(--int-panel-2);
+  color: var(--int-text);
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.int-composer textarea:focus { border-color: var(--int-accent-border); }
+.int-composer textarea::placeholder { color: var(--int-text-muted); }
+
+.int-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 12px;
+  background: var(--int-accent);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.int-send i { width: 18px; height: 18px; }
+.int-send:hover:not(:disabled) { transform: translateY(-1px); }
+.int-send:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.int-composer-hint {
+  margin: 0;
+  padding: 0 20px 12px;
+  background: var(--int-panel);
+  font-size: 10.5px;
+  color: var(--int-text-muted);
+  flex-shrink: 0;
+}
+
+/* ---- Esqueletos ---- */
+.int-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 14px;
+}
+
+.int-sk {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--int-panel-2) 25%, var(--int-border-light) 50%, var(--int-panel-2) 75%);
+  background-size: 200% 100%;
+  animation: intShimmer 1.3s ease-in-out infinite;
+}
+
+.int-sk-avatar { width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0; }
+.int-sk-line { height: 10px; flex: 1; }
+
+@keyframes intShimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* ============================================================================
+   5. TOAST
+   Igual que en Inventario: utils.showToast() pone `toast-banner toast-<tipo> active`, pero
+   style.css no define ni `.active` ni las clases por tipo, así que el aviso quedaría mudo.
+   ============================================================================ */
+.toast-banner.active { display: flex; }
+.toast-banner.toast-success { background: var(--success-badge-bg); color: var(--success-text); border: 1px solid var(--success-border); }
+.toast-banner.toast-error { background: var(--danger-badge-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
+.toast-banner.toast-warning { background: var(--warning-badge-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
+.toast-banner.toast-info { background: var(--info-badge-bg); color: var(--info-text); border: 1px solid var(--info-border); }
+.toast-banner i { width: 16px; height: 16px; }
+
+/* ============================================================================
+   6. PANTALLAS CHICAS
+   Las dos columnas se turnan: primero la bandeja, y al abrir una conversación esta toma la
+   pantalla entera con su botón de volver. Igual criterio que en Inventario.
+   ============================================================================ */
+@media (max-width: 900px) {
+  .int-shell { grid-template-columns: minmax(0, 1fr); }
+  .int-side { border-right: none; }
+  .int-chat-back { display: flex; }
+
+  .int-shell .int-chat { display: none; }
+  .int-shell.is-chat .int-side { display: none; }
+  .int-shell.is-chat .int-chat { display: flex; }
+
+  .int-header { padding: 11px 14px; gap: 9px; flex-wrap: nowrap; }
+  .int-back { padding: 8px; }
+  .int-back span { display: none; }
+  .int-header-titles { min-width: 0; }
+
+  .int-header-titles .int-title {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .int-header-titles .int-subtitle { display: none; }
+  .int-conn .int-conn-label { display: none; }
+  .int-conn { padding: 8px; }
+
+  .int-header-actions { gap: 7px; flex-wrap: nowrap; }
+  /* Solo el bloque de nombre y rol; el avatar es el otro div hijo directo y se queda. */
+  .int-header-actions .user-profile > div:not(.profile-avatar) { display: none; }
+  .int-header-actions .user-profile { padding: 4px; gap: 0; }
+  .int-logout-btn { padding: 9px 11px; }
+  .int-logout-btn span { display: none; }
+
+  .int-messages { padding: 16px 14px 8px; }
+  .int-msg { max-width: 86%; }
+  .int-composer { padding: 10px 14px 6px; }
+  .int-composer-hint { display: none; }
+  .int-chat-header { padding: 10px 14px; }
+}

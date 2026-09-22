@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Comunicación Interna</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1e3a5f">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=2.9.2">
+  <link rel="stylesheet" href="css/internal.css?v=1.0.0">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <div class="int-gate" id="intGate">
+    <span class="int-gate-spinner" aria-hidden="true"></span>
+    <p>Verificando sesión...</p>
+  </div>
+
+  <div class="int-app" id="intMain" hidden>
+
+    <header class="int-header">
+      <a class="int-back" href="/hub" title="Volver al Panel General">
+        <i data-lucide="arrow-left"></i>
+        <span>Panel General</span>
+      </a>
+      <div class="int-header-titles">
+        <p class="int-title">Comunicación Interna</p>
+        <span class="int-subtitle" id="intHeaderScope">Mensajería del equipo</span>
+      </div>
+      <div class="int-header-actions">
+        <span class="int-conn" id="intConn" title="Estado de la conexión en tiempo real">
+          <span class="int-conn-dot"></span>
+          <span class="int-conn-label">Conectando</span>
+        </span>
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="intAgentAvatar">AD</div>
+          <div>
+            <strong id="intAgentName">Administrador</strong>
+            <small id="intAgentRole">ADMIN</small>
+          </div>
+        </div>
+        <button class="int-logout-btn" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="int-shell">
+
+      <!-- ============ Columna izquierda: bandeja y directorio ============ -->
+      <aside class="int-side">
+        <div class="int-tabs" role="tablist">
+          <button type="button" class="int-tab active" data-pane="conversaciones" role="tab">
+            <i data-lucide="messages-square"></i>
+            <span>Conversaciones</span>
+            <span class="int-tab-count" id="tabUnread" hidden>0</span>
+          </button>
+          <button type="button" class="int-tab" data-pane="directorio" role="tab">
+            <i data-lucide="users"></i>
+            <span>Directorio</span>
+          </button>
+        </div>
+
+        <!-- ---- Bandeja ---- -->
+        <div class="int-pane" id="paneConversaciones">
+          <div class="int-search">
+            <i data-lucide="search"></i>
+            <input type="text" id="threadSearch" placeholder="Buscar conversación...">
+          </div>
+          <div class="int-list" id="threadList"></div>
+        </div>
+
+        <!-- ---- Directorio ---- -->
+        <div class="int-pane" id="paneDirectorio" hidden>
+          <div class="int-search">
+            <i data-lucide="search"></i>
+            <input type="text" id="peopleSearch" placeholder="Buscar persona o sucursal...">
+          </div>
+          <div class="int-list" id="peopleList"></div>
+        </div>
+      </aside>
+
+      <!-- ============ Columna derecha: conversación ============ -->
+      <section class="int-chat" id="intChat">
+        <div class="int-chat-empty" id="chatEmpty">
+          <span class="int-empty-icon"><i data-lucide="messages-square"></i></span>
+          <strong>Elegí una conversación</strong>
+          <p>Escribile a cualquier compañero, de cualquier sucursal, o al canal de tu equipo.</p>
+        </div>
+
+        <div class="int-chat-live" id="chatLive" hidden>
+          <header class="int-chat-header">
+            <button type="button" class="int-chat-back" id="btnChatBack" aria-label="Volver a la lista">
+              <i data-lucide="arrow-left"></i>
+            </button>
+            <span class="int-avatar" id="chatAvatar">--</span>
+            <div class="int-chat-headings">
+              <strong id="chatTitle">&mdash;</strong>
+              <small id="chatSubtitle"></small>
+            </div>
+            <span class="int-chat-kind" id="chatKind" hidden></span>
+          </header>
+
+          <div class="int-messages" id="messageList"></div>
+
+          <form class="int-composer" id="composer" autocomplete="off">
+            <textarea id="composerInput" rows="1" placeholder="Escribí un mensaje..." maxlength="4000"></textarea>
+            <button type="submit" class="int-send" id="btnSend" aria-label="Enviar mensaje">
+              <i data-lucide="send-horizontal"></i>
+            </button>
+          </form>
+          <p class="int-composer-hint">Enter envía · Shift + Enter hace un salto de línea</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="toastNotification" class="toast-banner">
+    <span id="toastIconSlot"><i data-lucide="check" id="toastIcon"></i></span>
+    <span id="toastMessage">Listo.</span>
+  </div>
+
+  <script src="js/utils.js?v=3.5.0"></script>
+  <script src="js/api.js?v=3.5.0"></script>
+  <script src="js/ws.js?v=3.4.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/modules/internal.js?v=1.0.0"></script>
+</body>
+</html>
