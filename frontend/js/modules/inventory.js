@@ -5,10 +5,13 @@
  * endpoints que ya existen — Resumen, Cargamentos, Insumos y Proveedores. Merma, Gasto por
  * sucursal, Lotes y Reportes siguen siendo "Próximamente" en el rail, sin vista propia.
  *
- * Nada de stock acá: el backend solo registra ENTRADAS (Shipment), así que la página nunca habla
- * de existencias ni de "bajo stock" — para eso hacen falta salidas, o sea Merma. Lo que sí se
- * puede decir con lo que hay es cuánto entró, cuándo, de quién y a qué costo; sobre eso se arman
- * las métricas.
+ * Ahora sí hay stock: con Merma el backend registra las dos puntas, así que la existencia de un
+ * insumo es lo que entró menos lo que salió. El servidor la calcula y la sirve en /inventory/stock;
+ * acá no se recalcula nada, para que la pantalla y los reportes nunca se contradigan.
+ *
+ * La existencia puede ser NEGATIVA y se muestra así a propósito: nadie cargó el inventario de
+ * arranque de cada sucursal, así que un negativo dice "falta cargar el arranque", no "alguien se
+ * equivocó". Por lo mismo el registro de merma avisa pero no bloquea.
  *
  * Dos conjuntos de datos, a propósito:
  *   · state.shipments  — la lista paginada de la vista Cargamentos. Respeta el filtro de
@@ -40,9 +43,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     suppliers: [],
     view: 'resumen',
     branchFilter: '',
-    selected: { shipment: null, item: null, supplier: null },
-    search: { shipment: '', item: '', supplier: '' },
+    selected: { shipment: null, item: null, supplier: null, waste: null },
+    search: { shipment: '', item: '', supplier: '', waste: '', stock: '' },
     selectedSupplierId: '',
+
+    // ---- Merma y existencias ----
+    waste: [],
+    wasteOffset: 0,
+    wasteHasMore: false,
+    // Tanda aparte y SIN filtrar, igual que state.analytics para los cargamentos: el Resumen
+    // no puede cambiar de cifras porque alguien movió el filtro de sucursal en la vista Merma.
+    wasteAnalytics: [],
+    wasteReasons: [],
+    wasteBranchFilter: '',
+    wasteReasonFilter: '',
+    stock: [],
+    stockBranchFilter: '',
+    stockOnlyMoved: true,
+    // Existencias de la sucursal elegida en el modal de merma, para poder mostrar "te quedan 4"
+    // al lado de cada línea sin pedirle una consulta al servidor por cada tecla.
+    wasteStock: new Map(),
   };
 
   // ==========================================================================
@@ -200,7 +220,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Navegación entre vistas
   // ==========================================================================
-  const VIEWS = { resumen: 'viewResumen', cargamentos: 'viewCargamentos', insumos: 'viewInsumos', proveedores: 'viewProveedores' };
+  const VIEWS = {
+    resumen: 'viewResumen',
+    cargamentos: 'viewCargamentos',
+    insumos: 'viewInsumos',
+    proveedores: 'viewProveedores',
+    merma: 'viewMerma',
+    existencias: 'viewExistencias',
+  };
 
   function setView(view) {
     if (!VIEWS[view]) return;
@@ -223,6 +250,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.querySelectorAll('[data-open-shipment]').forEach((btn) => {
     btn.addEventListener('click', () => openShipmentModal());
+  });
+
+  document.querySelectorAll('[data-open-waste]').forEach((btn) => {
+    btn.addEventListener('click', () => openWasteModal());
   });
 
   // ==========================================================================
@@ -269,6 +300,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Alimenta el datalist de categorías del modal con las que ya existen.
     const categories = Array.from(new Set(items.map((i) => i.category).filter(Boolean))).sort();
     $('categoryOptions').innerHTML = categories.map((c) => `<option value="${esc(c)}"></option>`).join('');
+  }
+
+  async function loadWasteReasons() {
+    try {
+      state.wasteReasons = await api.get('/inventory/waste/reasons');
+    } catch (err) {
+      state.wasteReasons = [];
+    }
+    // El filtro y el formulario se llenan desde el servidor: los motivos son vocabulario de
+    // negocio y no pueden vivir duplicados en el frontend.
+    const options = state.wasteReasons.map((r) => `<option value="${esc(r.code)}">${esc(r.label)}</option>`).join('');
+    $('wasteReasonFilter').innerHTML = `<option value="">Todos los motivos</option>${options}`;
+    $('wasteReasonSelect').innerHTML = options;
+  }
+
+  async function loadWaste({ reset = false } = {}) {
+    if (reset) {
+      state.waste = [];
+      state.wasteOffset = 0;
+      $('wasteList').innerHTML = skeletonListHtml();
+    }
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(state.wasteOffset) });
+    if (state.wasteBranchFilter) params.set('branch_id', state.wasteBranchFilter);
+    if (state.wasteReasonFilter) params.set('reason', state.wasteReasonFilter);
+    try {
+      const page = await api.get(`/inventory/waste?${params.toString()}`);
+      state.waste = state.waste.concat(page);
+      state.wasteOffset += page.length;
+      state.wasteHasMore = page.length === PAGE_SIZE;
+    } catch (err) {
+      utils.showToast(err.message || 'No se pudo cargar la merma.', 'error');
+      state.wasteHasMore = false;
+    }
+    renderWasteList();
+  }
+
+  async function loadWasteAnalytics() {
+    try {
+      state.wasteAnalytics = await api.get(`/inventory/waste?limit=${ANALYTICS_SIZE}`);
+    } catch (err) {
+      state.wasteAnalytics = [];
+    }
+  }
+
+  async function loadStock() {
+    const params = new URLSearchParams();
+    if (state.stockBranchFilter) params.set('branch_id', state.stockBranchFilter);
+    if (state.stockOnlyMoved) params.set('only_stocked', 'true');
+    try {
+      state.stock = await api.get(`/inventory/stock?${params.toString()}`);
+    } catch (err) {
+      state.stock = [];
+      utils.showToast(err.message || 'No se pudieron cargar las existencias.', 'error');
+    }
+    renderStockTable();
   }
 
   // ==========================================================================
@@ -325,8 +411,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Vista: Resumen
   // ==========================================================================
+  /**
+   * Merma de la ventana reciente. Se mira `occurred_at` y no `created_at`: lo que importa es
+   * cuándo se perdió, no cuándo alguien se acordó de cargarlo.
+   */
+  function recentWasteStats() {
+    const desde = daysAgoIso(RECENT_DAYS);
+    const rows = state.wasteAnalytics.filter((w) => {
+      const fecha = utils._parseServerDate(w.occurred_at);
+      return fecha && fecha >= desde;
+    });
+    const conCosto = rows.filter((w) => w.total_cost != null);
+    return {
+      rows,
+      count: rows.length,
+      total: conCosto.length ? conCosto.reduce((acc, w) => acc + Number(w.total_cost), 0) : null,
+    };
+  }
+
   function renderResumen() {
     const recent = recentShipments();
+    const recentWaste = recentWasteStats();
     const spend = recent.reduce((acc, s) => acc + shipmentTotal(s), 0);
     const costed = recent.filter((s) => s.total_cost != null).length;
     const distinctItems = new Set();
@@ -365,6 +470,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         value: String(supplierIds.size),
         sub: `${state.suppliers.length} en el catálogo`,
       },
+      {
+        icon: 'trending-down',
+        label: `Merma (${RECENT_DAYS} días)`,
+        value: recentWaste.total != null ? money(recentWaste.total) : '—',
+        sub: recentWaste.count
+          ? `${pluralize(recentWaste.count, 'registro', 'registros')}${recentWaste.total == null ? ', sin costo conocido' : ''}`
+          : 'Sin mermas registradas',
+      },
     ];
 
     $('kpiRow').innerHTML = kpis.map((k) => `
@@ -377,7 +490,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTopItemsBars(recent);
     renderRecentShipments();
     renderBranchBars(recent);
+    renderWasteReasonBars(recentWaste.rows);
     utils.renderIcons();
+  }
+
+  /**
+   * Merma por motivo. Es la pregunta que justifica el módulo: no "cuánto se perdió" sino "por
+   * qué", que es lo único sobre lo que se puede hacer algo. Se ordena por plata perdida cuando
+   * hay costos, y por cantidad de episodios cuando todavía no.
+   */
+  function renderWasteReasonBars(rows) {
+    const panel = $('wasteReasonPanel');
+    if (!panel) return;
+    if (!rows.length) {
+      panel.hidden = true;
+      return;
+    }
+    panel.hidden = false;
+
+    const porMotivo = new Map();
+    rows.forEach((w) => {
+      const entry = porMotivo.get(w.reason) || { label: w.reason_label, costo: 0, veces: 0, conCosto: false };
+      entry.veces += 1;
+      if (w.total_cost != null) {
+        entry.costo += Number(w.total_cost);
+        entry.conCosto = true;
+      }
+      porMotivo.set(w.reason, entry);
+    });
+
+    const hayCostos = Array.from(porMotivo.values()).some((e) => e.conCosto);
+    const lista = Array.from(porMotivo.values())
+      .sort((a, b) => (hayCostos ? b.costo - a.costo : b.veces - a.veces))
+      .slice(0, 8);
+    const tope = Math.max(...lista.map((e) => (hayCostos ? e.costo : e.veces)), 1);
+
+    $('wasteReasonNote').textContent = hayCostos ? `Últimos ${RECENT_DAYS} días, por costo` : `Últimos ${RECENT_DAYS} días`;
+    $('wasteReasonBars').innerHTML = lista.map((e) => {
+      const valor = hayCostos ? e.costo : e.veces;
+      return `
+        <div class="inv-bar-row inv-bar-row-waste">
+          <span class="inv-bar-name">${esc(e.label)}</span>
+          <span class="inv-bar-value">${hayCostos ? money(e.costo) : pluralize(e.veces, 'vez', 'veces')}</span>
+          <span class="inv-bar-track"><span class="inv-bar-fill inv-bar-fill-waste" style="width:${Math.max(4, (valor / tope) * 100)}%"></span></span>
+        </div>`;
+    }).join('');
   }
 
   /**
@@ -1188,6 +1345,524 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+
+  // ==========================================================================
+  // Vista: Merma
+  // ==========================================================================
+  function filteredWaste() {
+    const q = state.search.waste.trim().toLowerCase();
+    if (!q) return state.waste;
+    return state.waste.filter((w) => {
+      const heno = [
+        w.reason_label,
+        w.recorded_by_name,
+        w.branch_name,
+        w.notes || '',
+        ...w.items.map((l) => l.item_name),
+      ].join(' ').toLowerCase();
+      return heno.includes(q);
+    });
+  }
+
+  const WASTE_ICONS = {
+    vencido: 'calendar-x',
+    danado: 'package-x',
+    error_preparacion: 'chef-hat',
+    derrame: 'droplets',
+    devolucion: 'undo-2',
+    consumo_interno: 'utensils',
+    faltante: 'search-x',
+    otro: 'circle-help',
+  };
+
+  const wasteIcon = (reason) => WASTE_ICONS[reason] || 'trending-down';
+
+  /** Cuántas unidades salieron en un registro, resumido para la fila de la lista. */
+  function wasteQuantityLabel(w) {
+    if (w.items.length === 1) {
+      const line = w.items[0];
+      return `${qty(line.quantity)} ${line.unit}`;
+    }
+    return pluralize(w.items.length, 'insumo', 'insumos');
+  }
+
+  function renderWasteList() {
+    const rows = filteredWaste();
+    const list = $('wasteList');
+
+    $('wasteCount').textContent = rows.length ? pluralize(rows.length, 'merma', 'mermas') : 'Mermas';
+    $('wasteScopeLabel').textContent = state.isGlobalScope
+      ? (state.wasteBranchFilter
+          ? (state.branches.find((b) => String(b.id) === state.wasteBranchFilter)?.name || '')
+          : 'Todas las sucursales')
+      : '';
+
+    if (!rows.length) {
+      list.innerHTML = (state.search.waste || state.wasteReasonFilter)
+        ? emptyStateHtml('search-x', 'Sin resultados', 'Probá con otro motivo, insumo o persona.')
+        : emptyStateHtml('trending-down', 'Todavía no hay mermas', 'Registrá lo que se perdió y acá queda el historial, con su motivo y su costo.');
+      $('btnLoadMoreWaste').hidden = !state.wasteHasMore;
+      renderWasteDetail();
+      utils.renderIcons();
+      return;
+    }
+
+    if (!rows.some((w) => w.id === state.selected.waste)) {
+      state.selected.waste = rows[0].id;
+    }
+
+    list.innerHTML = rows.map((w) => {
+      const active = w.id === state.selected.waste ? ' active' : '';
+      const sub = [utils.formatDateTime(w.occurred_at), state.isGlobalScope ? w.branch_name : null]
+        .filter(Boolean).join(' · ');
+      return `
+        <button type="button" class="inv-row${active}" data-waste-id="${w.id}">
+          <span class="inv-row-thumb inv-row-thumb-waste"><i data-lucide="${wasteIcon(w.reason)}"></i></span>
+          <span class="inv-row-info">
+            <strong>${esc(w.reason_label)}</strong>
+            <small>${esc(sub)}</small>
+          </span>
+          <span class="inv-badge muted">${esc(wasteQuantityLabel(w))}</span>
+          <span class="inv-row-amount inv-row-amount-waste">${w.total_cost != null ? `-${money(w.total_cost)}` : '—'}</span>
+        </button>`;
+    }).join('');
+
+    list.querySelectorAll('.inv-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        state.selected.waste = Number(row.dataset.wasteId);
+        renderWasteList();
+        openDetailOnMobile($('wasteList'));
+      });
+    });
+
+    $('btnLoadMoreWaste').hidden = !state.wasteHasMore;
+    renderWasteDetail();
+    utils.renderIcons();
+  }
+
+  function renderWasteDetail() {
+    const detail = $('wasteDetail');
+    const w = state.waste.find((x) => x.id === state.selected.waste);
+    if (!w) {
+      detail.innerHTML = emptyStateHtml('mouse-pointer-click', 'Elegí una merma', 'Su detalle — insumos, cantidades y pérdida — aparece acá.');
+      utils.renderIcons();
+      return;
+    }
+
+    const rowsHtml = w.items.map((l) => {
+      const subtotal = l.unit_cost != null ? money(Number(l.quantity) * Number(l.unit_cost)) : '—';
+      return `
+        <tr>
+          <td class="inv-td-name" data-label="Insumo">${esc(l.item_name)}</td>
+          <td class="num" data-label="Cantidad">${esc(qty(l.quantity))} ${esc(l.unit)}</td>
+          <td class="num" data-label="Costo unit.">${l.unit_cost != null ? money(l.unit_cost) : '—'}</td>
+          <td class="num" data-label="Pérdida">${subtotal}</td>
+        </tr>`;
+    }).join('');
+
+    const footHtml = w.total_cost != null ? `
+      <tfoot>
+        <tr>
+          <td colspan="3" class="inv-td-total-label">Pérdida total</td>
+          <td class="num" data-label="Pérdida total">${money(w.total_cost)}</td>
+        </tr>
+      </tfoot>` : '';
+
+    detail.innerHTML = `
+      ${detailBackHtml()}
+      <div class="inv-detail-header">
+        <span class="inv-detail-thumb inv-detail-thumb-waste"><i data-lucide="${wasteIcon(w.reason)}"></i></span>
+        <span class="inv-badge warn">Merma #${w.id}</span>
+      </div>
+      <h3>${esc(w.reason_label)}</h3>
+      <p class="inv-detail-sub">${esc(utils.formatDateTime(w.occurred_at))} · ${esc(w.branch_name)}</p>
+      ${w.notes ? `<p class="inv-detail-note">${esc(w.notes)}</p>` : ''}
+      <div class="inv-metrics">
+        <div><span>Ítems</span><strong>${w.items.length} <small>${w.items.length === 1 ? 'línea' : 'líneas'}</small></strong></div>
+        <div><span>Pérdida</span><strong>${w.total_cost != null ? money(w.total_cost) : '—'}</strong></div>
+      </div>
+      <div class="inv-detail-section-header"><span>Insumos perdidos</span></div>
+      <table class="inv-detail-table">
+        <thead>
+          <tr><th>Insumo</th><th class="num">Cantidad</th><th class="num">Costo unit.</th><th class="num">Pérdida</th></tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+        ${footHtml}
+      </table>
+      <div class="inv-detail-section-header"><span>Detalles</span></div>
+      <div class="inv-detail-rows">
+        <div><span>Sucursal</span><strong>${esc(w.branch_name)}</strong></div>
+        <div><span>Registrado por</span><strong>${esc(w.recorded_by_name)}</strong></div>
+        <div><span>Ocurrió el</span><strong>${esc(utils.formatDateTime(w.occurred_at))}</strong></div>
+        <div><span>Cargado al sistema</span><strong>${esc(utils.formatDateTime(w.created_at))}</strong></div>
+      </div>`;
+    utils.renderIcons();
+  }
+
+  $('wasteSearch')?.addEventListener('input', (e) => {
+    state.search.waste = e.target.value;
+    renderWasteList();
+  });
+
+  $('wasteReasonFilter')?.addEventListener('change', (e) => {
+    state.wasteReasonFilter = e.target.value;
+    state.selected.waste = null;
+    loadWaste({ reset: true });
+  });
+
+  $('wasteBranchFilter')?.addEventListener('change', (e) => {
+    state.wasteBranchFilter = e.target.value;
+    state.selected.waste = null;
+    loadWaste({ reset: true });
+  });
+
+  $('btnLoadMoreWaste')?.addEventListener('click', async () => {
+    const btn = $('btnLoadMoreWaste');
+    btn.disabled = true;
+    btn.textContent = 'Cargando...';
+    await loadWaste();
+    btn.disabled = false;
+    btn.textContent = 'Cargar más mermas';
+  });
+
+  // ==========================================================================
+  // Vista: Existencias
+  // ==========================================================================
+  function renderStockTable() {
+    const q = state.search.stock.trim().toLowerCase();
+    const rows = q
+      ? state.stock.filter((r) => `${r.item_name} ${r.category || ''} ${r.unit}`.toLowerCase().includes(q))
+      : state.stock;
+
+    $('stockCount').textContent = rows.length ? pluralize(rows.length, 'insumo', 'insumos') : 'Insumos';
+    $('stockScopeLabel').textContent = state.isGlobalScope
+      ? (state.stockBranchFilter
+          ? (state.branches.find((b) => String(b.id) === state.stockBranchFilter)?.name || '')
+          : 'Sumando todas las sucursales')
+      : (state.user.branch ? state.user.branch.name : '');
+
+    const negativos = rows.filter((r) => Number(r.on_hand) < 0);
+    const note = $('stockNote');
+    if (negativos.length) {
+      note.hidden = false;
+      note.querySelector('span').textContent =
+        `${pluralize(negativos.length, 'insumo aparece', 'insumos aparecen')} en negativo. ` +
+        'Pasa cuando se mermó algo que entró antes de que el sistema llevara la cuenta: ' +
+        'se arregla registrando un cargamento con lo que había al arrancar.';
+    } else {
+      note.hidden = true;
+    }
+
+    const table = $('stockTable');
+    if (!rows.length) {
+      table.innerHTML = q
+        ? emptyStateHtml('search-x', 'Sin resultados', 'Probá con otro insumo o categoría.')
+        : emptyStateHtml('boxes', 'Todavía no hay movimientos', 'En cuanto registres un cargamento, las existencias aparecen acá.');
+      utils.renderIcons();
+      return;
+    }
+
+    table.innerHTML = `
+      <table class="inv-detail-table inv-stock-grid">
+        <thead>
+          <tr>
+            <th>Insumo</th>
+            <th class="num">Entró</th>
+            <th class="num">Merma</th>
+            <th class="num">Queda</th>
+            <th class="num">Perdido</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r) => {
+            const queda = Number(r.on_hand);
+            const clase = queda < 0 ? ' inv-stock-negative' : (queda === 0 ? ' inv-stock-zero' : '');
+            return `
+              <tr>
+                <td class="inv-td-name" data-label="Insumo">
+                  ${esc(r.item_name)}
+                  <small>${esc(r.category || 'Sin categoría')} · se cuenta en ${esc(r.unit)}</small>
+                </td>
+                <td class="num" data-label="Entró">${esc(qty(r.entered))}</td>
+                <td class="num" data-label="Merma">${Number(r.wasted) ? esc(qty(r.wasted)) : '—'}</td>
+                <td class="num inv-stock-onhand" data-label="Queda"><span class="inv-stock-pill${clase}">${esc(qty(r.on_hand))} <small>${esc(r.unit)}</small></span></td>
+                <td class="num" data-label="Perdido">${r.wasted_cost != null ? money(r.wasted_cost) : '—'}</td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+    utils.renderIcons();
+  }
+
+  $('stockSearch')?.addEventListener('input', (e) => {
+    state.search.stock = e.target.value;
+    renderStockTable();
+  });
+
+  $('stockBranchFilter')?.addEventListener('change', (e) => {
+    state.stockBranchFilter = e.target.value;
+    loadStock();
+  });
+
+  $('stockOnlyMoved')?.addEventListener('change', (e) => {
+    state.stockOnlyMoved = e.target.checked;
+    loadStock();
+  });
+
+  // ==========================================================================
+  // Modal: registrar merma
+  // ==========================================================================
+  const wasteLinesContainer = $('wasteLines');
+  const wasteLineTemplate = $('wasteLineTemplate');
+
+  function wasteModalBranchId() {
+    return state.fixedBranchId || ($('wasteBranchSelect').value ? Number($('wasteBranchSelect').value) : null);
+  }
+
+  /**
+   * Trae las existencias de la sucursal elegida una sola vez al abrir el modal (y al cambiar de
+   * sucursal), en vez de consultar por cada insumo que se elige: son pocas filas y así la cifra
+   * aparece al instante al lado de la línea.
+   */
+  async function loadWasteStock() {
+    state.wasteStock = new Map();
+    const branchId = wasteModalBranchId();
+    if (!branchId) return;
+    try {
+      const rows = await api.get(`/inventory/stock?branch_id=${branchId}&only_stocked=true`);
+      rows.forEach((r) => state.wasteStock.set(r.inventory_item_id, r));
+    } catch (err) {
+      // Sin existencias no se bloquea nada: la línea simplemente no muestra el "te quedan".
+    }
+    wasteLinesContainer.querySelectorAll('.inv-line-row').forEach(refreshWasteLineStock);
+    updateWasteTotal();
+  }
+
+  function refreshWasteLineStock(row) {
+    const itemInput = row.querySelector('.inv-item-input');
+    const qtyInput = row.querySelector('.inv-line-qty');
+    const cell = row.querySelector('.inv-line-stock');
+    const itemId = Number(itemInput.dataset.itemId || 0);
+
+    cell.classList.remove('is-short');
+    if (!itemId) { cell.textContent = '—'; return; }
+
+    const fila = state.wasteStock.get(itemId);
+    if (!fila) {
+      cell.textContent = 'Sin registro';
+      return;
+    }
+    const disponible = Number(fila.on_hand);
+    cell.textContent = `${qty(disponible)} ${fila.unit}`;
+    const pedido = Number(qtyInput.value || 0);
+    if (pedido > disponible) cell.classList.add('is-short');
+  }
+
+  /** Refresca la existencia de una fila y, con ella, la pérdida estimada del formulario. */
+  function refreshWasteLine(row) {
+    refreshWasteLineStock(row);
+    updateWasteTotal();
+  }
+
+  /**
+   * Estimación de la pérdida con el último costo conocido de cada insumo en esa sucursal.
+   *
+   * Es una vista previa, no la cifra final: el servidor vuelve a mirar el último cargamento al
+   * grabar, y entre que se abrió el formulario y se guardó puede haber entrado uno nuevo. Un
+   * insumo sin costo cargado nunca suma, y se dice cuántos quedaron afuera para que el total no
+   * parezca completo cuando no lo está.
+   */
+  function updateWasteTotal() {
+    let total = 0;
+    let conCosto = 0;
+    let sinCosto = 0;
+    wasteLinesContainer.querySelectorAll('.inv-line-row').forEach((row) => {
+      const itemId = Number(row.querySelector('.inv-item-input').dataset.itemId || 0);
+      const cantidad = Number(row.querySelector('.inv-line-qty').value || 0);
+      if (!itemId || cantidad <= 0) return;
+      const fila = state.wasteStock.get(itemId);
+      if (fila && fila.last_unit_cost != null) {
+        total += cantidad * Number(fila.last_unit_cost);
+        conCosto += 1;
+      } else {
+        sinCosto += 1;
+      }
+    });
+
+    $('wasteTotal').textContent = conCosto ? money(total) : '—';
+    const nota = document.querySelector('#modalWaste .inv-total-box small');
+    if (nota) {
+      nota.textContent = sinCosto
+        ? `${pluralize(sinCosto, 'insumo', 'insumos')} sin costo conocido, no suma${sinCosto === 1 ? '' : 'n'}`
+        : 'Al costo del último cargamento';
+    }
+  }
+
+  function createWasteLineRow() {
+    const frag = wasteLineTemplate.content.cloneNode(true);
+    const row = frag.querySelector('.inv-line-row');
+    const itemInput = row.querySelector('.inv-item-input');
+    const suggestBox = row.querySelector('.inv-item-suggestions');
+    const unitLabel = row.querySelector('.inv-line-unit');
+    const removeBtn = row.querySelector('.inv-line-remove');
+    const qtyInput = row.querySelector('.inv-line-qty');
+
+    itemInput.dataset.itemId = '';
+    itemInput._reqId = 0;
+
+    const hideSuggestions = () => { suggestBox.hidden = true; suggestBox.innerHTML = ''; };
+
+    function selectItem(item) {
+      itemInput.value = item.name;
+      itemInput.dataset.itemId = String(item.id);
+      unitLabel.textContent = item.unit ? `Se cuenta en ${item.unit}` : '';
+      hideSuggestions();
+      refreshWasteLine(row);
+      qtyInput.focus();
+    }
+
+    function renderSuggestions(results) {
+      // Sin "+ Crear": una merma es de algo que ya existía. Si el insumo no está en el catálogo,
+      // tampoco entró nunca, y registrar su pérdida sería inventar un movimiento.
+      if (!results.length) {
+        suggestBox.innerHTML = '<div class="inv-item-suggestion-empty">Ese insumo no está en el catálogo.</div>';
+        suggestBox.hidden = false;
+        return;
+      }
+      suggestBox.innerHTML = results.map((r, i) =>
+        `<button type="button" class="inv-item-suggestion" data-idx="${i}">${esc(r.name)} <small>(${esc(r.unit)})</small></button>`
+      ).join('');
+      suggestBox.hidden = false;
+      suggestBox.querySelectorAll('.inv-item-suggestion').forEach((btn) => {
+        btn.addEventListener('click', () => selectItem(results[Number(btn.dataset.idx)]));
+      });
+    }
+
+    async function fetchSuggestions(query) {
+      if (!query || query.trim().length < 2) { hideSuggestions(); return; }
+      const reqId = ++itemInput._reqId;
+      try {
+        const results = await api.get(`/inventory/items?q=${encodeURIComponent(query.trim())}`);
+        if (reqId !== itemInput._reqId) return;
+        renderSuggestions(results);
+      } catch (err) {
+        if (reqId === itemInput._reqId) hideSuggestions();
+      }
+    }
+
+    itemInput.addEventListener('input', () => {
+      itemInput.dataset.itemId = '';
+      unitLabel.textContent = '';
+      refreshWasteLine(row);
+      clearTimeout(itemInput._debounce);
+      const query = itemInput.value;
+      itemInput._debounce = setTimeout(() => fetchSuggestions(query), 300);
+    });
+
+    qtyInput.addEventListener('input', () => refreshWasteLine(row));
+
+    removeBtn.addEventListener('click', () => {
+      if (wasteLinesContainer.children.length > 1) {
+        row.remove();
+      } else {
+        itemInput.value = '';
+        itemInput.dataset.itemId = '';
+        unitLabel.textContent = '';
+        qtyInput.value = '';
+      }
+      refreshWasteLine(row);
+    });
+
+    wasteLinesContainer.appendChild(row);
+    utils.renderIcons();
+  }
+
+  $('btnAddWasteLine')?.addEventListener('click', () => {
+    createWasteLineRow();
+    const inputs = wasteLinesContainer.querySelectorAll('.inv-item-input');
+    inputs[inputs.length - 1]?.focus();
+  });
+
+  $('wasteBranchSelect')?.addEventListener('change', loadWasteStock);
+
+  function openWasteModal() {
+    $('wasteError').style.display = 'none';
+    $('wasteNotes').value = '';
+    $('wasteOccurredAt').value = toLocalInputValue(new Date());
+    if (state.wasteReasons.length) $('wasteReasonSelect').value = state.wasteReasons[0].code;
+    wasteLinesContainer.innerHTML = '';
+    createWasteLineRow();
+    $('wasteTotal').textContent = '—';
+    openModal('modalWaste');
+    loadWasteStock();
+  }
+
+  $('btnSubmitWaste')?.addEventListener('click', async () => {
+    $('wasteError').style.display = 'none';
+
+    const branchId = wasteModalBranchId();
+    if (!branchId) { showModalError('wasteError', 'Elegí una sucursal.'); return; }
+
+    const reason = $('wasteReasonSelect').value;
+    if (!reason) { showModalError('wasteError', 'Elegí un motivo.'); return; }
+
+    const rows = Array.from(wasteLinesContainer.querySelectorAll('.inv-line-row'));
+    const items = [];
+    for (const row of rows) {
+      const itemInput = row.querySelector('.inv-item-input');
+      const qtyInput = row.querySelector('.inv-line-qty');
+      const itemId = itemInput.dataset.itemId;
+      const qtyValue = qtyInput.value;
+      if (!itemId && !qtyValue) continue;
+      if (!itemId) { showModalError('wasteError', 'Elegí un insumo de la lista en cada fila con cantidad.'); itemInput.focus(); return; }
+      if (!qtyValue || Number(qtyValue) <= 0) { showModalError('wasteError', `Falta la cantidad de "${itemInput.value}".`); qtyInput.focus(); return; }
+      items.push({ inventory_item_id: Number(itemId), quantity: qtyValue });
+    }
+    if (!items.length) { showModalError('wasteError', 'Agregá al menos un insumo.'); return; }
+
+    const occurredValue = $('wasteOccurredAt').value;
+    let occurredAt = null;
+    if (occurredValue) {
+      const parsed = new Date(occurredValue);
+      if (Number.isNaN(parsed.getTime())) { showModalError('wasteError', 'La fecha no es válida.'); return; }
+      occurredAt = parsed.toISOString();
+    }
+
+    const btn = $('btnSubmitWaste');
+    btn.disabled = true;
+    btn.textContent = 'Registrando...';
+    try {
+      const creada = await api.post('/inventory/waste', {
+        branch_id: branchId,
+        reason,
+        occurred_at: occurredAt,
+        notes: $('wasteNotes').value.trim() || null,
+        items,
+      });
+      closeModal('modalWaste');
+
+      // El servidor avisa qué quedó en negativo. No es un error: es que falta cargar el
+      // inventario de arranque, y conviene decirlo con esas palabras.
+      if (creada.negative_items && creada.negative_items.length) {
+        utils.showToast(
+          `Merma registrada. ${creada.negative_items.join(', ')} ${creada.negative_items.length === 1 ? 'queda' : 'quedan'} en negativo: falta cargar lo que había al arrancar.`,
+          'warning'
+        );
+      } else {
+        utils.showToast('Merma registrada.', 'success');
+      }
+
+      state.selected.waste = null;
+      await Promise.all([loadWaste({ reset: true }), loadWasteAnalytics(), loadStock()]);
+      renderResumen();
+    } catch (err) {
+      showModalError('wasteError', err.message || 'No se pudo registrar la merma.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Registrar merma';
+    }
+  });
+
   // ==========================================================================
   // Contexto de sucursal
   // ==========================================================================
@@ -1195,6 +1870,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const badge = $('branchFixedBadge');
     const select = $('branchSelect');
     const filter = $('shipmentBranchFilter');
+
+    const wasteBadge = $('wasteBranchBadge');
+    const wasteSelect = $('wasteBranchSelect');
+    const wasteFilter = $('wasteBranchFilter');
+    const stockFilter = $('stockBranchFilter');
 
     if (user.branch_id) {
       state.fixedBranchId = user.branch_id;
@@ -1204,23 +1884,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       badge.textContent = branchName;
       select.hidden = true;
       filter.hidden = true;
+      wasteBadge.hidden = false;
+      wasteBadge.textContent = branchName;
+      wasteSelect.hidden = true;
+      wasteFilter.hidden = true;
+      stockFilter.hidden = true;
       $('invScopeValue').textContent = branchName;
-      $('invHeaderScope').textContent = `Cargamentos de ${branchName}`;
+      $('invHeaderScope').textContent = `Entradas, merma y existencias de ${branchName}`;
       return;
     }
 
     state.isGlobalScope = true;
     badge.hidden = true;
     select.hidden = false;
+    wasteBadge.hidden = true;
+    wasteSelect.hidden = false;
     $('invScopeValue').textContent = 'Todas las sucursales';
-    $('invHeaderScope').textContent = 'Cargamentos de todas las sucursales';
+    $('invHeaderScope').textContent = 'Entradas, merma y existencias de todas las sucursales';
 
     try {
       state.branches = await api.get('/branches/');
       const options = state.branches.map((b) => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
       select.innerHTML = options;
+      wasteSelect.innerHTML = options;
       filter.innerHTML = `<option value="">Todas las sucursales</option>${options}`;
       filter.hidden = false;
+      wasteFilter.innerHTML = `<option value="">Todas las sucursales</option>${options}`;
+      wasteFilter.hidden = false;
+      stockFilter.innerHTML = `<option value="">Todas las sucursales</option>${options}`;
+      stockFilter.hidden = false;
     } catch (err) {
       utils.showToast('No se pudieron cargar las sucursales.', 'error');
     }
@@ -1245,9 +1937,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('shipmentList').innerHTML = skeletonListHtml();
   $('itemList').innerHTML = skeletonListHtml(3);
   $('supplierList').innerHTML = skeletonListHtml(3);
+  $('wasteList').innerHTML = skeletonListHtml(3);
 
   await resolveBranchContext(existingUser);
-  await Promise.all([loadShipments({ reset: true }), loadAnalytics(), loadCatalogs()]);
+  // Los motivos van primero: el filtro de la vista Merma y el selector del modal se llenan con
+  // ellos, y loadWaste puede pedir con un motivo ya elegido.
+  await loadWasteReasons();
+  await Promise.all([
+    loadShipments({ reset: true }),
+    loadAnalytics(),
+    loadCatalogs(),
+    loadWaste({ reset: true }),
+    loadWasteAnalytics(),
+    loadStock(),
+  ]);
 
   renderResumen();
   renderItemList();

@@ -33,6 +33,11 @@
      para que el estado se lea a lo largo de toda la barra (ver skill de dataviz). */
   --inv-bar-track: var(--green-soft);
   --inv-bar-fill: var(--green);
+  /* La merma es la única cosa de esta pantalla que resta. Tiene su propio color, y uno solo:
+     verde = entró, rojo = se perdió. No se usa para "error", que ya tiene el suyo en style.css. */
+  --inv-loss: #c2410c;
+  --inv-loss-soft: rgba(194, 65, 12, .1);
+  --inv-loss-text: #9a3412;
 }
 
 [data-theme="dark"] {
@@ -54,6 +59,9 @@
   --inv-amber-soft: rgba(245, 158, 11, .16);
   --inv-bar-track: rgba(22, 230, 161, .13);
   --inv-bar-fill: #16E6A1;
+  --inv-loss: #FF8A5B;
+  --inv-loss-soft: rgba(255, 138, 91, .14);
+  --inv-loss-text: #FFA97E;
 }
 
 /* ---- Guardas de [hidden] (ver cabecera) ---- */
@@ -64,6 +72,7 @@
 .inv-branch-badge[hidden],
 .inv-filter-select[hidden],
 .inv-load-more[hidden],
+.inv-stock-note[hidden],
 .inv-item-suggestions[hidden] {
   display: none !important;
 }
@@ -1595,4 +1604,213 @@ body {
 
   .inv-toolbar { flex-wrap: wrap; }
   .inv-filter-select { max-width: none; width: 100%; }
+}
+
+
+/* ============================================================================
+   MERMA Y EXISTENCIAS
+   La salida que le faltaba al módulo. Comparte la lista y el detalle de Cargamentos — es la
+   misma forma de dato, un encabezado con renglones — y cambia solo el color y los íconos: lo
+   que entra es verde, lo que se pierde es rojo, y eso alcanza para saber qué se está mirando
+   sin leer el título.
+   ============================================================================ */
+
+.inv-row-thumb-waste {
+  background: var(--inv-loss-soft);
+  color: var(--inv-loss);
+}
+
+.inv-row.active .inv-row-thumb-waste { background: var(--inv-panel); }
+
+.inv-row-amount-waste { color: var(--inv-loss-text); }
+
+.inv-detail-thumb-waste {
+  background: var(--inv-loss-soft);
+  color: var(--inv-loss);
+}
+
+.inv-card-icon-waste {
+  background: var(--inv-loss-soft);
+  color: var(--inv-loss);
+}
+
+/* La pista también cambia de color: una barra roja sobre una pista verde decía "de todo esto
+   verde, esto rojo", que es exactamente lo contrario de lo que pasa. */
+.inv-bar-row-waste .inv-bar-track { background: var(--inv-loss-soft); }
+
+.inv-bar-fill-waste { background: var(--inv-loss); }
+
+/* ---- Aviso de existencias en negativo ---- */
+.inv-stock-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--inv-border);
+  border-left: 3px solid var(--inv-amber);
+  border-radius: 10px;
+  background: var(--inv-amber-soft);
+  color: var(--inv-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.inv-stock-note i {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--inv-amber);
+}
+
+/* ---- Tabla de existencias ----
+   Existencias no tiene panel de detalle: una fila ya dice todo lo que hay que decir de ese
+   insumo, y partir la pantalla en dos para repetirlo habría sido ceremonia. Por eso la columna
+   ocupa el ancho entero. */
+.inv-list-col-wide { border-right: none; }
+
+/* Existencias es la única vista sin panel de detalle, así que su workspace no puede seguir
+   reservando la segunda columna del grid: la tabla se quedaba a media pantalla con el resto
+   vacío al lado. `:has` sobre el hijo y no una clase en el padre para que el marcado siga
+   diciendo lo mismo que las otras vistas. */
+.inv-workspace:has(> .inv-list-col-wide) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.inv-stock-table {
+  overflow-x: auto;
+  padding: 0 16px 16px;
+}
+
+.inv-stock-grid { width: 100%; }
+
+.inv-stock-grid .inv-td-name small {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--inv-text-muted);
+}
+
+.inv-stock-onhand { font-weight: 700; }
+
+/* El realce va en un span y no en la celda: la columna es ancha y pintarla entera dejaba un
+   bloque de color de doscientos píxeles al lado de un número de tres. */
+.inv-stock-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  color: var(--inv-text);
+}
+
+.inv-stock-pill small {
+  font-weight: 500;
+  color: var(--inv-text-muted);
+}
+
+/* Cero y negativo se distinguen entre sí, no solo del resto: "no queda" es una situación normal
+   y "debe" es una que hay que ir a arreglar. */
+.inv-stock-pill.inv-stock-zero,
+.inv-stock-pill.inv-stock-zero small { color: var(--inv-text-muted); }
+
+.inv-stock-pill.inv-stock-negative {
+  color: var(--inv-loss-text);
+  background: var(--inv-loss-soft);
+}
+
+.inv-stock-pill.inv-stock-negative small { color: var(--inv-loss-text); }
+
+/* ---- Casilla de la barra de herramientas ---- */
+.inv-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--inv-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.inv-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--inv-green);
+  cursor: pointer;
+}
+
+/* ---- Líneas del formulario de merma ----
+   Una columna menos que el cargamento: no se pide costo (lo pone el servidor con el del último
+   cargamento), y en su lugar va la existencia actual, que es el dato que hace falta para saber
+   si la cantidad que se está cargando tiene sentido. */
+.inv-lines-head-waste,
+.inv-line-row-waste {
+  grid-template-columns: minmax(0, 2.2fr) 110px 130px 38px;
+}
+
+.inv-lines-head-waste span:nth-child(2),
+.inv-lines-head-waste span:nth-child(3) { text-align: right; }
+
+.inv-line-stock-cell { align-items: flex-end; }
+
+.inv-line-stock {
+  padding: 10px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--inv-text-secondary);
+  text-align: right;
+}
+
+/* Se avisa, no se impide: el rojo dice "mirá esto" y el botón de guardar sigue habilitado. El
+   inventario de arranque nunca se cargó, así que pedir más de lo que el sistema cree que hay
+   es, al principio, lo normal. */
+.inv-line-stock.is-short { color: var(--inv-loss-text); }
+
+.inv-item-suggestion-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--inv-text-muted);
+}
+
+/* La caja del total del modal de merma lleva una línea extra de contexto bajo la cifra. */
+/* Los paneles de barras del fondo del Resumen aparecen de a uno o de a dos según el alcance
+   del usuario: un encargado de sucursal no ve "por sucursal", así que "por motivo" se queda
+   solo y el grid se lo estira a todo el ancho. Una barra de 1100 px no se lee mejor que una de
+   700, solo se ve más vacía. El tope las deja legibles en los dos casos. */
+#branchPanel .inv-bars,
+#wasteReasonPanel .inv-bars {
+  max-width: 720px;
+}
+
+/* El dinero perdido nunca va en verde. En esta pantalla el verde es "entró": pintar una
+   pérdida del mismo color que un ingreso invierte la lectura de un vistazo, que es justamente
+   para lo que sirve el color. Va en el rojo de la merma, acá y en el detalle del registro. */
+#modalWaste .inv-total-box strong,
+#wasteDetail .inv-detail-table tfoot td {
+  color: var(--inv-loss-text);
+}
+
+#modalWaste .inv-total-box small {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--inv-text-muted);
+}
+
+@media (max-width: 900px) {
+  .inv-lines-head-waste { display: none; }
+
+  .inv-line-row-waste {
+    grid-template-columns: minmax(0, 1fr) 38px;
+  }
+
+  .inv-line-stock-cell { align-items: flex-start; }
+  .inv-line-stock { padding-top: 0; text-align: left; }
+
+  .inv-stock-table { padding: 0 12px 12px; }
+  .inv-check { font-size: 11.5px; }
 }

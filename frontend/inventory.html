@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=2.9.2">
-  <link rel="stylesheet" href="css/inventory.css?v=3.1.0">
+  <link rel="stylesheet" href="css/inventory.css?v=3.2.0">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -63,10 +63,11 @@
           <button type="button" class="inv-nav-item" data-view="cargamentos"><i data-lucide="truck"></i> <span>Cargamentos</span></button>
           <button type="button" class="inv-nav-item" data-view="insumos"><i data-lucide="layout-list"></i> <span>Insumos</span></button>
           <button type="button" class="inv-nav-item" data-view="proveedores"><i data-lucide="building-2"></i> <span>Proveedores</span></button>
+          <button type="button" class="inv-nav-item" data-view="merma"><i data-lucide="trending-down"></i> <span>Merma</span></button>
+          <button type="button" class="inv-nav-item" data-view="existencias"><i data-lucide="boxes"></i> <span>Existencias</span></button>
         </nav>
         <div class="inv-nav-sep">Próximamente</div>
         <nav class="inv-nav inv-nav-soon">
-          <span class="inv-nav-item soon"><i data-lucide="trending-down"></i> <span>Merma</span></span>
           <span class="inv-nav-item soon"><i data-lucide="bar-chart-3"></i> <span>Gasto por sucursal</span></span>
           <span class="inv-nav-item soon"><i data-lucide="calendar-clock"></i> <span>Lotes y vencimientos</span></span>
           <span class="inv-nav-item soon"><i data-lucide="file-text"></i> <span>Reportes</span></span>
@@ -111,12 +112,21 @@
             </div>
           </div>
 
-          <div class="inv-panel" id="branchPanel" hidden>
-            <div class="inv-panel-head">
-              <h2>Cargamentos por sucursal</h2>
-              <span class="inv-panel-note">Últimos 30 días</span>
+          <div class="inv-panel-grid">
+            <div class="inv-panel" id="branchPanel" hidden>
+              <div class="inv-panel-head">
+                <h2>Cargamentos por sucursal</h2>
+                <span class="inv-panel-note">Últimos 30 días</span>
+              </div>
+              <div class="inv-bars" id="branchBars"></div>
             </div>
-            <div class="inv-bars" id="branchBars"></div>
+            <div class="inv-panel" id="wasteReasonPanel" hidden>
+              <div class="inv-panel-head">
+                <h2>Merma por motivo</h2>
+                <span class="inv-panel-note" id="wasteReasonNote">Últimos 30 días</span>
+              </div>
+              <div class="inv-bars" id="wasteReasonBars"></div>
+            </div>
           </div>
         </div>
 
@@ -212,7 +222,144 @@
           </div>
         </div>
 
+        <!-- ---------- Merma ---------- -->
+        <div class="inv-view" id="viewMerma" hidden>
+          <div class="inv-view-head">
+            <div>
+              <h1>Merma</h1>
+              <p>Lo que salió sin venderse, y por qué.</p>
+            </div>
+            <button type="button" class="inv-primary-btn" data-open-waste>
+              <i data-lucide="plus"></i> Registrar merma
+            </button>
+          </div>
+
+          <div class="inv-workspace">
+            <div class="inv-list-col">
+              <div class="inv-toolbar">
+                <div class="inv-search">
+                  <i data-lucide="search"></i>
+                  <input type="text" id="wasteSearch" placeholder="Buscar por insumo, motivo o quien la cargó...">
+                </div>
+                <select id="wasteReasonFilter" class="inv-filter-select"></select>
+                <select id="wasteBranchFilter" class="inv-filter-select" hidden></select>
+              </div>
+              <div class="inv-list-header">
+                <span id="wasteCount">Mermas</span>
+                <span class="inv-list-header-meta" id="wasteScopeLabel"></span>
+              </div>
+              <div class="inv-list" id="wasteList"></div>
+              <button type="button" class="inv-load-more" id="btnLoadMoreWaste" hidden>Cargar más mermas</button>
+            </div>
+            <div class="inv-detail" id="wasteDetail"></div>
+          </div>
+        </div>
+
+        <!-- ---------- Existencias ---------- -->
+        <div class="inv-view" id="viewExistencias" hidden>
+          <div class="inv-view-head">
+            <div>
+              <h1>Existencias</h1>
+              <p>Lo que entró menos lo que se perdió. Se calcula cada vez, no se guarda.</p>
+            </div>
+            <button type="button" class="inv-primary-btn" data-open-waste>
+              <i data-lucide="trending-down"></i> Registrar merma
+            </button>
+          </div>
+
+          <div class="inv-stock-note" id="stockNote" hidden>
+            <i data-lucide="info"></i>
+            <span></span>
+          </div>
+
+          <div class="inv-workspace">
+            <div class="inv-list-col inv-list-col-wide">
+              <div class="inv-toolbar">
+                <div class="inv-search">
+                  <i data-lucide="search"></i>
+                  <input type="text" id="stockSearch" placeholder="Buscar insumo o categoría...">
+                </div>
+                <select id="stockBranchFilter" class="inv-filter-select" hidden></select>
+                <label class="inv-check">
+                  <input type="checkbox" id="stockOnlyMoved" checked>
+                  <span>Solo los que se movieron</span>
+                </label>
+              </div>
+              <div class="inv-list-header">
+                <span id="stockCount">Insumos</span>
+                <span class="inv-list-header-meta" id="stockScopeLabel"></span>
+              </div>
+              <div class="inv-stock-table" id="stockTable"></div>
+            </div>
+          </div>
+        </div>
+
       </section>
+    </div>
+  </div>
+
+  <!-- ================= Modal: registrar merma ================= -->
+  <div class="modal-backdrop" id="modalWaste">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div class="inv-modal-title">
+          <span class="inv-card-icon inv-card-icon-waste"><i data-lucide="trending-down"></i></span>
+          <div>
+            <h3>Registrar merma</h3>
+            <span class="modal-subtitle">Lo que se perdió, se usó o se devolvió.</span>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="modalWaste" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="wasteError" class="login-error-box" style="display:none"></div>
+
+        <div class="inv-field-row">
+          <div class="inv-field">
+            <label class="modal-label" for="wasteBranchSelect">Sucursal</label>
+            <div id="wasteBranchBadge" class="inv-branch-badge" hidden></div>
+            <select id="wasteBranchSelect" class="modal-input" hidden></select>
+          </div>
+          <div class="inv-field">
+            <label class="modal-label" for="wasteOccurredAt">Cuándo pasó</label>
+            <input type="datetime-local" id="wasteOccurredAt" class="modal-input">
+          </div>
+        </div>
+
+        <div class="inv-field-row">
+          <div class="inv-field">
+            <label class="modal-label" for="wasteReasonSelect">Motivo</label>
+            <select id="wasteReasonSelect" class="modal-input"></select>
+          </div>
+          <div class="inv-field">
+            <label class="modal-label" for="wasteNotes">Notas (opcional)</label>
+            <input type="text" id="wasteNotes" class="modal-input" placeholder="Qué pasó exactamente...">
+          </div>
+        </div>
+
+        <div class="inv-lines-head inv-lines-head-waste">
+          <span>Insumos perdidos</span>
+          <span>Cantidad</span>
+          <span>En existencia</span>
+          <span></span>
+        </div>
+        <div class="inv-lines" id="wasteLines"></div>
+
+        <button type="button" class="inv-add-line-btn" id="btnAddWasteLine">
+          <i data-lucide="plus"></i> Agregar insumo
+        </button>
+      </div>
+      <div class="modal-footer inv-modal-footer">
+        <div class="inv-total-box">
+          <span>Pérdida estimada</span>
+          <strong id="wasteTotal">&mdash;</strong>
+          <small>Al costo del último cargamento</small>
+        </div>
+        <div class="inv-modal-footer-actions">
+          <button type="button" class="btn-secondary" data-close-modal="modalWaste">Cancelar</button>
+          <button type="button" class="btn-primary inv-submit-btn" id="btnSubmitWaste">Registrar merma</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -391,6 +538,31 @@
     </div>
   </template>
 
+  <!-- Fila de merma: sin costo ni subtotal (el servidor valúa con el último cargamento), pero
+       con la existencia actual del insumo a la vista, que es el dato que decide si la cantidad
+       que se está por cargar tiene sentido. -->
+  <template id="wasteLineTemplate">
+    <div class="inv-line-row inv-line-row-waste">
+      <div class="inv-line-item">
+        <span class="inv-line-label">Insumo</span>
+        <input type="text" class="modal-input inv-item-input" placeholder="Buscar insumo..." autocomplete="off">
+        <div class="inv-item-suggestions" hidden></div>
+        <small class="inv-line-unit"></small>
+      </div>
+      <div class="inv-line-cell">
+        <span class="inv-line-label">Cantidad</span>
+        <input type="number" class="modal-input inv-line-qty" placeholder="0" min="0" step="0.001">
+      </div>
+      <div class="inv-line-cell inv-line-stock-cell">
+        <span class="inv-line-label">En existencia</span>
+        <span class="inv-line-stock">&mdash;</span>
+      </div>
+      <button type="button" class="inv-line-remove" title="Quitar" aria-label="Quitar insumo">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+  </template>
+
   <div id="toastNotification" class="toast-banner">
     <span id="toastIconSlot"><i data-lucide="check" id="toastIcon"></i></span>
     <span id="toastMessage">Operación realizada con éxito.</span>
@@ -399,6 +571,6 @@
   <script src="js/utils.js?v=3.5.0"></script>
   <script src="js/api.js?v=3.5.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/modules/inventory.js?v=2.1.0"></script>
+  <script src="js/modules/inventory.js?v=2.2.0"></script>
 </body>
 </html>

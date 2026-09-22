@@ -12,5 +12,6 @@ from models.inventory_item import InventoryItem
 from models.supplier import Supplier
 from models.shipment import Shipment, ShipmentItem
 from models.internal_chat import InternalThread, InternalParticipant, InternalMessage
+from models.waste import WasteRecord, WasteItem
 
-__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription", "BotFlow", "InventoryItem", "Supplier", "Shipment", "ShipmentItem", "InternalThread", "InternalParticipant", "InternalMessage"]
+__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription", "BotFlow", "InventoryItem", "Supplier", "Shipment", "ShipmentItem", "InternalThread", "InternalParticipant", "InternalMessage", "WasteRecord", "WasteItem"]

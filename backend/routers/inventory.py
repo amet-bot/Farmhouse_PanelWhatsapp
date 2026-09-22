@@ -4,18 +4,22 @@ from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
+from models.branch import Branch
 from models.inventory_item import InventoryItem
 from models.supplier import Supplier
 from models.shipment import Shipment, ShipmentItem
 from models.user import User
+from models.waste import WasteRecord, WasteItem
 from schemas.inventory import (
     InventoryItemCreate, InventoryItemResponse,
     SupplierCreate, SupplierResponse,
     ShipmentCreate, ShipmentResponse, ShipmentItemResponse,
+    StockRowResponse, WasteCreate, WasteItemResponse, WasteReasonResponse, WasteResponse,
 )
 from security.auth import get_current_authorized_user
 from security.access_control import check_target_branch_valid
@@ -23,6 +27,22 @@ from security.access_control import check_target_branch_valid
 logger = logging.getLogger("farmhouse.inventory")
 
 router = APIRouter(prefix="/inventory", tags=["Inventario"])
+
+# Vocabulario de la merma. Lista cerrada y no texto libre porque el sentido del módulo es poder
+# decir "este mes se perdió tanto por vencimiento": con motivos escritos a mano cada sucursal
+# inventa el suyo y no suma nada. "Otro" existe para lo que no entra, y la nota recoge el detalle.
+# El orden es el que se ve en el formulario: primero lo que más pasa.
+WASTE_REASONS = (
+    ("vencido", "Vencido"),
+    ("danado", "Dañado o golpeado"),
+    ("error_preparacion", "Error de preparación"),
+    ("derrame", "Derrame o rotura"),
+    ("devolucion", "Devolución de cliente"),
+    ("consumo_interno", "Consumo interno"),
+    ("faltante", "Faltante o robo"),
+    ("otro", "Otro"),
+)
+WASTE_REASON_LABELS = dict(WASTE_REASONS)
 
 
 def _serialize_shipment(shipment: Shipment) -> ShipmentResponse:
@@ -217,3 +237,312 @@ def list_shipments(
 
     shipments = query.order_by(Shipment.received_at.desc()).offset(offset).limit(limit).all()
     return [_serialize_shipment(s) for s in shipments]
+
+
+# ==========================================================================
+# Merma
+# ==========================================================================
+def _visible_branch_filter(current_user: User, branch_id: Optional[int]):
+    """
+    A qué sucursal mira esta consulta. Calcado de list_shipments: admin y supervisor global
+    eligen (o ven todas), el resto queda encerrado en la suya sin importar lo que pida.
+    Devuelve el branch_id efectivo, o None cuando significa "todas".
+    """
+    if current_user.role == "admin" or (current_user.role == "supervisor" and current_user.branch_id is None):
+        return branch_id
+    return current_user.branch_id
+
+
+def _last_known_cost(db: Session, branch_id: int, inventory_item_id: int) -> Optional[Decimal]:
+    """
+    Cuánto costaba la última vez que ese insumo entró a esa sucursal.
+
+    Se busca en esa sucursal y no en todas: el mismo tomate puede costar distinto en Clayton y
+    en Costa del Este según el proveedor de cada una, y valuar la merma con el precio ajeno
+    inventaría una pérdida que no fue.
+    """
+    row = (
+        db.query(ShipmentItem.unit_cost)
+        .join(Shipment, Shipment.id == ShipmentItem.shipment_id)
+        .filter(
+            Shipment.branch_id == branch_id,
+            ShipmentItem.inventory_item_id == inventory_item_id,
+            ShipmentItem.unit_cost.isnot(None),
+        )
+        .order_by(Shipment.received_at.desc(), ShipmentItem.id.desc())
+        .first()
+    )
+    return row[0] if row else None
+
+
+def _on_hand_map(db: Session, branch_id: int, item_ids: List[int]) -> dict:
+    """Existencia actual (entradas - mermas) de esos insumos en esa sucursal."""
+    if not item_ids:
+        return {}
+
+    entradas = dict(
+        db.query(ShipmentItem.inventory_item_id, func.coalesce(func.sum(ShipmentItem.quantity), 0))
+        .join(Shipment, Shipment.id == ShipmentItem.shipment_id)
+        .filter(Shipment.branch_id == branch_id, ShipmentItem.inventory_item_id.in_(item_ids))
+        .group_by(ShipmentItem.inventory_item_id)
+        .all()
+    )
+    salidas = dict(
+        db.query(WasteItem.inventory_item_id, func.coalesce(func.sum(WasteItem.quantity), 0))
+        .join(WasteRecord, WasteRecord.id == WasteItem.waste_record_id)
+        .filter(WasteRecord.branch_id == branch_id, WasteItem.inventory_item_id.in_(item_ids))
+        .group_by(WasteItem.inventory_item_id)
+        .all()
+    )
+    return {
+        item_id: Decimal(entradas.get(item_id, 0)) - Decimal(salidas.get(item_id, 0))
+        for item_id in item_ids
+    }
+
+
+def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -> WasteResponse:
+    items: List[WasteItemResponse] = []
+    total_cost = Decimal("0.00")
+    has_cost = False
+    negativos: List[str] = []
+
+    for line in record.items:
+        if line.unit_cost is not None:
+            total_cost += (Decimal(line.quantity) * Decimal(line.unit_cost))
+            has_cost = True
+
+        previo = None
+        if stock_before is not None:
+            previo = stock_before.get(line.inventory_item_id)
+            if previo is not None and previo < Decimal(line.quantity):
+                negativos.append(line.inventory_item.name)
+
+        items.append(WasteItemResponse(
+            id=line.id,
+            inventory_item_id=line.inventory_item_id,
+            item_name=line.inventory_item.name,
+            unit=line.inventory_item.unit,
+            quantity=line.quantity,
+            unit_cost=line.unit_cost,
+            stock_before=previo,
+        ))
+
+    return WasteResponse(
+        id=record.id,
+        branch_id=record.branch_id,
+        branch_name=record.branch.name,
+        recorded_by_user_id=record.recorded_by_user_id,
+        recorded_by_name=record.recorded_by_user.name,
+        occurred_at=record.occurred_at,
+        reason=record.reason,
+        reason_label=WASTE_REASON_LABELS.get(record.reason, record.reason),
+        notes=record.notes,
+        created_at=record.created_at,
+        items=items,
+        total_cost=total_cost.quantize(Decimal("0.01")) if has_cost else None,
+        negative_items=negativos,
+    )
+
+
+@router.get("/waste/reasons", response_model=List[WasteReasonResponse])
+def list_waste_reasons(current_user: User = Depends(get_current_authorized_user)):
+    """
+    Los motivos vienen del servidor y no escritos en el frontend: el día que el negocio agregue
+    uno, se agrega en un solo lugar y las pantallas y los reportes ya hablan el mismo idioma.
+    """
+    return [WasteReasonResponse(code=code, label=label) for code, label in WASTE_REASONS]
+
+
+@router.post("/waste", response_model=WasteResponse, status_code=status.HTTP_201_CREATED)
+def create_waste(
+    waste_in: WasteCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Registra una merma. **No bloquea** cuando la cantidad supera la existencia calculada.
+
+    El sistema empezó a registrar entradas hace poco y nadie cargó el inventario de arranque de
+    cada sucursal, así que el stock calculado nace más bajo que el real. Bloquear haría el
+    módulo inusable justo cuando más se lo necesita. Se guarda, la existencia queda en negativo
+    y la respuesta marca cuáles insumos quedaron así (`negative_items`), que es la señal de que
+    falta cargar el arranque — no de que alguien se equivocó.
+    """
+    if current_user.role == "agent" and waste_in.branch_id != current_user.branch_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para registrar mermas en otra sucursal."
+        )
+
+    check_target_branch_valid(db, waste_in.branch_id)
+
+    if waste_in.reason not in WASTE_REASON_LABELS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Motivo de merma no válido."
+        )
+
+    item_ids = [line.inventory_item_id for line in waste_in.items]
+    found_items = db.query(InventoryItem).filter(InventoryItem.id.in_(item_ids)).all()
+    missing = set(item_ids) - {i.id for i in found_items}
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Ítem(s) de inventario no encontrados: {sorted(missing)}"
+        )
+
+    # La existencia se mira ANTES de grabar: después este mismo registro ya estaría restando.
+    stock_before = _on_hand_map(db, waste_in.branch_id, item_ids)
+
+    record = WasteRecord(
+        branch_id=waste_in.branch_id,
+        recorded_by_user_id=current_user.id,
+        occurred_at=waste_in.occurred_at or datetime.now(timezone.utc),
+        reason=waste_in.reason,
+        notes=(waste_in.notes or None),
+    )
+    for line in waste_in.items:
+        costo = line.unit_cost
+        if costo is None:
+            costo = _last_known_cost(db, waste_in.branch_id, line.inventory_item_id)
+        record.items.append(WasteItem(
+            inventory_item_id=line.inventory_item_id,
+            quantity=line.quantity,
+            unit_cost=costo,
+        ))
+
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    respuesta = _serialize_waste(record, stock_before=stock_before)
+    logger.info(
+        f"Merma #{record.id} ({record.reason}) en sucursal {record.branch_id} por {current_user.name}"
+        + (f" — deja en negativo: {', '.join(respuesta.negative_items)}" if respuesta.negative_items else "")
+    )
+    return respuesta
+
+
+@router.get("/waste", response_model=List[WasteResponse])
+def list_waste(
+    branch_id: Optional[int] = Query(None),
+    reason: Optional[str] = Query(None, max_length=40),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    query = db.query(WasteRecord).options(
+        joinedload(WasteRecord.items).joinedload(WasteItem.inventory_item),
+        joinedload(WasteRecord.branch),
+        joinedload(WasteRecord.recorded_by_user),
+    )
+
+    efectiva = _visible_branch_filter(current_user, branch_id)
+    if efectiva is not None:
+        query = query.filter(WasteRecord.branch_id == efectiva)
+    if reason:
+        query = query.filter(WasteRecord.reason == reason)
+
+    records = query.order_by(WasteRecord.occurred_at.desc(), WasteRecord.id.desc()).offset(offset).limit(limit).all()
+    return [_serialize_waste(r) for r in records]
+
+
+# ==========================================================================
+# Existencias
+# ==========================================================================
+@router.get("/stock", response_model=List[StockRowResponse])
+def list_stock(
+    branch_id: Optional[int] = Query(None),
+    q: str = Query("", max_length=150),
+    only_stocked: bool = Query(False, description="Deja fuera los insumos que nunca se movieron"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Existencias por insumo: entró, salió por merma, y lo que queda.
+
+    Se calcula con dos sumas agrupadas cada vez que se pide, sin tabla de saldos. Con el tamaño
+    de este negocio son dos consultas sobre miles de renglones, no millones; el día que eso deje
+    de alcanzar, el arreglo es una tabla de saldos por sucursal, no parchar el cálculo.
+
+    `branch_id` ausente en un usuario global suma TODAS las sucursales en una fila por insumo:
+    lo que sirve para comprar es el total de la casa, no cuatro listas separadas.
+    """
+    efectiva = _visible_branch_filter(current_user, branch_id)
+
+    entradas_q = (
+        db.query(
+            ShipmentItem.inventory_item_id.label("item_id"),
+            func.coalesce(func.sum(ShipmentItem.quantity), 0).label("cantidad"),
+            func.max(Shipment.received_at).label("ultimo"),
+        )
+        .join(Shipment, Shipment.id == ShipmentItem.shipment_id)
+    )
+    salidas_q = (
+        db.query(
+            WasteItem.inventory_item_id.label("item_id"),
+            func.coalesce(func.sum(WasteItem.quantity), 0).label("cantidad"),
+            func.coalesce(func.sum(WasteItem.quantity * func.coalesce(WasteItem.unit_cost, 0)), 0).label("costo"),
+            func.max(WasteRecord.occurred_at).label("ultimo"),
+        )
+        .join(WasteRecord, WasteRecord.id == WasteItem.waste_record_id)
+    )
+    if efectiva is not None:
+        entradas_q = entradas_q.filter(Shipment.branch_id == efectiva)
+        salidas_q = salidas_q.filter(WasteRecord.branch_id == efectiva)
+
+    entradas = {r.item_id: r for r in entradas_q.group_by(ShipmentItem.inventory_item_id).all()}
+    salidas = {r.item_id: r for r in salidas_q.group_by(WasteItem.inventory_item_id).all()}
+
+    # Último costo conocido por insumo, en una sola pasada y no una consulta por fila.
+    ultimos_costos = {}
+    if efectiva is not None:
+        filas = (
+            db.query(ShipmentItem.inventory_item_id, ShipmentItem.unit_cost, Shipment.received_at, ShipmentItem.id)
+            .join(Shipment, Shipment.id == ShipmentItem.shipment_id)
+            .filter(Shipment.branch_id == efectiva, ShipmentItem.unit_cost.isnot(None))
+            .order_by(Shipment.received_at.asc(), ShipmentItem.id.asc())
+            .all()
+        )
+        # Ordenado de viejo a nuevo: el último que se escribe es el más reciente.
+        for item_id, costo, _recibido, _id in filas:
+            ultimos_costos[item_id] = costo
+
+    catalogo_q = db.query(InventoryItem).filter(InventoryItem.active == True)
+    termino = q.strip()
+    if termino:
+        catalogo_q = catalogo_q.filter(InventoryItem.name.ilike(f"%{termino}%"))
+
+    branch_name = None
+    if efectiva is not None:
+        branch = db.query(Branch).filter(Branch.id == efectiva).first()
+        branch_name = branch.name if branch else None
+
+    filas: List[StockRowResponse] = []
+    for item in catalogo_q.order_by(InventoryItem.name.asc()).all():
+        entrada = entradas.get(item.id)
+        salida = salidas.get(item.id)
+        if only_stocked and not entrada and not salida:
+            continue
+
+        entro = Decimal(entrada.cantidad) if entrada else Decimal("0")
+        salio = Decimal(salida.cantidad) if salida else Decimal("0")
+        fechas = [f for f in ((entrada.ultimo if entrada else None), (salida.ultimo if salida else None)) if f]
+
+        filas.append(StockRowResponse(
+            inventory_item_id=item.id,
+            item_name=item.name,
+            unit=item.unit,
+            category=item.category,
+            branch_id=efectiva,
+            branch_name=branch_name,
+            entered=entro,
+            wasted=salio,
+            on_hand=entro - salio,
+            wasted_cost=(Decimal(salida.costo).quantize(Decimal("0.01")) if salida and salida.costo else None),
+            last_movement_at=(max(fechas) if fechas else None),
+            last_unit_cost=ultimos_costos.get(item.id),
+        ))
+
+    return filas
