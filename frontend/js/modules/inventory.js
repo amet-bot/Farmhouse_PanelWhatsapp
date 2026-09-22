@@ -139,6 +139,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!ev.matches) closeAllMobileDetails();
   });
 
+  /**
+   * Enciende la animación de entrada de un contenedor, una sola vez.
+   *
+   * Se llama SOLO cuando los datos cambiaron: una carga, un filtro que volvió al servidor, un
+   * cambio de vista. Nunca al repintar por otra razón — estas listas se vuelven a dibujar
+   * enteras cuando alguien elige una fila, y animar ahí haría que la lista se sacuda con cada
+   * clic. La clase se quita al terminar para que el próximo repintado no la arrastre.
+   */
+  function animarEntrada(...contenedores) {
+    contenedores.forEach((el) => {
+      if (!el) return;
+      el.classList.remove('inv-anim');
+      // Leer una propiedad de layout fuerza el reinicio de la animación: sin esto, volver a
+      // poner la misma clase en el mismo cuadro no la vuelve a disparar.
+      void el.offsetWidth;
+      el.classList.add('inv-anim');
+      clearTimeout(el._animTimeout);
+      el._animTimeout = setTimeout(() => el.classList.remove('inv-anim'), 900);
+    });
+  }
+
   const emptyStateHtml = (icon, title, text) => `
     <div class="inv-empty">
       <span class="inv-empty-icon"><i data-lucide="${icon}"></i></span>
@@ -248,6 +269,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelectorAll('#invNav .inv-nav-item').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.view === view);
     });
+
+    // Entrar a una vista es un cambio de contenido tan real como una carga: lo que hay delante
+    // es otra cosa, y conviene que se vea llegar.
+    animarEntrada({
+      resumen: $('viewResumen'),
+      cargamentos: $('shipmentList'),
+      insumos: $('itemList'),
+      proveedores: $('supplierList'),
+      merma: $('wasteList'),
+      existencias: $('stockTable'),
+    }[view]);
+
     utils.renderIcons();
   }
 
@@ -288,6 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.shipmentsHasMore = false;
     }
     renderShipmentList();
+    animarEntrada($('shipmentList'));
   }
 
   async function loadAnalytics() {
@@ -345,6 +379,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.wasteHasMore = false;
     }
     renderWasteList();
+    animarEntrada($('wasteList'));
   }
 
   async function loadInvuStatus() {
@@ -439,6 +474,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       utils.showToast(err.message || 'No se pudieron cargar las existencias.', 'error');
     }
     renderStockTable();
+    animarEntrada($('stockTable'));
   }
 
   // ==========================================================================
@@ -575,6 +611,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderRecentShipments();
     renderBranchBars(recent);
     renderWasteReasonBars(recentWaste.rows);
+    // renderResumen solo corre al cargar y después de registrar algo, nunca por un clic suelto:
+    // acá animar siempre es correcto.
+    animarEntrada($('viewResumen'), $('recentShipments'));
     utils.renderIcons();
   }
 

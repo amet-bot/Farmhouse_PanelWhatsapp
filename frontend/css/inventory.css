@@ -231,17 +231,60 @@ body {
   border-right: 1px solid var(--inv-border);
 }
 
-.inv-sidebar-title {
+/* El rail decía "Inventario" en texto pelado: se entraba desde el Panel General y no quedaba
+   ninguna señal de marca adentro. Ahora abre con el logo, igual que la cabecera del hub, para
+   que las dos pantallas se sientan el mismo producto. El `onerror` del <img> revela un ícono
+   de respaldo: si el logo no carga, el rail no puede quedar decapitado. */
+.inv-sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--inv-text);
-  padding: 6px 8px 14px;
+  gap: 11px;
+  padding: 2px 6px 16px;
 }
 
-.inv-sidebar-title i { width: 16px; height: 16px; color: var(--inv-green); }
+.inv-brand-logo {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  object-fit: contain;
+  background: var(--inv-panel);
+  border: 1px solid var(--inv-border-light);
+  border-radius: 9px;
+  padding: 5px;
+  box-sizing: content-box;
+}
+
+.inv-brand-fallback {
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--inv-green-soft);
+  color: var(--inv-green);
+}
+
+.inv-brand-fallback i { width: 18px; height: 18px; }
+
+.inv-brand-titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.inv-brand-titles strong {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--inv-text);
+  letter-spacing: -0.01em;
+}
+
+.inv-brand-titles small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--inv-text-muted);
+}
 
 .inv-nav {
   display: flex;
@@ -415,24 +458,60 @@ body {
   gap: 14px;
 }
 
+/* Las fichas eran cuatro rectángulos iguales sin jerarquía. Ahora el ícono va en su propia
+   pastilla y una línea de acento cruza el borde superior: dos detalles que le dan peso a la
+   cifra sin agregar ni un color nuevo ni una caja más. La línea se dibuja con ::before para no
+   engordar el borde — un `border-top` de 2px desalinearía las fichas contra los paneles. */
 .inv-kpi {
+  position: relative;
   padding: 18px;
   border-radius: 16px;
   background: var(--inv-panel);
   border: 1px solid var(--inv-border);
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.inv-kpi::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--inv-green), transparent 85%);
+  opacity: .55;
+}
+
+.inv-kpi:hover {
+  transform: translateY(-2px);
+  border-color: var(--inv-green-border);
+  box-shadow: var(--shadow-md, 0 12px 24px -18px rgba(0, 0, 0, .45));
 }
 
 .inv-kpi-label {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   font-size: 11.5px;
+  font-weight: 600;
   color: var(--inv-text-muted);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
-.inv-kpi-label i { width: 14px; height: 14px; color: var(--inv-cyan); }
+/* El ícono en pastilla y no suelto: alineado con el tratamiento que ya tienen las filas de
+   lista (.inv-row-thumb) y las fichas de archivo. */
+.inv-kpi-label i {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  box-sizing: content-box;
+  padding: 5px;
+  border-radius: 7px;
+  background: var(--inv-green-soft);
+  color: var(--inv-green-soft-text);
+}
 
 /* Cifras grandes con las figuras proporcionales por defecto: tabular-nums es para columnas
    que deben alinearse, no para un número suelto de 26px (ver skill de dataviz). */
@@ -1335,7 +1414,7 @@ body {
     box-shadow: 0 -10px 30px -22px rgba(0, 0, 0, .75);
   }
 
-  .inv-sidebar-title,
+  .inv-sidebar-brand,
   .inv-nav-sep,
   .inv-nav-soon,
   .inv-sidebar-foot { display: none; }
@@ -1765,15 +1844,6 @@ body {
 }
 
 /* La caja del total del modal de merma lleva una línea extra de contexto bajo la cifra. */
-/* Los paneles de barras del fondo del Resumen aparecen de a uno o de a dos según el alcance
-   del usuario: un encargado de sucursal no ve "por sucursal", así que "por motivo" se queda
-   solo y el grid se lo estira a todo el ancho. Una barra de 1100 px no se lee mejor que una de
-   700, solo se ve más vacía. El tope las deja legibles en los dos casos. */
-#branchPanel .inv-bars,
-#wasteReasonPanel .inv-bars {
-  max-width: 720px;
-}
-
 /* El dinero perdido nunca va en verde. En esta pantalla el verde es "entró": pintar una
    pérdida del mismo color que un ingreso invierte la lectura de un vistazo, que es justamente
    para lo que sirve el color. Va en el rojo de la merma, acá y en el detalle del registro. */
@@ -1861,4 +1931,80 @@ body {
 
 @keyframes invSpin {
   to { transform: rotate(360deg); }
+}
+
+/* ============================================================================
+   MICROINTERACCIONES
+   Entrada escalonada de las filas y barras que crecen al aparecer. El objetivo no es el adorno:
+   es que se note QUÉ se acaba de dibujar.
+
+   Todo cuelga de la clase `.inv-anim`, que el JS pone SOLO cuando los datos cambiaron (una
+   carga, un filtro que vuelve al servidor, un cambio de vista) y nunca al repintar por otra
+   razón. Sin esa condición la animación sería un estorbo: estas listas se vuelven a dibujar
+   enteras con cada clic en una fila, y todo se sacudiría al elegir algo.
+
+   Y todo se apaga con `prefers-reduced-motion`. Quien pidió menos movimiento no lo pidió de
+   adorno, y una lista que se escalona es exactamente lo que molesta.
+   ============================================================================ */
+
+.inv-list.inv-anim .inv-row,
+.inv-mini-list.inv-anim > * {
+  animation: invRowIn .26s ease-out both;
+}
+
+/* El retardo va por posición y se corta en la octava fila: más allá, escalonar una lista de
+   cincuenta significa que la última entra segundo y medio tarde, que ya no es un detalle sino
+   una espera. */
+.inv-list.inv-anim .inv-row:nth-child(1),  .inv-mini-list.inv-anim > *:nth-child(1) { animation-delay: 0ms; }
+.inv-list.inv-anim .inv-row:nth-child(2),  .inv-mini-list.inv-anim > *:nth-child(2) { animation-delay: 30ms; }
+.inv-list.inv-anim .inv-row:nth-child(3),  .inv-mini-list.inv-anim > *:nth-child(3) { animation-delay: 60ms; }
+.inv-list.inv-anim .inv-row:nth-child(4),  .inv-mini-list.inv-anim > *:nth-child(4) { animation-delay: 90ms; }
+.inv-list.inv-anim .inv-row:nth-child(5),  .inv-mini-list.inv-anim > *:nth-child(5) { animation-delay: 120ms; }
+.inv-list.inv-anim .inv-row:nth-child(6),  .inv-mini-list.inv-anim > *:nth-child(6) { animation-delay: 150ms; }
+.inv-list.inv-anim .inv-row:nth-child(7),  .inv-mini-list.inv-anim > *:nth-child(7) { animation-delay: 180ms; }
+.inv-list.inv-anim .inv-row:nth-child(n+8),
+.inv-mini-list.inv-anim > *:nth-child(n+8) { animation-delay: 210ms; }
+
+@keyframes invRowIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* La barra crece desde la izquierda hasta el ancho que le puso el JS en `style`. Se anima
+   `transform` y no `width` porque el ancho lo escribe el estilo en línea en cada repintado: una
+   transición sobre `width` pelearía con ese valor, mientras que la escala se aplica encima. */
+.inv-anim .inv-bar-fill {
+  transform-origin: left center;
+  animation: invBarGrow .5s cubic-bezier(.22, .61, .36, 1) both;
+}
+
+@keyframes invBarGrow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* Las filas de la tabla de existencias aparecen sin desplazarse: una tabla que sube mientras se
+   lee se siente como si los números estuvieran cambiando solos. */
+.inv-anim .inv-stock-grid tbody tr {
+  animation: invFadeIn .3s ease-out both;
+}
+
+.inv-anim .inv-stock-grid tbody tr:nth-child(n+8) { animation-delay: 120ms; }
+
+@keyframes invFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inv-list.inv-anim .inv-row,
+  .inv-mini-list.inv-anim > *,
+  .inv-anim .inv-bar-fill,
+  .inv-anim .inv-stock-grid tbody tr,
+  .inv-view {
+    animation: none;
+  }
+
+  .inv-kpi { transition: none; }
+  .inv-kpi:hover { transform: none; }
 }

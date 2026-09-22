@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=2.10.0">
-  <link rel="stylesheet" href="css/inventory.css?v=3.4.0">
+  <link rel="stylesheet" href="css/inventory.css?v=3.5.0">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -57,7 +57,15 @@
 
       <!-- ================= Navegación lateral ================= -->
       <aside class="inv-sidebar">
-        <div class="inv-sidebar-title"><i data-lucide="package"></i> Inventario</div>
+        <div class="inv-sidebar-brand">
+          <img src="assets/images/farmhouse-logo.png" alt="Farmhouse" class="inv-brand-logo"
+               onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
+          <span class="inv-brand-fallback" style="display:none"><i data-lucide="package"></i></span>
+          <span class="inv-brand-titles">
+            <strong>Farmhouse</strong>
+            <small>Inventario</small>
+          </span>
+        </div>
         <nav class="inv-nav" id="invNav">
           <button type="button" class="inv-nav-item active" data-view="resumen"><i data-lucide="layout-dashboard"></i> <span>Resumen</span></button>
           <button type="button" class="inv-nav-item" data-view="cargamentos"><i data-lucide="truck"></i> <span>Cargamentos</span></button>
@@ -110,22 +118,24 @@
               </div>
               <div class="inv-mini-list" id="recentShipments"></div>
             </div>
-          </div>
-
-          <div class="inv-panel-grid">
-            <div class="inv-panel" id="branchPanel" hidden>
-              <div class="inv-panel-head">
-                <h2>Cargamentos por sucursal</h2>
-                <span class="inv-panel-note">Últimos 30 días</span>
-              </div>
-              <div class="inv-bars" id="branchBars"></div>
-            </div>
+            <!-- Estos dos van en la MISMA rejilla que los de arriba y no en una propia. Antes
+                 tenían la suya, y como "Cargamentos por sucursal" solo se muestra a quien ve
+                 todas las sucursales, a un encargado le quedaba un panel solo estirado de lado
+                 a lado. En una rejilla única, lo que haya visible se acomoda de a dos y el
+                 sobrante ocupa una columna, no la pantalla entera. -->
             <div class="inv-panel" id="wasteReasonPanel" hidden>
               <div class="inv-panel-head">
                 <h2>Merma por motivo</h2>
                 <span class="inv-panel-note" id="wasteReasonNote">Últimos 30 días</span>
               </div>
               <div class="inv-bars" id="wasteReasonBars"></div>
+            </div>
+            <div class="inv-panel" id="branchPanel" hidden>
+              <div class="inv-panel-head">
+                <h2>Cargamentos por sucursal</h2>
+                <span class="inv-panel-note">Últimos 30 días</span>
+              </div>
+              <div class="inv-bars" id="branchBars"></div>
             </div>
           </div>
         </div>
@@ -579,6 +589,6 @@
   <script src="js/utils.js?v=3.5.0"></script>
   <script src="js/api.js?v=3.5.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/modules/inventory.js?v=2.3.0"></script>
+  <script src="js/modules/inventory.js?v=2.4.0"></script>
 </body>
 </html>
