@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=2.9.2">
-  <link rel="stylesheet" href="css/internal.css?v=1.0.0">
+  <link rel="stylesheet" href="css/internal.css?v=1.1.0">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -38,6 +38,10 @@
           <span class="int-conn-dot"></span>
           <span class="int-conn-label">Conectando</span>
         </span>
+        <button class="int-notif-btn" id="btnEnableNotifications" title="Recibir avisos en este dispositivo" hidden>
+          <span id="notifBellIconSlot"><i data-lucide="bell"></i></span>
+          <span class="int-notif-label">Avisos</span>
+        </button>
         <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
           <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
           <span class="theme-label">Oscuro</span>
@@ -114,16 +118,42 @@
 
           <div class="int-messages" id="messageList"></div>
 
+          <div class="int-attach-preview" id="attachPreview" hidden>
+            <span class="int-attach-thumb" id="attachThumb"><i data-lucide="file"></i></span>
+            <span class="int-attach-info">
+              <strong id="attachName">archivo</strong>
+              <small id="attachSize"></small>
+            </span>
+            <button type="button" class="int-attach-drop" id="btnAttachDrop" aria-label="Quitar el archivo">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+
           <form class="int-composer" id="composer" autocomplete="off">
+            <input type="file" id="attachInput" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,application/pdf" hidden>
+            <button type="button" class="int-attach-btn" id="btnAttach" aria-label="Adjuntar foto o PDF" title="Adjuntar foto o PDF">
+              <i data-lucide="paperclip"></i>
+            </button>
             <textarea id="composerInput" rows="1" placeholder="Escribí un mensaje..." maxlength="4000"></textarea>
             <button type="submit" class="int-send" id="btnSend" aria-label="Enviar mensaje">
               <i data-lucide="send-horizontal"></i>
             </button>
           </form>
-          <p class="int-composer-hint">Enter envía · Shift + Enter hace un salto de línea</p>
+          <p class="int-composer-hint">Enter envía · Shift + Enter hace un salto de línea · El clip manda fotos o PDF</p>
         </div>
       </section>
     </div>
+  </div>
+
+  <div class="int-lightbox" id="lightbox" hidden>
+    <button type="button" class="int-lightbox-close" id="btnLightboxClose" aria-label="Cerrar">
+      <i data-lucide="x"></i>
+    </button>
+    <img id="lightboxImg" alt="">
+    <a class="int-lightbox-download" id="lightboxDownload" download>
+      <i data-lucide="download"></i>
+      <span>Descargar</span>
+    </a>
   </div>
 
   <div id="toastNotification" class="toast-banner">
@@ -135,6 +165,7 @@
   <script src="js/api.js?v=3.5.0"></script>
   <script src="js/ws.js?v=3.4.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/modules/internal.js?v=1.0.0"></script>
+  <script src="js/modules/push.js?v=3.5.0"></script>
+  <script src="js/modules/internal.js?v=1.1.0"></script>
 </body>
 </html>

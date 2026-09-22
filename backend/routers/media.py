@@ -8,6 +8,7 @@ from jose import jwt, JWTError
 
 from config import settings, BASE_DIR
 from database import get_db
+from models.internal_chat import InternalMessage, InternalParticipant
 from models.message import Message
 from models.user import User
 
@@ -19,6 +20,8 @@ MEDIA_DIR = (BASE_DIR / "media").resolve()
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 INCOMING_DIR = (MEDIA_DIR / "incoming").resolve()
 INCOMING_DIR.mkdir(parents=True, exist_ok=True)
+INTERNAL_DIR = (MEDIA_DIR / "internal").resolve()
+INTERNAL_DIR.mkdir(parents=True, exist_ok=True)
 
 def authenticate_media_user(
     request: Request,
@@ -90,7 +93,44 @@ def get_authenticated_media(
             detail="El archivo multimedia no fue encontrado en el servidor."
         )
 
-    # 2. Validar autorización de acceso por sucursal mediante el mensaje
+    # 2a. Adjuntos de Comunicación Interna: la sucursal no decide nada acá (un hilo directo
+    # cruza sucursales a propósito). Lo que decide es si quien pide participa del hilo, el
+    # mismo criterio que para leer los mensajes. Sin esta rama el archivo quedaría legible
+    # para cualquiera con sesión, porque abajo solo se mira la conversación de WhatsApp a la
+    # que pertenece el archivo — y un adjunto interno no pertenece a ninguna.
+    if target_path.parent == INTERNAL_DIR:
+        internal_msg = db.query(InternalMessage).filter(
+            InternalMessage.media_url.like(f"%{clean_name}%")
+        ).first()
+        if not internal_msg:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="El archivo multimedia no fue encontrado en el servidor."
+            )
+        participa = db.query(InternalParticipant).filter(
+            InternalParticipant.thread_id == internal_msg.thread_id,
+            InternalParticipant.user_id == current_user.id,
+        ).first()
+        if not participa:
+            logger.warning(
+                f"Acceso denegado a adjunto interno: usuario {current_user.id} pidió un archivo "
+                f"del hilo {internal_msg.thread_id}, del que no participa."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tenés permiso para ver este archivo."
+            )
+        return FileResponse(
+            path=str(target_path),
+            media_type=internal_msg.media_mime_type or "application/octet-stream",
+            headers={
+                "X-Content-Type-Options": "nosniff",
+                "Content-Disposition": f"inline; filename=\"{internal_msg.media_name or clean_name}\"",
+                "Cache-Control": "private, max-age=3600"
+            }
+        )
+
+    # 2b. Validar autorización de acceso por sucursal mediante el mensaje
     msg = db.query(Message).filter(
         Message.media_url.like(f"%{clean_name}%")
     ).first()

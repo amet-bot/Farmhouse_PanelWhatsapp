@@ -1,12 +1,15 @@
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status,
+)
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from database import get_db
+from database import SessionLocal, get_db
 from models.branch import Branch
 from models.internal_chat import InternalThread, InternalParticipant, InternalMessage
 from models.user import User
@@ -15,6 +18,10 @@ from schemas.internal_chat import (
     InternalThreadDetail, InternalThreadResponse, InternalUserBrief,
 )
 from security.auth import get_current_authorized_user
+from services import push_service
+from services.media_storage import (
+    ALLOWED_ATTACHMENT_MIMES, MAX_ATTACHMENT_BYTES, save_internal_attachment,
+)
 from services.websocket_manager import ws_manager
 
 logger = logging.getLogger("farmhouse.internal")
@@ -77,6 +84,43 @@ def ensure_branch_thread(db: Session, user: User) -> Optional[InternalThread]:
     return thread
 
 
+def _preview(message: InternalMessage) -> str:
+    """
+    Lo que se lee en la bandeja. Un adjunto sin texto no puede quedar como una fila en blanco,
+    así que lo describe: el nombre del archivo dice más que "archivo adjunto".
+    """
+    if message.body:
+        body = message.body
+        return body if len(body) <= PREVIEW_LENGTH else body[:PREVIEW_LENGTH].rstrip() + "…"
+    if message.media_url:
+        if (message.media_mime_type or "").startswith("image/"):
+            return "📷 Foto"
+        return f"📎 {message.media_name or 'Archivo'}"
+    return ""
+
+
+def _message_response(message: InternalMessage, sender_name: str) -> InternalMessageResponse:
+    """
+    Único lugar donde un InternalMessage se vuelve respuesta.
+
+    Estaba escrito a mano en dos endpoints (el historial y el envío) y al aparecer los adjuntos
+    una de las dos copias se quedó sin los campos nuevos: el mensaje recién mandado mostraba la
+    foto y el mismo mensaje, al recargar, aparecía como una burbuja vacía.
+    """
+    return InternalMessageResponse(
+        id=message.id,
+        thread_id=message.thread_id,
+        sender_user_id=message.sender_user_id,
+        sender_name=sender_name,
+        body=message.body,
+        created_at=message.created_at,
+        media_url=message.media_url,
+        media_mime_type=message.media_mime_type,
+        media_name=message.media_name,
+        media_size=message.media_size,
+    )
+
+
 def _participant_or_403(db: Session, thread_id: int, user: User) -> InternalParticipant:
     participant = db.query(InternalParticipant).filter(
         InternalParticipant.thread_id == thread_id,
@@ -108,7 +152,7 @@ def _serialize_thread(db: Session, thread: InternalThread, me: User, online_ids:
     preview = None
     sender_name = None
     if last:
-        preview = last.body if len(last.body) <= PREVIEW_LENGTH else last.body[:PREVIEW_LENGTH].rstrip() + "…"
+        preview = _preview(last)
         sender_name = "Vos" if last.sender_user_id == me.id else last.sender.name.split(" ")[0]
 
     if thread.kind == "branch":
@@ -275,19 +319,101 @@ def list_messages(
     # Se piden los más nuevos y se devuelven en orden de lectura (viejo → nuevo).
     rows = query.order_by(InternalMessage.id.desc()).limit(limit).all()
     rows.reverse()
-    return [
-        InternalMessageResponse(
-            id=m.id, thread_id=m.thread_id, sender_user_id=m.sender_user_id,
-            sender_name=m.sender.name, body=m.body, created_at=m.created_at,
+    return [_message_response(m, m.sender.name) for m in rows]
+
+
+def _send_internal_push_background(thread_id: int, thread_title: str, sender_name: str,
+                                   body: str, recipient_user_ids: list) -> None:
+    """
+    Manda las push fuera del ciclo de la petición, con su propia sesión de base.
+
+    El que escribe no tiene que esperar a que los servidores de push de Google y Apple
+    contesten uno por uno para ver su mensaje en pantalla; y si uno falla, el mensaje ya
+    quedó enviado igual.
+    """
+    db = SessionLocal()
+    try:
+        push_service.notify_internal_message(
+            db=db,
+            thread_id=thread_id,
+            thread_title=thread_title,
+            sender_name=sender_name,
+            body=body,
+            recipient_user_ids=recipient_user_ids,
         )
-        for m in rows
-    ]
+    except Exception as e:
+        logger.error(f"[Push interno] Falló el aviso del hilo {thread_id}: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+def _persist_message(db: Session, thread: InternalThread, participant: InternalParticipant,
+                     sender: User, body: str, media: Optional[dict] = None) -> InternalMessage:
+    """
+    Graba el mensaje y deja el hilo al día. Único lugar donde se escribe en internal_messages:
+    mandar texto y mandar un adjunto son la misma operación con distinto contenido, y tenerlo
+    duplicado era la forma segura de que un día el adjunto no actualizara `last_message_at` y
+    la bandeja lo dejara enterrado.
+    """
+    now = datetime.now(timezone.utc)
+    media = media or {}
+    message = InternalMessage(
+        thread_id=thread.id,
+        sender_user_id=sender.id,
+        body=body,
+        created_at=now,
+        media_url=media.get("url"),
+        media_mime_type=media.get("mime_type"),
+        media_name=media.get("name"),
+        media_size=media.get("size"),
+    )
+    db.add(message)
+    thread.last_message_at = now
+    # Quien escribe ya leyó lo suyo: si no, su propio mensaje le contaría como no leído.
+    participant.last_read_at = now
+    db.commit()
+    db.refresh(message)
+    return message
+
+
+async def _deliver(db: Session, thread: InternalThread, message: InternalMessage, sender: User,
+                   background: BackgroundTasks) -> InternalMessageResponse:
+    """Difunde el mensaje recién grabado: en vivo por WebSocket y por push a quien no está."""
+    response = _message_response(message, sender.name)
+
+    # Difusión dirigida: uno por uno a los participantes, no por sala de sucursal. Un hilo
+    # directo cruza sucursales, así que la regla de audiencia de notification_audience.py
+    # (pensada para eventos de una sucursal) no aplica acá — el destinatario es el hilo.
+    event = {
+        "type": "internal_message",
+        "thread_id": thread.id,
+        "thread_kind": thread.kind,
+        "message": response.model_dump(mode="json"),
+    }
+    for p in thread.participants:
+        await ws_manager.send_personal_message(event, p.user_id)
+
+    # La push va a todos menos a quien escribe: nadie necesita que el celular le avise de su
+    # propio mensaje. Quien está mirando la pantalla igual la recibe — el navegador exige
+    # mostrarla (userVisibleOnly) y el servidor no tiene forma confiable de saber si esa
+    # pestaña está a la vista; el `tag` por hilo evita que se apilen.
+    recipients = [p.user_id for p in thread.participants if p.user_id != sender.id]
+    if recipients:
+        title = f"Equipo {thread.branch.name}" if thread.kind == "branch" and thread.branch else sender.name
+        background.add_task(
+            _send_internal_push_background,
+            thread.id, title, sender.name, _preview(message), recipients,
+        )
+
+    logger.info(f"Mensaje interno #{message.id} en hilo {thread.id} de {sender.name}")
+    return response
 
 
 @router.post("/threads/{thread_id}/messages", response_model=InternalMessageResponse, status_code=status.HTTP_201_CREATED)
 async def send_message(
     thread_id: int,
     payload: InternalMessageCreate,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_authorized_user),
 ):
@@ -297,42 +423,57 @@ async def send_message(
     if not body:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El mensaje está vacío.")
 
-    now = datetime.now(timezone.utc)
-    message = InternalMessage(
-        thread_id=thread_id,
-        sender_user_id=current_user.id,
-        body=body,
-        created_at=now,
-    )
-    db.add(message)
+    thread = db.query(InternalThread).filter(InternalThread.id == thread_id).first()
+    message = _persist_message(db, thread, participant, current_user, body)
+    return await _deliver(db, thread, message, current_user, background)
+
+
+@router.post("/threads/{thread_id}/attachments", response_model=InternalMessageResponse, status_code=status.HTTP_201_CREATED)
+async def send_attachment(
+    thread_id: int,
+    background: BackgroundTasks,
+    file: UploadFile = File(...),
+    caption: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Sube una foto o un PDF y lo manda como un mensaje más del hilo.
+
+    Endpoint aparte del envío de texto y no un `send_message` multipart: obligar a todo mensaje
+    de texto a viajar como formulario para que uno de cada cien lleve un archivo habría hecho
+    más ruidoso el camino que se usa siempre.
+    """
+    participant = _participant_or_403(db, thread_id, current_user)
+
+    mime = (file.content_type or "").split(";")[0].strip().lower()
+    if mime not in ALLOWED_ATTACHMENT_MIMES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se pueden mandar imágenes (JPG, PNG, WEBP, GIF, HEIC) o PDF.",
+        )
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El archivo está vacío.")
+    # Se mide acá y no solo en el navegador: el límite del cliente es una cortesía, no un control.
+    if len(data) > MAX_ATTACHMENT_BYTES:
+        mb = MAX_ATTACHMENT_BYTES // (1024 * 1024)
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"El archivo pesa más de {mb} MB. Mandá una versión más liviana.",
+        )
+
+    url = save_internal_attachment(data, mime)
+    # Solo el nombre, sin carpetas: lo que llega del navegador puede traer una ruta entera.
+    original_name = Path(file.filename or "").name[:255] or "archivo"
 
     thread = db.query(InternalThread).filter(InternalThread.id == thread_id).first()
-    thread.last_message_at = now
-    # Quien escribe ya leyó lo suyo: si no, su propio mensaje le contaría como no leído.
-    participant.last_read_at = now
-
-    db.commit()
-    db.refresh(message)
-
-    response = InternalMessageResponse(
-        id=message.id, thread_id=thread_id, sender_user_id=current_user.id,
-        sender_name=current_user.name, body=body, created_at=message.created_at,
+    message = _persist_message(
+        db, thread, participant, current_user, (caption or "").strip()[:4000],
+        media={"url": url, "mime_type": mime, "name": original_name, "size": len(data)},
     )
-
-    # Difusión dirigida: uno por uno a los participantes, no por sala de sucursal. Un hilo
-    # directo cruza sucursales, así que la regla de audiencia de notification_audience.py
-    # (pensada para eventos de una sucursal) no aplica acá — el destinatario es el hilo.
-    event = {
-        "type": "internal_message",
-        "thread_id": thread_id,
-        "thread_kind": thread.kind,
-        "message": response.model_dump(mode="json"),
-    }
-    for p in thread.participants:
-        await ws_manager.send_personal_message(event, p.user_id)
-
-    logger.info(f"Mensaje interno #{message.id} en hilo {thread_id} de {current_user.name}")
-    return response
+    return await _deliver(db, thread, message, current_user, background)
 
 
 @router.post("/threads/{thread_id}/read", status_code=status.HTTP_204_NO_CONTENT)

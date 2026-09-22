@@ -10,6 +10,11 @@
  * escuchar ese tipo. El POST ya devuelve el mensaje creado y se pinta de inmediato; el evento
  * que vuelve por WebSocket para el propio autor se descarta por id, para no duplicar la burbuja
  * ni depender de cuál de los dos llegue primero.
+ *
+ * Los adjuntos (fotos y PDF) van por su propio endpoint multipart y vuelven como un mensaje
+ * más, con las mismas reglas de burbuja. Los avisos push reusan push.js y el Service Worker
+ * que ya existían para el Centro WhatsApp; acá se ofrecen con un botón propio en vez del
+ * banner de aquel, que habla de pedidos de WhatsApp.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -28,7 +33,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     pane: 'conversaciones',
     search: { threads: '', people: '' },
     sending: false,
+    attachment: null,        // File elegido y todavía sin mandar
+    attachmentUrl: null,     // object URL de la vista previa, se revoca al soltarlo
   };
+
+  // Mismo límite y misma lista que valida el backend (services/media_storage.py). Acá es una
+  // cortesía para no hacer subir 30 MB y recibir un 413 al final; la regla real es la de allá.
+  const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+  const ALLOWED_MIMES = [
+    'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'application/pdf',
+  ];
 
   const esc = (v) => utils.escapeHtml(v);
 
@@ -73,6 +87,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (label === 'Hoy') return utils.formatTime(iso);
     if (label === 'Ayer') return 'Ayer';
     return date.toLocaleDateString('es-PA', { day: 'numeric', month: 'short' });
+  }
+
+  const isImage = (mime) => String(mime || '').startsWith('image/');
+
+  function formatBytes(bytes) {
+    if (!bytes && bytes !== 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  /** Lo que se lee en la bandeja. Espeja _preview() del backend para que no se contradigan. */
+  function previewOf(message) {
+    if (message.body) {
+      return message.body.length > 90 ? `${message.body.slice(0, 90).trimEnd()}…` : message.body;
+    }
+    if (message.media_url) {
+      return isImage(message.media_mime_type) ? '📷 Foto' : `📎 ${message.media_name || 'Archivo'}`;
+    }
+    return '';
   }
 
   function avatarHtml(name, { channel = false, online = false } = {}) {
@@ -325,14 +359,86 @@ document.addEventListener('DOMContentLoaded', async () => {
       html += `
         <div class="int-msg${mine ? ' mine' : ''}">
           ${showAuthor ? `<span class="int-msg-author">${esc(m.sender_name)}</span>` : ''}
-          <div class="int-bubble">${esc(m.body)}</div>
+          <div class="int-bubble${m.media_url ? ' has-media' : ''}">
+            ${m.media_url ? mediaHtml(m) : ''}
+            ${m.body ? `<span class="int-bubble-text">${esc(m.body)}</span>` : ''}
+          </div>
           <span class="int-msg-time">${esc(utils.formatTime(m.created_at))}</span>
         </div>`;
       return html;
     }).join('');
 
-    list.scrollTop = list.scrollHeight;
+    utils.renderIcons();
+
+    // Bajar del todo, y volver a bajar cuando cada foto termine de cargar. Una imagen todavía
+    // sin cargar no ocupa alto: si solo se baja una vez, el navegador ya estiró la lista
+    // después y la conversación queda abierta a media altura, sin los últimos mensajes.
+    const alFondo = () => { list.scrollTop = list.scrollHeight; };
+    alFondo();
+    list.querySelectorAll('.int-media-img img').forEach((img) => {
+      if (img.complete) return;
+      img.addEventListener('load', alFondo, { once: true });
+      img.addEventListener('error', alFondo, { once: true });
+    });
   }
+
+  /**
+   * El adjunto dentro de la burbuja. Una imagen se ve; un PDF se anuncia con su nombre y peso,
+   * que es lo que deja decidir si vale la pena abrirlo con datos móviles.
+   *
+   * `api.resolveMediaUrl` arma la URL del endpoint autenticado y le cuelga el token: los
+   * archivos internos no son públicos, el backend comprueba que quien pide participe del hilo.
+   */
+  function mediaHtml(m) {
+    const url = api.resolveMediaUrl(m.media_url);
+    const name = m.media_name || 'archivo';
+    if (isImage(m.media_mime_type)) {
+      return `
+        <button type="button" class="int-media-img" data-media-url="${esc(url)}" data-media-name="${esc(name)}">
+          <img src="${esc(url)}" alt="${esc(name)}" loading="lazy">
+        </button>`;
+    }
+    return `
+      <a class="int-media-file" href="${esc(url)}" target="_blank" rel="noopener" download="${esc(name)}">
+        <span class="int-media-icon"><i data-lucide="file-text"></i></span>
+        <span class="int-media-meta">
+          <strong>${esc(name)}</strong>
+          <small>${esc(formatBytes(m.media_size))}</small>
+        </span>
+      </a>`;
+  }
+
+  // Una sola escucha en la lista, y no una por imagen: la lista se vuelve a pintar entera
+  // con cada mensaje que entra, y volver a colgar escuchas en cada pintada las acumula.
+  $('messageList')?.addEventListener('click', (e) => {
+    const trigger = e.target.closest('.int-media-img');
+    if (!trigger) return;
+    openLightbox(trigger.dataset.mediaUrl, trigger.dataset.mediaName);
+  });
+
+  function openLightbox(url, name) {
+    const box = $('lightbox');
+    $('lightboxImg').src = url;
+    $('lightboxImg').alt = name || '';
+    const dl = $('lightboxDownload');
+    dl.href = url;
+    dl.setAttribute('download', name || 'imagen');
+    box.hidden = false;
+    utils.renderIcons();
+  }
+
+  function closeLightbox() {
+    $('lightbox').hidden = true;
+    $('lightboxImg').src = '';
+  }
+
+  $('btnLightboxClose')?.addEventListener('click', closeLightbox);
+  $('lightbox')?.addEventListener('click', (e) => {
+    if (e.target === $('lightbox')) closeLightbox();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('lightbox').hidden) closeLightbox();
+  });
 
   async function markRead(threadId) {
     try {
@@ -364,15 +470,94 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // ---- Adjuntos -------------------------------------------------------
+  $('btnAttach')?.addEventListener('click', () => $('attachInput').click());
+
+  $('attachInput')?.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';   // permite volver a elegir el mismo archivo después de soltarlo
+    if (!file) return;
+
+    if (!ALLOWED_MIMES.includes(file.type)) {
+      utils.showToast('Solo se pueden mandar fotos (JPG, PNG, WEBP, GIF, HEIC) o PDF.', 'warning');
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      utils.showToast('El archivo pesa más de 10 MB. Mandá una versión más liviana.', 'warning');
+      return;
+    }
+    setAttachment(file);
+  });
+
+  function setAttachment(file) {
+    dropAttachment();
+    state.attachment = file;
+    $('attachName').textContent = file.name;
+    $('attachSize').textContent = formatBytes(file.size);
+
+    const thumb = $('attachThumb');
+    if (isImage(file.type)) {
+      state.attachmentUrl = URL.createObjectURL(file);
+      thumb.innerHTML = `<img src="${state.attachmentUrl}" alt="">`;
+    } else {
+      thumb.innerHTML = '<i data-lucide="file-text"></i>';
+    }
+    $('attachPreview').hidden = false;
+    utils.renderIcons();
+    composerInput.focus();
+  }
+
+  function dropAttachment() {
+    if (state.attachmentUrl) {
+      URL.revokeObjectURL(state.attachmentUrl);
+      state.attachmentUrl = null;
+    }
+    state.attachment = null;
+    $('attachPreview').hidden = true;
+    $('attachThumb').innerHTML = '';
+  }
+
+  $('btnAttachDrop')?.addEventListener('click', dropAttachment);
+
+  // Pegar una captura directo en el campo: es el camino más corto para mandar una pantalla.
+  composerInput?.addEventListener('paste', (e) => {
+    const item = Array.from(e.clipboardData?.items || []).find((i) => i.type.startsWith('image/'));
+    if (!item) return;
+    const file = item.getAsFile();
+    if (!file) return;
+    e.preventDefault();
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      utils.showToast('Esa imagen pesa más de 10 MB.', 'warning');
+      return;
+    }
+    setAttachment(file);
+  });
+
   $('composer')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const body = composerInput.value.trim();
-    if (!body || state.sending || !state.activeThreadId) return;
+    const file = state.attachment;
+    // Un adjunto puede ir sin texto; el texto solo, no puede ir vacío.
+    if ((!body && !file) || state.sending || !state.activeThreadId) return;
 
     state.sending = true;
     $('btnSend').disabled = true;
     try {
-      const message = await api.post(`/internal/threads/${state.activeThreadId}/messages`, { body });
+      let message;
+      if (file) {
+        const form = new FormData();
+        form.append('file', file, file.name);
+        form.append('caption', body);
+        // api.post serializa a JSON; para multipart hay que ir por request, que ya detecta
+        // FormData y deja que el navegador arme el boundary.
+        message = await api.request(`/internal/threads/${state.activeThreadId}/attachments`, {
+          method: 'POST',
+          body: form,
+        });
+        dropAttachment();
+      } else {
+        message = await api.post(`/internal/threads/${state.activeThreadId}/messages`, { body });
+      }
       composerInput.value = '';
       autoGrow();
       appendMessage(message);
@@ -402,7 +587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     thread.last_message_at = message.created_at;
-    thread.last_message_preview = message.body.length > 90 ? `${message.body.slice(0, 90).trimEnd()}…` : message.body;
+    thread.last_message_preview = previewOf(message);
     thread.last_message_sender = mine ? 'Vos' : (message.sender_name || '').split(' ')[0];
     if (!mine && threadId !== state.activeThreadId) {
       thread.unread_count = (thread.unread_count || 0) + 1;
@@ -454,6 +639,47 @@ document.addEventListener('DOMContentLoaded', async () => {
   }, REFRESH_MS);
 
   // ==========================================================================
+  // Avisos del navegador
+  // ==========================================================================
+  /**
+   * El botón de la cabecera solo aparece cuando hay algo que hacer con él: si el permiso ya
+   * está dado, push.js resuscribe solo y el botón no tiene sentido; si el navegador no
+   * soporta push (o la página no está en un contexto seguro), ofrecerlo sería mentir.
+   */
+  function setupPushAffordance() {
+    const btn = $('btnEnableNotifications');
+    if (!btn || typeof pushModule === 'undefined') return;
+
+    if (!pushModule.isSupported() || Notification.permission === 'denied') return;
+
+    // promptBanner:false — el banner de push.js habla de pedidos de WhatsApp, que no es lo
+    // que pasa en esta pantalla. Acá se ofrece con este botón.
+    pushModule.init({ promptBanner: false });
+
+    if (Notification.permission === 'granted') return;
+
+    btn.hidden = false;
+    btn.addEventListener('click', async () => {
+      const ok = await pushModule.requestPermissionAndSubscribe();
+      if (ok) btn.hidden = true;
+    });
+  }
+
+  /** Abre el hilo que venía en la notificación: /interno?thread=12 */
+  function openThreadFromUrl(url) {
+    const match = String(url || '').match(/[?&]thread=(\d+)/);
+    if (!match) return false;
+    openThread(Number(match[1]));
+    return true;
+  }
+
+  // Clic en la notificación con la pestaña ya abierta: el Service Worker la enfoca y avisa
+  // por acá, porque en ese caso no hay navegación que dispare el ?thread= de la URL.
+  navigator.serviceWorker?.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'push_notification_click') openThreadFromUrl(e.data.url);
+  });
+
+  // ==========================================================================
   // Arranque
   // ==========================================================================
   const existingUser = await auth.checkSession();
@@ -474,5 +700,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await Promise.all([loadThreads(), loadDirectory({ silent: true })]);
   wsClient.connect();
+  setupPushAffordance();
+  openThreadFromUrl(window.location.search);
   utils.renderIcons();
 });

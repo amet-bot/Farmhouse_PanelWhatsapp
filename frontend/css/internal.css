@@ -54,7 +54,10 @@
 .int-chat-live[hidden],
 .int-chat-kind[hidden],
 .int-tab-count[hidden],
-.int-unread[hidden] {
+.int-unread[hidden],
+.int-attach-preview[hidden],
+.int-notif-btn[hidden],
+.int-lightbox[hidden] {
   display: none !important;
 }
 
@@ -625,6 +628,10 @@ body {
   margin-top: 10px;
 }
 
+/* `white-space: pre-wrap` vive en .int-bubble-text, no acá. Desde que la burbuja puede
+   contener un adjunto además del texto, su HTML tiene saltos de línea e indentación propios
+   del marcado, y con pre-wrap en el contenedor esos saltos se verían como espacio en blanco
+   dentro de la burbuja. El texto del mensaje sí los conserva, que es donde importa. */
 .int-bubble {
   padding: 9px 13px;
   border-radius: 12px;
@@ -633,9 +640,101 @@ body {
   color: var(--int-text);
   font-size: 13.5px;
   line-height: 1.5;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.int-bubble-text {
+  display: block;
+  white-space: pre-wrap;
+}
+
+/* Con adjunto la burbuja es casi solo su marco: la foto manda y el relleno sobra. */
+.int-bubble.has-media {
+  padding: 4px;
+  overflow: hidden;
+}
+
+.int-bubble.has-media .int-bubble-text { padding: 5px 9px 4px; }
+
+/* ---- Adjuntos dentro de la burbuja ---- */
+.int-media-img {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+  border-radius: 9px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.int-media-img img {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  width: auto;
+  height: auto;
+  object-fit: cover;
+}
+
+.int-media-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--int-panel-2);
+  border: 1px solid var(--int-border-light);
+  text-decoration: none;
+  color: inherit;
+  min-width: 190px;
+}
+
+.int-media-file:hover { border-color: var(--int-accent-border); }
+
+.int-media-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--int-accent-soft);
+  color: var(--int-accent-text);
+}
+
+.int-media-icon i { width: 17px; height: 17px; }
+
+.int-media-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.int-media-meta strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.int-media-meta small { font-size: 10.5px; color: var(--int-text-muted); }
+
+/* En la burbuja propia el fondo es azul: la ficha del archivo tiene que despegarse de él. */
+.int-msg.mine .int-media-file {
+  background: rgba(255, 255, 255, .14);
+  border-color: rgba(255, 255, 255, .2);
+}
+
+.int-msg.mine .int-media-icon {
+  background: rgba(255, 255, 255, .2);
+  color: #fff;
+}
+
+.int-msg.mine .int-media-meta small { color: rgba(255, 255, 255, .78); }
 
 .int-msg.mine .int-bubble {
   background: var(--int-mine-bg);
@@ -703,6 +802,159 @@ body {
 .int-send i { width: 18px; height: 18px; }
 .int-send:hover:not(:disabled) { transform: translateY(-1px); }
 .int-send:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---- Clip y archivo elegido ---- */
+.int-attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border: 1px solid var(--int-border);
+  border-radius: 12px;
+  background: var(--int-panel-2);
+  color: var(--int-text-secondary);
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease;
+}
+
+.int-attach-btn i { width: 18px; height: 18px; }
+.int-attach-btn:hover { color: var(--int-accent-text); border-color: var(--int-accent-border); }
+
+/* El archivo elegido se muestra ANTES de mandarlo, sobre el redactor: da lugar a escribirle un
+   pie y, sobre todo, a arrepentirse sin haber mandado nada. */
+.int-attach-preview {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 0 20px;
+  padding: 9px 11px;
+  border: 1px solid var(--int-accent-border);
+  border-radius: 12px;
+  background: var(--int-accent-soft);
+  flex-shrink: 0;
+}
+
+.int-attach-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--int-panel);
+  color: var(--int-accent-text);
+}
+
+.int-attach-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.int-attach-thumb i { width: 18px; height: 18px; }
+
+.int-attach-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 1px;
+}
+
+.int-attach-info strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--int-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.int-attach-info small { font-size: 10.5px; color: var(--int-text-secondary); }
+
+.int-attach-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--int-text-secondary);
+  cursor: pointer;
+}
+
+.int-attach-drop:hover { background: var(--int-panel); color: var(--int-text); }
+.int-attach-drop i { width: 15px; height: 15px; }
+
+/* ---- Botón de avisos ---- */
+.int-notif-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border: 1px solid var(--int-accent-border);
+  border-radius: 10px;
+  background: var(--int-accent-soft);
+  color: var(--int-accent-text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.int-notif-btn:hover { border-color: var(--int-accent); }
+.int-notif-btn i { width: 15px; height: 15px; }
+
+/* ---- Visor de imagen ---- */
+.int-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: rgba(4, 9, 18, .88);
+  backdrop-filter: blur(3px);
+}
+
+.int-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .55);
+}
+
+.int-lightbox-close,
+.int-lightbox-download {
+  position: absolute;
+  top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 13px;
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 10px;
+  /* Base oscura propia, no solo blanco translúcido: el fondo del visor lleva backdrop-filter y
+     no todos los navegadores lo aplican igual; con una base propia el texto blanco se lee
+     siempre, se desenfoque o no lo de atrás. */
+  background: rgba(16, 24, 38, .78);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.int-lightbox-close { right: 16px; }
+.int-lightbox-download { left: 16px; }
+.int-lightbox-close:hover,
+.int-lightbox-download:hover { background: rgba(255, 255, 255, .2); }
+.int-lightbox-close i,
+.int-lightbox-download i { width: 16px; height: 16px; }
 
 .int-composer-hint {
   margin: 0;
@@ -790,4 +1042,11 @@ body {
   .int-composer { padding: 10px 14px 6px; }
   .int-composer-hint { display: none; }
   .int-chat-header { padding: 10px 14px; }
+
+  .int-attach-preview { margin: 0 14px; }
+  .int-media-img img { max-height: 240px; }
+  /* El texto del botón de avisos sobra en un teléfono: queda la campana sola. */
+  .int-notif-btn { padding: 8px; }
+  .int-notif-btn .int-notif-label { display: none; }
+  .int-lightbox { padding: 64px 12px 12px; }
 }

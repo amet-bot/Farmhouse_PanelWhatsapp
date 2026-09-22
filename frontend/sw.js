@@ -26,8 +26,11 @@ self.addEventListener('push', (event) => {
     body: payload.body,
     icon: '/assets/images/farmhouse-logo.png',
     badge: '/assets/images/farmhouse-logo.png',
-    tag: payload.conversation_id ? `fh-conv-${payload.conversation_id}` : undefined,
-    renotify: !!payload.conversation_id,
+    // `tag` explícito del servidor (lo usa Comunicación Interna, uno por hilo) o el derivado
+    // de la conversación de WhatsApp. Agrupa: el aviso nuevo reemplaza al anterior del mismo
+    // chat en vez de apilar diez en la pantalla de bloqueo.
+    tag: payload.tag || (payload.conversation_id ? `fh-conv-${payload.conversation_id}` : undefined),
+    renotify: !!(payload.tag || payload.conversation_id),
     vibrate: [250, 100, 250, 100, 250],
     requireInteraction: true,
     data: { url: payload.url || '/' },

@@ -20,8 +20,12 @@ class InternalMessageResponse(BaseModel):
     thread_id: int
     sender_user_id: int
     sender_name: str
-    body: str
+    body: str                       # "" cuando el mensaje es solo un adjunto
     created_at: datetime
+    media_url: Optional[str] = None
+    media_mime_type: Optional[str] = None
+    media_name: Optional[str] = None
+    media_size: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 

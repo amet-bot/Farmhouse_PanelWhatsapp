@@ -67,8 +67,20 @@ class InternalMessage(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     thread_id = Column(Integer, ForeignKey("internal_threads.id", ondelete="CASCADE"), nullable=False)
     sender_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    # Un mensaje que es solo un adjunto guarda "" acá, no NULL: la columna nació NOT NULL y
+    # aflojarla habría significado un ALTER sobre una tabla ya en producción para ganar una
+    # distinción que el código no usa (nadie pregunta "¿es vacío o es nulo?", preguntan si hay
+    # texto). Quien lee siempre tiene un str.
     body = Column(Text, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Adjunto opcional: una foto de un faltante, una factura. El archivo vive en disco bajo
+    # media/internal/ y acá queda la URL; media_name conserva el nombre original con el que se
+    # subió, que es el que ve y descarga la gente.
+    media_url = Column(String(500), nullable=True)
+    media_mime_type = Column(String(120), nullable=True)
+    media_name = Column(String(255), nullable=True)
+    media_size = Column(Integer, nullable=True)
 
     thread = relationship("InternalThread", back_populates="messages")
     sender = relationship("User")

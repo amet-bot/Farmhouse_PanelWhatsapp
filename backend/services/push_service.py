@@ -92,3 +92,44 @@ def notify_branch_new_message(db: Session, branch_id: Optional[int], title: str,
     }
     for sub in subs:
         _send_to_subscription(db, sub, payload)
+
+
+def notify_internal_message(
+    db: Session,
+    thread_id: int,
+    thread_title: str,
+    sender_name: str,
+    body: str,
+    recipient_user_ids: list,
+) -> None:
+    """
+    Avisa por push de un mensaje de Comunicación Interna.
+
+    A diferencia de notify_branch_new_message, acá la audiencia NO se deduce de la sucursal:
+    un directo cruza sucursales a propósito, así que el destinatario es quien participa del
+    hilo y nadie más. La lista llega ya resuelta desde el router, que es quien conoce el hilo.
+
+    El título es de quién escribe y el cuerpo es el mensaje: alcanza para decidir si vale la
+    pena abrir el panel sin tener que abrirlo. Un canal de equipo antepone el nombre del canal
+    porque "Juan" solo no dice si te escribió a vos o al grupo.
+    """
+    if not is_push_configured() or not recipient_user_ids:
+        return
+
+    subs = db.query(PushSubscription).filter(
+        PushSubscription.user_id.in_(recipient_user_ids)
+    ).all()
+    if not subs:
+        return
+
+    payload = {
+        "title": sender_name if thread_title == sender_name else f"{sender_name} · {thread_title}",
+        "body": (body or "Te mandaron un archivo")[:100],
+        "url": f"/interno?thread={thread_id}",
+        # Una notificación por hilo, que se reemplaza: diez mensajes seguidos del mismo canal
+        # no pueden dejar diez avisos apilados en la pantalla de bloqueo.
+        "tag": f"fh-internal-{thread_id}",
+        "internal_thread_id": thread_id,
+    }
+    for sub in subs:
+        _send_to_subscription(db, sub, payload)

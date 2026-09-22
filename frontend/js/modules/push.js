@@ -24,7 +24,13 @@ const pushModule = {
     return outputArray;
   },
 
-  async init() {
+  /**
+   * @param {{promptBanner?: boolean}} opts  promptBanner=false para las pantallas que ofrecen
+   *   activar los avisos con su propio botón (Comunicación Interna): el banner de acá habla
+   *   de pedidos y mensajes de WhatsApp, que no es lo que pasa en esa pantalla.
+   */
+  async init(opts = {}) {
+    const { promptBanner = true } = opts;
     if (!this.isSupported()) {
       console.warn('[Push] Este navegador/contexto no soporta notificaciones push (requiere HTTPS o localhost).');
       return;
@@ -40,7 +46,7 @@ const pushModule = {
     // Si el usuario ya había concedido el permiso antes, re-sincroniza la suscripción en silencio.
     if (Notification.permission === 'granted') {
       await this.subscribe();
-    } else if (Notification.permission === 'default') {
+    } else if (Notification.permission === 'default' && promptBanner) {
       // Mostrar banner amistoso para invitar a activar notificaciones en celular
       setTimeout(() => this.showMobilePromptBanner(), 2000);
     }
