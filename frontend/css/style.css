@@ -2679,22 +2679,49 @@ input:-webkit-autofill:focus {
   animation: slideUpToast 0.2s ease-out;
 }
 
-.toast-banner.success {
+/* Los avisos estaban MUDOS en toda la app, por dos desajustes entre este archivo y
+   utils.showToast(), que pone `toast-banner toast-<tipo> active`:
+
+     1. `.active` no existía, y .toast-banner nace con `display: none`. Ningún aviso llegaba a
+        verse nunca — tampoco los de error del Centro WhatsApp.
+     2. Las clases por tipo estaban escritas sin el prefijo (`.success` en vez de
+        `.toast-success`), así que además eran código muerto: nadie generaba esos nombres.
+
+   Inventario y Comunicación Interna traían su propia copia de estas reglas para que sus avisos
+   se vieran. Al quedar arreglado de raíz, esas copias se borraron: una regla en dos archivos es
+   una que en algún momento se va a actualizar en uno solo. */
+.toast-banner.active {
+  display: flex;
+}
+
+.toast-banner.toast-success {
   background: var(--success-badge-bg);
   color: var(--success-text);
   border: 1px solid var(--success-border);
 }
 
-.toast-banner.error {
+.toast-banner.toast-error {
   background: var(--danger-badge-bg);
   color: var(--danger-text);
   border: 1px solid var(--danger-border);
 }
 
-.toast-banner.warning {
+.toast-banner.toast-warning {
   background: var(--warning-badge-bg);
   color: var(--warning-text);
   border: 1px solid var(--warning-border);
+}
+
+.toast-banner.toast-info {
+  background: var(--info-badge-bg);
+  color: var(--info-text);
+  border: 1px solid var(--info-border);
+}
+
+.toast-banner i {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 @keyframes slideUpToast {

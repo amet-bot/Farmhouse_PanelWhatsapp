@@ -1298,19 +1298,6 @@ body {
 
 .inv-submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* ============================================================================
-   8. TOAST
-   utils.showToast() pone las clases `toast-banner toast-<tipo> active`, pero style.css solo
-   define `.toast-banner.success/.error/.warning` y ningún `.active` — así que el aviso quedaba
-   con `display:none` para siempre. Se define acá (solo esta página) en vez de tocar style.css,
-   para no encender de golpe avisos que hoy están mudos en el Centro WhatsApp.
-   ============================================================================ */
-.toast-banner.active { display: flex; }
-.toast-banner.toast-success { background: var(--success-badge-bg); color: var(--success-text); border: 1px solid var(--success-border); }
-.toast-banner.toast-error { background: var(--danger-badge-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
-.toast-banner.toast-warning { background: var(--warning-badge-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
-.toast-banner.toast-info { background: var(--info-badge-bg); color: var(--info-text); border: 1px solid var(--info-border); }
-.toast-banner i { width: 16px; height: 16px; }
 
 /* ============================================================================
    9. PANTALLAS CHICAS

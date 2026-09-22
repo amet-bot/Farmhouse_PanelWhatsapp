@@ -988,17 +988,6 @@ body {
   to { background-position: -200% 0; }
 }
 
-/* ============================================================================
-   5. TOAST
-   Igual que en Inventario: utils.showToast() pone `toast-banner toast-<tipo> active`, pero
-   style.css no define ni `.active` ni las clases por tipo, así que el aviso quedaría mudo.
-   ============================================================================ */
-.toast-banner.active { display: flex; }
-.toast-banner.toast-success { background: var(--success-badge-bg); color: var(--success-text); border: 1px solid var(--success-border); }
-.toast-banner.toast-error { background: var(--danger-badge-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
-.toast-banner.toast-warning { background: var(--warning-badge-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
-.toast-banner.toast-info { background: var(--info-badge-bg); color: var(--info-text); border: 1px solid var(--info-border); }
-.toast-banner i { width: 16px; height: 16px; }
 
 /* ============================================================================
    6. PANTALLAS CHICAS
