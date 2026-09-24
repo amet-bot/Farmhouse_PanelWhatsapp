@@ -167,11 +167,18 @@ def device_heartbeat(
         )
 
     # Validar que si es agente o supervisor local, el dispositivo pertenezca a su sucursal (Punto 11)
-    if current_user.role == "agent" and device.branch_id != current_user.branch_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No puedes emitir heartbeat en dispositivos de otra sucursal."
-        )
+    if current_user.role == "agent":
+        if device.branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No puedes emitir heartbeat en dispositivos de otra sucursal."
+            )
+    elif current_user.role == "supervisor" and current_user.branch_id:
+        if device.branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No puedes emitir heartbeat en dispositivos de otra sucursal."
+            )
 
     device.last_seen = datetime.now(timezone.utc)
     db.commit()

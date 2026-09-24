@@ -554,12 +554,19 @@ def create_order(
     # 1. Validar acceso a la conversación
     conv = check_conversation_access(db, order_in.conversation_id, current_user, action="create_order")
     
-    # 2. Validar sucursal para agentes
-    if current_user.role == "agent" and order_in.branch_id != current_user.branch_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para crear pedidos en otra sucursal."
-        )
+    # 2. Validar sucursal para agentes y supervisores locales (mismo criterio que conversations.py)
+    if current_user.role == "agent":
+        if order_in.branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para crear pedidos en otra sucursal."
+            )
+    elif current_user.role == "supervisor" and current_user.branch_id:
+        if order_in.branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para crear pedidos en otra sucursal."
+            )
 
     branch = check_target_branch_valid(db, order_in.branch_id)
 

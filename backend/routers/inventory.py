@@ -191,11 +191,19 @@ def create_shipment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_authorized_user),
 ):
-    if current_user.role == "agent" and shipment_in.branch_id != current_user.branch_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para registrar cargamentos en otra sucursal."
-        )
+    # Igual que conversations.py: agente y supervisor local solo su propia sucursal (Punto 3).
+    if current_user.role == "agent":
+        if shipment_in.branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para registrar cargamentos en otra sucursal."
+            )
+    elif current_user.role == "supervisor" and current_user.branch_id:
+        if shipment_in.branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para registrar cargamentos en otra sucursal."
+            )
 
     check_target_branch_valid(db, shipment_in.branch_id)
 
@@ -409,11 +417,18 @@ def create_waste(
     y la respuesta marca cuáles insumos quedaron así (`negative_items`), que es la señal de que
     falta cargar el arranque — no de que alguien se equivocó.
     """
-    if current_user.role == "agent" and waste_in.branch_id != current_user.branch_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para registrar mermas en otra sucursal."
-        )
+    if current_user.role == "agent":
+        if waste_in.branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para registrar mermas en otra sucursal."
+            )
+    elif current_user.role == "supervisor" and current_user.branch_id:
+        if waste_in.branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para registrar mermas en otra sucursal."
+            )
 
     check_target_branch_valid(db, waste_in.branch_id)
 
@@ -670,11 +685,18 @@ def create_count(
     faltante ni un sobrante, es lo que ya había antes de que el sistema llevara la cuenta. La
     respuesta lo marca (`is_first_count`) para que la pantalla lo diga con esas palabras.
     """
-    if current_user.role == "agent" and count_in.branch_id != current_user.branch_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para registrar conteos en otra sucursal."
-        )
+    if current_user.role == "agent":
+        if count_in.branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para registrar conteos en otra sucursal."
+            )
+    elif current_user.role == "supervisor" and current_user.branch_id:
+        if count_in.branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para registrar conteos en otra sucursal."
+            )
 
     check_target_branch_valid(db, count_in.branch_id)
 

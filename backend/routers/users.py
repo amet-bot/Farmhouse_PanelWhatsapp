@@ -26,13 +26,17 @@ def get_users(
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(User)
-    
+
+    # Agente o supervisor local: solo su propia sucursal, sin importar el ?branch_id de la query
+    # (antes un supervisor local caía en el "else" de abajo y veía usuarios de todas las sucursales).
     if current_user.role == "agent" and current_user.branch_id:
+        query = query.filter(User.branch_id == current_user.branch_id, User.active == True)
+    elif current_user.role == "supervisor" and current_user.branch_id:
         query = query.filter(User.branch_id == current_user.branch_id, User.active == True)
     else:
         if branch_id:
             query = query.filter(User.branch_id == branch_id)
-        
+
     return query.order_by(User.id.desc()).offset(skip).limit(limit).all()
 
 @router.post("/", response_model=UserResponse, dependencies=[Depends(require_role(["admin"]))])
