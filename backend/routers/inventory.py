@@ -15,11 +15,13 @@ from models.supplier import Supplier
 from models.shipment import Shipment, ShipmentItem
 from models.user import User
 from models.waste import WasteRecord, WasteItem
+from models.stock_count import StockCount, StockCountItem
 from schemas.inventory import (
     InventoryItemCreate, InventoryItemResponse,
     InvuStatusResponse, InvuSyncResult,
     SupplierCreate, SupplierResponse,
     ShipmentCreate, ShipmentResponse, ShipmentItemResponse,
+    StockCountCreate, StockCountItemResponse, StockCountResponse,
     StockRowResponse, WasteCreate, WasteItemResponse, WasteReasonResponse, WasteResponse,
 )
 from services import invu_client, invu_sync
@@ -291,8 +293,24 @@ def _last_known_cost(db: Session, branch_id: int, inventory_item_id: int) -> Opt
     return row[0] if row else None
 
 
+def _last_costs_map(db: Session, branch_id: int) -> dict:
+    """
+    Último costo conocido de cada insumo en esa sucursal, en una sola pasada y no una consulta
+    por insumo: un conteo de arranque trae cientos de renglones.
+    """
+    filas = (
+        db.query(ShipmentItem.inventory_item_id, ShipmentItem.unit_cost)
+        .join(Shipment, Shipment.id == ShipmentItem.shipment_id)
+        .filter(Shipment.branch_id == branch_id, ShipmentItem.unit_cost.isnot(None))
+        .order_by(Shipment.received_at.asc(), ShipmentItem.id.asc())
+        .all()
+    )
+    # Ordenado de viejo a nuevo: el último que se escribe es el más reciente.
+    return {item_id: costo for item_id, costo in filas}
+
+
 def _on_hand_map(db: Session, branch_id: int, item_ids: List[int]) -> dict:
-    """Existencia actual (entradas - mermas) de esos insumos en esa sucursal."""
+    """Existencia actual (entradas - mermas + diferencias de conteo) de esos insumos en esa sucursal."""
     if not item_ids:
         return {}
 
@@ -310,8 +328,15 @@ def _on_hand_map(db: Session, branch_id: int, item_ids: List[int]) -> dict:
         .group_by(WasteItem.inventory_item_id)
         .all()
     )
+    ajustes = dict(
+        db.query(StockCountItem.inventory_item_id, func.coalesce(func.sum(StockCountItem.difference), 0))
+        .join(StockCount, StockCount.id == StockCountItem.stock_count_id)
+        .filter(StockCount.branch_id == branch_id, StockCountItem.inventory_item_id.in_(item_ids))
+        .group_by(StockCountItem.inventory_item_id)
+        .all()
+    )
     return {
-        item_id: Decimal(entradas.get(item_id, 0)) - Decimal(salidas.get(item_id, 0))
+        item_id: Decimal(entradas.get(item_id, 0)) - Decimal(salidas.get(item_id, 0)) + Decimal(ajustes.get(item_id, 0))
         for item_id in item_ids
     }
 
@@ -476,9 +501,9 @@ def list_stock(
     current_user: User = Depends(get_current_authorized_user),
 ):
     """
-    Existencias por insumo: entró, salió por merma, y lo que queda.
+    Existencias por insumo: entró, salió por merma, se corrigió por conteo, y lo que queda.
 
-    Se calcula con dos sumas agrupadas cada vez que se pide, sin tabla de saldos. Con el tamaño
+    Se calcula con tres sumas agrupadas cada vez que se pide, sin tabla de saldos. Con el tamaño
     de este negocio son dos consultas sobre miles de renglones, no millones; el día que eso deje
     de alcanzar, el arreglo es una tabla de saldos por sucursal, no parchar el cálculo.
 
@@ -504,26 +529,24 @@ def list_stock(
         )
         .join(WasteRecord, WasteRecord.id == WasteItem.waste_record_id)
     )
+    ajustes_q = (
+        db.query(
+            StockCountItem.inventory_item_id.label("item_id"),
+            func.coalesce(func.sum(StockCountItem.difference), 0).label("cantidad"),
+            func.max(StockCount.counted_at).label("ultimo"),
+        )
+        .join(StockCount, StockCount.id == StockCountItem.stock_count_id)
+    )
     if efectiva is not None:
         entradas_q = entradas_q.filter(Shipment.branch_id == efectiva)
         salidas_q = salidas_q.filter(WasteRecord.branch_id == efectiva)
+        ajustes_q = ajustes_q.filter(StockCount.branch_id == efectiva)
 
     entradas = {r.item_id: r for r in entradas_q.group_by(ShipmentItem.inventory_item_id).all()}
     salidas = {r.item_id: r for r in salidas_q.group_by(WasteItem.inventory_item_id).all()}
+    ajustes = {r.item_id: r for r in ajustes_q.group_by(StockCountItem.inventory_item_id).all()}
 
-    # Último costo conocido por insumo, en una sola pasada y no una consulta por fila.
-    ultimos_costos = {}
-    if efectiva is not None:
-        filas = (
-            db.query(ShipmentItem.inventory_item_id, ShipmentItem.unit_cost, Shipment.received_at, ShipmentItem.id)
-            .join(Shipment, Shipment.id == ShipmentItem.shipment_id)
-            .filter(Shipment.branch_id == efectiva, ShipmentItem.unit_cost.isnot(None))
-            .order_by(Shipment.received_at.asc(), ShipmentItem.id.asc())
-            .all()
-        )
-        # Ordenado de viejo a nuevo: el último que se escribe es el más reciente.
-        for item_id, costo, _recibido, _id in filas:
-            ultimos_costos[item_id] = costo
+    ultimos_costos = _last_costs_map(db, efectiva) if efectiva is not None else {}
 
     catalogo_q = db.query(InventoryItem).filter(InventoryItem.active == True)
     termino = q.strip()
@@ -539,12 +562,20 @@ def list_stock(
     for item in catalogo_q.order_by(InventoryItem.name.asc()).all():
         entrada = entradas.get(item.id)
         salida = salidas.get(item.id)
-        if only_stocked and not entrada and not salida:
+        ajuste = ajustes.get(item.id)
+        # Un insumo que solo se contó también "se movió": el conteo de arranque es justamente
+        # su primer movimiento.
+        if only_stocked and not entrada and not salida and not ajuste:
             continue
 
         entro = Decimal(entrada.cantidad) if entrada else Decimal("0")
         salio = Decimal(salida.cantidad) if salida else Decimal("0")
-        fechas = [f for f in ((entrada.ultimo if entrada else None), (salida.ultimo if salida else None)) if f]
+        ajustado = Decimal(ajuste.cantidad) if ajuste else Decimal("0")
+        fechas = [f for f in (
+            (entrada.ultimo if entrada else None),
+            (salida.ultimo if salida else None),
+            (ajuste.ultimo if ajuste else None),
+        ) if f]
 
         filas.append(StockRowResponse(
             inventory_item_id=item.id,
@@ -555,13 +586,171 @@ def list_stock(
             branch_name=branch_name,
             entered=entro,
             wasted=salio,
-            on_hand=entro - salio,
+            adjusted=ajustado,
+            on_hand=entro - salio + ajustado,
             wasted_cost=(Decimal(salida.costo).quantize(Decimal("0.01")) if salida and salida.costo else None),
             last_movement_at=(max(fechas) if fechas else None),
             last_unit_cost=ultimos_costos.get(item.id),
+            last_counted_at=(ajuste.ultimo if ajuste else None),
         ))
 
     return filas
+
+
+# ==========================================================================
+# Conteo físico
+# ==========================================================================
+def _first_count_ids(db: Session, branch_ids: List[int]) -> set:
+    """El id del primer conteo de cada una de esas sucursales: el que hizo de arranque."""
+    if not branch_ids:
+        return set()
+    filas = (
+        db.query(func.min(StockCount.id))
+        .filter(StockCount.branch_id.in_(branch_ids))
+        .group_by(StockCount.branch_id)
+        .all()
+    )
+    return {fila[0] for fila in filas}
+
+
+def _serialize_count(record: StockCount, is_first: bool) -> StockCountResponse:
+    items: List[StockCountItemResponse] = []
+    costo = Decimal("0.00")
+    has_cost = False
+    distintos = 0
+
+    for line in record.items:
+        diferencia = Decimal(line.difference)
+        if diferencia != 0:
+            distintos += 1
+            if line.unit_cost is not None:
+                costo += diferencia * Decimal(line.unit_cost)
+                has_cost = True
+        items.append(StockCountItemResponse(
+            id=line.id,
+            inventory_item_id=line.inventory_item_id,
+            item_name=line.inventory_item.name,
+            unit=line.inventory_item.unit,
+            expected_quantity=line.expected_quantity,
+            counted_quantity=line.counted_quantity,
+            difference=line.difference,
+            unit_cost=line.unit_cost,
+        ))
+
+    return StockCountResponse(
+        id=record.id,
+        branch_id=record.branch_id,
+        branch_name=record.branch.name,
+        counted_by_user_id=record.counted_by_user_id,
+        counted_by_name=record.counted_by_user.name,
+        counted_at=record.counted_at,
+        notes=record.notes,
+        created_at=record.created_at,
+        items=items,
+        mismatched_count=distintos,
+        difference_cost=costo.quantize(Decimal("0.01")) if has_cost else None,
+        is_first_count=is_first,
+    )
+
+
+@router.post("/counts", response_model=StockCountResponse, status_code=status.HTTP_201_CREATED)
+def create_count(
+    count_in: StockCountCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Registra un conteo físico: lo que se encontró en el estante.
+
+    Por cada insumo contado se guarda lo que el sistema esperaba, lo que se contó y la
+    diferencia, y desde ese momento la existencia de ese insumo es exactamente lo contado. Los
+    insumos que no vienen en el conteo no se tocan.
+
+    El primer conteo de una sucursal es su inventario de arranque: la diferencia ahí no es un
+    faltante ni un sobrante, es lo que ya había antes de que el sistema llevara la cuenta. La
+    respuesta lo marca (`is_first_count`) para que la pantalla lo diga con esas palabras.
+    """
+    if current_user.role == "agent" and count_in.branch_id != current_user.branch_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para registrar conteos en otra sucursal."
+        )
+
+    check_target_branch_valid(db, count_in.branch_id)
+
+    item_ids = [line.inventory_item_id for line in count_in.items]
+    if len(item_ids) != len(set(item_ids)):
+        # Dos renglones del mismo insumo no suman: son dos respuestas distintas a la misma
+        # pregunta (cuánto hay) y no hay forma de saber cuál vale.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Un insumo aparece dos veces en el conteo. Dejá una sola línea por insumo."
+        )
+
+    found_items = db.query(InventoryItem).filter(InventoryItem.id.in_(item_ids)).all()
+    missing = set(item_ids) - {i.id for i in found_items}
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Ítem(s) de inventario no encontrados: {sorted(missing)}"
+        )
+
+    es_primero = not db.query(StockCount.id).filter(StockCount.branch_id == count_in.branch_id).first()
+
+    # Lo esperado se mira ANTES de grabar, igual que en la merma.
+    esperado = _on_hand_map(db, count_in.branch_id, item_ids)
+    costos = _last_costs_map(db, count_in.branch_id)
+
+    record = StockCount(
+        branch_id=count_in.branch_id,
+        counted_by_user_id=current_user.id,
+        counted_at=datetime.now(timezone.utc),
+        notes=(count_in.notes or None),
+    )
+    for line in count_in.items:
+        antes = esperado.get(line.inventory_item_id, Decimal("0"))
+        record.items.append(StockCountItem(
+            inventory_item_id=line.inventory_item_id,
+            expected_quantity=antes,
+            counted_quantity=line.counted_quantity,
+            difference=Decimal(line.counted_quantity) - antes,
+            unit_cost=costos.get(line.inventory_item_id),
+        ))
+
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    respuesta = _serialize_count(record, is_first=es_primero)
+    logger.info(
+        f"Conteo #{record.id} en sucursal {record.branch_id} por {current_user.name}: "
+        f"{len(record.items)} insumos, {respuesta.mismatched_count} con diferencia"
+        + (" (arranque)" if es_primero else "")
+    )
+    return respuesta
+
+
+@router.get("/counts", response_model=List[StockCountResponse])
+def list_counts(
+    branch_id: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    query = db.query(StockCount).options(
+        joinedload(StockCount.items).joinedload(StockCountItem.inventory_item),
+        joinedload(StockCount.branch),
+        joinedload(StockCount.counted_by_user),
+    )
+
+    efectiva = _visible_branch_filter(current_user, branch_id)
+    if efectiva is not None:
+        query = query.filter(StockCount.branch_id == efectiva)
+
+    records = query.order_by(StockCount.counted_at.desc(), StockCount.id.desc()).offset(offset).limit(limit).all()
+    primeros = _first_count_ids(db, list({r.branch_id for r in records}))
+    return [_serialize_count(r, is_first=(r.id in primeros)) for r in records]
 
 
 # ==========================================================================

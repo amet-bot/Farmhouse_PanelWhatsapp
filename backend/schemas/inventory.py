@@ -154,14 +154,64 @@ class StockRowResponse(BaseModel):
     branch_name: Optional[str] = None
     entered: Decimal                     # todo lo que entró por cargamentos
     wasted: Decimal                      # todo lo que salió por merma
-    on_hand: Decimal                     # entered - wasted; puede ser negativo, a propósito
+    adjusted: Decimal = Decimal("0")     # suma de las diferencias de conteo; negativo = faltó
+    on_hand: Decimal                     # entered - wasted + adjusted; puede ser negativo, a propósito
     wasted_cost: Optional[Decimal] = None
     last_movement_at: Optional[datetime] = None
+    last_counted_at: Optional[datetime] = None
     # Costo unitario del último cargamento de ese insumo en esa sucursal. Solo viaja cuando la
     # consulta pide UNA sucursal: sumando todas no existe "el último costo", existe uno por
     # sucursal, y elegir cualquiera sería inventar. Lo usa el formulario de merma para estimar
     # la pérdida antes de guardar; el número que vale es el que calcula el servidor al grabar.
     last_unit_cost: Optional[Decimal] = None
+
+
+# ==========================================================================
+# Conteo físico
+# ==========================================================================
+class StockCountItemCreate(BaseModel):
+    inventory_item_id: int
+    # Cero vale: "no queda nada" es un conteo tan real como cualquier otro.
+    counted_quantity: Decimal = Field(..., ge=0)
+
+
+class StockCountCreate(BaseModel):
+    branch_id: int
+    notes: Optional[str] = None
+    # Solo los insumos que se contaron. Lo que no viene no se toca: contar media cámara fría un
+    # martes no puede poner en cero todo lo demás.
+    items: List[StockCountItemCreate] = Field(..., min_length=1, max_length=500)
+
+
+class StockCountItemResponse(BaseModel):
+    id: int
+    inventory_item_id: int
+    item_name: str
+    unit: str
+    expected_quantity: Decimal
+    counted_quantity: Decimal
+    difference: Decimal
+    unit_cost: Optional[Decimal] = None
+
+
+class StockCountResponse(BaseModel):
+    id: int
+    branch_id: int
+    branch_name: str
+    counted_by_user_id: int
+    counted_by_name: str
+    counted_at: datetime
+    notes: Optional[str] = None
+    created_at: datetime
+    items: List[StockCountItemResponse]
+    # Renglones cuya cantidad contada no coincidió con la del sistema.
+    mismatched_count: int = 0
+    # Diferencia valuada: lo que sobró menos lo que faltó, al último costo conocido. None si
+    # ningún renglón con diferencia tenía costo.
+    difference_cost: Optional[Decimal] = None
+    # Si fue el primer conteo de esa sucursal: el que hace de inventario de arranque. La pantalla
+    # lo dice así, porque una diferencia enorme ahí no es un faltante, es lo que ya había.
+    is_first_count: bool = False
 
 
 # ==========================================================================

@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=2.10.0">
-  <link rel="stylesheet" href="css/inventory.css?v=3.5.0">
+  <link rel="stylesheet" href="css/inventory.css?v=3.6.0">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -73,6 +73,7 @@
           <button type="button" class="inv-nav-item" data-view="proveedores"><i data-lucide="building-2"></i> <span>Proveedores</span></button>
           <button type="button" class="inv-nav-item" data-view="merma"><i data-lucide="trending-down"></i> <span>Merma</span></button>
           <button type="button" class="inv-nav-item" data-view="existencias"><i data-lucide="boxes"></i> <span>Existencias</span></button>
+          <button type="button" class="inv-nav-item" data-view="conteo"><i data-lucide="clipboard-check"></i> <span>Conteo</span></button>
         </nav>
         <div class="inv-nav-sep">Próximamente</div>
         <nav class="inv-nav inv-nav-soon">
@@ -278,16 +279,22 @@
           <div class="inv-view-head">
             <div>
               <h1>Existencias</h1>
-              <p>Lo que entró menos lo que se perdió. Se calcula cada vez, no se guarda.</p>
+              <p>Lo que entró, menos lo que se perdió, corregido por el último conteo. Se calcula cada vez, no se guarda.</p>
             </div>
-            <button type="button" class="inv-primary-btn" data-open-waste>
-              <i data-lucide="trending-down"></i> Registrar merma
-            </button>
+            <div class="inv-view-head-actions">
+              <button type="button" class="inv-secondary-btn" data-open-waste title="Registrar merma" aria-label="Registrar merma">
+                <i data-lucide="trending-down"></i> <span>Registrar merma</span>
+              </button>
+              <button type="button" class="inv-primary-btn" data-open-count>
+                <i data-lucide="clipboard-check"></i> Nuevo conteo
+              </button>
+            </div>
           </div>
 
           <div class="inv-stock-note" id="stockNote" hidden>
             <i data-lucide="info"></i>
             <span></span>
+            <button type="button" class="inv-link-btn" data-open-count>Hacer un conteo <i data-lucide="arrow-right"></i></button>
           </div>
 
           <div class="inv-workspace">
@@ -309,6 +316,38 @@
               </div>
               <div class="inv-stock-table" id="stockTable"></div>
             </div>
+          </div>
+        </div>
+
+        <!-- ---------- Conteo ---------- -->
+        <div class="inv-view" id="viewConteo" hidden>
+          <div class="inv-view-head">
+            <div>
+              <h1>Conteo</h1>
+              <p>Lo que de verdad hay en el estante. El primero de cada sucursal es su inventario de arranque.</p>
+            </div>
+            <button type="button" class="inv-primary-btn" data-open-count>
+              <i data-lucide="plus"></i> Nuevo conteo
+            </button>
+          </div>
+
+          <div class="inv-workspace">
+            <div class="inv-list-col">
+              <div class="inv-toolbar">
+                <div class="inv-search">
+                  <i data-lucide="search"></i>
+                  <input type="text" id="countSearch" placeholder="Buscar por insumo o quien contó...">
+                </div>
+                <select id="countBranchFilter" class="inv-filter-select" hidden></select>
+              </div>
+              <div class="inv-list-header">
+                <span id="countCount">Conteos</span>
+                <span class="inv-list-header-meta" id="countScopeLabel"></span>
+              </div>
+              <div class="inv-list" id="countList"></div>
+              <button type="button" class="inv-load-more" id="btnLoadMoreCounts" hidden>Cargar más conteos</button>
+            </div>
+            <div class="inv-detail" id="countDetail"></div>
           </div>
         </div>
 
@@ -376,6 +415,75 @@
         <div class="inv-modal-footer-actions">
           <button type="button" class="btn-secondary" data-close-modal="modalWaste">Cancelar</button>
           <button type="button" class="btn-primary inv-submit-btn" id="btnSubmitWaste">Registrar merma</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= Modal: nuevo conteo =================
+       No usa líneas que se agregan de a una como la merma: un conteo es recorrer el estante, así
+       que la lista entera del catálogo ya está puesta y solo se escribe lo contado. Lo que queda
+       vacío no se manda y no se toca. -->
+  <div class="modal-backdrop" id="modalCount">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div class="inv-modal-title">
+          <span class="inv-card-icon inv-card-icon-count"><i data-lucide="clipboard-check"></i></span>
+          <div>
+            <h3>Nuevo conteo</h3>
+            <span class="modal-subtitle">Anotá lo que hay. Lo que dejes vacío no se toca.</span>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="modalCount" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="countError" class="login-error-box" style="display:none"></div>
+
+        <div class="inv-field-row">
+          <div class="inv-field">
+            <label class="modal-label" for="countBranchSelect">Sucursal</label>
+            <div id="countBranchBadge" class="inv-branch-badge" hidden></div>
+            <select id="countBranchSelect" class="modal-input" hidden></select>
+          </div>
+          <div class="inv-field">
+            <label class="modal-label" for="countNotes">Notas (opcional)</label>
+            <input type="text" id="countNotes" class="modal-input" placeholder="Cámara fría, bodega, cierre de mes...">
+          </div>
+        </div>
+
+        <div class="inv-count-intro" id="countIntro" hidden>
+          <i data-lucide="flag"></i>
+          <span>Es el primer conteo de esta sucursal: lo que anotes pasa a ser su inventario de arranque, y las diferencias no se cuentan como faltantes.</span>
+        </div>
+
+        <div class="inv-toolbar inv-count-toolbar">
+          <div class="inv-search">
+            <i data-lucide="search"></i>
+            <input type="text" id="countItemSearch" placeholder="Buscar insumo..." autocomplete="off">
+          </div>
+          <label class="inv-check">
+            <input type="checkbox" id="countOnlyStocked">
+            <span>Solo los que tienen movimiento</span>
+          </label>
+        </div>
+
+        <div class="inv-count-head">
+          <span>Insumo</span>
+          <span>Sistema</span>
+          <span>Contado</span>
+          <span>Diferencia</span>
+        </div>
+        <div class="inv-count-lines" id="countLines"></div>
+      </div>
+      <div class="modal-footer inv-modal-footer">
+        <div class="inv-total-box">
+          <span id="countProgress">Nada contado todavía</span>
+          <strong id="countTotal">&mdash;</strong>
+          <small>Diferencia al costo del último cargamento</small>
+        </div>
+        <div class="inv-modal-footer-actions">
+          <button type="button" class="btn-secondary" data-close-modal="modalCount">Cancelar</button>
+          <button type="button" class="btn-primary inv-submit-btn" id="btnSubmitCount">Guardar conteo</button>
         </div>
       </div>
     </div>
@@ -589,6 +697,6 @@
   <script src="js/utils.js?v=3.5.0"></script>
   <script src="js/api.js?v=3.5.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/modules/inventory.js?v=2.4.0"></script>
+  <script src="js/modules/inventory.js?v=2.5.0"></script>
 </body>
 </html>

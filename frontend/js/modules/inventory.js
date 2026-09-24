@@ -1,17 +1,17 @@
 /**
  * Farmhouse - Inventario y Abastecimiento
  *
- * Rail de navegación + columna de lista + panel de detalle, con cuatro vistas reales sobre los
- * endpoints que ya existen — Resumen, Cargamentos, Insumos y Proveedores. Merma, Gasto por
- * sucursal, Lotes y Reportes siguen siendo "Próximamente" en el rail, sin vista propia.
+ * Rail de navegación + columna de lista + panel de detalle, con siete vistas reales — Resumen,
+ * Cargamentos, Insumos, Proveedores, Merma, Existencias y Conteo. Gasto por sucursal, Lotes y
+ * Reportes siguen siendo "Próximamente" en el rail, sin vista propia.
  *
- * Ahora sí hay stock: con Merma el backend registra las dos puntas, así que la existencia de un
- * insumo es lo que entró menos lo que salió. El servidor la calcula y la sirve en /inventory/stock;
- * acá no se recalcula nada, para que la pantalla y los reportes nunca se contradigan.
+ * La existencia de un insumo es lo que entró, menos lo que salió por merma, más las diferencias de
+ * los conteos físicos. El servidor la calcula y la sirve en /inventory/stock; acá no se recalcula
+ * nada, para que la pantalla y los reportes nunca se contradigan.
  *
- * La existencia puede ser NEGATIVA y se muestra así a propósito: nadie cargó el inventario de
- * arranque de cada sucursal, así que un negativo dice "falta cargar el arranque", no "alguien se
- * equivocó". Por lo mismo el registro de merma avisa pero no bloquea.
+ * La existencia puede ser NEGATIVA y se muestra así a propósito: pasa cuando se mermó algo que
+ * entró antes de que el sistema llevara la cuenta. Se arregla con un conteo — el primero de cada
+ * sucursal hace de inventario de arranque —, no bloqueando la merma.
  *
  * Dos conjuntos de datos, a propósito:
  *   · state.shipments  — la lista paginada de la vista Cargamentos. Respeta el filtro de
@@ -43,8 +43,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     suppliers: [],
     view: 'resumen',
     branchFilter: '',
-    selected: { shipment: null, item: null, supplier: null, waste: null },
-    search: { shipment: '', item: '', supplier: '', waste: '', stock: '' },
+    selected: { shipment: null, item: null, supplier: null, waste: null, count: null },
+    search: { shipment: '', item: '', supplier: '', waste: '', stock: '', count: '', countItem: '' },
     selectedSupplierId: '',
 
     // ---- Merma y existencias ----
@@ -64,6 +64,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // al lado de cada línea sin pedirle una consulta al servidor por cada tecla.
     wasteStock: new Map(),
 
+    // ---- Conteo físico ----
+    counts: [],
+    countsOffset: 0,
+    countsHasMore: false,
+    countBranchFilter: '',
+    // Modal: el catálogo con la existencia de la sucursal elegida, lo anotado por insumo, y si
+    // es el primer conteo de esa sucursal (el de arranque).
+    countStock: [],
+    countEntries: new Map(),
+    countIsFirst: false,
+    countOnlyStocked: false,
+
     // ---- Invu POS ----
     // Cuando la integración está configurada, Invu es la fuente de verdad de los proveedores:
     // el panel deja de crearlos y pasa a sincronizarlos. Lo decide el servidor, no la pantalla.
@@ -80,6 +92,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const qty = (n) => {
     const num = Number(n || 0);
     return String(Number(num.toFixed(3)));
+  };
+
+  /** Diferencia con signo: "+2", "-3", "0". El signo es el dato, no un adorno. */
+  const signedQty = (n) => {
+    const num = Number(n || 0);
+    if (num > 0) return `+${qty(num)}`;
+    return qty(num);
   };
 
   const pluralize = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -259,6 +278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     proveedores: 'viewProveedores',
     merma: 'viewMerma',
     existencias: 'viewExistencias',
+    conteo: 'viewConteo',
   };
 
   function setView(view) {
@@ -279,6 +299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       proveedores: $('supplierList'),
       merma: $('wasteList'),
       existencias: $('stockTable'),
+      conteo: $('countList'),
     }[view]);
 
     utils.renderIcons();
@@ -298,6 +319,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.querySelectorAll('[data-open-waste]').forEach((btn) => {
     btn.addEventListener('click', () => openWasteModal());
+  });
+
+  document.querySelectorAll('[data-open-count]').forEach((btn) => {
+    btn.addEventListener('click', () => openCountModal());
   });
 
   // ==========================================================================
@@ -380,6 +405,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     renderWasteList();
     animarEntrada($('wasteList'));
+  }
+
+  async function loadCounts({ reset = false } = {}) {
+    if (reset) {
+      state.counts = [];
+      state.countsOffset = 0;
+      $('countList').innerHTML = skeletonListHtml();
+    }
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(state.countsOffset) });
+    if (state.countBranchFilter) params.set('branch_id', state.countBranchFilter);
+    try {
+      const page = await api.get(`/inventory/counts?${params.toString()}`);
+      state.counts = state.counts.concat(page);
+      state.countsOffset += page.length;
+      state.countsHasMore = page.length === PAGE_SIZE;
+    } catch (err) {
+      utils.showToast(err.message || 'No se pudieron cargar los conteos.', 'error');
+      state.countsHasMore = false;
+    }
+    renderCountList();
+    animarEntrada($('countList'));
   }
 
   async function loadInvuStatus() {
@@ -1688,7 +1734,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       note.querySelector('span').textContent =
         `${pluralize(negativos.length, 'insumo aparece', 'insumos aparecen')} en negativo. ` +
         'Pasa cuando se mermó algo que entró antes de que el sistema llevara la cuenta: ' +
-        'se arregla registrando un cargamento con lo que había al arrancar.';
+        'se arregla contando lo que hay en el estante.';
     } else {
       note.hidden = true;
     }
@@ -1697,7 +1743,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!rows.length) {
       table.innerHTML = q
         ? emptyStateHtml('search-x', 'Sin resultados', 'Probá con otro insumo o categoría.')
-        : emptyStateHtml('boxes', 'Todavía no hay movimientos', 'En cuanto registres un cargamento, las existencias aparecen acá.');
+        : emptyStateHtml('boxes', 'Todavía no hay movimientos', 'En cuanto registres un cargamento o un conteo, las existencias aparecen acá.');
       utils.renderIcons();
       return;
     }
@@ -1709,6 +1755,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <th>Insumo</th>
             <th class="num">Entró</th>
             <th class="num">Merma</th>
+            <th class="num">Conteo</th>
             <th class="num">Queda</th>
             <th class="num">Perdido</th>
           </tr>
@@ -1725,6 +1772,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </td>
                 <td class="num" data-label="Entró">${esc(qty(r.entered))}</td>
                 <td class="num" data-label="Merma">${Number(r.wasted) ? esc(qty(r.wasted)) : '—'}</td>
+                <td class="num" data-label="Conteo" title="${r.last_counted_at ? `Último conteo: ${esc(utils.formatDateTime(r.last_counted_at))}` : 'Nunca se contó'}">${Number(r.adjusted) ? esc(signedQty(r.adjusted)) : '—'}</td>
                 <td class="num inv-stock-onhand" data-label="Queda"><span class="inv-stock-pill${clase}">${esc(qty(r.on_hand))} <small>${esc(r.unit)}</small></span></td>
                 <td class="num" data-label="Perdido">${r.wasted_cost != null ? money(r.wasted_cost) : '—'}</td>
               </tr>`;
@@ -1985,7 +2033,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // inventario de arranque, y conviene decirlo con esas palabras.
       if (creada.negative_items && creada.negative_items.length) {
         utils.showToast(
-          `Merma registrada. ${creada.negative_items.join(', ')} ${creada.negative_items.length === 1 ? 'queda' : 'quedan'} en negativo: falta cargar lo que había al arrancar.`,
+          `Merma registrada. ${creada.negative_items.join(', ')} ${creada.negative_items.length === 1 ? 'queda' : 'quedan'} en negativo: hacé un conteo para cargar lo que hay.`,
           'warning'
         );
       } else {
@@ -2004,6 +2052,423 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ==========================================================================
+  // Vista: Conteo
+  // ==========================================================================
+  const countTitle = (c) => (c.is_first_count ? 'Conteo de arranque' : 'Conteo físico');
+
+  function filteredCounts() {
+    const q = state.search.count.trim().toLowerCase();
+    if (!q) return state.counts;
+    return state.counts.filter((c) => {
+      const heno = [
+        countTitle(c),
+        c.counted_by_name,
+        c.branch_name,
+        c.notes || '',
+        ...c.items.map((l) => l.item_name),
+      ].join(' ').toLowerCase();
+      return heno.includes(q);
+    });
+  }
+
+  /**
+   * Cómo se muestra la diferencia valuada de un conteo. En el de arranque va neutra: ahí la
+   * diferencia no es un faltante ni un sobrante, es lo que ya había, y pintarla de rojo o de
+   * verde contaría una historia que no pasó.
+   */
+  function countAmountHtml(c) {
+    if (c.difference_cost == null) return '<span class="inv-row-amount">—</span>';
+    const valor = Number(c.difference_cost);
+    if (c.is_first_count) return `<span class="inv-row-amount inv-row-amount-count">${money(Math.abs(valor))}</span>`;
+    const clase = valor < 0 ? ' inv-row-amount-waste' : '';
+    return `<span class="inv-row-amount${clase}">${valor < 0 ? '-' : '+'}${money(Math.abs(valor))}</span>`;
+  }
+
+  function renderCountList() {
+    const rows = filteredCounts();
+    const list = $('countList');
+
+    $('countCount').textContent = rows.length ? pluralize(rows.length, 'conteo', 'conteos') : 'Conteos';
+    $('countScopeLabel').textContent = state.isGlobalScope
+      ? (state.countBranchFilter
+          ? (state.branches.find((b) => String(b.id) === state.countBranchFilter)?.name || '')
+          : 'Todas las sucursales')
+      : '';
+
+    if (!rows.length) {
+      list.innerHTML = state.search.count
+        ? emptyStateHtml('search-x', 'Sin resultados', 'Probá con otro insumo o persona.')
+        : emptyStateHtml('clipboard-check', 'Todavía no hay conteos', 'Contá lo que hay en el estante: el primero de cada sucursal pasa a ser su inventario de arranque.');
+      $('btnLoadMoreCounts').hidden = !state.countsHasMore;
+      renderCountDetail();
+      utils.renderIcons();
+      return;
+    }
+
+    if (!rows.some((c) => c.id === state.selected.count)) {
+      state.selected.count = rows[0].id;
+    }
+
+    list.innerHTML = rows.map((c) => {
+      const active = c.id === state.selected.count ? ' active' : '';
+      const sub = [utils.formatDateTime(c.counted_at), state.isGlobalScope ? c.branch_name : null]
+        .filter(Boolean).join(' · ');
+      const badge = c.is_first_count
+        ? `<span class="inv-badge muted">${pluralize(c.items.length, 'insumo', 'insumos')}</span>`
+        : (c.mismatched_count
+            ? `<span class="inv-badge warn">${pluralize(c.mismatched_count, 'diferencia', 'diferencias')}</span>`
+            : '<span class="inv-badge ok">Todo cuadra</span>');
+      return `
+        <button type="button" class="inv-row${active}" data-count-id="${c.id}">
+          <span class="inv-row-thumb inv-row-thumb-count"><i data-lucide="${c.is_first_count ? 'flag' : 'clipboard-check'}"></i></span>
+          <span class="inv-row-info">
+            <strong>${esc(countTitle(c))}</strong>
+            <small>${esc(sub)}</small>
+          </span>
+          ${badge}
+          ${countAmountHtml(c)}
+        </button>`;
+    }).join('');
+
+    list.querySelectorAll('.inv-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        state.selected.count = Number(row.dataset.countId);
+        renderCountList();
+        openDetailOnMobile($('countList'));
+      });
+    });
+
+    $('btnLoadMoreCounts').hidden = !state.countsHasMore;
+    renderCountDetail();
+    utils.renderIcons();
+  }
+
+  function renderCountDetail() {
+    const detail = $('countDetail');
+    const c = state.counts.find((x) => x.id === state.selected.count);
+    if (!c) {
+      detail.innerHTML = emptyStateHtml('mouse-pointer-click', 'Elegí un conteo', 'Lo que decía el sistema, lo que se contó y la diferencia aparecen acá.');
+      utils.renderIcons();
+      return;
+    }
+
+    // Primero lo que no cuadró, de la diferencia más grande a la más chica: es lo que alguien
+    // tiene que ir a mirar. Lo que cuadró queda abajo, en orden alfabético.
+    const lineas = c.items.slice().sort((a, b) => {
+      const da = Math.abs(Number(a.difference));
+      const db = Math.abs(Number(b.difference));
+      if (da !== db) return db - da;
+      return a.item_name.localeCompare(b.item_name, 'es');
+    });
+
+    const rowsHtml = lineas.map((l) => {
+      const dif = Number(l.difference);
+      const clase = c.is_first_count || dif === 0 ? '' : (dif < 0 ? ' inv-count-diff-short' : ' inv-count-diff-over');
+      const valor = (l.unit_cost != null && dif !== 0) ? money(Math.abs(dif * Number(l.unit_cost))) : '—';
+      return `
+        <tr>
+          <td class="inv-td-name" data-label="Insumo">${esc(l.item_name)}</td>
+          <td class="num" data-label="Sistema">${esc(qty(l.expected_quantity))}</td>
+          <td class="num" data-label="Contado">${esc(qty(l.counted_quantity))} ${esc(l.unit)}</td>
+          <td class="num${clase}" data-label="Diferencia">${dif === 0 ? '—' : esc(signedQty(dif))}</td>
+          <td class="num" data-label="Valor">${valor}</td>
+        </tr>`;
+    }).join('');
+
+    const nota = c.is_first_count
+      ? '<p class="inv-detail-note">Primer conteo de la sucursal: es su inventario de arranque. Las diferencias son lo que ya había antes de que el sistema llevara la cuenta, no faltantes.</p>'
+      : '';
+
+    detail.innerHTML = `
+      ${detailBackHtml()}
+      <div class="inv-detail-header">
+        <span class="inv-detail-thumb inv-detail-thumb-count"><i data-lucide="${c.is_first_count ? 'flag' : 'clipboard-check'}"></i></span>
+        <span class="inv-badge ${c.is_first_count ? 'muted' : (c.mismatched_count ? 'warn' : 'ok')}">Conteo #${c.id}</span>
+      </div>
+      <h3>${esc(countTitle(c))}</h3>
+      <p class="inv-detail-sub">${esc(utils.formatDateTime(c.counted_at))} · ${esc(c.branch_name)}</p>
+      ${nota}
+      ${c.notes ? `<p class="inv-detail-note">${esc(c.notes)}</p>` : ''}
+      <div class="inv-metrics">
+        <div><span>Contados</span><strong>${c.items.length} <small>${c.items.length === 1 ? 'insumo' : 'insumos'}</small></strong></div>
+        <div><span>${c.is_first_count ? 'Valor cargado' : 'Diferencia'}</span><strong>${countAmountHtml(c)}</strong></div>
+      </div>
+      <div class="inv-detail-section-header"><span>${c.is_first_count ? 'Lo que había' : 'Contado contra sistema'}</span></div>
+      <table class="inv-detail-table inv-count-table">
+        <thead>
+          <tr><th>Insumo</th><th class="num">Sistema</th><th class="num">Contado</th><th class="num">Diferencia</th><th class="num">Valor</th></tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div class="inv-detail-section-header"><span>Detalles</span></div>
+      <div class="inv-detail-rows">
+        <div><span>Sucursal</span><strong>${esc(c.branch_name)}</strong></div>
+        <div><span>Contó</span><strong>${esc(c.counted_by_name)}</strong></div>
+        <div><span>Cuándo</span><strong>${esc(utils.formatDateTime(c.counted_at))}</strong></div>
+        <div><span>Con diferencia</span><strong>${pluralize(c.mismatched_count, 'insumo', 'insumos')}</strong></div>
+      </div>`;
+    utils.renderIcons();
+  }
+
+  $('countSearch')?.addEventListener('input', (e) => {
+    state.search.count = e.target.value;
+    renderCountList();
+  });
+
+  $('countBranchFilter')?.addEventListener('change', (e) => {
+    state.countBranchFilter = e.target.value;
+    state.selected.count = null;
+    loadCounts({ reset: true });
+  });
+
+  $('btnLoadMoreCounts')?.addEventListener('click', async () => {
+    const btn = $('btnLoadMoreCounts');
+    btn.disabled = true;
+    btn.textContent = 'Cargando...';
+    await loadCounts();
+    btn.disabled = false;
+    btn.textContent = 'Cargar más conteos';
+  });
+
+  // ==========================================================================
+  // Modal: nuevo conteo
+  // El catálogo entero ya está puesto y solo se escribe lo contado: un conteo es recorrer el
+  // estante, no armar una lista. Lo escrito vive en state.countEntries (y no en los inputs) para
+  // que buscar o filtrar, que vuelve a dibujar las filas, no borre nada de lo que ya se anotó.
+  // ==========================================================================
+  function countModalBranchId() {
+    return state.fixedBranchId || ($('countBranchSelect').value ? Number($('countBranchSelect').value) : null);
+  }
+
+  async function loadCountStock() {
+    state.countStock = [];
+    state.countEntries = new Map();
+    state.countIsFirst = false;
+    $('countIntro').hidden = true;
+    const branchId = countModalBranchId();
+    if (!branchId) { renderCountLines(); return; }
+
+    $('countLines').innerHTML = skeletonListHtml(4);
+    try {
+      // Sin only_stocked: en el conteo de arranque justamente importa lo que el sistema nunca vio.
+      const [stock, previos] = await Promise.all([
+        api.get(`/inventory/stock?branch_id=${branchId}`),
+        api.get(`/inventory/counts?branch_id=${branchId}&limit=1`),
+      ]);
+      state.countStock = stock;
+      state.countIsFirst = previos.length === 0;
+    } catch (err) {
+      showModalError('countError', err.message || 'No se pudo traer el catálogo de esta sucursal.');
+    }
+    $('countIntro').hidden = !state.countIsFirst;
+    renderCountLines();
+    updateCountTotal();
+  }
+
+  function visibleCountRows() {
+    const q = state.search.countItem.trim().toLowerCase();
+    return state.countStock.filter((r) => {
+      // Lo que ya se anotó nunca se esconde: desaparecer de la vista algo que se contó hace
+      // pensar que se perdió.
+      if (state.countEntries.has(r.inventory_item_id)) return !q || r.item_name.toLowerCase().includes(q);
+      if (state.countOnlyStocked && !Number(r.entered) && !Number(r.wasted) && !Number(r.adjusted)) return false;
+      return !q || `${r.item_name} ${r.category || ''}`.toLowerCase().includes(q);
+    });
+  }
+
+  function countDiffHtml(row) {
+    const valor = state.countEntries.get(row.inventory_item_id);
+    if (valor == null) return '—';
+    const dif = Number(valor) - Number(row.on_hand);
+    if (Math.abs(dif) < 0.0005) return '<span class="inv-count-diff-ok">Cuadra</span>';
+    if (state.countIsFirst) return esc(signedQty(dif));
+    return `<span class="${dif < 0 ? 'inv-count-diff-short' : 'inv-count-diff-over'}">${esc(signedQty(dif))}</span>`;
+  }
+
+  function renderCountLines() {
+    const box = $('countLines');
+    const rows = visibleCountRows();
+
+    if (!state.countStock.length) {
+      box.innerHTML = emptyStateHtml('layout-list', 'No hay insumos en el catálogo', 'Creá los insumos en la vista Insumos y volvé a contar.');
+      utils.renderIcons();
+      return;
+    }
+    if (!rows.length) {
+      box.innerHTML = emptyStateHtml('search-x', 'Sin resultados', 'Probá con otro nombre, o destildá "Solo los que tienen movimiento".');
+      utils.renderIcons();
+      return;
+    }
+
+    box.innerHTML = rows.map((r) => {
+      const valor = state.countEntries.get(r.inventory_item_id);
+      const sistema = Number(r.on_hand);
+      return `
+        <div class="inv-count-row${valor != null ? ' is-counted' : ''}" data-item-id="${r.inventory_item_id}">
+          <div class="inv-count-name">
+            <strong>${esc(r.item_name)}</strong>
+            <small>${esc(r.category || 'Sin categoría')} · en ${esc(r.unit)}</small>
+          </div>
+          <div class="inv-count-cell">
+            <span class="inv-line-label">Sistema</span>
+            <span class="inv-count-system${sistema < 0 ? ' is-negative' : ''}">${esc(qty(sistema))}</span>
+          </div>
+          <div class="inv-count-cell">
+            <span class="inv-line-label">Contado</span>
+            <input type="number" class="modal-input inv-count-input" min="0" step="0.001" inputmode="decimal"
+                   placeholder="—" value="${valor != null ? esc(valor) : ''}" aria-label="Cantidad contada de ${esc(r.item_name)}">
+          </div>
+          <div class="inv-count-cell">
+            <span class="inv-line-label">Diferencia</span>
+            <span class="inv-count-diff">${countDiffHtml(r)}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    box.querySelectorAll('.inv-count-row').forEach((el) => {
+      const itemId = Number(el.dataset.itemId);
+      const row = state.countStock.find((r) => r.inventory_item_id === itemId);
+      const input = el.querySelector('.inv-count-input');
+      // Solo se refresca la fila y el pie: volver a dibujar la lista con cada tecla le quitaría
+      // el foco al campo que se está escribiendo.
+      input.addEventListener('input', () => {
+        const v = input.value.trim();
+        if (v === '') state.countEntries.delete(itemId);
+        else state.countEntries.set(itemId, v);
+        el.classList.toggle('is-counted', v !== '');
+        el.querySelector('.inv-count-diff').innerHTML = countDiffHtml(row);
+        updateCountTotal();
+      });
+      // Enter pasa al siguiente: contar un estante es anotar un número tras otro.
+      input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const inputs = Array.from(box.querySelectorAll('.inv-count-input'));
+        inputs[inputs.indexOf(input) + 1]?.focus();
+      });
+    });
+    utils.renderIcons();
+  }
+
+  /** Pie del modal: cuántos se contaron, cuántos no cuadran y cuánto vale la diferencia. */
+  function updateCountTotal() {
+    let contados = 0;
+    let distintos = 0;
+    let valor = 0;
+    let conCosto = 0;
+    state.countEntries.forEach((v, itemId) => {
+      const row = state.countStock.find((r) => r.inventory_item_id === itemId);
+      if (!row) return;
+      contados += 1;
+      const dif = Number(v) - Number(row.on_hand);
+      if (Math.abs(dif) < 0.0005) return;
+      distintos += 1;
+      if (row.last_unit_cost != null) {
+        valor += dif * Number(row.last_unit_cost);
+        conCosto += 1;
+      }
+    });
+
+    $('countProgress').textContent = contados
+      ? `${pluralize(contados, 'contado', 'contados')} · ${distintos ? pluralize(distintos, 'no cuadra', 'no cuadran') : 'todo cuadra'}`
+      : 'Nada contado todavía';
+
+    const total = $('countTotal');
+    total.classList.remove('is-short', 'is-over');
+    if (!conCosto) {
+      total.textContent = '—';
+    } else if (state.countIsFirst) {
+      total.textContent = money(Math.abs(valor));
+    } else {
+      total.textContent = `${valor < 0 ? '-' : '+'}${money(Math.abs(valor))}`;
+      total.classList.add(valor < 0 ? 'is-short' : 'is-over');
+    }
+    const nota = document.querySelector('#modalCount .inv-total-box small');
+    if (nota) {
+      nota.textContent = state.countIsFirst
+        ? 'Valor de lo que había, al costo del último cargamento'
+        : 'Diferencia al costo del último cargamento';
+    }
+  }
+
+  $('countItemSearch')?.addEventListener('input', (e) => {
+    state.search.countItem = e.target.value;
+    renderCountLines();
+  });
+
+  $('countOnlyStocked')?.addEventListener('change', (e) => {
+    state.countOnlyStocked = e.target.checked;
+    renderCountLines();
+  });
+
+  $('countBranchSelect')?.addEventListener('change', () => {
+    // Cambiar de sucursal a mitad del conteo descarta lo anotado: los números eran de otro
+    // estante, y mandarlos a esta sucursal sería peor que perderlos.
+    loadCountStock();
+  });
+
+  function openCountModal() {
+    $('countError').style.display = 'none';
+    $('countNotes').value = '';
+    $('countItemSearch').value = '';
+    state.search.countItem = '';
+    $('countOnlyStocked').checked = state.countOnlyStocked;
+    $('countTotal').textContent = '—';
+    $('countProgress').textContent = 'Nada contado todavía';
+    openModal('modalCount');
+    loadCountStock();
+  }
+
+  $('btnSubmitCount')?.addEventListener('click', async () => {
+    $('countError').style.display = 'none';
+
+    const branchId = countModalBranchId();
+    if (!branchId) { showModalError('countError', 'Elegí una sucursal.'); return; }
+
+    const items = [];
+    for (const [itemId, v] of state.countEntries) {
+      const cantidad = Number(v);
+      if (Number.isNaN(cantidad) || cantidad < 0) {
+        const nombre = state.countStock.find((r) => r.inventory_item_id === itemId)?.item_name || 'un insumo';
+        showModalError('countError', `La cantidad de "${nombre}" no es válida.`);
+        return;
+      }
+      items.push({ inventory_item_id: itemId, counted_quantity: v });
+    }
+    if (!items.length) { showModalError('countError', 'Anotá la cantidad de al menos un insumo.'); return; }
+
+    const btn = $('btnSubmitCount');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+    try {
+      const creado = await api.post('/inventory/counts', {
+        branch_id: branchId,
+        notes: $('countNotes').value.trim() || null,
+        items,
+      });
+      closeModal('modalCount');
+
+      utils.showToast(
+        creado.is_first_count
+          ? `Inventario de arranque cargado: ${pluralize(creado.items.length, 'insumo', 'insumos')}.`
+          : (creado.mismatched_count
+              ? `Conteo guardado. ${pluralize(creado.mismatched_count, 'insumo no cuadró', 'insumos no cuadraron')} y ya quedó corregido.`
+              : 'Conteo guardado. Todo cuadra con el sistema.'),
+        creado.is_first_count || !creado.mismatched_count ? 'success' : 'warning'
+      );
+
+      state.selected.count = creado.id;
+      await Promise.all([loadCounts({ reset: true }), loadStock()]);
+      setView('conteo');
+    } catch (err) {
+      showModalError('countError', err.message || 'No se pudo guardar el conteo.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Guardar conteo';
+    }
+  });
+
+  // ==========================================================================
   // Contexto de sucursal
   // ==========================================================================
   async function resolveBranchContext(user) {
@@ -2015,6 +2480,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const wasteSelect = $('wasteBranchSelect');
     const wasteFilter = $('wasteBranchFilter');
     const stockFilter = $('stockBranchFilter');
+
+    const countBadge = $('countBranchBadge');
+    const countSelect = $('countBranchSelect');
+    const countFilter = $('countBranchFilter');
 
     if (user.branch_id) {
       state.fixedBranchId = user.branch_id;
@@ -2029,6 +2498,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       wasteSelect.hidden = true;
       wasteFilter.hidden = true;
       stockFilter.hidden = true;
+      countBadge.hidden = false;
+      countBadge.textContent = branchName;
+      countSelect.hidden = true;
+      countFilter.hidden = true;
       $('invScopeValue').textContent = branchName;
       $('invHeaderScope').textContent = `Entradas, merma y existencias de ${branchName}`;
       return;
@@ -2039,6 +2512,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     select.hidden = false;
     wasteBadge.hidden = true;
     wasteSelect.hidden = false;
+    countBadge.hidden = true;
+    countSelect.hidden = false;
     $('invScopeValue').textContent = 'Todas las sucursales';
     $('invHeaderScope').textContent = 'Entradas, merma y existencias de todas las sucursales';
 
@@ -2053,6 +2528,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       wasteFilter.hidden = false;
       stockFilter.innerHTML = `<option value="">Todas las sucursales</option>${options}`;
       stockFilter.hidden = false;
+      countSelect.innerHTML = options;
+      countFilter.innerHTML = `<option value="">Todas las sucursales</option>${options}`;
+      countFilter.hidden = false;
     } catch (err) {
       utils.showToast('No se pudieron cargar las sucursales.', 'error');
     }
@@ -2078,6 +2556,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('itemList').innerHTML = skeletonListHtml(3);
   $('supplierList').innerHTML = skeletonListHtml(3);
   $('wasteList').innerHTML = skeletonListHtml(3);
+  $('countList').innerHTML = skeletonListHtml(3);
 
   await resolveBranchContext(existingUser);
   // Los motivos van primero: el filtro de la vista Merma y el selector del modal se llenan con
@@ -2090,6 +2569,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadWaste({ reset: true }),
     loadWasteAnalytics(),
     loadStock(),
+    loadCounts({ reset: true }),
     loadInvuStatus(),
   ]);
 

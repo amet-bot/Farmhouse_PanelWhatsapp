@@ -27,6 +27,7 @@
   --inv-green-dark: var(--green-dark);
   --inv-green-border: var(--green-border);
   --inv-cyan: #0891b2;
+  --inv-cyan-soft: rgba(8, 145, 178, .1);
   --inv-amber: #b45309;
   --inv-amber-soft: rgba(245, 158, 11, .14);
   /* Pista del gráfico de barras: un paso más claro del mismo verde, nunca un gris neutro,
@@ -55,6 +56,7 @@
   --inv-green-dark: #16E6A1;
   --inv-green-border: rgba(22, 230, 161, .4);
   --inv-cyan: #24C7FF;
+  --inv-cyan-soft: rgba(36, 199, 255, .12);
   --inv-amber: #F0B23C;
   --inv-amber-soft: rgba(245, 158, 11, .16);
   --inv-bar-track: rgba(22, 230, 161, .13);
@@ -1872,6 +1874,236 @@ body {
 
   .inv-stock-table { padding: 0 12px 12px; }
   .inv-check { font-size: 11.5px; }
+}
+
+
+/* ============================================================================
+   CONTEO FÍSICO
+   La foto de lo que hay en el estante. Va en cian y no en verde ni en rojo: un conteo no es
+   una entrada ni una pérdida, es una verificación, y dentro del conteo el verde y el rojo
+   quedan libres para lo que sobró y lo que faltó.
+   ============================================================================ */
+
+.inv-secondary-btn[hidden],
+.inv-count-intro[hidden] { display: none !important; }
+
+.inv-view-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inv-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--inv-border);
+  background: var(--inv-panel);
+  color: var(--inv-text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.inv-secondary-btn:hover,
+.inv-secondary-btn:focus-visible {
+  border-color: var(--inv-green-border);
+  color: var(--inv-text);
+  outline: none;
+}
+
+.inv-secondary-btn i { width: 15px; height: 15px; }
+
+.inv-row-thumb-count,
+.inv-detail-thumb-count,
+.inv-card-icon-count {
+  background: var(--inv-cyan-soft);
+  color: var(--inv-cyan);
+}
+
+.inv-row.active .inv-row-thumb-count { background: var(--inv-panel); }
+
+/* El valor del arranque no es ganancia ni pérdida: va en el color del texto, sin signo. */
+.inv-row-amount-count { color: var(--inv-text-secondary); }
+
+/* El aviso de negativos lleva el atajo al conteo, empujado a la derecha. */
+.inv-stock-note .inv-link-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.inv-count-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 11px 13px;
+  border: 1px solid var(--inv-border);
+  border-left: 3px solid var(--inv-cyan);
+  border-radius: 10px;
+  background: var(--inv-cyan-soft);
+  color: var(--inv-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.inv-count-intro i {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--inv-cyan);
+}
+
+/* En el modal la barra no tiene la columna de la lista alrededor: sin su borde ni su relleno. */
+.inv-count-toolbar {
+  padding: 0 0 12px;
+  border-bottom: none;
+}
+
+.inv-count-head,
+.inv-count-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) 96px 120px 96px;
+  gap: 10px;
+  align-items: center;
+}
+
+.inv-count-head {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--inv-border);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--inv-text-muted);
+}
+
+.inv-count-head span:not(:first-child) { text-align: right; }
+
+.inv-count-lines {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.inv-count-row {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--inv-border-light);
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+/* Lo ya anotado se distingue de un vistazo: en un catálogo largo hay que poder ver qué falta. */
+.inv-count-row.is-counted { background: var(--inv-cyan-soft); }
+
+.inv-count-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.inv-count-name strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--inv-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inv-count-name small {
+  font-size: 10.5px;
+  color: var(--inv-text-muted);
+}
+
+.inv-count-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 0;
+}
+
+.inv-count-system {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--inv-text-secondary);
+}
+
+.inv-count-system.is-negative { color: var(--inv-loss-text); }
+
+.inv-count-input {
+  width: 100%;
+  padding: 8px 10px;
+  text-align: right;
+}
+
+.inv-count-diff {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--inv-text-secondary);
+}
+
+.inv-count-diff-short { color: var(--inv-loss-text); }
+.inv-count-diff-over { color: var(--inv-green-soft-text); }
+.inv-count-diff-ok { color: var(--inv-text-muted); font-weight: 600; }
+
+/* Los mismos colores en la tabla del detalle, que es una <td> y no un span. */
+.inv-count-table td.inv-count-diff-short,
+.inv-count-table td.inv-count-diff-over { font-weight: 700; }
+
+#modalCount .inv-total-box small {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--inv-text-muted);
+}
+
+#countTotal.is-short { color: var(--inv-loss-text); }
+#countTotal.is-over { color: var(--inv-green-soft-text); }
+
+@media (max-width: 900px) {
+  .inv-view-head-actions { flex-wrap: nowrap; flex-shrink: 0; }
+
+  /* En celular el secundario queda solo con su ícono: dos botones con texto no caben al lado
+     del título. */
+  .inv-secondary-btn { padding: 9px 11px; }
+  .inv-secondary-btn span { display: none; }
+
+  .inv-stock-note { flex-wrap: wrap; }
+  .inv-stock-note .inv-link-btn { margin-left: 26px; }
+
+  .inv-count-head { display: none; }
+
+  /* Cada insumo pasa a ser un renglón de dos pisos: el nombre arriba, los tres números abajo. */
+  .inv-count-row {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .inv-count-name { grid-column: 1 / -1; }
+  .inv-count-name strong { white-space: normal; }
+  .inv-count-cell { align-items: flex-start; }
+  .inv-count-input { text-align: left; }
+
+  .inv-count-cell .inv-line-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--inv-text-muted);
+  }
 }
 
 
