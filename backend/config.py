@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     )
 
     ENVIRONMENT: str = "development"
-    APP_NAME: str = "Farmhouse WhatsApp Center"
+    APP_NAME: str = "Farmhouse Link"
     API_V1_STR: str = "/api"
     
     HOST: str = "0.0.0.0"

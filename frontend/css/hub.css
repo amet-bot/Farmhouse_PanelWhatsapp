@@ -39,6 +39,12 @@ body {
   background: var(--hub-bg);
   font-family: 'Inter', sans-serif;
   color: var(--hub-text);
+  /* style.css fija height:100vh + overflow:hidden pensando en el Centro WhatsApp (pantalla fija
+     con scroll interno en sus propios paneles) — acá el hub es una página normal que crece con
+     su contenido, así que hay que devolver el scroll de la página. */
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
 }
 
 /* ---- Pantalla de login (a pantalla completa, no modal flotante) ---- */
@@ -203,6 +209,22 @@ body {
   margin: 0;
   color: var(--hub-text-secondary);
   font-size: 14px;
+}
+
+/* ---- Grupos de navegación por dominio ---- */
+.hub-nav-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.hub-nav-group-label {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--hub-text-secondary);
 }
 
 /* ---- Lista de sistemas ---- */

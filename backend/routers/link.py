@@ -14,16 +14,16 @@ from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from config import settings
 from database import get_db
 from models.branch import Branch
-from models.invu_sales import InvuMenuItem, InvuSaleLine, InvuSyncDay
+from models.invu_sales import InvuMenuItem, InvuSale, InvuSaleLine, InvuSyncDay
 from models.user import User
 from schemas.link import (
-    LinkBranchSyncStatus, LinkDailySalesRow, LinkItemSalesRow,
+    LinkBranchSyncStatus, LinkChannelSalesRow, LinkDailySalesRow, LinkItemSalesRow,
     LinkSyncBranchResult, LinkSyncDayResult, LinkSyncRequest, LinkSyncStatusResponse,
 )
 from services import invu_client, invu_sales_sync
@@ -280,4 +280,36 @@ def item_sales(
             branches=f.branches,
         )
         for f in filas
+    ]
+
+
+@router.get("/sales/channels", response_model=List[LinkChannelSalesRow])
+def channel_sales(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_gerencia),
+):
+    """
+    Cuánto entra por cada tipo de orden. La nota de crédito resta en el tipo de su orden: una
+    devolución de Pedidos Ya baja Pedidos Ya, no el salón.
+    """
+    desde, hasta = _rango(date_from, date_to)
+    visible = _sucursal_visible(current_user, branch_id)
+
+    tipo = func.coalesce(InvuSale.order_type, "Sin tipo")
+    signo = case((InvuSale.is_credit_note == True, -1), else_=1)
+    consulta = db.query(
+        tipo.label("tipo"),
+        func.sum(case((InvuSale.is_credit_note == True, 0), else_=1)).label("ordenes"),
+        func.coalesce(func.sum(signo * func.coalesce(InvuSale.total, 0)), 0).label("neto"),
+    ).filter(InvuSale.business_date >= desde, InvuSale.business_date <= hasta)
+    if visible is not None:
+        consulta = consulta.filter(InvuSale.branch_id == visible)
+
+    return [
+        LinkChannelSalesRow(order_type=f.tipo, orders=int(f.ordenes or 0),
+                            net_total=Decimal(f.neto).quantize(Decimal("0.01")))
+        for f in consulta.group_by(tipo).order_by(func.sum(signo * func.coalesce(InvuSale.total, 0)).desc()).all()
     ]

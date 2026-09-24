@@ -309,3 +309,18 @@ def test_el_supervisor_de_una_sucursal_solo_ve_la_suya(client, supervisor_user, 
                      headers=_headers(supervisor_user, clayton_device))
     assert res.status_code == 200
     assert res.json() == []
+
+
+def test_ventas_por_canal_restan_la_nota_de_credito(client, admin_user, invu_ventas, db_session, clayton_branch):
+    ordenes = _dia_con_devolucion()
+    ordenes[0]["desc_tipo_orden"] = "Pedidos Ya"
+    invu_ventas["ordenes"]["api_cly"] = ordenes
+    invu_sales_sync.sync_day(db_session, clayton_branch, invu_client.Credenciales("api_cly", "clave"), DIA)
+
+    res = client.get("/api/link/sales/channels?date_from=2026-09-23&date_to=2026-09-23", headers=_headers(admin_user))
+    assert res.status_code == 200, res.text
+    canales = {r["order_type"]: r for r in res.json()}
+    assert Decimal(canales["Pedidos Ya"]["net_total"]) == Decimal("47.90")
+    # la 69028 (36.40) menos su nota (33.90); la nota no suma como orden
+    assert Decimal(canales["Orden Normal"]["net_total"]) == Decimal("2.50")
+    assert canales["Orden Normal"]["orders"] == 1

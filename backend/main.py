@@ -92,10 +92,10 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
 
-# Farmhouse WhatsApp Center - FastAPI Backend Server
+# Farmhouse Link - FastAPI Backend Server (el módulo de WhatsApp es "Atención al Cliente")
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Backend oficial para Farmhouse WhatsApp Center (FastAPI + MySQL + WebSockets)",
+    description="Backend oficial de Farmhouse Link (FastAPI + MySQL + WebSockets)",
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -235,6 +235,11 @@ if frontend_dir.exists():
         @app.get("/interno", include_in_schema=False)
         def serve_internal():
             return FileResponse(str(frontend_dir / "internal.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+    if (frontend_dir / "link.html").exists():
+        @app.get("/link", include_in_schema=False)
+        def serve_link():
+            return FileResponse(str(frontend_dir / "link.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     if (frontend_dir / "manifest.json").exists():
         @app.get("/manifest.json", include_in_schema=False)

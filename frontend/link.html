@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reportes — Farmhouse Link</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=2.10.0">
+  <!-- El armazón (cabecera, rail, fichas, paneles) es el mismo de Inventario: se reusa su hoja
+       tal cual y link.css solo agrega lo que Inventario no tiene (gráficos y tablas). -->
+  <link rel="stylesheet" href="css/inventory.css?v=3.6.0">
+  <link rel="stylesheet" href="css/link.css?v=1.0.0">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <div class="inv-gate" id="linkGate">
+    <span class="inv-gate-spinner" aria-hidden="true"></span>
+    <p>Verificando sesión...</p>
+  </div>
+
+  <div class="inv-gate" id="linkDenied" hidden>
+    <p>Reportes es solo para administradores y supervisores.</p>
+    <a class="inv-back" href="/hub"><i data-lucide="arrow-left"></i><span>Volver al Panel General</span></a>
+  </div>
+
+  <div class="inv-app" id="linkMain" hidden>
+
+    <!-- ================= Encabezado ================= -->
+    <header class="inv-header">
+      <a class="inv-back" href="/hub" title="Volver al Panel General">
+        <i data-lucide="arrow-left"></i>
+        <span>Panel General</span>
+      </a>
+      <div class="inv-header-titles">
+        <p class="inv-title">Reportes</p>
+        <span class="inv-subtitle" id="linkHeaderScope">Ventas de la caja, por sucursal</span>
+      </div>
+      <div class="inv-header-actions">
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="linkAgentAvatar">AD</div>
+          <div>
+            <strong id="linkAgentName">Administrador</strong>
+            <small id="linkAgentRole">ADMIN</small>
+          </div>
+        </div>
+        <button class="inv-logout-btn" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="inv-shell">
+
+      <!-- ================= Navegación lateral ================= -->
+      <aside class="inv-sidebar">
+        <div class="inv-sidebar-brand">
+          <img src="assets/images/farmhouse-logo.png" alt="Farmhouse" class="inv-brand-logo"
+               onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
+          <span class="inv-brand-fallback" style="display:none"><i data-lucide="line-chart"></i></span>
+          <span class="inv-brand-titles">
+            <strong>Farmhouse</strong>
+            <small>Reportes</small>
+          </span>
+        </div>
+        <nav class="inv-nav" id="linkNav">
+          <button type="button" class="inv-nav-item active" data-view="ventas"><i data-lucide="line-chart"></i> <span>Ventas</span></button>
+          <button type="button" class="inv-nav-item" data-view="sincronizacion"><i data-lucide="refresh-cw"></i> <span>Sincronización</span></button>
+        </nav>
+        <div class="inv-nav-sep">Próximamente</div>
+        <nav class="inv-nav inv-nav-soon">
+          <span class="inv-nav-item soon"><i data-lucide="chef-hat"></i> <span>Recetas</span></span>
+          <span class="inv-nav-item soon"><i data-lucide="flame"></i> <span>Consumo</span></span>
+          <span class="inv-nav-item soon"><i data-lucide="alarm-clock"></i> <span>Reposición</span></span>
+        </nav>
+        <div class="inv-sidebar-foot">
+          <span class="inv-scope-label">Alcance</span>
+          <strong id="linkScopeValue">&mdash;</strong>
+        </div>
+      </aside>
+
+      <!-- ================= Contenido ================= -->
+      <section class="inv-content">
+
+        <!-- ---------- Ventas ---------- -->
+        <div class="inv-view" id="viewVentas">
+          <div class="inv-view-head">
+            <div>
+              <h1>Ventas</h1>
+              <p id="ventasSubtitle">Lo que vendió la caja de Invu.</p>
+            </div>
+          </div>
+
+          <!-- Filtros: una sola fila arriba de todo, y mandan sobre todos los gráficos. -->
+          <div class="link-filters">
+            <div class="link-segmented" id="rangeSegmented" role="group" aria-label="Período">
+              <button type="button" data-range="7" class="active">7 días</button>
+              <button type="button" data-range="30">30 días</button>
+              <button type="button" data-range="month">Este mes</button>
+              <button type="button" data-range="prev-month">Mes anterior</button>
+            </div>
+            <select class="inv-filter-select" id="branchFilter" aria-label="Sucursal" hidden></select>
+          </div>
+
+          <div class="inv-kpi-row" id="kpiRow"></div>
+
+          <div class="inv-panel">
+            <div class="inv-panel-head">
+              <h2 id="dailyTitle">Venta diaria por sucursal</h2>
+              <button type="button" class="link-text-btn" id="btnToggleTable" aria-pressed="false">
+                <i data-lucide="table"></i> <span>Ver tabla</span>
+              </button>
+            </div>
+            <div class="link-legend" id="dailyLegend"></div>
+            <div class="link-chart" id="dailyChart" aria-label="Venta diaria"></div>
+            <div class="link-table-wrap" id="dailyTableWrap" hidden></div>
+          </div>
+
+          <div class="inv-panel-grid">
+            <div class="inv-panel" id="branchPanel">
+              <div class="inv-panel-head">
+                <h2>Venta por sucursal</h2>
+                <span class="inv-panel-note" id="branchNote"></span>
+              </div>
+              <div class="inv-bars" id="branchBars"></div>
+            </div>
+            <div class="inv-panel">
+              <div class="inv-panel-head">
+                <h2>Por tipo de orden</h2>
+                <span class="inv-panel-note">Venta neta</span>
+              </div>
+              <div class="inv-bars" id="channelBars"></div>
+            </div>
+          </div>
+
+          <div class="inv-panel">
+            <div class="inv-panel-head">
+              <h2>Platos más vendidos</h2>
+              <span class="inv-panel-note" id="itemsNote">Por cantidad</span>
+            </div>
+            <div class="link-table-wrap" id="itemsTable"></div>
+          </div>
+        </div>
+
+        <!-- ---------- Sincronización ---------- -->
+        <div class="inv-view" id="viewSincronizacion" hidden>
+          <div class="inv-view-head">
+            <div>
+              <h1>Sincronización con Invu</h1>
+              <p>Se actualiza sola cada 3 horas. Cada día se compara con el cierre de Invu.</p>
+            </div>
+            <button type="button" class="inv-primary-btn" id="btnSyncNow" hidden>
+              <i data-lucide="refresh-cw"></i> Sincronizar hoy y ayer
+            </button>
+          </div>
+          <div class="inv-panel">
+            <div class="link-table-wrap" id="syncTable"></div>
+          </div>
+        </div>
+
+      </section>
+    </div>
+  </div>
+
+  <div class="link-tooltip" id="chartTooltip" role="status" hidden></div>
+
+  <div id="toastNotification" class="toast-banner">
+    <span id="toastIconSlot"><i data-lucide="check" id="toastIcon"></i></span>
+    <span id="toastMessage">Operación realizada con éxito.</span>
+  </div>
+
+  <script src="js/utils.js?v=3.5.0"></script>
+  <script src="js/api.js?v=3.5.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/shared/shell.js?v=1.0.0"></script>
+  <script src="js/modules/link.js?v=1.1.0"></script>
+</body>
+</html>

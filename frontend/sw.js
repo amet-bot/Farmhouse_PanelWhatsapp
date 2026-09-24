@@ -1,5 +1,5 @@
 /**
- * Farmhouse WhatsApp Center - Service Worker
+ * Farmhouse Link - Service Worker
  * Responsabilidad única: recibir notificaciones Web Push y abrir/enfocar la app al hacer clic.
  * No cachea nada (sin soporte offline intencional) para evitar servir datos de chat desactualizados.
  */
@@ -13,7 +13,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  let payload = { title: 'Farmhouse WhatsApp Center', body: 'Tienes un mensaje nuevo.', url: '/' };
+  let payload = { title: 'Farmhouse Link', body: 'Tienes un mensaje nuevo.', url: '/' };
   if (event.data) {
     try {
       payload = { ...payload, ...event.data.json() };

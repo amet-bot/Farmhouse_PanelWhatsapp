@@ -1,39 +1,14 @@
 /**
- * Farmhouse WhatsApp Center - Inicialización y Control de la Aplicación
+ * Farmhouse Link - Atención al Cliente: Inicialización y Control de la Aplicación
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Mapeo de elementos principales del DOM
   const modalLogin = document.getElementById('modalLogin');
   const loginForm = document.getElementById('loginForm');
-  const btnLogout = document.getElementById('btnLogout');
-  const themeToggle = document.getElementById('btnThemeToggle');
-  const themeIconSlot = document.getElementById('themeIconSlot');
-  const themeLabel = document.querySelector('#btnThemeToggle .theme-label');
 
-  // 2. Control de Tema (Claro / Oscuro) con Íconos Lucide
-  function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('fh_theme', theme);
-    if (themeIconSlot) {
-      themeIconSlot.innerHTML = `<i data-lucide="${theme === 'dark' ? 'sun' : 'moon'}"></i>`;
-    }
-    if (themeLabel) {
-      themeLabel.textContent = theme === 'dark' ? 'Claro' : 'Oscuro';
-    }
-    utils.renderIcons();
-  }
-
-  const savedTheme = localStorage.getItem('fh_theme') || 'light';
-  applyTheme(savedTheme);
-
-  if (themeToggle) {
-    themeToggle.addEventListener('click', () => {
-      const currentTheme = document.documentElement.getAttribute('data-theme');
-      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-      applyTheme(newTheme);
-    });
-  }
+  // 2. Control de Tema (Claro / Oscuro), utilidad compartida (ver js/shared/shell.js)
+  FarmhouseShell.initTheme();
 
   // 2.05 Respuestas rápidas del chat: solo rellenan el campo de texto con un mensaje sugerido
   // (ver chat.js#insertQuickReply), el agente sigue revisando y pulsando "Enviar" como siempre.
@@ -163,15 +138,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Logout
-  if (btnLogout) {
-    btnLogout.addEventListener('click', async () => {
-      // Cancela la suscripción push ANTES de cerrar sesión (el token de sesión aún es
-      // válido en este punto, y unsubscribe() lo necesita para autenticar la petición al
-      // backend). Es clave en un dispositivo compartido entre turnos/sucursales: sin esto,
-      // el celular seguía recibiendo notificaciones del agente anterior después de que
-      // cerrara sesión, hasta que alguien nuevo iniciara sesión y volviera a suscribirse
-      // (o nunca, si esa sucursal no vuelve a abrir la app en ese equipo).
+  // Logout (utilidad compartida, ver js/shared/shell.js) — acá con sus dos pasos propios: cortar
+  // push/websocket antes y después de auth.logout(), que ninguna otra página necesita.
+  FarmhouseShell.initLogout({
+    logoutBtnId: 'btnLogout',
+    // Cancela la suscripción push ANTES de cerrar sesión (el token de sesión aún es válido en
+    // este punto, y unsubscribe() lo necesita para autenticar la petición al backend). Es clave
+    // en un dispositivo compartido entre turnos/sucursales: sin esto, el celular seguía
+    // recibiendo notificaciones del agente anterior después de que cerrara sesión, hasta que
+    // alguien nuevo iniciara sesión y volviera a suscribirse (o nunca, si esa sucursal no vuelve
+    // a abrir la app en ese equipo).
+    beforeLogout: async () => {
       if (typeof pushModule !== 'undefined') {
         try {
           await pushModule.unsubscribe();
@@ -179,14 +156,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           console.warn('[Logout] No se pudo cancelar la suscripción push:', e);
         }
       }
-      await auth.logout();
+    },
+    afterLogout: () => {
       wsClient.disconnect();
       chatModule.renderEmpty();
       const passInp = document.getElementById('password');
       if (passInp) passInp.value = '';
       showLoginModal();
-    });
-  }
+    },
+  });
 
   // Eventos de Autenticación y Seguridad
   window.addEventListener('auth:unauthorized', () => {
@@ -211,10 +189,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const user = auth.getUser();
     if (!user) return;
 
-    // Encabezado de Usuario
-    document.getElementById('topAgentName').textContent = user.name;
-    document.getElementById('topAgentRole').textContent = `${user.role.toUpperCase()} ${user.branch ? '• ' + user.branch.name : ''}`;
-    document.getElementById('topAgentAvatar').textContent = utils.getInitials(user.name);
+    // Encabezado de Usuario (utilidad compartida, ver js/shared/shell.js)
+    FarmhouseShell.fillUserHeader({ nameId: 'topAgentName', roleId: 'topAgentRole', avatarId: 'topAgentAvatar' }, user);
 
     // Permisos de Menú
     const navUsers = document.getElementById('navUsers');

@@ -73,3 +73,10 @@ class LinkItemSalesRow(BaseModel):
     quantity: Decimal
     revenue: Decimal
     branches: int                           # en cuántas sucursales se vendió
+
+
+class LinkChannelSalesRow(BaseModel):
+    """Venta por tipo de orden de Invu (Orden Normal, Pedidos Ya, Catering…)."""
+    order_type: str
+    orders: int                             # órdenes cerradas, sin contar notas de crédito
+    net_total: Decimal                      # cerradas menos notas de crédito

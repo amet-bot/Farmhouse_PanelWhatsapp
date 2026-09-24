@@ -1,0 +1,306 @@
+/* ============================================================================
+   FARMHOUSE LINK
+   Se carga DESPUÉS de inventory.css y solo agrega lo que Inventario no tiene: el gráfico de
+   líneas, la leyenda, el globo del hover, el selector de período y las tablas. El armazón
+   (cabecera, rail, fichas, paneles, barras) es el de Inventario, sin tocar.
+
+   Colores de sucursal: la paleta categórica de referencia de la skill de dataviz, primeros cinco
+   tonos, validada en claro (contra blanco) y en oscuro (contra #0C1728). En claro, aqua, amarillo
+   y magenta quedan bajo 3:1 contra el fondo: por eso el gráfico tiene leyenda siempre y la vista
+   de tabla. El texto nunca va en el color de la serie.
+   ============================================================================ */
+
+:root, [data-theme="light"] {
+  /* En :root y no en .inv-app: el globo del hover vive fuera del armazón y usa los mismos. */
+  --link-series-1: #2a78d6;   /* Clayton        · azul     */
+  --link-series-2: #eb6834;   /* Costa del Este · naranja  */
+  --link-series-3: #1baf7a;   /* Vía Porras     · aqua     */
+  --link-series-4: #eda100;   /* San Francisco  · amarillo */
+  --link-series-5: #e87ba4;   /* Obarrio        · magenta  */
+  --link-up: #15803d;
+  --link-down: #b91c1c;
+}
+
+[data-theme="dark"] :root, [data-theme="light"] {
+  /* En :root y no en .inv-app: el globo del hover vive fuera del armazón y usa los mismos. */
+  --link-series-1: #3987e5;
+  --link-series-2: #d95926;
+  --link-series-3: #199e70;
+  --link-series-4: #c98500;
+  --link-series-5: #d55181;
+  --link-up: #4ade80;
+  --link-down: #f87171;
+}
+
+.link-table-wrap[hidden],
+.link-chart[hidden],
+.link-tooltip[hidden],
+#branchPanel[hidden] {
+  display: none !important;
+}
+
+/* ---- Filtros: una fila, arriba de todo ---- */
+.link-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.link-segmented {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--inv-panel);
+  border: 1px solid var(--inv-border);
+}
+
+.link-segmented button {
+  border: 0;
+  background: transparent;
+  color: var(--inv-text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.link-segmented button:hover { background: var(--inv-panel-2); color: var(--inv-text); }
+
+.link-segmented button.active {
+  background: var(--inv-green-soft);
+  color: var(--inv-green-soft-text);
+}
+
+.link-text-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--inv-border);
+  background: transparent;
+  color: var(--inv-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.link-text-btn:hover { color: var(--inv-text); background: var(--inv-panel-2); }
+.link-text-btn i { width: 14px; height: 14px; }
+
+/* ---- Variación contra el período anterior ---- */
+.link-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 700;
+}
+
+.link-delta i { width: 13px; height: 13px; }
+.link-delta.up { color: var(--link-up); }
+.link-delta.down { color: var(--link-down); }
+
+/* ---- Leyenda ---- */
+.link-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: -4px 0 10px;
+}
+
+.link-legend:empty { display: none; }
+
+.link-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--inv-text-secondary);
+}
+
+.link-legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.inv-bar-name .link-legend-swatch { margin-right: 7px; }
+.inv-bar-value small { font-weight: 500; color: var(--inv-text-muted); margin-left: 4px; }
+
+/* ---- Gráfico de líneas ---- */
+.link-chart {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+}
+
+.link-chart svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+
+.link-grid { stroke: var(--inv-border-light); stroke-width: 1; }
+
+.link-axis {
+  fill: var(--inv-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.link-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.link-crosshair { stroke: var(--inv-text-muted); stroke-width: 1; stroke-dasharray: 3 3; }
+
+/* Anillo del color de la superficie: el punto se separa de la línea que tiene detrás. */
+.link-dot { stroke: var(--inv-panel); stroke-width: 2; }
+
+.link-hit { fill: transparent; cursor: crosshair; outline: none; }
+.link-hit:focus-visible { stroke: var(--inv-green); stroke-width: 1; stroke-dasharray: 4 3; }
+
+/* ---- Globo del hover ---- */
+.link-tooltip {
+  position: fixed;
+  z-index: 50;
+  min-width: 180px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--inv-panel);
+  border: 1px solid var(--inv-border);
+  box-shadow: 0 16px 32px -16px rgba(0, 0, 0, .35);
+  pointer-events: none;
+  font-size: 12px;
+}
+
+.link-tip-head {
+  font-weight: 700;
+  color: var(--inv-text);
+  margin-bottom: 6px;
+  text-transform: capitalize;
+}
+
+.link-tip-row {
+  display: grid;
+  grid-template-columns: 10px auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  color: var(--inv-text-secondary);
+}
+
+.link-tip-row strong {
+  color: var(--inv-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.link-tip-total {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--inv-border-light);
+}
+
+/* ---- Tablas ---- */
+.link-table-wrap { overflow-x: auto; }
+
+.link-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.link-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--inv-text-muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--inv-border);
+  white-space: nowrap;
+}
+
+.link-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--inv-border-light);
+  color: var(--inv-text);
+  vertical-align: middle;
+}
+
+.link-table tbody tr:hover td { background: var(--inv-panel-2); }
+.link-table tbody tr:last-child td { border-bottom: 0; }
+.link-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.link-table .strong { font-weight: 700; }
+.link-table .muted { color: var(--inv-text-muted); }
+.link-table .rank { width: 28px; color: var(--inv-text-muted); font-variant-numeric: tabular-nums; }
+
+.link-item-name { display: block; font-weight: 600; }
+
+.link-item-bar {
+  display: block;
+  height: 4px;
+  margin-top: 5px;
+  max-width: 220px;
+  border-radius: 4px;
+  background: var(--inv-bar-track);
+  overflow: hidden;
+}
+
+.link-item-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--inv-bar-fill);
+}
+
+/* ---- Estado de sincronización: ícono + texto, nunca solo color ---- */
+.link-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.link-status i { width: 13px; height: 13px; }
+.link-status.ok { background: var(--inv-green-soft); color: var(--inv-green-soft-text); }
+.link-status.warn { background: var(--inv-amber-soft); color: var(--inv-amber); }
+.link-status.bad { background: var(--inv-loss-soft); color: var(--inv-loss-text); }
+
+/* ---- Cargando ---- */
+.link-skeleton {
+  height: 160px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--inv-panel-2), var(--inv-panel), var(--inv-panel-2));
+  background-size: 200% 100%;
+  animation: linkShimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes linkShimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+#btnSyncNow.loading i { animation: linkSpin 1s linear infinite; }
+@keyframes linkSpin { to { transform: rotate(360deg); } }
+
+@media (max-width: 720px) {
+  .link-segmented { width: 100%; }
+  .link-segmented button { flex: 1; padding: 7px 6px; }
+  .link-table .hide-sm { display: none; }
+  .link-filters .inv-filter-select { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .link-skeleton, #btnSyncNow.loading i { animation: none; }
+}

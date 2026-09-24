@@ -13,14 +13,14 @@ const notificationModule = {
   soundEnabled: true,
   unreadCount: 0,
   titleFlashInterval: null,
-  originalTitle: 'Farmhouse WhatsApp Center',
+  originalTitle: 'Atención al Cliente — Farmhouse Link',
   // Cola del modal de recordatorio: si llegan varias conversaciones pendientes a la vez, se
   // muestran una por una (nunca superpuestas) en vez de perderse o taparse entre sí.
   reminderQueue: [],
   reminderModalOpen: false,
 
   init() {
-    this.originalTitle = document.title || 'Farmhouse WhatsApp Center';
+    this.originalTitle = document.title || 'Atención al Cliente — Farmhouse Link';
     const savedSound = localStorage.getItem('fh_sound_enabled');
     this.soundEnabled = savedSound !== null ? savedSound === 'true' : true;
 

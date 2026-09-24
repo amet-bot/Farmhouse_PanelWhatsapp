@@ -47,29 +47,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const esc = (v) => utils.escapeHtml(v);
 
   // ==========================================================================
-  // Tema y sesión
+  // Tema y sesión (utilidad compartida, ver js/shared/shell.js)
   // ==========================================================================
-  const themeIconSlot = $('themeIconSlot');
-  const themeLabel = document.querySelector('#btnThemeToggle .theme-label');
-
-  function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('fh_theme', theme);
-    if (themeIconSlot) themeIconSlot.innerHTML = `<i data-lucide="${theme === 'dark' ? 'sun' : 'moon'}"></i>`;
-    if (themeLabel) themeLabel.textContent = theme === 'dark' ? 'Claro' : 'Oscuro';
-    utils.renderIcons();
-  }
-  applyTheme(localStorage.getItem('fh_theme') || 'light');
-
-  $('btnThemeToggle')?.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme');
-    applyTheme(current === 'dark' ? 'light' : 'dark');
-  });
-
-  $('btnLogout')?.addEventListener('click', async () => {
-    await auth.logout();
-    window.location.href = '/';
-  });
+  FarmhouseShell.initTheme();
+  FarmhouseShell.initLogout({ redirectTo: '/' });
 
   window.addEventListener('auth:unauthorized', () => {
     window.location.href = '/';
@@ -691,9 +672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   state.me = existingUser;
   $('intGate').hidden = true;
   $('intMain').hidden = false;
-  $('intAgentName').textContent = existingUser.name;
-  $('intAgentRole').textContent = `${existingUser.role.toUpperCase()}${existingUser.branch ? ' • ' + existingUser.branch.name : ''}`;
-  $('intAgentAvatar').textContent = utils.getInitials(existingUser.name);
+  FarmhouseShell.fillUserHeader({ nameId: 'intAgentName', roleId: 'intAgentRole', avatarId: 'intAgentAvatar' }, existingUser);
   $('intHeaderScope').textContent = existingUser.branch
     ? `Equipo de ${existingUser.branch.name} y el resto de las sucursales`
     : 'Todas las sucursales';

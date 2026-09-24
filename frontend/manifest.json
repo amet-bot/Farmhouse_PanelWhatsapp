@@ -1,7 +1,7 @@
 {
-  "name": "Farmhouse WhatsApp Center",
-  "short_name": "Farmhouse WA",
-  "description": "Centro de administración de conversaciones de WhatsApp de Farmhouse.",
+  "name": "Farmhouse Link",
+  "short_name": "Farmhouse Link",
+  "description": "Plataforma operativa de Farmhouse: atención al cliente, inventario y comunicación interna.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
