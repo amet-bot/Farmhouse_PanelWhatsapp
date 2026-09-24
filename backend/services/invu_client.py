@@ -19,7 +19,7 @@ import logging
 import threading
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Tuple
 
 import httpx
 
@@ -49,28 +49,32 @@ class InvuNotConfigured(InvuError):
         super().__init__("La integración con Invu no está configurada en el servidor.")
 
 
+class Credenciales(NamedTuple):
+    """Un usuario de API de Invu. Cada uno ve una sola sucursal (ver config.py)."""
+    username: str
+    password: str
+
+
 class _TokenCache:
-    """Token compartido por el proceso. Con candado porque el sweep diario y un clic en el
-    botón de sincronizar pueden coincidir, y dos hilos pidiendo token a la vez gastan dos
-    llamadas para obtener lo mismo."""
+    """Tokens compartidos por el proceso, uno por usuario de API. Con candado porque el sweep
+    diario y un clic en el botón de sincronizar pueden coincidir, y dos hilos pidiendo token a
+    la vez gastan dos llamadas para obtener lo mismo."""
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._token: Optional[str] = None
-        self._expires_at: Optional[datetime] = None
+        self._tokens: Dict[str, Tuple[str, datetime]] = {}
 
-    def get(self) -> Optional[str]:
-        if self._token and self._expires_at and datetime.now(timezone.utc) < self._expires_at:
-            return self._token
+    def get(self, username: str) -> Optional[str]:
+        guardado = self._tokens.get(username)
+        if guardado and datetime.now(timezone.utc) < guardado[1]:
+            return guardado[0]
         return None
 
-    def set(self, token: str) -> None:
-        self._token = token
-        self._expires_at = datetime.now(timezone.utc) + TOKEN_TTL
+    def set(self, username: str, token: str) -> None:
+        self._tokens[username] = (token, datetime.now(timezone.utc) + TOKEN_TTL)
 
     def clear(self) -> None:
-        self._token = None
-        self._expires_at = None
+        self._tokens.clear()
 
     @property
     def lock(self) -> threading.Lock:
@@ -93,14 +97,21 @@ def _base_url() -> str:
     return (settings.INVU_API_BASE_URL or "").rstrip("/")
 
 
-def _authenticate() -> str:
+def _credenciales_por_defecto() -> Credenciales:
+    """El usuario de los proveedores (INVU_API_USERNAME), el primero que existió."""
+    if not is_configured():
+        raise InvuNotConfigured()
+    return Credenciales(settings.INVU_API_USERNAME, settings.INVU_API_PASSWORD)
+
+
+def _authenticate(credenciales: Credenciales) -> str:
     url = f"{_base_url()}/invuApiPos/userAuth"
     try:
         response = httpx.post(
             url,
             json={
-                "username": settings.INVU_API_USERNAME,
-                "password": settings.INVU_API_PASSWORD,
+                "username": credenciales.username,
+                "password": credenciales.password,
                 "grant_type": "authorization",
             },
             timeout=REQUEST_TIMEOUT,
@@ -123,32 +134,38 @@ def _authenticate() -> str:
     return token
 
 
-def get_token(force_refresh: bool = False) -> str:
-    if not is_configured():
-        raise InvuNotConfigured()
+def get_token(force_refresh: bool = False, credenciales: Optional[Credenciales] = None) -> str:
+    credenciales = credenciales or _credenciales_por_defecto()
 
     if not force_refresh:
-        cached = _cache.get()
+        cached = _cache.get(credenciales.username)
         if cached:
             return cached
 
     with _cache.lock:
         # Otro hilo pudo haberlo renovado mientras este esperaba el candado.
         if not force_refresh:
-            cached = _cache.get()
+            cached = _cache.get(credenciales.username)
             if cached:
                 return cached
-        token = _authenticate()
-        _cache.set(token)
+        token = _authenticate(credenciales)
+        _cache.set(credenciales.username, token)
         return token
 
 
-def _get(path_query: str, params: Optional[Dict[str, Any]] = None, _retrying: bool = False) -> Dict[str, Any]:
+def _get(
+    path_query: str,
+    params: Optional[Dict[str, Any]] = None,
+    _retrying: bool = False,
+    credenciales: Optional[Credenciales] = None,
+) -> Dict[str, Any]:
     """
     Una petición GET a la API. `path_query` es lo que va después de `index.php?r=`, que es como
-    Invu enruta (por ejemplo "providers/list").
+    Invu enruta (por ejemplo "providers/list"). Sin `credenciales` usa el usuario de los
+    proveedores; con ellas, el de esa sucursal.
     """
-    token = get_token()
+    credenciales = credenciales or _credenciales_por_defecto()
+    token = get_token(credenciales=credenciales)
     url = f"{_base_url()}/invuApiPos/index.php"
     query = {"r": path_query, **(params or {})}
 
@@ -166,8 +183,8 @@ def _get(path_query: str, params: Optional[Dict[str, Any]] = None, _retrying: bo
     # una sola vez, para no entrar en un ciclo si las credenciales dejaron de servir.
     if response.status_code in (401, 403) and not _retrying:
         logger.info("[Invu] El token dejó de servir; pidiendo uno nuevo.")
-        get_token(force_refresh=True)
-        return _get(path_query, params, _retrying=True)
+        get_token(force_refresh=True, credenciales=credenciales)
+        return _get(path_query, params, _retrying=True, credenciales=credenciales)
 
     if response.status_code == 429:
         if _retrying:
@@ -175,12 +192,18 @@ def _get(path_query: str, params: Optional[Dict[str, Any]] = None, _retrying: bo
         espera = _retry_after_seconds(response)
         logger.warning(f"[Invu] Límite de peticiones alcanzado; esperando {espera}s.")
         time.sleep(espera)
-        return _get(path_query, params, _retrying=True)
+        return _get(path_query, params, _retrying=True, credenciales=credenciales)
 
     if response.status_code != 200:
         raise InvuError(f"Invu respondió HTTP {response.status_code} en '{path_query}'.")
 
     payload = response.json()
+    # Las rutas viejas (`citas/*`) avisan el token vencido con HTTP 200 y el 403 en el cuerpo.
+    if isinstance(payload, dict) and str(payload.get("status")) in ("401", "403"):
+        if _retrying:
+            raise InvuError("Invu rechazó el token de este usuario de API.")
+        get_token(force_refresh=True, credenciales=credenciales)
+        return _get(path_query, params, _retrying=True, credenciales=credenciales)
     if isinstance(payload, dict) and payload.get("error"):
         raise InvuError(str(payload.get("msg") or f"Invu devolvió un error en '{path_query}'."))
     return payload
@@ -217,6 +240,49 @@ def iter_providers(updated_after: Optional[datetime] = None) -> Iterator[Dict[st
             params["updated_at[after]"] = updated_after.strftime("%Y-%m-%d %H:%M:%S")
 
         payload = _get("providers/list", params)
+        filas: List[Dict[str, Any]] = payload.get("data") or []
+        for fila in filas:
+            yield fila
+
+        last_page = int(payload.get("last_page") or 0)
+        if page >= last_page or not filas:
+            return
+        page += 1
+        time.sleep(PAUSE_BETWEEN_PAGES)
+
+
+# ==========================================================================
+# Ventas y menú (Farmhouse Link). Siempre con las credenciales de UNA sucursal.
+# ==========================================================================
+def list_orders(credenciales: Credenciales, desde_epoch: int, hasta_epoch: int) -> List[Dict[str, Any]]:
+    """
+    Todas las órdenes abiertas en esa ventana, con sus líneas y modificadores.
+
+    `tipo/all` trae cerradas y notas de crédito (totales y parciales); las eliminadas quedan
+    afuera, que es lo que se quiere. Filtra por fecha de apertura y no pagina: un día de la
+    sucursal más movida son unos 600 KB, así que se pide de a un día.
+    """
+    payload = _get(
+        f"citas/ordenesAllAdv/fini/{int(desde_epoch)}/ffin/{int(hasta_epoch)}/tipo/all/grouping/false",
+        credenciales=credenciales,
+    )
+    return payload.get("data") or []
+
+
+def order_totals(credenciales: Credenciales, desde_epoch: int, hasta_epoch: int) -> Dict[str, Any]:
+    """Los totales del día según Invu (lo que muestra su reporte de cierre). Sirve de control."""
+    payload = _get(f"citas/totalporfecha/fini/{int(desde_epoch)}/ffin/{int(hasta_epoch)}", credenciales=credenciales)
+    return payload.get("totales") or {}
+
+
+def iter_menu_items(credenciales: Credenciales) -> Iterator[Dict[str, Any]]:
+    """
+    Los platos activos del menú de la sucursal, página por página. Los inactivos no hacen falta:
+    cada línea de venta ya trae su código y nombre, y a un plato dado de baja no se le arma receta.
+    """
+    page = 1
+    while True:
+        payload = _get("menu-items/list", {"page": page, "per_page": PAGE_SIZE}, credenciales=credenciales)
         filas: List[Dict[str, Any]] = payload.get("data") or []
         for fila in filas:
             yield fila

@@ -27,9 +27,10 @@ from routers import (
     bot_flows,
     inventory,
     internal_chat,
+    link,
 )
 from services.bot_followup import run_followup_sweep_loop
-from services import invu_sync
+from services import invu_sync, invu_sales_sync
 
 logging.basicConfig(
     level=logging.INFO,
@@ -75,9 +76,15 @@ async def lifespan(app: FastAPI):
     if invu_sync.debe_arrancar_loop():
         invu_task = asyncio.create_task(invu_sync.run_provider_sync_loop())
 
+    # Tercer loop: las ventas de cada sucursal desde Invu (Farmhouse Link). Arranca si al menos
+    # una sucursal tiene su usuario de API; misma guarda de pytest (ver invu_sales_sync).
+    ventas_task = None
+    if invu_sales_sync.debe_arrancar_loop():
+        ventas_task = asyncio.create_task(invu_sales_sync.run_sales_sync_loop())
+
     yield
 
-    for task in (followup_task, invu_task):
+    for task in (followup_task, invu_task, ventas_task):
         if task:
             task.cancel()
             try:
@@ -162,6 +169,7 @@ app.include_router(webhooks.router)
 app.include_router(bot_flows.router, prefix=settings.API_V1_STR)
 app.include_router(inventory.router, prefix=settings.API_V1_STR)
 app.include_router(internal_chat.router, prefix=settings.API_V1_STR)
+app.include_router(link.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)
 
 # -----------------------------------------------------------------------------

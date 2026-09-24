@@ -14,5 +14,6 @@ from models.shipment import Shipment, ShipmentItem
 from models.internal_chat import InternalThread, InternalParticipant, InternalMessage
 from models.waste import WasteRecord, WasteItem
 from models.stock_count import StockCount, StockCountItem
+from models.invu_sales import InvuMenuItem, InvuSale, InvuSaleLine, InvuSaleModifier, InvuSyncDay
 
-__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription", "BotFlow", "InventoryItem", "Supplier", "Shipment", "ShipmentItem", "InternalThread", "InternalParticipant", "InternalMessage", "WasteRecord", "WasteItem", "StockCount", "StockCountItem"]
+__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription", "BotFlow", "InventoryItem", "Supplier", "Shipment", "ShipmentItem", "InternalThread", "InternalParticipant", "InternalMessage", "WasteRecord", "WasteItem", "StockCount", "StockCountItem", "InvuMenuItem", "InvuSale", "InvuSaleLine", "InvuSaleModifier", "InvuSyncDay"]

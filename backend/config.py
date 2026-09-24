@@ -102,6 +102,33 @@ class Settings(BaseSettings):
     def is_invu_configured(self) -> bool:
         return bool(self.INVU_API_USERNAME and self.INVU_API_PASSWORD)
 
+    # Invu POS por sucursal — de donde salen las ventas (Farmhouse Link).
+    # Un usuario de API ve una sola sucursal y ninguna ruta de Invu deja elegir otra: la
+    # sucursal la decide el token. Por eso hay un par usuario/contraseña por código de sucursal
+    # (el mismo `Branch.code` de la base). Los que falten simplemente no se sincronizan.
+    INVU_USER_CLY: Optional[str] = None
+    INVU_PASS_CLY: Optional[str] = None
+    INVU_USER_CDE: Optional[str] = None
+    INVU_PASS_CDE: Optional[str] = None
+    INVU_USER_VP: Optional[str] = None
+    INVU_PASS_VP: Optional[str] = None
+    INVU_USER_SF: Optional[str] = None
+    INVU_PASS_SF: Optional[str] = None
+    INVU_USER_OBR: Optional[str] = None
+    INVU_PASS_OBR: Optional[str] = None
+
+    INVU_SALES_BRANCH_CODES: tuple = ("CLY", "CDE", "VP", "SF", "OBR")
+
+    def invu_branch_credentials(self) -> Dict[str, tuple]:
+        """{código de sucursal: (usuario, contraseña)} solo de las sucursales con ambos datos."""
+        credenciales = {}
+        for code in self.INVU_SALES_BRANCH_CODES:
+            usuario = getattr(self, f"INVU_USER_{code}", None)
+            clave = getattr(self, f"INVU_PASS_{code}", None)
+            if usuario and clave:
+                credenciales[code] = (usuario, clave)
+        return credenciales
+
     # Web Push (Notificaciones push del navegador vía VAPID)
     VAPID_PUBLIC_KEY: Optional[str] = None
     VAPID_PRIVATE_KEY: Optional[str] = None
