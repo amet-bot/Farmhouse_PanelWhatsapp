@@ -11,7 +11,8 @@ from models.conversation import Conversation
 from models.device import Device
 from models.message import Message
 from schemas.user import UserResponse, UserCreate, UserUpdate
-from security.auth import get_current_user, require_role, get_password_hash
+from security.auth import get_current_user, get_password_hash
+from security.permissions import require_permission
 
 logger = logging.getLogger("farmhouse.users")
 
@@ -39,7 +40,7 @@ def get_users(
 
     return query.order_by(User.id.desc()).offset(skip).limit(limit).all()
 
-@router.post("/", response_model=UserResponse, dependencies=[Depends(require_role(["admin"]))])
+@router.post("/", response_model=UserResponse, dependencies=[Depends(require_permission("users.manage"))])
 def create_user(user_in: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     username_clean = user_in.username.strip().lower()
     
@@ -105,7 +106,7 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db), current_user
     logger.info(f"Nuevo usuario creado por Admin ({current_user.username}): '{user.name}' (@{user.username}, Rol: '{user.role}', Sucursal ID: {user.branch_id}, Activo: {user.active})")
     return user
 
-@router.put("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_role(["admin"]))])
+@router.put("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_permission("users.manage"))])
 def update_user(
     user_id: int,
     user_in: UserUpdate,
@@ -162,7 +163,7 @@ def update_user(
     logger.info(f"Usuario actualizado por Admin ({current_user.username}): ID {user.id} '{user.name}' (@{user.username}, Rol: '{user.role}', Activo: {user.active})")
     return user
 
-@router.post("/{user_id}/toggle-active", response_model=UserResponse, dependencies=[Depends(require_role(["admin"]))])
+@router.post("/{user_id}/toggle-active", response_model=UserResponse, dependencies=[Depends(require_permission("users.manage"))])
 def toggle_user_active(
     user_id: int,
     db: Session = Depends(get_db),
@@ -195,7 +196,7 @@ def toggle_user_active(
     db.refresh(user)
     return user
 
-@router.delete("/{user_id}", dependencies=[Depends(require_role(["admin"]))])
+@router.delete("/{user_id}", dependencies=[Depends(require_permission("users.manage"))])
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),

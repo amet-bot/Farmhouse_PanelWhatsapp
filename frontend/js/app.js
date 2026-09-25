@@ -193,9 +193,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     FarmhouseShell.fillUserHeader({ nameId: 'topAgentName', roleId: 'topAgentRole', avatarId: 'topAgentAvatar' }, user);
 
     // Permisos de Menú
+    // Fase 2: "Agentes / Usuarios" ya se filtra por el permiso real (users.manage), no por rol
+    // a mano — ver /auth/me → permissions. El editor de flujo se deja por rol: el backend de
+    // bot_flows.py tampoco migró a un permiso propio (no hay uno del catálogo que le calce).
     const navUsers = document.getElementById('navUsers');
     if (navUsers) {
-      navUsers.style.display = (user.role === 'admin') ? 'flex' : 'none';
+      navUsers.style.display = (user.permissions || []).includes('users.manage') ? 'flex' : 'none';
     }
     const navFlowEditor = document.getElementById('navFlowEditor');
     if (navFlowEditor) {

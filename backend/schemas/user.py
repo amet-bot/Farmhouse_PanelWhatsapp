@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 from enum import Enum
 from schemas.branch import BranchResponse
@@ -97,6 +97,10 @@ class UserResponse(UserBase):
     id: int
     created_at: datetime
     branch: Optional[BranchResponse] = None
+    # Catálogo de permisos por capacidad (Fase 2): NO es una columna de User, así que nunca se
+    # resuelve solo (from_attributes) — routers/auth.py la completa a mano con
+    # security.permissions.resolve_permissions(role) antes de devolver la respuesta.
+    permissions: List[str] = []
 
     model_config = ConfigDict(from_attributes=True)
 

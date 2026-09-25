@@ -12,6 +12,7 @@ from models.device import Device
 from schemas.auth import LoginRequest, TokenResponse
 from schemas.user import UserResponse
 from security.auth import verify_password, create_access_token, get_current_user
+from security.permissions import resolve_permissions
 from config import settings
 
 logger = logging.getLogger("farmhouse.auth")
@@ -141,10 +142,13 @@ def login(login_data: LoginRequest, response: Response, request: Request, db: Se
         path="/"
     )
 
+    user_response = UserResponse.model_validate(user)
+    user_response.permissions = sorted(resolve_permissions(user.role))
+
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
-        user=UserResponse.model_validate(user)
+        user=user_response
     )
 
 @router.post("/logout")
@@ -162,7 +166,9 @@ def logout(response: Response):
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
+    user_response = UserResponse.model_validate(current_user)
+    user_response.permissions = sorted(resolve_permissions(current_user.role))
+    return user_response
 
 def generate_ws_ticket(user_id: int) -> str:
     """Genera un ticket efímero de uso único para la conexión WebSocket (Punto 14)."""

@@ -99,7 +99,7 @@ const NAV_GROUPS = [
   {
     id: 'administracion',
     label: 'Administración',
-    adminOnly: true,
+    requiredPermission: 'users.manage',
     items: [
       {
         id: 'contabilidad',
@@ -242,9 +242,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderSystemList(user) {
     const container = document.getElementById('systemList');
     if (!container) return;
-    // Filtro por rol, grueso a propósito (ver comentario junto a NAV_GROUPS): un grupo marcado
-    // adminOnly directamente no se muestra si el usuario no es admin.
-    const groups = NAV_GROUPS.filter((g) => !g.adminOnly || user.role === 'admin');
+    // Fase 2: navegación filtrada por permiso real (ver /auth/me → permissions), ya no por rol
+    // a mano. Un grupo con requiredPermission se oculta si el usuario no tiene esa capacidad.
+    const permissions = user.permissions || [];
+    const groups = NAV_GROUPS.filter((g) => !g.requiredPermission || permissions.includes(g.requiredPermission));
 
     container.innerHTML = groups.map((g) => `
       <div class="hub-nav-group">

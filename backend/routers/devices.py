@@ -10,8 +10,9 @@ from models.device import Device
 from models.branch import Branch
 from models.user import User
 from schemas.device import DeviceResponse, DeviceCreate, DeviceUpdate
-from security.auth import get_current_user, get_current_authorized_user, require_role
+from security.auth import get_current_user, get_current_authorized_user
 from security.access_control import check_target_branch_valid
+from security.permissions import require_permission
 from services.device_access import check_device_authorized
 
 logger = logging.getLogger("farmhouse.devices")
@@ -58,7 +59,7 @@ def verify_device(
     """
     return check_device_authorized(db, device_code, current_user)
 
-@router.post("/", response_model=DeviceResponse, dependencies=[Depends(require_role(["admin"]))])
+@router.post("/", response_model=DeviceResponse, dependencies=[Depends(require_permission("devices.manage"))])
 def register_device(
     device_in: DeviceCreate,
     db: Session = Depends(get_db),
@@ -95,7 +96,7 @@ def register_device(
     logger.info(f"Dispositivo autorizado creado por Admin ({current_user.username}): '{device.name}' [{device.device_id}] en sucursal '{branch.name}', Estado: {device.status}")
     return device
 
-@router.put("/{device_id_db}", response_model=DeviceResponse, dependencies=[Depends(require_role(["admin"]))])
+@router.put("/{device_id_db}", response_model=DeviceResponse, dependencies=[Depends(require_permission("devices.manage"))])
 def update_device(
     device_id_db: int,
     device_in: DeviceUpdate,
@@ -129,7 +130,7 @@ def update_device(
     logger.info(f"Dispositivo actualizado por Admin ({current_user.username}): ID {device.id} '{device.name}' [{device.device_id}], Estado: {device.status}")
     return device
 
-@router.post("/{device_id_db}/revoke", response_model=DeviceResponse, dependencies=[Depends(require_role(["admin"]))])
+@router.post("/{device_id_db}/revoke", response_model=DeviceResponse, dependencies=[Depends(require_permission("devices.manage"))])
 def revoke_device_access(
     device_id_db: int,
     db: Session = Depends(get_db),
