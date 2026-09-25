@@ -549,11 +549,14 @@ def create_order(
     current_user: User = Depends(get_current_authorized_user)
 ):
     """
-    Crea una comanda/pedido vinculada a una conversación con cálculo exacto de decimales (Punto 8).
+    Crea una comanda/pedido, opcionalmente vinculada a una conversación, con cálculo exacto de
+    decimales (Punto 8). Fase 3: `conversation_id` es opcional — si no viene, la sucursal se
+    valida directo con el mismo criterio de siempre.
     """
-    # 1. Validar acceso a la conversación
-    conv = check_conversation_access(db, order_in.conversation_id, current_user, action="create_order")
-    
+    # 1. Validar acceso a la conversación (si el pedido viene de una)
+    if order_in.conversation_id is not None:
+        check_conversation_access(db, order_in.conversation_id, current_user, action="create_order")
+
     # 2. Validar sucursal para agentes y supervisores locales (mismo criterio que conversations.py)
     if current_user.role == "agent":
         if order_in.branch_id != current_user.branch_id:
@@ -570,7 +573,19 @@ def create_order(
 
     branch = check_target_branch_valid(db, order_in.branch_id)
 
-    # 3. Cálculos monetarios en Decimal
+    # 3. Idempotencia: un mismo external_reference no puede repetirse
+    if order_in.external_reference:
+        duplicate = db.query(Order).filter(
+            Order.external_reference == order_in.external_reference,
+            Order.deleted_at.is_(None)
+        ).first()
+        if duplicate:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Ya existe un pedido con esa referencia externa."
+            )
+
+    # 4. Cálculos monetarios en Decimal
     subtotal = Decimal(str(order_in.subtotal)).quantize(Decimal("0.01"))
     delivery_cost = Decimal(str(order_in.delivery_cost)).quantize(Decimal("0.01"))
     tax = (subtotal * ITBMS_RATE).quantize(Decimal("0.01"))
@@ -597,12 +612,14 @@ def create_order(
         total=total,
         items_json=items_json,
         created_by=current_user.id,
-        created_at=now
+        created_at=now,
+        source=order_in.source or "whatsapp",
+        external_reference=order_in.external_reference,
     )
     db.add(order)
     db.commit()
     db.refresh(order)
-    logger.info(f"Comanda {order_code} creada para conv {conv.id} por {current_user.name} (Total: ${total})")
+    logger.info(f"Comanda {order_code} creada para conv {order_in.conversation_id} por {current_user.name} (Total: ${total})")
     return order
 
 @router.get("/conversation/{conversation_id}", response_model=List[OrderResponse])

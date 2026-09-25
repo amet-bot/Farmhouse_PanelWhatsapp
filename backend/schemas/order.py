@@ -31,13 +31,17 @@ class OrderBase(BaseModel):
     items_json: Optional[str] = None
 
 class OrderCreate(BaseModel):
-    conversation_id: int
+    # Fase 3: ya no es obligatoria — un pedido puede crearse sin conversación de WhatsApp
+    # (por ejemplo, manual o de una integración externa a futuro).
+    conversation_id: Optional[int] = None
     branch_id: int
     order_type: OrderTypeEnum = OrderTypeEnum.delivery
     subtotal: Decimal = Field(..., ge=0)
     delivery_cost: Decimal = Field(Decimal("0.00"), ge=0)
     items: Optional[List[OrderItemSchema]] = None
     items_json: Optional[str] = None
+    source: Optional[str] = Field(None, max_length=20)
+    external_reference: Optional[str] = Field(None, max_length=150)
 
 class OrderUpdate(BaseModel):
     status: Optional[OrderStatusEnum] = None
@@ -133,7 +137,7 @@ class CartSyncResponse(BaseModel):
 class OrderResponse(OrderBase):
     id: int
     order_code: str
-    conversation_id: int
+    conversation_id: Optional[int] = None
     branch_id: int
     status: str
     payment_status: str = "pending"
@@ -141,5 +145,7 @@ class OrderResponse(OrderBase):
     payment_confirmation_number: Optional[str] = None
     created_by: Optional[int] = None
     created_at: datetime
+    source: str = "whatsapp"
+    external_reference: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

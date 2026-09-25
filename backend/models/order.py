@@ -8,8 +8,12 @@ class Order(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     order_code = Column(String(50), unique=True, nullable=False, index=True) # "FH-000123"
-    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    # Fase 3: de dónde vino el pedido ("whatsapp", "manual", a futuro "invu"...) y una referencia
+    # externa opcional y única para no duplicar un mismo pedido si una integración reintenta.
+    source = Column(String(20), nullable=False, default="whatsapp")
+    external_reference = Column(String(150), nullable=True, unique=True)
     order_type = Column(String(50), nullable=False, default="delivery") # "delivery", "takeout", "catering"
     status = Column(String(50), nullable=False, default="en_proceso") # "en_proceso", "en_cocina", "en_delivery", "entregado", "cancelado"
     subtotal = Column(Numeric(10, 2), nullable=False, default=0.00) # Subtotal sin delivery ni impuesto
