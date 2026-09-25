@@ -27,6 +27,7 @@ from schemas.inventory import (
     MovementComparisonResponse,
 )
 from services import invu_client, invu_sync
+from services.audit import log_audit_event
 from security.auth import get_current_authorized_user
 from security.access_control import check_target_branch_valid
 
@@ -254,6 +255,10 @@ def create_shipment(
             source_id=shipment.id,
             created_by_user_id=current_user.id,
         ))
+    log_audit_event(
+        db, current_user.id, shipment.branch_id, "shipment.create", "shipment", shipment.id,
+        {"items": len(shipment.items), "supplier_id": shipment.supplier_id}
+    )
     db.commit()
     db.refresh(shipment)
     logger.info(f"Cargamento #{shipment.id} registrado en sucursal {shipment.branch_id} por {current_user.name}")
@@ -496,6 +501,10 @@ def create_waste(
             source_id=record.id,
             created_by_user_id=current_user.id,
         ))
+    log_audit_event(
+        db, current_user.id, record.branch_id, "waste.create", "waste_record", record.id,
+        {"reason": record.reason, "items": len(record.items)}
+    )
     db.commit()
     db.refresh(record)
 
@@ -783,6 +792,10 @@ def create_count(
             source_id=record.id,
             created_by_user_id=current_user.id,
         ))
+    log_audit_event(
+        db, current_user.id, record.branch_id, "count.create", "stock_count", record.id,
+        {"items": len(record.items), "is_first_count": es_primero}
+    )
     db.commit()
     db.refresh(record)
 

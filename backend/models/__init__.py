@@ -18,5 +18,6 @@ from models.invu_sales import InvuMenuItem, InvuSale, InvuSaleLine, InvuSaleModi
 from models.inventory_movement import InventoryMovement
 from models.transfer import Transfer, TransferItem
 from models.ops import SupplyRequest, Incident, Task
+from models.audit import AuditEvent
 
-__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription", "BotFlow", "InventoryItem", "Supplier", "Shipment", "ShipmentItem", "InternalThread", "InternalParticipant", "InternalMessage", "WasteRecord", "WasteItem", "StockCount", "StockCountItem", "InvuMenuItem", "InvuSale", "InvuSaleLine", "InvuSaleModifier", "InvuSyncDay", "InventoryMovement", "Transfer", "TransferItem", "SupplyRequest", "Incident", "Task"]
+__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription", "BotFlow", "InventoryItem", "Supplier", "Shipment", "ShipmentItem", "InternalThread", "InternalParticipant", "InternalMessage", "WasteRecord", "WasteItem", "StockCount", "StockCountItem", "InvuMenuItem", "InvuSale", "InvuSaleLine", "InvuSaleModifier", "InvuSyncDay", "InventoryMovement", "Transfer", "TransferItem", "SupplyRequest", "Incident", "Task", "AuditEvent"]

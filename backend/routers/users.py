@@ -13,6 +13,7 @@ from models.message import Message
 from schemas.user import UserResponse, UserCreate, UserUpdate
 from security.auth import get_current_user, get_password_hash
 from security.permissions import require_permission
+from services.audit import log_audit_event
 
 logger = logging.getLogger("farmhouse.users")
 
@@ -100,6 +101,11 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db), current_user
         active=user_in.active if user_in.active is not None else True
     )
     db.add(user)
+    db.flush()  # asigna user.id antes de auditar (Fase 4)
+    log_audit_event(
+        db, current_user.id, user.branch_id, "user.create", "user", user.id,
+        {"role": user.role, "active": user.active}
+    )
     db.commit()
     db.refresh(user)
 
@@ -158,6 +164,10 @@ def update_user(
     for field, val in update_data.items():
         setattr(user, field, val)
 
+    log_audit_event(
+        db, current_user.id, user.branch_id, "user.update", "user", user.id,
+        {"fields": sorted(update_data.keys())}
+    )
     db.commit()
     db.refresh(user)
     logger.info(f"Usuario actualizado por Admin ({current_user.username}): ID {user.id} '{user.name}' (@{user.username}, Rol: '{user.role}', Activo: {user.active})")
@@ -192,6 +202,10 @@ def toggle_user_active(
             )
 
     user.active = not user.active
+    log_audit_event(
+        db, current_user.id, user.branch_id, "user.toggle_active", "user", user.id,
+        {"active": user.active}
+    )
     db.commit()
     db.refresh(user)
     return user
@@ -241,6 +255,11 @@ def delete_user(
     db.query(Device).filter(Device.assigned_user_id == user_id).update({"assigned_user_id": None}, synchronize_session=False)
     db.query(Conversation).filter(Conversation.assigned_user_id == user_id).update({"assigned_user_id": None}, synchronize_session=False)
     db.query(Message).filter(Message.sender_id == user_id).update({"sender_id": None}, synchronize_session=False)
+
+    log_audit_event(
+        db, current_user.id, user.branch_id, "user.delete", "user", user.id,
+        {"username": user.username, "role": user.role}
+    )
 
     # 5. Eliminación física en SQL Server
     db.delete(user)

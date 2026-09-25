@@ -15,6 +15,7 @@ from schemas.transfer import (
 )
 from security.auth import get_current_authorized_user
 from security.access_control import check_target_branch_valid
+from services.audit import log_audit_event
 
 logger = logging.getLogger("farmhouse.transfers")
 
@@ -134,6 +135,11 @@ def create_transfer(
         ))
 
     db.add(transfer)
+    db.flush()  # asigna transfer.id antes de auditar (Fase 4)
+    log_audit_event(
+        db, current_user.id, current_user.branch_id, "transfer.request", "transfer", transfer.id,
+        {"from_branch_id": transfer.from_branch_id, "to_branch_id": transfer.to_branch_id}
+    )
     db.commit()
     db.refresh(transfer)
     logger.info(f"Traslado #{transfer.id} solicitado de sucursal {transfer.from_branch_id} a {transfer.to_branch_id} por {current_user.name}")
@@ -203,6 +209,7 @@ def approve_transfer(
     transfer.approved_at = datetime.now(timezone.utc)
     if action.notes:
         transfer.notes = f"{transfer.notes}\n{action.notes}" if transfer.notes else action.notes
+    log_audit_event(db, current_user.id, current_user.branch_id, "transfer.approve", "transfer", transfer.id)
     db.commit()
     db.refresh(transfer)
     return _serialize(transfer)
@@ -236,6 +243,7 @@ def dispatch_transfer(
             source_id=transfer.id,
             created_by_user_id=current_user.id,
         ))
+    log_audit_event(db, current_user.id, transfer.from_branch_id, "transfer.dispatch", "transfer", transfer.id)
     db.commit()
     db.refresh(transfer)
     logger.info(f"Traslado #{transfer.id} despachado de sucursal {transfer.from_branch_id} por {current_user.name}")
@@ -272,6 +280,7 @@ def receive_transfer(
             source_id=transfer.id,
             created_by_user_id=current_user.id,
         ))
+    log_audit_event(db, current_user.id, transfer.to_branch_id, "transfer.receive", "transfer", transfer.id)
     db.commit()
     db.refresh(transfer)
     logger.info(f"Traslado #{transfer.id} recibido en sucursal {transfer.to_branch_id} por {current_user.name}")
@@ -294,6 +303,7 @@ def reject_transfer(
     transfer.status = "rejected"
     if action.notes:
         transfer.notes = f"{transfer.notes}\n{action.notes}" if transfer.notes else action.notes
+    log_audit_event(db, current_user.id, current_user.branch_id, "transfer.reject", "transfer", transfer.id)
     db.commit()
     db.refresh(transfer)
     return _serialize(transfer)
@@ -318,6 +328,7 @@ def cancel_transfer(
     transfer.status = "cancelled"
     if action.notes:
         transfer.notes = f"{transfer.notes}\n{action.notes}" if transfer.notes else action.notes
+    log_audit_event(db, current_user.id, current_user.branch_id, "transfer.cancel", "transfer", transfer.id)
     db.commit()
     db.refresh(transfer)
     return _serialize(transfer)
