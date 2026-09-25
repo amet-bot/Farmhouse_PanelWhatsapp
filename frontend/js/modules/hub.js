@@ -118,6 +118,15 @@ const NAV_GROUPS = [
         icon: 'settings',
         status: 'coming-soon',
       },
+      {
+        id: 'integraciones',
+        name: 'Integraciones',
+        description: 'Estado de la sincronización con Invu, por sucursal y por día.',
+        tags: ['Invu', 'Sincronización', 'Sucursales'],
+        icon: 'plug-zap',
+        status: 'active',
+        route: '/link?view=sincronizacion',
+      },
     ],
   },
 ];

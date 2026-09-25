@@ -584,5 +584,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   await loadSales();
+
+  // Fase 5: "Administración → Integraciones" del hub linkea acá con ?view=sincronizacion en vez
+  // de reconstruir esta pantalla — el estado de la sincronización con Invu ya vivía en esta
+  // pestaña, solo hacía falta un acceso más directo que "Reportes → Ventas Invu".
+  if (new URLSearchParams(window.location.search).get('view') === 'sincronizacion') {
+    setView('sincronizacion');
+  }
   utils.renderIcons();
 });
