@@ -245,6 +245,11 @@ if frontend_dir.exists():
         def serve_link():
             return FileResponse(str(frontend_dir / "link.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
+    if (frontend_dir / "tablet.html").exists():
+        @app.get("/operacion", include_in_schema=False)
+        def serve_tablet():
+            return FileResponse(str(frontend_dir / "tablet.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
     if (frontend_dir / "manifest.json").exists():
         @app.get("/manifest.json", include_in_schema=False)
         def serve_manifest():

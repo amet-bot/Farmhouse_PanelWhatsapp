@@ -1,0 +1,203 @@
+/* Farmhouse Link — Operación de Sucursal (Fase 4, quinto bloque)
+   El armazón (gate, header) viene de inventory.css. Acá solo la grilla de botones grandes,
+   pensada para un dedo en una tablet: mucho aire, texto grande, un toque y listo. */
+
+.tablet-body {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+
+.tablet-branch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: var(--green-soft-text);
+  border: 1px solid var(--green-border);
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 24px;
+}
+
+.tablet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.tablet-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 36px 20px;
+  min-height: 160px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.tablet-tile:hover,
+.tablet-tile:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--green-border);
+  box-shadow: 0 8px 20px rgba(0, 185, 107, 0.14);
+}
+
+.tablet-tile:active {
+  transform: translateY(0);
+}
+
+.tablet-tile:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.tablet-tile-icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--green-soft);
+  color: var(--green-soft-text);
+}
+
+.tablet-tile-icon i,
+.tablet-tile-icon svg {
+  width: 30px;
+  height: 30px;
+}
+
+.tablet-tile-label {
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ---- Modales chicos (Solicitar / Transferir / Reportar) ---- */
+.tablet-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 22, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 200;
+}
+
+.tablet-modal {
+  width: 100%;
+  max-width: 440px;
+  background: var(--panel-bg);
+  border-radius: 18px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.tablet-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.tablet-modal-head h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.tablet-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px;
+}
+
+.tablet-modal-error {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger-text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+}
+
+.tablet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.tablet-field span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.tablet-field input,
+.tablet-field select,
+.tablet-field textarea {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.tablet-autocomplete {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-top: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 5;
+}
+
+.tablet-autocomplete-row {
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.tablet-autocomplete-row:hover {
+  background: var(--panel-subtle);
+}
+
+.tablet-submit-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  background: var(--green);
+  color: var(--text-inverse);
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.tablet-submit-btn:hover {
+  background: var(--green-dark);
+}

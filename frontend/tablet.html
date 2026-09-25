@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operación de Sucursal — Farmhouse Link</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=2.10.0">
+  <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario: se reusa su hoja tal cual
+       y tablet.css solo agrega la grilla de botones grandes, que Inventario no tiene. -->
+  <link rel="stylesheet" href="css/inventory.css?v=3.6.0">
+  <link rel="stylesheet" href="css/tablet.css?v=1.0.0">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <div class="inv-gate" id="tabletGate">
+    <span class="inv-gate-spinner" aria-hidden="true"></span>
+    <p>Verificando sesión...</p>
+  </div>
+
+  <div class="inv-app" id="tabletMain" hidden>
+
+    <header class="inv-header">
+      <a class="inv-back" href="/hub" title="Volver al Panel General">
+        <i data-lucide="arrow-left"></i>
+        <span>Panel General</span>
+      </a>
+      <div class="inv-header-titles">
+        <p class="inv-title">Operación de Sucursal</p>
+        <span class="inv-subtitle" id="tabletHeaderScope">Tocá lo que necesitás hacer.</span>
+      </div>
+      <div class="inv-header-actions">
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="tabletAgentAvatar">AD</div>
+          <div>
+            <strong id="tabletAgentName">Administrador</strong>
+            <small id="tabletAgentRole">ADMIN</small>
+          </div>
+        </div>
+        <button class="inv-logout-btn" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="tablet-body">
+      <div class="tablet-branch-badge" id="tabletBranchBadge">Sucursal</div>
+
+      <div class="tablet-grid">
+        <button type="button" class="tablet-tile" id="btnGoShipment">
+          <span class="tablet-tile-icon"><i data-lucide="truck"></i></span>
+          <span class="tablet-tile-label">Recibir mercancía</span>
+        </button>
+        <button type="button" class="tablet-tile" id="btnGoCount">
+          <span class="tablet-tile-icon"><i data-lucide="clipboard-check"></i></span>
+          <span class="tablet-tile-label">Hacer conteo</span>
+        </button>
+        <button type="button" class="tablet-tile" id="btnGoWaste">
+          <span class="tablet-tile-icon"><i data-lucide="trash-2"></i></span>
+          <span class="tablet-tile-label">Registrar merma</span>
+        </button>
+        <button type="button" class="tablet-tile" id="btnOpenRequest">
+          <span class="tablet-tile-icon"><i data-lucide="package-plus"></i></span>
+          <span class="tablet-tile-label">Solicitar insumos</span>
+        </button>
+        <button type="button" class="tablet-tile" id="btnOpenTransfer">
+          <span class="tablet-tile-icon"><i data-lucide="arrow-left-right"></i></span>
+          <span class="tablet-tile-label">Transferir</span>
+        </button>
+        <button type="button" class="tablet-tile" id="btnOpenIncident">
+          <span class="tablet-tile-icon"><i data-lucide="alert-triangle"></i></span>
+          <span class="tablet-tile-label">Reportar incidencia</span>
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <!-- ================= Solicitar insumos ================= -->
+  <div class="tablet-modal-overlay" id="modalRequest" hidden>
+    <div class="tablet-modal">
+      <div class="tablet-modal-head">
+        <h2>Solicitar insumos</h2>
+        <button type="button" class="tablet-modal-close" data-close><i data-lucide="x"></i></button>
+      </div>
+      <div class="tablet-modal-error" id="requestError" style="display:none"></div>
+      <form id="requestForm">
+        <label class="tablet-field">
+          <span>¿Qué hace falta?</span>
+          <input type="text" id="requestItemName" required maxlength="150" placeholder="Ej: Servilletas">
+        </label>
+        <label class="tablet-field">
+          <span>Cantidad (opcional)</span>
+          <input type="text" id="requestQuantityHint" maxlength="50" placeholder="Ej: 3 paquetes">
+        </label>
+        <label class="tablet-field">
+          <span>Notas (opcional)</span>
+          <textarea id="requestNotes" rows="2" maxlength="1000"></textarea>
+        </label>
+        <button type="submit" class="tablet-submit-btn">Enviar solicitud</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= Transferir ================= -->
+  <div class="tablet-modal-overlay" id="modalTransfer" hidden>
+    <div class="tablet-modal">
+      <div class="tablet-modal-head">
+        <h2>Transferir insumo</h2>
+        <button type="button" class="tablet-modal-close" data-close><i data-lucide="x"></i></button>
+      </div>
+      <div class="tablet-modal-error" id="transferError" style="display:none"></div>
+      <form id="transferForm">
+        <label class="tablet-field">
+          <span>Sucursal destino</span>
+          <select id="transferToBranch" required></select>
+        </label>
+        <label class="tablet-field">
+          <span>Insumo</span>
+          <input type="text" id="transferItemSearch" placeholder="Buscar insumo..." autocomplete="off">
+          <input type="hidden" id="transferItemId">
+          <div class="tablet-autocomplete" id="transferItemResults" hidden></div>
+        </label>
+        <label class="tablet-field">
+          <span>Cantidad</span>
+          <input type="number" id="transferQuantity" required min="0.001" step="0.001">
+        </label>
+        <label class="tablet-field">
+          <span>Notas (opcional)</span>
+          <textarea id="transferNotes" rows="2" maxlength="1000"></textarea>
+        </label>
+        <button type="submit" class="tablet-submit-btn">Pedir traslado</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= Reportar incidencia ================= -->
+  <div class="tablet-modal-overlay" id="modalIncident" hidden>
+    <div class="tablet-modal">
+      <div class="tablet-modal-head">
+        <h2>Reportar incidencia</h2>
+        <button type="button" class="tablet-modal-close" data-close><i data-lucide="x"></i></button>
+      </div>
+      <div class="tablet-modal-error" id="incidentError" style="display:none"></div>
+      <form id="incidentForm">
+        <label class="tablet-field">
+          <span>¿Qué pasó?</span>
+          <input type="text" id="incidentTitle" required maxlength="150" placeholder="Ej: Nevera dañada">
+        </label>
+        <label class="tablet-field">
+          <span>Severidad</span>
+          <select id="incidentSeverity">
+            <option value="baja">Baja</option>
+            <option value="media" selected>Media</option>
+            <option value="alta">Alta</option>
+          </select>
+        </label>
+        <label class="tablet-field">
+          <span>Detalle (opcional)</span>
+          <textarea id="incidentDescription" rows="3" maxlength="2000"></textarea>
+        </label>
+        <button type="submit" class="tablet-submit-btn">Reportar</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastNotification" class="toast-banner">
+    <span id="toastIconSlot"><i data-lucide="check" id="toastIcon"></i></span>
+    <span id="toastMessage">Operación realizada con éxito.</span>
+  </div>
+
+  <script src="js/utils.js?v=3.5.0"></script>
+  <script src="js/api.js?v=3.5.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/shared/shell.js?v=1.0.0"></script>
+  <script src="js/modules/tablet.js?v=1.0.0"></script>
+</body>
+</html>

@@ -2556,4 +2556,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderSupplierList();
   setView('resumen');
   utils.renderIcons();
+
+  // Fase 4: la vista de tablet (tablet.html) linkea acá con ?open=shipment|waste|count en vez
+  // de reconstruir esos formularios — un botón grande que abre el modal de siempre.
+  const openParam = new URLSearchParams(window.location.search).get('open');
+  const AUTO_OPEN = {
+    shipment: () => { setView('cargamentos'); openShipmentModal(); },
+    waste: () => { setView('merma'); openWasteModal(); },
+    count: () => { setView('conteo'); openCountModal(); },
+  };
+  AUTO_OPEN[openParam]?.();
 });

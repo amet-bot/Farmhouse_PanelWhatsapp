@@ -44,10 +44,11 @@ const NAV_GROUPS = [
       {
         id: 'operacion',
         name: 'Operación de Sucursal',
-        description: 'Pendientes, recepciones, solicitudes, transferencias e incidencias.',
+        description: 'Recibir mercancía, contar, registrar merma, solicitar insumos, transferir y reportar incidencias.',
         tags: ['Sucursales', 'Tareas'],
         icon: 'clipboard-list',
-        status: 'coming-soon',
+        status: 'active',
+        route: '/operacion',
       },
     ],
   },
