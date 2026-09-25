@@ -238,3 +238,16 @@ class InvuSyncResult(BaseModel):
     linked: int                # ya existían acá con el mismo nombre y quedaron emparejados
     updated: int               # ya estaban sincronizados y algún dato cambió
     synced_at: datetime
+
+
+class MovementComparisonResponse(BaseModel):
+    """
+    Fase 4: existencia calculada por la fórmula de siempre vs. la que da el libro de movimientos
+    nuevo, insumo por insumo. Solo lectura — sirve para observar si coinciden antes de decidir
+    cuál manda; no cambia nada por sí sola.
+    """
+    inventory_item_id: int
+    item_name: str
+    on_hand_formula: Decimal
+    on_hand_movements: Decimal
+    matches: bool

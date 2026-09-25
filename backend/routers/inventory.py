@@ -16,6 +16,7 @@ from models.shipment import Shipment, ShipmentItem
 from models.user import User
 from models.waste import WasteRecord, WasteItem
 from models.stock_count import StockCount, StockCountItem
+from models.inventory_movement import InventoryMovement
 from schemas.inventory import (
     InventoryItemCreate, InventoryItemResponse,
     InvuStatusResponse, InvuSyncResult,
@@ -23,6 +24,7 @@ from schemas.inventory import (
     ShipmentCreate, ShipmentResponse, ShipmentItemResponse,
     StockCountCreate, StockCountItemResponse, StockCountResponse,
     StockRowResponse, WasteCreate, WasteItemResponse, WasteReasonResponse, WasteResponse,
+    MovementComparisonResponse,
 )
 from services import invu_client, invu_sync
 from security.auth import get_current_authorized_user
@@ -239,6 +241,19 @@ def create_shipment(
         ))
 
     db.add(shipment)
+    db.flush()  # asigna shipment.id antes de generar los movimientos del libro (Fase 4)
+    for line in shipment.items:
+        db.add(InventoryMovement(
+            branch_id=shipment.branch_id,
+            inventory_item_id=line.inventory_item_id,
+            movement_type="in",
+            quantity=line.quantity,
+            unit_cost=line.unit_cost,
+            occurred_at=shipment.received_at,
+            source_type="shipment",
+            source_id=shipment.id,
+            created_by_user_id=current_user.id,
+        ))
     db.commit()
     db.refresh(shipment)
     logger.info(f"Cargamento #{shipment.id} registrado en sucursal {shipment.branch_id} por {current_user.name}")
@@ -468,6 +483,19 @@ def create_waste(
         ))
 
     db.add(record)
+    db.flush()  # asigna record.id antes de generar los movimientos del libro (Fase 4)
+    for line in record.items:
+        db.add(InventoryMovement(
+            branch_id=record.branch_id,
+            inventory_item_id=line.inventory_item_id,
+            movement_type="out",
+            quantity=-Decimal(line.quantity),
+            unit_cost=line.unit_cost,
+            occurred_at=record.occurred_at,
+            source_type="waste",
+            source_id=record.id,
+            created_by_user_id=current_user.id,
+        ))
     db.commit()
     db.refresh(record)
 
@@ -740,6 +768,21 @@ def create_count(
         ))
 
     db.add(record)
+    db.flush()  # asigna record.id antes de generar los movimientos del libro (Fase 4)
+    for line in record.items:
+        if line.difference == 0:
+            continue  # sin diferencia no hay movimiento que registrar
+        db.add(InventoryMovement(
+            branch_id=record.branch_id,
+            inventory_item_id=line.inventory_item_id,
+            movement_type="adjustment",
+            quantity=line.difference,
+            unit_cost=line.unit_cost,
+            occurred_at=record.counted_at,
+            source_type="count",
+            source_id=record.id,
+            created_by_user_id=current_user.id,
+        ))
     db.commit()
     db.refresh(record)
 
@@ -773,6 +816,64 @@ def list_counts(
     records = query.order_by(StockCount.counted_at.desc(), StockCount.id.desc()).offset(offset).limit(limit).all()
     primeros = _first_count_ids(db, list({r.branch_id for r in records}))
     return [_serialize_count(r, is_first=(r.id in primeros)) for r in records]
+
+
+# ==========================================================================
+# Libro de movimientos (Fase 4) — solo lectura, en observación
+# ==========================================================================
+@router.get("/movements/compare", response_model=List[MovementComparisonResponse])
+def compare_movements_with_formula(
+    branch_id: int = Query(...),
+    only_mismatches: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Compara, insumo por insumo, la existencia de la fórmula de siempre contra la que da el libro
+    de movimientos nuevo. Solo lectura: no cambia cuál manda, existe para poder observar si
+    coinciden antes de decidir eso.
+    """
+    if current_user.role == "agent":
+        if branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para ver el inventario de otra sucursal."
+            )
+    elif current_user.role == "supervisor" and current_user.branch_id:
+        if branch_id != current_user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para ver el inventario de otra sucursal."
+            )
+
+    check_target_branch_valid(db, branch_id)
+
+    items = db.query(InventoryItem).order_by(InventoryItem.name).all()
+    item_ids = [i.id for i in items]
+
+    formula = _on_hand_map(db, branch_id, item_ids)
+    desde_movimientos = dict(
+        db.query(InventoryMovement.inventory_item_id, func.coalesce(func.sum(InventoryMovement.quantity), 0))
+        .filter(InventoryMovement.branch_id == branch_id, InventoryMovement.inventory_item_id.in_(item_ids))
+        .group_by(InventoryMovement.inventory_item_id)
+        .all()
+    )
+
+    filas = []
+    for item in items:
+        f = formula.get(item.id, Decimal("0"))
+        m = Decimal(desde_movimientos.get(item.id, 0))
+        coincide = f == m
+        if only_mismatches and coincide:
+            continue
+        filas.append(MovementComparisonResponse(
+            inventory_item_id=item.id,
+            item_name=item.name,
+            on_hand_formula=f,
+            on_hand_movements=m,
+            matches=coincide,
+        ))
+    return filas
 
 
 # ==========================================================================

@@ -28,6 +28,8 @@ from routers import (
     inventory,
     internal_chat,
     link,
+    transfers,
+    ops,
 )
 from services.bot_followup import run_followup_sweep_loop
 from services import invu_sync, invu_sales_sync
@@ -170,6 +172,8 @@ app.include_router(bot_flows.router, prefix=settings.API_V1_STR)
 app.include_router(inventory.router, prefix=settings.API_V1_STR)
 app.include_router(internal_chat.router, prefix=settings.API_V1_STR)
 app.include_router(link.router, prefix=settings.API_V1_STR)
+app.include_router(transfers.router, prefix=settings.API_V1_STR)
+app.include_router(ops.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)
 
 # -----------------------------------------------------------------------------
