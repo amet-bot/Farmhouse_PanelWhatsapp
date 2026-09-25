@@ -97,6 +97,13 @@
   z-index: 200;
 }
 
+/* [hidden] es un atributo, no una clase — sin este override la regla de arriba (misma
+   especificidad que el estilo nativo del navegador) lo gana y los tres modales quedan visibles
+   y clicleables al mismo tiempo, tapados unos con otros. */
+.tablet-modal-overlay[hidden] {
+  display: none !important;
+}
+
 .tablet-modal {
   width: 100%;
   max-width: 440px;
