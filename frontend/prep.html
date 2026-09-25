@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prep — Farmhouse Link</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=2.10.0">
+  <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario, igual que tablet.html. -->
+  <link rel="stylesheet" href="css/inventory.css?v=3.6.0">
+  <link rel="stylesheet" href="css/prep.css?v=1.0.0">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <div class="inv-gate" id="prepGate">
+    <span class="inv-gate-spinner" aria-hidden="true"></span>
+    <p>Verificando sesión...</p>
+  </div>
+
+  <div class="inv-app" id="prepMain" hidden>
+
+    <header class="inv-header">
+      <a class="inv-back" href="/operacion" title="Volver a Operación de Sucursal">
+        <i data-lucide="arrow-left"></i>
+        <span>Operación de Sucursal</span>
+      </a>
+      <div class="inv-header-titles">
+        <p class="inv-title">Prep de Bowls</p>
+        <span class="inv-subtitle" id="prepHeaderScope">—</span>
+      </div>
+      <div class="inv-header-actions">
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="prepAgentAvatar">AD</div>
+          <div>
+            <strong id="prepAgentName">Administrador</strong>
+            <small id="prepAgentRole">ADMIN</small>
+          </div>
+        </div>
+        <button class="inv-logout-btn" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="prep-body">
+
+      <select class="inv-filter-select" id="branchSelect" hidden></select>
+
+      <!-- ---------- Sin plantilla todavía ---------- -->
+      <div class="prep-empty" id="prepEmptyState" hidden>
+        <i data-lucide="clipboard-list"></i>
+        <p id="prepEmptyMessage">Todavía no hay una plantilla de prep para esta sucursal.</p>
+        <button type="button" class="inv-primary-btn" id="btnCreateTemplate" hidden>Crear plantilla</button>
+      </div>
+
+      <!-- ---------- Con plantilla ---------- -->
+      <div id="prepWithTemplate" hidden>
+        <div class="prep-tabs" id="prepTabs">
+          <button type="button" class="prep-tab active" data-tab="llenar">Llenar checklist</button>
+          <button type="button" class="prep-tab" data-tab="plantilla" id="tabPlantilla" hidden>Plantilla</button>
+        </div>
+
+        <!-- ---------- Llenar ---------- -->
+        <div class="prep-view" id="viewLlenar">
+          <div class="prep-checkpoint-row" id="checkpointRow"></div>
+          <div id="prepSections"></div>
+          <button type="button" class="tablet-submit-btn" id="btnSubmitCheck">Guardar</button>
+        </div>
+
+        <!-- ---------- Plantilla ---------- -->
+        <div class="prep-view" id="viewPlantilla" hidden>
+          <div class="prep-panel">
+            <div class="prep-panel-head">
+              <h2>Checkpoints</h2>
+              <span class="inv-panel-note">Ej: 10am, 3pm, 8pm — o lo que uses (Congelador Grande, Congelador chico...)</span>
+            </div>
+            <div class="prep-checkpoint-edit" id="checkpointEditRow"></div>
+            <button type="button" class="prep-text-btn" id="btnAddCheckpoint"><i data-lucide="plus"></i> Agregar checkpoint</button>
+          </div>
+
+          <div class="prep-panel">
+            <div class="prep-panel-head">
+              <h2>Ítems</h2>
+              <button type="button" class="prep-text-btn" id="btnBulkPaste"><i data-lucide="clipboard-paste"></i> Pegar en bloque</button>
+            </div>
+            <div class="prep-bulk-paste" id="bulkPasteBox" hidden>
+              <p>Una línea por ítem: <code>Sección | Nombre | Unidad | Par | Notas</code> (notas es opcional).</p>
+              <textarea id="bulkPasteInput" rows="6" placeholder="Base | Kale picado | cambro L | 3 | cortar el día que se sirve"></textarea>
+              <button type="button" class="tablet-submit-btn" id="btnApplyBulkPaste">Agregar estas líneas</button>
+            </div>
+            <table class="prep-item-table">
+              <thead>
+                <tr><th>Sección</th><th>Nombre</th><th>Unidad</th><th>Par</th><th>Notas</th><th></th></tr>
+              </thead>
+              <tbody id="itemEditRows"></tbody>
+            </table>
+            <button type="button" class="prep-text-btn" id="btnAddItemRow"><i data-lucide="plus"></i> Agregar ítem</button>
+          </div>
+
+          <button type="button" class="tablet-submit-btn" id="btnSaveTemplate">Guardar plantilla</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toastNotification" class="toast-banner">
+    <span id="toastIconSlot"><i data-lucide="check" id="toastIcon"></i></span>
+    <span id="toastMessage">Operación realizada con éxito.</span>
+  </div>
+
+  <script src="js/utils.js?v=3.5.0"></script>
+  <script src="js/api.js?v=3.5.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/shared/shell.js?v=1.0.0"></script>
+  <script src="js/modules/prep.js?v=1.0.0"></script>
+</body>
+</html>

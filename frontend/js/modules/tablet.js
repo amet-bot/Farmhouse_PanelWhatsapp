@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btnGoShipment').addEventListener('click', () => { window.location.href = '/inventario?open=shipment'; });
   $('btnGoCount').addEventListener('click', () => { window.location.href = '/inventario?open=count'; });
   $('btnGoWaste').addEventListener('click', () => { window.location.href = '/inventario?open=waste'; });
+  $('btnGoPrep').addEventListener('click', () => { window.location.href = '/prep'; });
 
   // ---- Solicitar insumos ----
   $('btnOpenRequest').addEventListener('click', () => {

@@ -30,6 +30,7 @@ from routers import (
     link,
     transfers,
     ops,
+    prep,
 )
 from services.bot_followup import run_followup_sweep_loop
 from services import invu_sync, invu_sales_sync
@@ -174,6 +175,7 @@ app.include_router(internal_chat.router, prefix=settings.API_V1_STR)
 app.include_router(link.router, prefix=settings.API_V1_STR)
 app.include_router(transfers.router, prefix=settings.API_V1_STR)
 app.include_router(ops.router, prefix=settings.API_V1_STR)
+app.include_router(prep.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)
 
 # -----------------------------------------------------------------------------
@@ -249,6 +251,11 @@ if frontend_dir.exists():
         @app.get("/operacion", include_in_schema=False)
         def serve_tablet():
             return FileResponse(str(frontend_dir / "tablet.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+    if (frontend_dir / "prep.html").exists():
+        @app.get("/prep", include_in_schema=False)
+        def serve_prep():
+            return FileResponse(str(frontend_dir / "prep.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     if (frontend_dir / "manifest.json").exists():
         @app.get("/manifest.json", include_in_schema=False)

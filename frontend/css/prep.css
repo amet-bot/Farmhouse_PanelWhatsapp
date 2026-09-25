@@ -1,0 +1,275 @@
+/* Farmhouse Link — Prep de Bowls
+   El armazón (gate, header) viene de inventory.css. Acá el contenido propio: pestañas,
+   checkpoints tipo chip, secciones de ítems y el editor de plantilla. */
+
+.prep-body {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+.prep-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+}
+
+.prep-empty i {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
+}
+
+.prep-empty-hint {
+  color: var(--text-muted);
+  padding: 20px;
+  text-align: center;
+}
+
+.prep-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prep-tab {
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.prep-tab.active {
+  color: var(--green-soft-text);
+  border-bottom-color: var(--green);
+}
+
+/* ---- Checklist ---- */
+.prep-checkpoint-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.prep-chip {
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.prep-chip.active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--text-inverse);
+}
+
+.prep-section {
+  margin-bottom: 20px;
+}
+
+.prep-section-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+}
+
+.prep-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line-light);
+}
+
+.prep-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prep-item-info small {
+  color: var(--text-muted);
+}
+
+.prep-item-note {
+  font-style: italic;
+}
+
+.prep-item-input {
+  width: 90px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 1rem;
+  text-align: right;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* ---- Editor de plantilla ---- */
+.prep-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 20px;
+}
+
+.prep-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.prep-panel-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.prep-checkpoint-edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.prep-checkpoint-edit-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--panel-subtle);
+  border-radius: 8px;
+  padding: 2px 4px 2px 8px;
+}
+
+.prep-checkpoint-input {
+  border: none;
+  background: none;
+  font-size: 0.9rem;
+  width: 130px;
+  color: var(--text-primary);
+}
+
+.prep-checkpoint-edit-item button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+}
+
+.prep-text-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  color: var(--green-soft-text);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 0;
+}
+
+.prep-bulk-paste {
+  background: var(--panel-subtle);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.prep-bulk-paste p {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.prep-bulk-paste textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  font-family: monospace;
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.prep-item-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+
+.prep-item-table th {
+  text-align: left;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 6px 4px;
+}
+
+.prep-item-table td {
+  padding: 4px;
+}
+
+.prep-item-table input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.prep-row-delete {
+  border: none;
+  background: none;
+  color: var(--red);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+}
+
+/* Botón de guardar — mismo estilo que tablet.css usa para sus formularios, copiado acá para no
+   tener que cargar esa hoja entera solo por esta clase. */
+.tablet-submit-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  background: var(--green);
+  color: var(--text-inverse);
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.tablet-submit-btn:hover {
+  background: var(--green-dark);
+}
+
+@media (max-width: 640px) {
+  .prep-item-table thead { display: none; }
+  .prep-item-table tr { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .prep-item-table td { flex: 1 1 45%; }
+}
