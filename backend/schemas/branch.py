@@ -15,6 +15,15 @@ class BranchBase(BaseModel):
 class BranchCreate(BranchBase):
     pass
 
+class BranchUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=100)
+    code: Optional[str] = Field(None, min_length=2, max_length=50)
+    color: Optional[str] = Field(None, pattern="^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$")
+    address: Optional[str] = Field(None, max_length=255)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    accepts_delivery: Optional[bool] = None
+
 class BranchResponse(BranchBase):
     id: int
     created_at: datetime

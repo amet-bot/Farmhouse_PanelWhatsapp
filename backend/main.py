@@ -257,6 +257,11 @@ if frontend_dir.exists():
         def serve_prep():
             return FileResponse(str(frontend_dir / "prep.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
+    if (frontend_dir / "administracion.html").exists():
+        @app.get("/administracion", include_in_schema=False)
+        def serve_administracion():
+            return FileResponse(str(frontend_dir / "administracion.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
     if (frontend_dir / "manifest.json").exists():
         @app.get("/manifest.json", include_in_schema=False)
         def serve_manifest():

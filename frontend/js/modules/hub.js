@@ -113,10 +113,11 @@ const NAV_GROUPS = [
       {
         id: 'administracion',
         name: 'Sucursales, empleados y dispositivos',
-        description: 'Hoy se administra desde dentro de Centro WhatsApp; un panel dedicado llega más adelante.',
+        description: 'Alta y baja de usuarios, dispositivos autorizados y sucursales.',
         tags: ['Sucursales', 'Empleados', 'Roles'],
         icon: 'settings',
-        status: 'coming-soon',
+        status: 'active',
+        route: '/administracion',
       },
       {
         id: 'integraciones',

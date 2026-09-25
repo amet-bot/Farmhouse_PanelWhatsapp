@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Administración — Farmhouse Link</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=2.10.0">
+  <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario. Las tablas, botones y
+       modales de Usuarios/Dispositivos son los mismos de Centro WhatsApp (style.css ya los
+       define global) — este panel es el lugar dedicado que faltaba, no un sistema nuevo. -->
+  <link rel="stylesheet" href="css/inventory.css?v=3.6.0">
+  <link rel="stylesheet" href="css/administracion.css?v=1.0.0">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <div class="inv-gate" id="adminGate">
+    <span class="inv-gate-spinner" aria-hidden="true"></span>
+    <p>Verificando sesión...</p>
+  </div>
+
+  <div class="inv-gate" id="adminDenied" hidden>
+    <p>Administración es solo para administradores.</p>
+    <a class="inv-back" href="/hub"><i data-lucide="arrow-left"></i><span>Volver al Panel General</span></a>
+  </div>
+
+  <div class="inv-app" id="adminMain" hidden>
+
+    <header class="inv-header">
+      <a class="inv-back" href="/hub" title="Volver al Panel General">
+        <i data-lucide="arrow-left"></i>
+        <span>Panel General</span>
+      </a>
+      <div class="inv-header-titles">
+        <p class="inv-title">Administración</p>
+        <span class="inv-subtitle">Sucursales, empleados y dispositivos</span>
+      </div>
+      <div class="inv-header-actions">
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="adminAgentAvatar">AD</div>
+          <div>
+            <strong id="adminAgentName">Administrador</strong>
+            <small id="adminAgentRole">ADMIN</small>
+          </div>
+        </div>
+        <button class="inv-logout-btn" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="admin-body">
+      <div class="admin-tabs" id="adminTabs">
+        <button type="button" class="admin-tab active" data-tab="usuarios">Usuarios</button>
+        <button type="button" class="admin-tab" data-tab="dispositivos">Dispositivos</button>
+        <button type="button" class="admin-tab" data-tab="sucursales">Sucursales</button>
+      </div>
+
+      <!-- ================= Usuarios ================= -->
+      <div class="admin-view" id="viewUsuarios">
+        <div class="admin-view-head">
+          <span class="inv-panel-note">Usuarios registrados en el sistema</span>
+          <button class="btn-primary" id="btnOpenAddUser"><i data-lucide="user-plus"></i> Crear Nuevo Agente / Usuario</button>
+        </div>
+        <div class="device-table-wrap">
+          <table class="device-table">
+            <thead>
+              <tr><th>Nombre / Usuario</th><th>Rol</th><th>Sucursal</th><th>Estado</th><th>Acción</th></tr>
+            </thead>
+            <tbody id="userTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= Dispositivos ================= -->
+      <div class="admin-view" id="viewDispositivos" hidden>
+        <div class="admin-view-head">
+          <span class="inv-panel-note">Dispositivos autorizados de acceso</span>
+          <button class="btn-primary" id="btnOpenAddDevice"><i data-lucide="plus-circle"></i> Registrar Nuevo Dispositivo</button>
+        </div>
+        <div class="device-table-wrap">
+          <table class="device-table">
+            <thead>
+              <tr><th>Nombre / Código</th><th>Tipo</th><th>Sucursal</th><th>Usuario Asignado</th><th>Estado</th><th>Acción</th></tr>
+            </thead>
+            <tbody id="deviceTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= Sucursales ================= -->
+      <div class="admin-view" id="viewSucursales" hidden>
+        <div class="admin-view-head">
+          <span class="inv-panel-note">Sucursales de Farmhouse</span>
+          <button class="btn-primary" id="btnOpenAddBranch"><i data-lucide="plus-circle"></i> Nueva Sucursal</button>
+        </div>
+        <div class="device-table-wrap">
+          <table class="device-table">
+            <thead>
+              <tr><th>Nombre</th><th>Código</th><th>Dirección</th><th>Delivery</th><th>Estado</th><th>Acción</th></tr>
+            </thead>
+            <tbody id="branchTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Modales: Usuarios (calcados de Centro WhatsApp, mismo backend) -->
+  <!-- ============================================================ -->
+  <div class="modal-backdrop" id="modalAddUser">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="user-plus"></i> Crear Usuario / Agente</h3>
+          <span class="modal-subtitle">Asignar nombre de usuario, rol y sucursal</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalAddUser">&times;</button>
+      </div>
+      <form id="formAddUser">
+        <div class="modal-body">
+          <div>
+            <label class="modal-label">Usuario / Código de Empleado:</label>
+            <input id="addUserUsername" class="modal-input" placeholder="Ej: carlos01, maria102" required />
+          </div>
+          <div>
+            <label class="modal-label">Nombre Completo:</label>
+            <input id="addUserName" class="modal-input" placeholder="Ej: Carlos Pérez" required />
+          </div>
+          <div>
+            <label class="modal-label">Correo (opcional):</label>
+            <input id="addUserEmail" type="email" class="modal-input" placeholder="carlos@farmhouse.pa" />
+          </div>
+          <div>
+            <label class="modal-label">Contraseña Inicial:</label>
+            <input type="password" id="addUserPassword" class="modal-input" placeholder="Mínimo 4 caracteres" required />
+          </div>
+          <div>
+            <label class="modal-label">Rol:</label>
+            <select id="addUserRole" class="modal-select" required>
+              <option value="agent" selected>Agente de Sucursal</option>
+              <option value="supervisor">Supervisor General</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+          <div id="addUserBranchGroup">
+            <label class="modal-label">Sucursal Asignada:</label>
+            <select id="addUserBranch" class="modal-select" required></select>
+          </div>
+          <div id="addUserError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" id="btnSaveUser" class="btn-primary" style="width:100%">Guardar Usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modalEditUser">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="pencil"></i> Editar Usuario</h3>
+          <span class="modal-subtitle">Modificar datos o estado</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalEditUser">&times;</button>
+      </div>
+      <form id="formEditUser">
+        <input type="hidden" id="editUserId" />
+        <div class="modal-body">
+          <div>
+            <label class="modal-label">Usuario / Código:</label>
+            <input id="editUserUsername" class="modal-input" required />
+          </div>
+          <div>
+            <label class="modal-label">Nombre Completo:</label>
+            <input id="editUserName" class="modal-input" required />
+          </div>
+          <div>
+            <label class="modal-label">Correo (opcional):</label>
+            <input id="editUserEmail" type="email" class="modal-input" />
+          </div>
+          <div>
+            <label class="modal-label">Rol:</label>
+            <select id="editUserRole" class="modal-select" required>
+              <option value="agent">Agente de Sucursal</option>
+              <option value="supervisor">Supervisor General</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Sucursal:</label>
+            <select id="editUserBranch" class="modal-select"></select>
+          </div>
+          <div>
+            <label class="modal-label">Estado:</label>
+            <select id="editUserStatus" class="modal-select" required>
+              <option value="true">● Activo</option>
+              <option value="false">✕ Desactivado / Inactivo</option>
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Nueva Contraseña (Opcional):</label>
+            <input type="password" id="editUserPassword" class="modal-input" placeholder="Dejar en blanco para conservar" />
+          </div>
+          <div id="editUserError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-primary" style="width:100%">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modalDeleteUser">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3 class="text-danger-heading"><i data-lucide="trash-2"></i> ¿Eliminar usuario?</h3>
+          <span class="modal-subtitle">Confirmación de eliminación</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalDeleteUser">&times;</button>
+      </div>
+      <div class="modal-body" style="line-height:1.5">
+        <input type="hidden" id="deleteUserId" />
+        <p style="font-size:13px;color:var(--text-primary);margin-bottom:10px">Estás a punto de eliminar permanentemente a:</p>
+        <div class="alert-danger-box">
+          <strong id="deleteUserNameSpan" class="alert-danger-title"></strong>
+          <div id="deleteUserUsernameSpan" class="alert-danger-detail"></div>
+        </div>
+        <p style="font-size:11px;color:var(--text-muted)">Esta acción borrará la cuenta del sistema. Los mensajes históricos y comandas se conservarán sin alteración.</p>
+      </div>
+      <div class="modal-footer" style="display:flex;gap:10px">
+        <button type="button" class="btn-cancel" id="btnCancelDeleteUser" style="flex:1">Cancelar</button>
+        <button type="button" class="btn-danger" id="btnConfirmDeleteUser" style="flex:1">Eliminar usuario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Modales: Dispositivos -->
+  <!-- ============================================================ -->
+  <div class="modal-backdrop" id="modalAddDevice">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="plus-circle"></i> Autorizar Nuevo Dispositivo</h3>
+          <span class="modal-subtitle">Control de Acceso de Administrador</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalAddDevice">&times;</button>
+      </div>
+      <form id="formAddDevice">
+        <div class="modal-body">
+          <div>
+            <label class="modal-label">Nombre del Dispositivo:</label>
+            <input id="addDevName" class="modal-input" placeholder="Ej: Tablet Clayton 01" required />
+          </div>
+          <div>
+            <label class="modal-label">Tipo de Hardware:</label>
+            <select id="addDevType" class="modal-select" required>
+              <option value="computadora">Computadora</option>
+              <option value="tablet">Tablet</option>
+              <option value="celular">Celular</option>
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Sucursal:</label>
+            <select id="addDevBranch" class="modal-select" required></select>
+          </div>
+          <div>
+            <label class="modal-label">Agente Asignado (Opcional):</label>
+            <select id="addDevUser" class="modal-select">
+              <option value="">-- Sin asignar / Agente de turno --</option>
+            </select>
+          </div>
+          <div id="addDevError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-primary" style="width:100%">Autorizar y Generar FH-DEVICE</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modalEditDevice">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="pencil"></i> Editar Dispositivo</h3>
+          <span class="modal-subtitle">Modificar asignación o estado</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalEditDevice">&times;</button>
+      </div>
+      <form id="formEditDevice">
+        <input type="hidden" id="editDevId" />
+        <div class="modal-body">
+          <div>
+            <label class="modal-label">Nombre:</label>
+            <input id="editDevName" class="modal-input" required />
+          </div>
+          <div>
+            <label class="modal-label">Tipo:</label>
+            <select id="editDevType" class="modal-select" required>
+              <option value="computadora">Computadora</option>
+              <option value="tablet">Tablet</option>
+              <option value="celular">Celular</option>
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Sucursal:</label>
+            <select id="editDevBranch" class="modal-select" required></select>
+          </div>
+          <div>
+            <label class="modal-label">Estado:</label>
+            <select id="editDevStatus" class="modal-select" required>
+              <option value="active">● Activo (Autorizado)</option>
+              <option value="disabled">✕ Deshabilitado</option>
+              <option value="revoked">Revocado</option>
+            </select>
+          </div>
+          <div id="editDevError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-primary" style="width:100%">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Modales: Sucursales -->
+  <!-- ============================================================ -->
+  <div class="modal-backdrop" id="modalAddBranch">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="plus-circle"></i> Nueva Sucursal</h3>
+          <span class="modal-subtitle">Alta de sucursal</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalAddBranch">&times;</button>
+      </div>
+      <form id="formAddBranch">
+        <div class="modal-body">
+          <div>
+            <label class="modal-label">Nombre:</label>
+            <input id="addBranchName" class="modal-input" placeholder="Ej: Costa del Este" required />
+          </div>
+          <div>
+            <label class="modal-label">Código:</label>
+            <input id="addBranchCode" class="modal-input" placeholder="Ej: CDE" required maxlength="10" />
+          </div>
+          <div>
+            <label class="modal-label">Dirección (opcional):</label>
+            <input id="addBranchAddress" class="modal-input" />
+          </div>
+          <div>
+            <label class="modal-label">Color (opcional):</label>
+            <input id="addBranchColor" type="color" class="modal-input" value="#16a34a" style="height:42px;padding:4px" />
+          </div>
+          <div class="admin-checkbox-row">
+            <label><input type="checkbox" id="addBranchDelivery" checked /> Acepta delivery</label>
+          </div>
+          <div id="addBranchError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-primary" style="width:100%">Crear Sucursal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modalEditBranch">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="pencil"></i> Editar Sucursal</h3>
+          <span class="modal-subtitle">Modificar datos</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalEditBranch">&times;</button>
+      </div>
+      <form id="formEditBranch">
+        <input type="hidden" id="editBranchId" />
+        <div class="modal-body">
+          <div>
+            <label class="modal-label">Nombre:</label>
+            <input id="editBranchName" class="modal-input" required />
+          </div>
+          <div>
+            <label class="modal-label">Código:</label>
+            <input id="editBranchCode" class="modal-input" required maxlength="10" />
+          </div>
+          <div>
+            <label class="modal-label">Dirección:</label>
+            <input id="editBranchAddress" class="modal-input" />
+          </div>
+          <div>
+            <label class="modal-label">Color:</label>
+            <input id="editBranchColor" type="color" class="modal-input" style="height:42px;padding:4px" />
+          </div>
+          <div class="admin-checkbox-row">
+            <label><input type="checkbox" id="editBranchDelivery" /> Acepta delivery</label>
+          </div>
+          <div id="editBranchError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-primary" style="width:100%">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastNotification" class="toast-banner">
+    <span id="toastIconSlot"><i data-lucide="check" id="toastIcon"></i></span>
+    <span id="toastMessage">Operación realizada con éxito.</span>
+  </div>
+
+  <script src="js/utils.js?v=3.5.0"></script>
+  <script src="js/api.js?v=3.5.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/shared/shell.js?v=1.0.0"></script>
+  <script src="js/modules/users.js?v=1.0.0"></script>
+  <script src="js/modules/administracion.js?v=1.0.0"></script>
+</body>
+</html>
