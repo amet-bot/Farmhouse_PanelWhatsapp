@@ -5,15 +5,31 @@ backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
-from database import SessionLocal, engine, Base
-import models
+from database import SessionLocal
+import models  # noqa: F401 — registra todos los modelos para que las relaciones resuelvan
 from models.branch import Branch
 from models.user import User
 from security.auth import get_password_hash
+from config import settings
 
 import logging
 
 logger = logging.getLogger("farmhouse.seed")
+
+
+def _initial_password(env_var: str, dev_default: str):
+    """
+    Contraseña para una cuenta que el seed crea por primera vez. Fuera de desarrollo NUNCA usa
+    la contraseña por defecto de este archivo (está en el repositorio): si falta la variable,
+    no crea la cuenta y lo avisa, en vez de dejar un usuario con contraseña pública.
+    """
+    value = (os.environ.get(env_var) or "").strip()
+    if value:
+        return value
+    if settings.ENVIRONMENT.lower() == "development":
+        return dev_default
+    logger.error(f"  [SEED] Falta {env_var}: la cuenta no se crea para no dejarla con una contraseña conocida.")
+    return None
 
 def seed_database():
     """
@@ -57,29 +73,37 @@ def seed_database():
                 logger.debug(f"  [OK] Sucursal existente: {existing.name} (ID: {existing.id})")
 
         # 2. USUARIO ADMINISTRADOR PRINCIPAL (Punto 12)
+        # Solo se crea cuando no existe NINGÚN admin (base recién creada). Antes se buscaba por el
+        # nombre "admin": si alguien renombraba esa cuenta, el siguiente deploy volvía a crear un
+        # "admin" con la contraseña conocida de este archivo — una puerta trasera en cada deploy.
         admin_username = "admin"
-        initial_admin_pwd = os.environ.get("ADMIN_INITIAL_PASSWORD", "Admin123!")
-        admin = db.query(User).filter(User.username == admin_username).first()
-        if not admin:
-            admin = User(
-                username=admin_username,
-                name="Administrador Farmhouse",
-                email="admin@farmhouse.pa",
-                password_hash=get_password_hash(initial_admin_pwd),
-                role="admin",
-                branch_id=None,
-                active=True
-            )
-            db.add(admin)
-            db.commit()
-            db.refresh(admin)
-            logger.info(f"  [OK] Usuario Administrador creado: @{admin.username} (ID: {admin.id})")
-        else:
-            # Preservar la contraseña existente configurada por el usuario (no sobreescribir)
-            if not admin.active:
-                admin.active = True
+        any_admin = db.query(User).filter(User.role == "admin").first()
+        if not any_admin:
+            initial_admin_pwd = _initial_password("ADMIN_INITIAL_PASSWORD", "Admin123!")
+            if initial_admin_pwd:
+                admin = User(
+                    username=admin_username,
+                    name="Administrador Farmhouse",
+                    email="admin@farmhouse.pa",
+                    password_hash=get_password_hash(initial_admin_pwd),
+                    role="admin",
+                    branch_id=None,
+                    active=True
+                )
+                db.add(admin)
                 db.commit()
-            logger.info(f"  [OK] Usuario Administrador verificado y activo (contraseña preservada): @{admin.username} (ID: {admin.id})")
+                db.refresh(admin)
+                logger.info(f"  [OK] Usuario Administrador creado: @{admin.username} (ID: {admin.id})")
+        elif not db.query(User).filter(User.role == "admin", User.active == True).first():
+            # Red de seguridad contra quedar sin ningún admin activo (solo alcanzable tocando la
+            # base a mano: la API ya impide desactivar al último). Si hay otro admin activo, un
+            # admin desactivado a propósito se queda desactivado — antes se reactivaba en cada
+            # deploy.
+            any_admin.active = True
+            db.commit()
+            logger.warning(f"  [SEED] No había ningún administrador activo: se reactivó @{any_admin.username} (ID: {any_admin.id}).")
+        else:
+            logger.info("  [OK] Existe al menos un administrador activo (contraseñas preservadas).")
 
         # 3. USUARIO DE SOL (encargada de Pedidos Corporativos / Eventos, sucursal Catering)
         # Datos FICTICIOS a propósito: el cliente pidió dejarlos así por ahora y reemplazarlos
@@ -87,12 +111,13 @@ def seed_database():
         sol_username = "sol.eventos"
         cat_branch = db.query(Branch).filter(Branch.code == "CAT").first()
         sol = db.query(User).filter(User.username == sol_username).first()
-        if not sol and cat_branch:
+        sol_pwd = _initial_password("SOL_INITIAL_PASSWORD", "CambiarSol123!") if not sol and cat_branch else None
+        if sol_pwd:
             sol = User(
                 username=sol_username,
                 name="Sol (Eventos y Corporativo)",
                 email="sol.eventos@farmhouse.pa",
-                password_hash=get_password_hash(os.environ.get("SOL_INITIAL_PASSWORD", "CambiarSol123!")),
+                password_hash=get_password_hash(sol_pwd),
                 role="agent",
                 branch_id=cat_branch.id,
                 active=True

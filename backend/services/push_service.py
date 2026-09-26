@@ -34,8 +34,11 @@ def _send_to_subscription(db: Session, sub: PushSubscription, payload: dict) -> 
         )
     except WebPushException as e:
         status_code = e.response.status_code if e.response is not None else None
-        if status_code in (404, 410):
-            # El navegador revocó o expiró la suscripción: eliminarla para no reintentar en el futuro.
+        if status_code in (401, 403, 404, 410):
+            # 404/410: el navegador revocó o expiró la suscripción. 401/403: la suscripción se
+            # creó con otras claves VAPID (p. ej. se regeneraron al reiniciar sin variables de
+            # entorno) y no va a volver a funcionar. En ambos casos se elimina para no reintentar
+            # en cada mensaje; el panel se vuelve a suscribir con la clave vigente al abrirse.
             db.query(PushSubscription).filter(PushSubscription.id == sub.id).delete()
             db.commit()
             logger.info(f"[Push] Suscripción expirada/revocada eliminada (user_id={sub.user_id}, sub_id={sub.id}).")

@@ -86,11 +86,14 @@ class UserUpdate(BaseModel):
             return v.strip()
         return v
 
+    # Misma regla que UserCreate (y que valida el formulario del panel): antes acá se exigían 10
+    # caracteres, así que resetear una contraseña de 4-9 caracteres fallaba con 422 aunque la
+    # pantalla dijera "mínimo 4".
     @field_validator('password')
     @classmethod
     def validate_password(cls, v):
-        if v is not None and len(v.strip()) < 10:
-            raise ValueError("La contraseña debe tener al menos 10 caracteres.")
+        if v is not None and v.strip() and len(v.strip()) < 4:
+            raise ValueError("La contraseña debe tener al menos 4 caracteres.")
         return v.strip() if v else None
 
 class UserResponse(UserBase):

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 from database import get_db
 from models.user import User
@@ -10,6 +11,7 @@ from models.branch import Branch
 from models.conversation import Conversation
 from models.device import Device
 from models.message import Message
+from models.push_subscription import PushSubscription
 from schemas.user import UserResponse, UserCreate, UserUpdate
 from security.auth import get_current_user, get_password_hash
 from security.permissions import require_permission
@@ -124,6 +126,46 @@ def update_user(
         raise HTTPException(status_code=404, detail="Usuario no encontrado en la base de datos.")
 
     update_data = user_in.model_dump(exclude_unset=True)
+    # Un null explícito en un campo NOT NULL no significa "borrarlo" (no se puede): se ignora.
+    # Antes {"username": null} o {"active": null} llegaba al setattr y reventaba como 409.
+    for non_nullable in ("username", "name", "role", "active"):
+        if non_nullable in update_data and update_data[non_nullable] is None:
+            del update_data[non_nullable]
+
+    # Mismas protecciones que toggle-active y delete: el formulario de edición siempre manda
+    # role y active, y la fila del propio admin tiene botón Editar — sin esto se podía quitar
+    # el rol o desactivar al último administrador (o a uno mismo) y dejar a todos afuera.
+    new_role = update_data.get("role", user.role)
+    new_active = update_data.get("active", user.active)
+    loses_admin = user.role == "admin" and user.active and (new_role != "admin" or not new_active)
+    if loses_admin:
+        if current_user.id == user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No puedes quitarte el rol de administrador ni desactivar tu propia cuenta."
+            )
+        other_admins = db.query(User).filter(
+            User.role == "admin", User.active == True, User.id != user_id
+        ).count()
+        if other_admins < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Debe existir al menos un administrador activo en el sistema."
+            )
+    elif current_user.id == user_id and not new_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puedes desactivar tu propia cuenta mientras estás conectado."
+        )
+
+    # Mismas reglas de sucursal que create_user: un agente sin sucursal queda fuera de todo
+    # filtro por sucursal (ve las de todas), y una sucursal inactiva no se puede asignar.
+    new_branch_id = update_data.get("branch_id", user.branch_id)
+    if new_role == "agent" and not new_branch_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Para un agente es obligatorio asignar una sucursal existente."
+        )
 
     # Validar username único si se modifica
     if "username" in update_data and update_data["username"]:
@@ -156,10 +198,10 @@ def update_user(
         del update_data["password"]
 
     # Validar sucursal si se actualiza
-    if "branch_id" in update_data and update_data["branch_id"]:
-        b = db.query(Branch).filter(Branch.id == update_data["branch_id"]).first()
+    if "branch_id" in update_data and update_data["branch_id"] and update_data["branch_id"] != user.branch_id:
+        b = db.query(Branch).filter(Branch.id == update_data["branch_id"], Branch.active == True).first()
         if not b:
-            raise HTTPException(status_code=404, detail="La sucursal especificada no existe.")
+            raise HTTPException(status_code=404, detail="La sucursal especificada no existe o se encuentra inactiva.")
 
     for field, val in update_data.items():
         setattr(user, field, val)
@@ -255,15 +297,29 @@ def delete_user(
     db.query(Device).filter(Device.assigned_user_id == user_id).update({"assigned_user_id": None}, synchronize_session=False)
     db.query(Conversation).filter(Conversation.assigned_user_id == user_id).update({"assigned_user_id": None}, synchronize_session=False)
     db.query(Message).filter(Message.sender_id == user_id).update({"sender_id": None}, synchronize_session=False)
+    # Las suscripciones push son del usuario y no tienen sentido sin él. Sin esto el ORM
+    # intentaba poner user_id=NULL (columna NOT NULL) y eliminar a cualquiera que hubiera
+    # activado notificaciones terminaba en 409.
+    db.query(PushSubscription).filter(PushSubscription.user_id == user_id).delete(synchronize_session=False)
 
     log_audit_event(
         db, current_user.id, user.branch_id, "user.delete", "user", user.id,
         {"username": user.username, "role": user.role}
     )
 
-    # 5. Eliminación física en SQL Server
+    # 5. Eliminación física
     db.delete(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Queda referenciado por historial que no se puede desvincular (cargamentos, conteos,
+        # mermas, transferencias, auditoría, Comunicación Interna...). Borrarlo dejaría ese
+        # historial sin autor, así que se explica en vez del 409 genérico.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Este usuario tiene historial registrado en el sistema y no se puede eliminar. Desactívalo en su lugar."
+        )
 
     return {
         "status": "deleted",

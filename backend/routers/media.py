@@ -23,6 +23,35 @@ INCOMING_DIR.mkdir(parents=True, exist_ok=True)
 INTERNAL_DIR = (MEDIA_DIR / "internal").resolve()
 INTERNAL_DIR.mkdir(parents=True, exist_ok=True)
 
+# Tipos que el navegador puede mostrar sin ejecutar nada. Cualquier otro (text/html,
+# image/svg+xml, application/javascript...) se entrega como descarga: un documento que manda un
+# cliente por WhatsApp con mime text/html, servido "inline" desde el mismo origen del panel,
+# correría su JavaScript con la sesión del agente que lo abre (XSS almacenado).
+_INLINE_SAFE_PREFIXES = ("image/", "audio/", "video/")
+_INLINE_SAFE_TYPES = {"application/pdf"}
+_INLINE_UNSAFE_TYPES = {"image/svg+xml"}
+
+
+def _media_response(path: Path, mime_type: Optional[str], filename: str) -> FileResponse:
+    mime = (mime_type or "application/octet-stream").split(";")[0].strip().lower()
+    inline = mime not in _INLINE_UNSAFE_TYPES and (
+        mime in _INLINE_SAFE_TYPES or mime.startswith(_INLINE_SAFE_PREFIXES)
+    )
+    return FileResponse(
+        path=str(path),
+        media_type=mime if inline else "application/octet-stream",
+        # filename= deja que Starlette arme Content-Disposition con filename*=UTF-8''...: un
+        # nombre con comillas, raya larga o emoji ya no rompe el encabezado (antes daba 500).
+        filename=filename,
+        content_disposition_type="inline" if inline else "attachment",
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "sandbox",
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
 def authenticate_media_user(
     request: Request,
     token: Optional[str] = Query(None),
@@ -120,15 +149,7 @@ def get_authenticated_media(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No tenés permiso para ver este archivo."
             )
-        return FileResponse(
-            path=str(target_path),
-            media_type=internal_msg.media_mime_type or "application/octet-stream",
-            headers={
-                "X-Content-Type-Options": "nosniff",
-                "Content-Disposition": f"inline; filename=\"{internal_msg.media_name or clean_name}\"",
-                "Cache-Control": "private, max-age=3600"
-            }
-        )
+        return _media_response(target_path, internal_msg.media_mime_type, internal_msg.media_name or clean_name)
 
     # 2b. Validar autorización de acceso por sucursal mediante el mensaje
     msg = db.query(Message).filter(
@@ -151,14 +172,4 @@ def get_authenticated_media(
                     detail="No tienes permiso para ver archivos multimedia de otra sucursal."
                 )
 
-    mime_type = (msg.media_mime_type if msg else None) or "application/octet-stream"
-
-    return FileResponse(
-        path=str(target_path),
-        media_type=mime_type,
-        headers={
-            "X-Content-Type-Options": "nosniff",
-            "Content-Disposition": f"inline; filename=\"{clean_name}\"",
-            "Cache-Control": "private, max-age=3600"
-        }
-    )
+    return _media_response(target_path, msg.media_mime_type if msg else None, clean_name)

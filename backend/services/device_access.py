@@ -1,6 +1,5 @@
 ﻿import logging
 from datetime import datetime
-from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -8,6 +7,8 @@ from models.device import Device
 from models.user import User
 
 logger = logging.getLogger("farmhouse.device_access")
+
+LAST_SEEN_WRITE_INTERVAL_SECONDS = 60
 
 def check_device_authorized(db: Session, device_id: str, user: User) -> Device:
     """
@@ -54,7 +55,13 @@ def check_device_authorized(db: Session, device_id: str, user: User) -> Device:
                 detail=f"Este dispositivo pertenece a la sucursal {dev_b}. Debes usar un equipo asignado a tu sucursal ({user_b})."
             )
 
-    device.last_seen = datetime.utcnow()
-    db.commit()
-    logger.info(f"Dispositivo autorizado: '{device.device_id}' ({device.name}) para usuario ID {user.id} ({user.email}).")
+    # Esto corre en CADA petición autenticada de agentes y supervisores: escribir y hacer commit
+    # de last_seen cada vez era un UPDATE por request (además del heartbeat de 30 s). Con
+    # actualizarlo una vez por minuto alcanza para saber si el equipo está en uso.
+    now = datetime.utcnow()
+    last_seen = device.last_seen.replace(tzinfo=None) if device.last_seen else None
+    if last_seen is None or (now - last_seen).total_seconds() > LAST_SEEN_WRITE_INTERVAL_SECONDS:
+        device.last_seen = now
+        db.commit()
+    logger.debug(f"Dispositivo autorizado: '{device.device_id}' ({device.name}) para usuario ID {user.id} ({user.email}).")
     return device

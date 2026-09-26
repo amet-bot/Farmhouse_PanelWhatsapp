@@ -178,9 +178,19 @@ class Settings(BaseSettings):
     def validate_production_security(self) -> None:
         """Valida la configuración de seguridad registrando avisos sin abortar el arranque."""
         if self.ENVIRONMENT == "production":
-            if self.SECRET_KEY == DEFAULT_DEV_SECRET or len(self.SECRET_KEY) < 32:
-                import logging
-                logging.getLogger("farmhouse.config").warning("[Security Warning] Se recomienda configurar un SECRET_KEY seguro de al menos 32 caracteres.")
+            # Con la clave por defecto (que está en el repositorio) cualquiera puede firmar un
+            # JWT de admin. No se aborta el arranque para no tumbar producción por un cambio de
+            # configuración, pero se registra como ERROR para que no pase inadvertido.
+            insecure = (
+                self.SECRET_KEY == DEFAULT_DEV_SECRET
+                or self.SECRET_KEY.startswith("cambiar_por")
+                or len(self.SECRET_KEY) < 32
+            )
+            if insecure:
+                logging.getLogger("farmhouse.config").error(
+                    "[Security] SECRET_KEY es la clave por defecto, el placeholder de .env.example o tiene menos de 32 caracteres. "
+                    "Configura un SECRET_KEY propio y aleatorio en las variables de entorno."
+                )
         
         if self.WHATSAPP_MODE == "meta":
             import logging

@@ -1,4 +1,5 @@
 import logging
+import secrets
 import time
 from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
@@ -11,7 +12,7 @@ from models.user import User
 from models.device import Device
 from schemas.auth import LoginRequest, TokenResponse
 from schemas.user import UserResponse
-from security.auth import verify_password, create_access_token, get_current_user
+from security.auth import verify_password, get_password_hash, create_access_token, get_current_user
 from security.permissions import resolve_permissions
 from config import settings
 
@@ -32,14 +33,24 @@ _failed_login_attempts = defaultdict(list)
 _ws_single_use_tickets: dict[str, dict] = {}
 
 def _get_client_ip(request: Request) -> str:
-    """Extrae la IP real del cliente considerando cabeceras de proxy de forma segura."""
+    """
+    IP del cliente detrás del proxy de Railway. Se toma la ÚLTIMA IP de X-Forwarded-For (la
+    que agregó el proxy inmediato), no la primera: la primera la escribe el propio cliente, así
+    que mandar un X-Forwarded-For distinto en cada intento generaba una clave nueva de rate
+    limit por intento y el bloqueo de fuerza bruta nunca se activaba.
+    """
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
-        # Tomar la primera IP de la cadena de proxies
-        ip = forwarded.split(",")[0].strip()
-        if ip:
-            return ip
+        hops = [h.strip() for h in forwarded.split(",") if h.strip()]
+        if hops:
+            return hops[-1]
     return request.client.host if request.client else "127.0.0.1"
+
+
+# Hash real (de una contraseña al azar) para comparar cuando el usuario no existe: así un
+# usuario inexistente tarda lo mismo que una contraseña incorrecta (bcrypt ~250 ms) y el tiempo
+# de respuesta no revela qué nombres de usuario existen.
+_DUMMY_PASSWORD_HASH = get_password_hash(secrets.token_urlsafe(16))
 
 def _get_rate_limit_key(request: Request, username: str) -> str:
     client_ip = _get_client_ip(request)
@@ -83,6 +94,7 @@ def login(login_data: LoginRequest, response: Response, request: Request, db: Se
 
     user = db.query(User).filter(func.lower(User.username) == username_clean).first()
     if not user:
+        verify_password(login_data.password, _DUMMY_PASSWORD_HASH)
         _record_failed_attempt(rate_key)
         logger.warning(f"Login fallido: Usuario '{username_clean}' no encontrado.")
         raise HTTPException(

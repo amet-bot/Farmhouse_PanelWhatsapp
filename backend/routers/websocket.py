@@ -100,5 +100,11 @@ async def websocket_endpoint(
             if data == "ping":
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
-        ws_manager.disconnect(websocket, user_id=user_id, branch_id=branch_id, role=role)
         logger.info(f"Conexión WebSocket cerrada: Usuario ID {user_id} ({user_name}).")
+    except Exception as e:
+        # Cualquier otro corte (send sobre un socket medio cerrado, RuntimeError de Starlette)
+        # antes se saltaba la limpieza: la conexión quedaba registrada y Comunicación Interna
+        # mostraba a la persona "en línea" hasta el siguiente broadcast fallido.
+        logger.info(f"Conexión WebSocket terminada con error: Usuario ID {user_id} ({user_name}): {e!r}")
+    finally:
+        ws_manager.disconnect(websocket, user_id=user_id, branch_id=branch_id, role=role)
