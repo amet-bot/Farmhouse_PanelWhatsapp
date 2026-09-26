@@ -26,7 +26,7 @@ from schemas.inventory import (
     ShipmentCreate, ShipmentResponse, ShipmentItemResponse,
     StockCountCreate, StockCountItemResponse, StockCountResponse,
     StockRowResponse, WasteCreate, WasteItemResponse, WastePhotoResponse, WasteReasonResponse, WasteResponse,
-    WasteAnalyticsGroup, WasteAnalyticsItem, WasteAnalyticsDay, WasteAnalyticsResponse, WasteAnalyticsTotals,
+    WasteAnalyticsGroup, WasteAnalyticsItem, WasteAnalyticsDay, WasteAnalyticsResponse, WasteAnalyticsTotals, WasteAnalyticsYield,
     WasteRecipeDish, WasteRecipeDishShare, WasteRecipeUsageItem, WasteRecipeUsageResponse,
     MovementComparisonResponse,
 )
@@ -46,6 +46,10 @@ router = APIRouter(prefix="/inventory", tags=["Inventario"])
 # inventa el suyo y no suma nada. "Otro" existe para lo que no entra, y la nota recoge el detalle.
 # El orden es el que se ve en el formulario: primero lo que más pasa.
 WASTE_REASONS = (
+    # Primero porque es lo más común en cocina: lo que se saca al limpiar (piel y grasa del pollo,
+    # cáscaras). Es merma de PROCESO, esperada; el resto de la lista es merma evitable, y el
+    # análisis las separa (ver PROCESS_WASTE_REASONS).
+    ("recorte", "Recorte o limpieza"),
     ("vencido", "Vencido"),
     ("danado", "Dañado o golpeado"),
     ("error_preparacion", "Error de preparación"),
@@ -56,6 +60,8 @@ WASTE_REASONS = (
     ("otro", "Otro"),
 )
 WASTE_REASON_LABELS = dict(WASTE_REASONS)
+# Merma de proceso: parte de preparar el insumo, se mide contra lo que se limpió (rendimiento).
+PROCESS_WASTE_REASONS = {"recorte"}
 
 
 def _serialize_shipment(shipment: Shipment) -> ShipmentResponse:
@@ -466,6 +472,10 @@ def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -
         negative_items=negativos,
         weight_value=record.weight_value,
         weight_unit=record.weight_unit,
+        is_process=record.reason in PROCESS_WASTE_REASONS,
+        processed_value=record.processed_value,
+        processed_unit=record.processed_unit,
+        yield_pct=_rendimiento(record),
         photos=[
             WastePhotoResponse(
                 id=p.id, content_type=p.content_type, size_bytes=p.size_bytes,
@@ -543,6 +553,9 @@ def create_waste(
         weight_value=waste_in.weight_value,
         weight_unit=((waste_in.weight_unit or "kg") if waste_in.weight_value is not None else None),
     )
+    if waste_in.reason in PROCESS_WASTE_REASONS and waste_in.processed_value is not None:
+        record.processed_value = waste_in.processed_value
+        record.processed_unit = waste_in.processed_unit or "kg"
     for line in waste_in.items:
         costo = line.unit_cost
         if costo is None:
@@ -625,6 +638,32 @@ def _kg_factor(unit: Optional[str]) -> Optional[Decimal]:
     return _KG_POR_UNIDAD.get((unit or "").strip().lower())
 
 
+def _recorte_kg(record: WasteRecord) -> Optional[Decimal]:
+    """Kilos que salieron en esta merma: el peso de balanza o, si no, la cantidad de su único insumo en peso."""
+    if record.weight_value is not None:
+        factor = _kg_factor(record.weight_unit or "kg")
+        return Decimal(record.weight_value) * factor if factor is not None else None
+    if len(record.items) == 1:
+        factor = _kg_factor(record.items[0].inventory_item.unit)
+        if factor is not None:
+            return Decimal(record.items[0].quantity) * factor
+    return None
+
+
+def _rendimiento(record: WasteRecord) -> Optional[Decimal]:
+    """% aprovechado de lo que se limpió: (limpiado − recorte) / limpiado. Solo en recortes."""
+    if record.reason not in PROCESS_WASTE_REASONS or record.processed_value is None:
+        return None
+    factor = _kg_factor(record.processed_unit or "kg")
+    recorte = _recorte_kg(record)
+    if factor is None or recorte is None:
+        return None
+    limpiado = Decimal(record.processed_value) * factor
+    if limpiado <= 0 or recorte > limpiado:
+        return None
+    return ((limpiado - recorte) / limpiado * 100).quantize(Decimal("0.1"))
+
+
 @router.get("/waste/analytics", response_model=WasteAnalyticsResponse)
 def waste_analytics(
     date_from: Optional[date] = Query(None),
@@ -679,6 +718,8 @@ def waste_analytics(
     por_motivo: dict = {}
     por_sucursal: dict = {}
     por_tipo: dict = {}
+    por_naturaleza: dict = {}
+    rendimientos: dict = {}   # inventory_item_id -> [nombre, kg limpiados, kg de recorte, registros]
 
     def _sumar(grupos: dict, key: str, label: str, costo: Decimal, kg: Decimal, nuevo_registro: bool):
         g = grupos.setdefault(key, WasteAnalyticsGroup(key=key, label=label))
@@ -756,6 +797,24 @@ def waste_analytics(
             dia.kg += kg_rec
             dia.records += 1
         _sumar(por_motivo, rec.reason, WASTE_REASON_LABELS.get(rec.reason, rec.reason), costo_rec, kg_rec, True)
+        # De proceso (recorte al limpiar: esperado) o evitable (vencido, dañado...: se puede bajar).
+        es_proceso = rec.reason in PROCESS_WASTE_REASONS
+        if es_proceso:
+            totales.cost_process += costo_rec
+            totales.kg_process += kg_rec
+        _sumar(por_naturaleza, "proceso" if es_proceso else "evitable",
+               "De proceso (recorte, limpieza)" if es_proceso else "Evitable (vencido, dañado, error...)",
+               costo_rec, kg_rec, True)
+        # Rendimiento: solo recortes de UN insumo con lo limpiado anotado (con varios no se puede repartir).
+        if es_proceso and rec.processed_value is not None and len(rec.items) == 1:
+            factor_proc = _kg_factor(rec.processed_unit or "kg")
+            recorte = _recorte_kg(rec)
+            if factor_proc is not None and recorte is not None:
+                item = rec.items[0].inventory_item
+                r = rendimientos.setdefault(item.id, [item.name, Decimal("0"), Decimal("0"), 0])
+                r[1] += Decimal(rec.processed_value) * factor_proc
+                r[2] += recorte
+                r[3] += 1
         _sumar(por_sucursal, str(rec.branch_id), rec.branch.name, costo_rec, kg_rec, True)
 
     # Venta neta de la caja en el mismo período y sucursales (días ya traídos de Invu).
@@ -793,7 +852,9 @@ def waste_analytics(
         fila.quantity = _q(fila.quantity, "0.001")
         if fila.kg is not None:
             fila.kg = _q(fila.kg, "0.001")
-    for grupos in (por_motivo, por_sucursal, por_tipo):
+    totales.cost_process = _q(totales.cost_process, "0.01")
+    totales.kg_process = _q(totales.kg_process, "0.001")
+    for grupos in (por_motivo, por_sucursal, por_tipo, por_naturaleza):
         for g in grupos.values():
             g.cost, g.kg = _q(g.cost, "0.01"), _q(g.kg, "0.001")
 
@@ -809,6 +870,14 @@ def waste_analytics(
         by_reason=sorted(por_motivo.values(), key=orden, reverse=True),
         by_branch=sorted(por_sucursal.values(), key=orden, reverse=True),
         by_kind=sorted(por_tipo.values(), key=orden, reverse=True),
+        by_nature=sorted(por_naturaleza.values(), key=orden, reverse=True),
+        yields=sorted((
+            WasteAnalyticsYield(
+                inventory_item_id=item_id, name=n, processed_kg=_q(limpio, "0.001"), trimmed_kg=_q(recorte, "0.001"),
+                yield_pct=((limpio - recorte) / limpio * 100).quantize(Decimal("0.1")), records=veces,
+            )
+            for item_id, (n, limpio, recorte, veces) in rendimientos.items() if limpio > 0 and recorte <= limpio
+        ), key=lambda y: y.yield_pct),
     )
 
 

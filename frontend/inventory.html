@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.5.0">
-  <link rel="stylesheet" href="css/inventory.css?v=4.10.2">
+  <link rel="stylesheet" href="css/inventory.css?v=4.11.2">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -345,6 +345,22 @@
                 <p class="inv-chart-help">Materia prima es lo que se compra; de la casa, lo que se prepara (salsas, arroces...). Mucha merma de la casa suele ser producción de más.</p>
                 <div class="inv-bars" id="wasteKindBars"></div>
               </div>
+              <div class="inv-panel">
+                <div class="inv-panel-head">
+                  <h2>De proceso o evitable</h2>
+                  <span class="inv-panel-note">Qué se puede bajar</span>
+                </div>
+                <p class="inv-chart-help">El recorte al limpiar (piel y grasa del pollo, cáscaras) es parte de preparar: se controla con el rendimiento. Lo evitable —vencido, dañado, error— es lo que se puede bajar.</p>
+                <div class="inv-bars" id="wasteNatureBars"></div>
+              </div>
+              <div class="inv-panel" id="wasteYieldPanel" hidden>
+                <div class="inv-panel-head">
+                  <h2>Rendimiento al limpiar</h2>
+                  <span class="inv-panel-note">De lo que se limpió</span>
+                </div>
+                <p class="inv-chart-help">Qué parte de lo que se limpió se aprovechó. Si un insumo rinde menos que otras veces (o que en otra sucursal), se está sacando de más al limpiar o llegó de peor calidad.</p>
+                <div class="inv-bars" id="wasteYieldBars"></div>
+              </div>
             </div>
 
             <!-- Merma × recetas de Invu (GET /inventory/waste/recipe-usage) -->
@@ -551,16 +567,38 @@
         <div class="inv-evidence-field">
           <div class="inv-photo-field-head">
             <label class="modal-label" for="wasteWeightValue">Peso</label>
-            <small>Lo que marcó la balanza (opcional).</small>
+            <small id="wasteWeightHint">Lo que marcó la balanza.</small>
           </div>
           <div class="inv-weight-row">
-            <input type="number" id="wasteWeightValue" class="modal-input" min="0" step="0.001" inputmode="decimal" placeholder="Ej. 1.35">
+            <input type="number" id="wasteWeightValue" class="modal-input" min="0" step="0.001" inputmode="decimal" placeholder="Ej. 0.270">
             <select id="wasteWeightUnit" class="modal-input" aria-label="Unidad del peso">
               <option value="kg">kg</option>
               <option value="g">g</option>
               <option value="lb">lb</option>
             </select>
           </div>
+          <!-- Sin tara, el peso incluye la bandeja y la merma sale inflada. -->
+          <p class="inv-tare-tip">
+            <i data-lucide="scale"></i>
+            <span><strong>Antes de pesar:</strong> poné la bandeja vacía en la balanza y apretá <strong>TARE</strong> (o ZERO). Después poné lo que se descartó: así el peso no incluye el recipiente.</span>
+          </p>
+        </div>
+
+        <!-- Solo para "Recorte o limpieza": cuánto se limpió en total → rendimiento. -->
+        <div class="inv-evidence-field" id="wasteProcessedField" hidden>
+          <div class="inv-photo-field-head">
+            <label class="modal-label" for="wasteProcessedValue">¿Cuánto se limpió? (opcional)</label>
+            <small>El peso de todo lo que se limpió, antes de sacar el recorte. Con eso se calcula cuánto se aprovecha.</small>
+          </div>
+          <div class="inv-weight-row">
+            <input type="number" id="wasteProcessedValue" class="modal-input" min="0" step="0.001" inputmode="decimal" placeholder="Ej. 5">
+            <select id="wasteProcessedUnit" class="modal-input" aria-label="Unidad de lo limpiado">
+              <option value="kg">kg</option>
+              <option value="g">g</option>
+              <option value="lb">lb</option>
+            </select>
+          </div>
+          <p class="inv-yield-preview" id="wasteYieldPreview" hidden></p>
         </div>
 
         <!-- Evidencia: fotos de lo que se descartó. Se guardan en la base junto con la merma.
@@ -848,8 +886,8 @@
         <small class="inv-line-unit"></small>
       </div>
       <div class="inv-line-cell">
-        <span class="inv-line-label">Cantidad</span>
-        <input type="number" class="modal-input inv-line-qty" placeholder="0" min="0" step="0.001">
+        <span class="inv-line-label inv-line-qty-label">Cantidad</span>
+        <input type="number" class="modal-input inv-line-qty" placeholder="0" min="0" step="0.001" inputmode="decimal">
       </div>
       <div class="inv-line-cell inv-line-stock-cell">
         <span class="inv-line-label">En existencia</span>
@@ -870,6 +908,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.10.2"></script>
+  <script src="js/modules/inventory.js?v=4.11.2"></script>
 </body>
 </html>

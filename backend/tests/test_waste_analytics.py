@@ -136,3 +136,42 @@ def test_existencias_valuan_la_merma_con_invu_si_no_hay_cargamento(client, db_se
     fila = next(f for f in filas if f["inventory_item_id"] == pina["id"])
     assert Decimal(fila["wasted_cost"]) == Decimal("2.50") and fila["wasted_cost_estimated"] is True
     assert Decimal(fila["on_hand"]) == Decimal("-2")
+
+
+def test_recorte_es_merma_de_proceso_con_rendimiento(client, db_session, clayton_branch, admin_user):
+    h = _h(admin_user)
+    pollo = _item(client, h, "Pechuga de pollo", "kilogramo")
+    db_session.get(InventoryItem, pollo["id"]).reference_cost = Decimal("6.00")
+    db_session.commit()
+
+    # De 5 kg de pollo limpiado quedaron 0.270 kg de recorte (el ejemplo de la balanza).
+    rec = _merma(client, h, clayton_branch.id, [{"inventory_item_id": pollo["id"], "quantity": "0.270"}],
+                 reason="recorte", weight_value="0.270", weight_unit="kg", processed_value="5", processed_unit="kg")
+    assert rec["is_process"] is True and rec["reason_label"] == "Recorte o limpieza"
+    assert Decimal(rec["processed_value"]) == Decimal("5") and Decimal(rec["yield_pct"]) == Decimal("94.6")
+
+    # Un vencido es evitable; lo limpiado se ignora fuera de los recortes.
+    otro = _merma(client, h, clayton_branch.id, [{"inventory_item_id": pollo["id"], "quantity": "0.5"}],
+                  processed_value="3")
+    assert otro["is_process"] is False and otro["processed_value"] is None and otro["yield_pct"] is None
+
+    a = _analisis(client, h)
+    t = a["totals"]
+    assert Decimal(t["cost_process"]) == Decimal("1.62")      # 0.270 kg × $6
+    assert Decimal(t["kg_process"]) == Decimal("0.270")
+    naturaleza = {g["key"]: g for g in a["by_nature"]}
+    assert Decimal(naturaleza["proceso"]["cost"]) == Decimal("1.62")
+    assert Decimal(naturaleza["evitable"]["cost"]) == Decimal("3.00")
+    y = a["yields"][0]
+    assert y["name"] == "Pechuga de pollo" and Decimal(y["yield_pct"]) == Decimal("94.6")
+    assert Decimal(y["processed_kg"]) == Decimal("5.000") and Decimal(y["trimmed_kg"]) == Decimal("0.270")
+
+
+def test_rendimiento_sin_sentido_no_se_informa(client, clayton_branch, admin_user):
+    h = _h(admin_user)
+    pollo = _item(client, h, "Pollo", "kilogramo")
+    # Más recorte que lo limpiado (un error de tipeo): no se inventa un rendimiento negativo.
+    rec = _merma(client, h, clayton_branch.id, [{"inventory_item_id": pollo["id"], "quantity": "2"}],
+                 reason="recorte", processed_value="1", processed_unit="kg")
+    assert rec["yield_pct"] is None
+    assert _analisis(client, h)["yields"] == []

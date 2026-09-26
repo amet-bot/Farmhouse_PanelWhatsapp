@@ -125,6 +125,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     unidad: 'u.', unidades: 'u.', und: 'u.', u: 'u.',
   };
   const unitShort = (u) => UNIT_SHORT[String(u || '').trim().toLowerCase()] || String(u || '');
+  /** Para buscar sin que importen tildes ni mayúsculas: "Piña" → "pina". */
+  const sinTildes = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  // Kilos por unidad corta, solo de las que son peso (la merma se pesa en balanza).
+  const KG_FACTOR = { g: 0.001, kg: 1, lb: 0.45359237, oz: 0.028349523 };
 
   const pluralize = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
@@ -1781,7 +1785,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><span>Pérdida</span><strong>${w.total_cost != null ? money(w.total_cost) : '—'}</strong></div>
         <div><span>Peso</span><strong>${w.weight_value != null ? `${esc(qty(w.weight_value))} <small>${esc(w.weight_unit || 'kg')}</small>` : '—'}</strong></div>
         <div><span>Evidencia</span><strong>${fotos.length ? `${fotos.length} <small>${fotos.length === 1 ? 'foto' : 'fotos'}</small>` : '—'}</strong></div>
+        ${w.is_process && w.processed_value != null ? `
+          <div><span>Se limpió</span><strong>${esc(qty(w.processed_value))} <small>${esc(w.processed_unit || 'kg')}</small></strong></div>
+          <div><span>Rendimiento</span><strong>${w.yield_pct != null ? `${Number(w.yield_pct).toLocaleString('es-PA', { maximumFractionDigits: 1 })}% <small>aprovechado</small>` : '—'}</strong></div>` : ''}
       </div>
+      ${w.is_process ? '<p class="inv-detail-note">Merma de proceso: lo que se saca al limpiar o preparar. En el análisis va aparte de la merma evitable.</p>' : ''}
       <div class="inv-detail-section-header"><span>Insumos perdidos</span></div>
       <table class="inv-detail-table">
         <thead>
@@ -2207,6 +2215,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       extra: (g) => fmt(g),
     }) : emptyStateHtml('layers', 'Sin datos', 'Ninguna merma en el período.');
 
+    // ---- De proceso o evitable ----
+    $('wasteNatureBars').innerHTML = (a.by_nature || []).length ? barsHtml(a.by_nature, {
+      valor: val,
+      etiqueta: (g) => esc(g.label),
+      extra: (g) => `${fmt(g)} <small>${pluralize(g.records, 'merma', 'mermas')}</small>`,
+    }) : emptyStateHtml('scissors', 'Sin datos', 'Ninguna merma en el período.');
+
+    // ---- Rendimiento al limpiar (el más bajo primero: es el que hay que mirar) ----
+    const rinde = a.yields || [];
+    $('wasteYieldPanel').hidden = !rinde.length;
+    if (rinde.length) {
+      $('wasteYieldBars').innerHTML = rinde.map((y) => {
+        const pct = Number(y.yield_pct);
+        return `
+          <div class="inv-bar-row">
+            <span class="inv-bar-name">${esc(y.name)}</span>
+            <span class="inv-bar-value">${pct.toLocaleString('es-PA', { maximumFractionDigits: 1 })}% <small>de ${esc(kgTxt(y.processed_kg))} quedaron ${esc(kgTxt(y.trimmed_kg))} de recorte</small></span>
+            <span class="inv-bar-track"><span class="inv-bar-fill" style="width:${Math.max(0, Math.min(100, pct))}%"></span></span>
+          </div>`;
+      }).join('');
+    }
+
     utils.renderIcons();
   }
 
@@ -2377,11 +2407,73 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (pedido > disponible) cell.classList.add('is-short');
   }
 
-  /** Refresca la existencia de una fila y, con ella, la pérdida estimada del formulario. */
+  /** Refresca la existencia de una fila y, con ella, la pérdida estimada y el peso del formulario. */
   function refreshWasteLine(row) {
     refreshWasteLineStock(row);
     updateWasteTotal();
+    syncWasteWeight();
   }
+
+  /**
+   * El peso se pide UNA vez. Si todos los insumos elegidos se cuentan en peso (g, kg, lb), la
+   * cantidad de arriba ya es lo que marcó la balanza: el bloque "Peso" se completa solo con esa
+   * suma y queda de solo lectura. Si alguno va por unidad (la piña), ahí sí se escribe el peso.
+   */
+  let wasteWeightAuto = false;
+  function syncWasteWeight() {
+    const input = $('wasteWeightValue');
+    const hint = $('wasteWeightHint');
+    if (!input) return;
+    const filas = Array.from(wasteLinesContainer.querySelectorAll('.inv-line-row'))
+      .map((row) => ({ unit: row.querySelector('.inv-item-input').dataset.unit, id: row.querySelector('.inv-item-input').dataset.itemId, q: Number(row.querySelector('.inv-line-qty').value || 0) }))
+      .filter((f) => f.id);
+    const todoEnPeso = filas.length > 0 && filas.every((f) => KG_FACTOR[unitShort(f.unit)]);
+    if (todoEnPeso) {
+      const kg = filas.reduce((s, f) => s + f.q * KG_FACTOR[unitShort(f.unit)], 0);
+      const unidad = $('wasteWeightUnit').value;
+      input.value = kg > 0 ? String(Number((kg / KG_FACTOR[unidad]).toFixed(3))) : '';
+      input.readOnly = true;
+      input.classList.add('is-auto');
+      hint.textContent = 'Se toma de lo que escribiste arriba: el insumo se cuenta en peso.';
+      wasteWeightAuto = true;
+    } else {
+      if (wasteWeightAuto) input.value = '';   // venía calculado: ahora lo escribe la persona
+      input.readOnly = false;
+      input.classList.remove('is-auto');
+      hint.textContent = filas.length ? 'Lo que marcó la balanza (el insumo se cuenta por unidad).' : 'Lo que marcó la balanza.';
+      wasteWeightAuto = false;
+    }
+    updateYieldPreview();
+  }
+
+  /** Recorte o limpieza: "de 5 kg quedaron 0.270 kg de recorte → se aprovecha el 94.6%". */
+  function updateYieldPreview() {
+    const box = $('wasteYieldPreview');
+    if (!box) return;
+    const recorte = Number($('wasteWeightValue').value || 0) * (KG_FACTOR[$('wasteWeightUnit').value] || 0);
+    const limpio = Number($('wasteProcessedValue').value || 0) * (KG_FACTOR[$('wasteProcessedUnit').value] || 0);
+    if (!(recorte > 0 && limpio > 0)) { box.hidden = true; return; }
+    box.hidden = false;
+    if (recorte > limpio) {
+      box.className = 'inv-yield-preview is-bad';
+      box.textContent = 'El recorte pesa más que lo limpiado: revisá los dos números.';
+      return;
+    }
+    const pct = ((limpio - recorte) / limpio) * 100;
+    box.className = 'inv-yield-preview';
+    box.innerHTML = `De <strong>${esc(kgTxt(limpio))}</strong> quedaron <strong>${esc(kgTxt(recorte))}</strong> de recorte: se aprovecha el <strong>${pct.toLocaleString('es-PA', { maximumFractionDigits: 1 })}%</strong>.`;
+  }
+
+  function syncProcessedField() {
+    const esRecorte = $('wasteReasonSelect').value === 'recorte';
+    $('wasteProcessedField').hidden = !esRecorte;
+    updateYieldPreview();
+  }
+  $('wasteReasonSelect')?.addEventListener('change', syncProcessedField);
+  $('wasteWeightUnit')?.addEventListener('change', syncWasteWeight);
+  $('wasteWeightValue')?.addEventListener('input', updateYieldPreview);
+  $('wasteProcessedValue')?.addEventListener('input', updateYieldPreview);
+  $('wasteProcessedUnit')?.addEventListener('change', updateYieldPreview);
 
   /**
    * Estimación de la pérdida con el último costo conocido de cada insumo en esa sucursal.
@@ -2395,25 +2487,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     let total = 0;
     let conCosto = 0;
     let sinCosto = 0;
+    let estimados = 0;
     wasteLinesContainer.querySelectorAll('.inv-line-row').forEach((row) => {
-      const itemId = Number(row.querySelector('.inv-item-input').dataset.itemId || 0);
+      const input = row.querySelector('.inv-item-input');
+      const itemId = Number(input.dataset.itemId || 0);
       const cantidad = Number(row.querySelector('.inv-line-qty').value || 0);
       if (!itemId || cantidad <= 0) return;
       const fila = state.wasteStock.get(itemId);
       if (fila && fila.last_unit_cost != null) {
         total += cantidad * Number(fila.last_unit_cost);
         conCosto += 1;
+      } else if (input.dataset.refCost) {
+        // Sin cargamento con costo: el de referencia de Invu (el mismo que usa el servidor).
+        total += cantidad * Number(input.dataset.refCost);
+        conCosto += 1;
+        estimados += 1;
       } else {
         sinCosto += 1;
       }
     });
 
-    $('wasteTotal').textContent = conCosto ? money(total) : '—';
+    $('wasteTotal').textContent = conCosto ? `${estimados ? '≈ ' : ''}${money(total)}` : '—';
     const nota = document.querySelector('#modalWaste .inv-total-box small');
     if (nota) {
-      nota.textContent = sinCosto
-        ? `${pluralize(sinCosto, 'insumo', 'insumos')} sin costo conocido, no suma${sinCosto === 1 ? '' : 'n'}`
-        : 'Al costo del último cargamento';
+      const partes = [];
+      if (sinCosto) partes.push(`${pluralize(sinCosto, 'insumo', 'insumos')} sin costo conocido, no suma${sinCosto === 1 ? '' : 'n'}`);
+      if (estimados) partes.push('estimado con el costo de Invu');
+      nota.textContent = partes.length ? partes.join(' · ') : 'Al costo del último cargamento';
     }
   }
 
@@ -2425,57 +2525,115 @@ document.addEventListener('DOMContentLoaded', async () => {
     const unitLabel = row.querySelector('.inv-line-unit');
     const removeBtn = row.querySelector('.inv-line-remove');
     const qtyInput = row.querySelector('.inv-line-qty');
+    const qtyLabel = row.querySelector('.inv-line-qty-label');
 
     itemInput.dataset.itemId = '';
     itemInput._reqId = 0;
 
     const hideSuggestions = () => { suggestBox.hidden = true; suggestBox.innerHTML = ''; };
+    const resetQtyLabel = () => { qtyLabel.textContent = 'Cantidad'; qtyInput.placeholder = '0'; };
 
     function selectItem(item) {
       itemInput.value = item.name;
       itemInput.dataset.itemId = String(item.id);
+      itemInput.dataset.unit = item.unit || '';
+      itemInput.dataset.refCost = item.reference_cost != null ? String(item.reference_cost) : '';
       unitLabel.textContent = item.unit ? `Se cuenta en ${item.unit}` : '';
+      // Si el insumo se cuenta en peso, lo que se escribe acá ES el peso de la balanza: se pide
+      // una sola vez (el bloque "Peso" de abajo se completa solo).
+      const corta = unitShort(item.unit);
+      qtyLabel.textContent = KG_FACTOR[corta] ? `Peso (${corta})` : `Cantidad (${corta || 'unidad'})`;
+      qtyInput.placeholder = KG_FACTOR[corta] ? (corta === 'g' ? 'Ej. 270' : 'Ej. 0.270') : '0';
       hideSuggestions();
       refreshWasteLine(row);
       qtyInput.focus();
     }
 
+    // La lista sale del catálogo ya cargado en la pantalla (los insumos de Invu y los cargados a
+    // mano): aparece entera al tocar el campo y se filtra con cada letra, al instante, sin
+    // importar tildes ni mayúsculas ("pina" encuentra "Piña") y también por código ("P203").
+    let visibles = [];
+    let marcado = -1;
+
     function renderSuggestions(results) {
+      visibles = results;
+      marcado = -1;
       // Sin "+ Crear": una merma es de algo que ya existía. Si el insumo no está en el catálogo,
       // tampoco entró nunca, y registrar su pérdida sería inventar un movimiento.
       if (!results.length) {
-        suggestBox.innerHTML = '<div class="inv-item-suggestion-empty">Ese insumo no está en el catálogo.</div>';
+        suggestBox.innerHTML = '<div class="inv-item-suggestion-empty">Ningún insumo del catálogo coincide.</div>';
         suggestBox.hidden = false;
         return;
       }
-      suggestBox.innerHTML = results.map((r, i) =>
-        `<button type="button" class="inv-item-suggestion" data-idx="${i}">${esc(r.name)} <small>(${esc(r.unit)})</small></button>`
-      ).join('');
+      suggestBox.innerHTML = results.map((r, i) => `
+        <button type="button" class="inv-item-suggestion" data-idx="${i}" role="option">
+          <span class="inv-sugg-name">${esc(r.name)}${r.kind === 'casa' ? ' <span class="inv-badge kind-house">Casa</span>' : ''}</span>
+          <small>${r.code ? `${esc(r.code)} · ` : ''}${esc(r.unit)}</small>
+        </button>`).join('');
       suggestBox.hidden = false;
       suggestBox.querySelectorAll('.inv-item-suggestion').forEach((btn) => {
-        btn.addEventListener('click', () => selectItem(results[Number(btn.dataset.idx)]));
+        // mousedown y no click: el blur del campo cerraría la lista antes de que llegue el click.
+        btn.addEventListener('mousedown', (e) => { e.preventDefault(); selectItem(visibles[Number(btn.dataset.idx)]); });
       });
     }
 
-    async function fetchSuggestions(query) {
-      if (!query || query.trim().length < 2) { hideSuggestions(); return; }
+    function filtrarCatalogo(query) {
+      const q = sinTildes(query.trim());
+      const activos = state.items.filter((i) => i.active !== false);
+      if (!q) return activos;
+      const empiezan = [];
+      const contienen = [];
+      activos.forEach((i) => {
+        const nombre = sinTildes(i.name);
+        const codigo = sinTildes(i.code || '');
+        if (nombre.startsWith(q) || codigo === q) empiezan.push(i);
+        else if (nombre.includes(q) || codigo.includes(q)) contienen.push(i);
+      });
+      return [...empiezan, ...contienen];
+    }
+
+    async function mostrarSugerencias() {
+      if (state.items.length) {
+        renderSuggestions(filtrarCatalogo(itemInput.value));
+        return;
+      }
+      // Catálogo todavía sin cargar: se pregunta al servidor como antes.
+      const query = itemInput.value.trim();
       const reqId = ++itemInput._reqId;
       try {
-        const results = await api.get(`/inventory/items?q=${encodeURIComponent(query.trim())}`);
-        if (reqId !== itemInput._reqId) return;
-        renderSuggestions(results);
+        const results = await api.get(`/inventory/items?q=${encodeURIComponent(query)}&limit=50`);
+        if (reqId === itemInput._reqId) renderSuggestions(results);
       } catch (err) {
         if (reqId === itemInput._reqId) hideSuggestions();
       }
     }
 
+    function marcar(idx) {
+      const botones = suggestBox.querySelectorAll('.inv-item-suggestion');
+      if (!botones.length) return;
+      marcado = (idx + botones.length) % botones.length;
+      botones.forEach((b, i) => b.classList.toggle('is-active', i === marcado));
+      botones[marcado].scrollIntoView({ block: 'nearest' });
+    }
+
+    itemInput.addEventListener('focus', () => { if (!itemInput.dataset.itemId) mostrarSugerencias(); });
+    itemInput.addEventListener('blur', () => setTimeout(hideSuggestions, 120));
+    itemInput.addEventListener('keydown', (e) => {
+      if (suggestBox.hidden) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); marcar(marcado + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); marcar(marcado - 1); }
+      else if (e.key === 'Enter' && visibles.length) { e.preventDefault(); selectItem(visibles[Math.max(0, marcado)]); }
+      else if (e.key === 'Escape') hideSuggestions();
+    });
+
     itemInput.addEventListener('input', () => {
       itemInput.dataset.itemId = '';
+      itemInput.dataset.unit = '';
+      itemInput.dataset.refCost = '';
       unitLabel.textContent = '';
+      resetQtyLabel();
       refreshWasteLine(row);
-      clearTimeout(itemInput._debounce);
-      const query = itemInput.value;
-      itemInput._debounce = setTimeout(() => fetchSuggestions(query), 300);
+      mostrarSugerencias();
     });
 
     qtyInput.addEventListener('input', () => refreshWasteLine(row));
@@ -2486,7 +2644,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         itemInput.value = '';
         itemInput.dataset.itemId = '';
+        itemInput.dataset.unit = '';
+        itemInput.dataset.refCost = '';
         unitLabel.textContent = '';
+        resetQtyLabel();
         qtyInput.value = '';
       }
       refreshWasteLine(row);
@@ -2671,12 +2832,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('wasteNotes').value = '';
     $('wasteWeightValue').value = '';
     $('wasteWeightUnit').value = 'kg';
+    $('wasteProcessedValue').value = '';
+    $('wasteProcessedUnit').value = 'kg';
     resetPendingPhotos();
     $('wasteOccurredAt').value = toLocalInputValue(new Date());
     if (state.wasteReasons.length) $('wasteReasonSelect').value = state.wasteReasons[0].code;
     wasteLinesContainer.innerHTML = '';
     createWasteLineRow();
     $('wasteTotal').textContent = '—';
+    syncProcessedField();
+    syncWasteWeight();
     openModal('modalWaste');
     loadWasteStock();
   }
@@ -2718,6 +2883,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('wasteWeightValue').focus();
       return;
     }
+    const processedRaw = $('wasteProcessedValue').value.trim();
+    if (reason === 'recorte' && processedRaw && !(Number(processedRaw) > 0)) {
+      showModalError('wasteError', 'Lo que se limpió tiene que ser mayor que cero.');
+      $('wasteProcessedValue').focus();
+      return;
+    }
 
     const btn = $('btnSubmitWaste');
     btn.disabled = true;
@@ -2731,6 +2902,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         items,
         weight_value: weightRaw || null,
         weight_unit: weightRaw ? $('wasteWeightUnit').value : null,
+        processed_value: (reason === 'recorte' && processedRaw) ? processedRaw : null,
+        processed_unit: (reason === 'recorte' && processedRaw) ? $('wasteProcessedUnit').value : null,
       });
 
       // Las fotos van después, una por una, contra la merma ya creada: si una falla, la merma
@@ -3303,10 +3476,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Fase 4: la vista de tablet (tablet.html) linkea acá con ?open=shipment|waste|count en vez
   // de reconstruir esos formularios — un botón grande que abre el modal de siempre.
+  // Merma entra a su pantalla y NO abre el formulario sola: quien llega quiere ver lo registrado
+  // y decide si registra (lo pidió el negocio); el formulario se abre con "Registrar merma".
   const openParam = new URLSearchParams(window.location.search).get('open');
   const AUTO_OPEN = {
     shipment: () => { setView('cargamentos'); openShipmentModal(); },
-    waste: () => { setView('merma'); openWasteModal(); },
+    waste: () => { setView('merma'); },
     count: () => { setView('conteo'); openCountModal(); },
   };
   AUTO_OPEN[openParam]?.();

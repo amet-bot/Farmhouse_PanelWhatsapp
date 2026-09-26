@@ -37,6 +37,10 @@ class WasteRecord(Base):
     # el peso es lo que respalda la merma, junto con la foto de evidencia.
     weight_value = Column(Numeric(10, 3), nullable=True)
     weight_unit = Column(String(5), nullable=True)   # "kg" | "g" | "lb"
+    # Solo en recortes (merma de proceso): cuánto se limpió en total, para el rendimiento
+    # ("de 5 kg de pollo quedaron 0.270 kg de recorte" → rinde 94.6 %). Migración 046.
+    processed_value = Column(Numeric(10, 3), nullable=True)
+    processed_unit = Column(String(5), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     branch = relationship("Branch")

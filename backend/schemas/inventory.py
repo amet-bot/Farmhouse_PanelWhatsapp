@@ -134,6 +134,10 @@ class WasteCreate(BaseModel):
     # El peso leído en la balanza (opcional). Va con su unidad; sin unidad se toma kg.
     weight_value: Optional[Decimal] = Field(None, gt=0, max_digits=10, decimal_places=3)
     weight_unit: Optional[str] = Field(None, pattern="^(kg|g|lb)$")
+    # Solo para "Recorte o limpieza": cuánto se limpió en total (para el rendimiento). En otros
+    # motivos se ignora.
+    processed_value: Optional[Decimal] = Field(None, gt=0, max_digits=10, decimal_places=3)
+    processed_unit: Optional[str] = Field(None, pattern="^(kg|g|lb)$")
 
 
 class WasteResponse(BaseModel):
@@ -156,6 +160,11 @@ class WasteResponse(BaseModel):
     # Evidencia: el peso leído en la balanza y las fotos (estas se suben después de crear la merma).
     weight_value: Optional[Decimal] = None
     weight_unit: Optional[str] = None
+    # Recorte o limpieza: merma de proceso, con lo que se limpió y el rendimiento (% aprovechado).
+    is_process: bool = False
+    processed_value: Optional[Decimal] = None
+    processed_unit: Optional[str] = None
+    yield_pct: Optional[Decimal] = None
     photos: List[WastePhotoResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -173,6 +182,18 @@ class WasteAnalyticsTotals(BaseModel):
     records_with_photo: int = 0
     sales_net: Optional[Decimal] = None       # venta neta de Invu en el mismo período y sucursales
     waste_pct_of_sales: Optional[Decimal] = None
+    cost_process: Decimal = Decimal("0")      # parte de la pérdida que es recorte/limpieza
+    kg_process: Decimal = Decimal("0")
+
+
+class WasteAnalyticsYield(BaseModel):
+    """Rendimiento al limpiar un insumo: de lo que se limpió, qué parte se aprovechó."""
+    inventory_item_id: int
+    name: str
+    processed_kg: Decimal                     # lo que se limpió
+    trimmed_kg: Decimal                       # lo que salió como recorte
+    yield_pct: Decimal                        # (limpiado - recorte) / limpiado × 100
+    records: int
 
 
 class WasteAnalyticsDay(BaseModel):
@@ -215,6 +236,8 @@ class WasteAnalyticsResponse(BaseModel):
     by_reason: List[WasteAnalyticsGroup]
     by_branch: List[WasteAnalyticsGroup]
     by_kind: List[WasteAnalyticsGroup]
+    by_nature: List[WasteAnalyticsGroup] = []     # "proceso" (recorte) vs "evitable" (el resto)
+    yields: List[WasteAnalyticsYield] = []
 
 
 class WasteRecipeDishShare(BaseModel):
