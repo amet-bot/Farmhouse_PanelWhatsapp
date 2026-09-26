@@ -1883,6 +1883,134 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  /**
+   * Tramos del gráfico de tendencia: por día si el período es corto (7 días), por semana si es
+   * largo. Treinta barras finitas con días vacíos entre medio no se leían de un vistazo; cuatro
+   * o cinco semanas con su monto escrito encima, sí.
+   */
+  function tramosMerma(dias) {
+    if (dias.length <= 14) {
+      return dias.map((d) => ({ ...d, cost: Number(d.cost), kg: Number(d.kg), label: fechaCorta(d.date), largo: fechaCorta(d.date) }));
+    }
+    // Semanas contadas desde el final: las recientes (las que importan) quedan completas y el
+    // tramo parcial, si lo hay, es el más viejo. Un tramo de 2 días no puede competir como "la
+    // semana más alta" contra semanas de 7, así que se marca.
+    const tramos = [];
+    for (let fin = dias.length; fin > 0; fin -= 7) {
+      const grupo = dias.slice(Math.max(0, fin - 7), fin);
+      const ini = grupo[0].date;
+      const ult = grupo[grupo.length - 1].date;
+      const mismoMes = ini.slice(0, 7) === ult.slice(0, 7);
+      const parcial = grupo.length < 7;
+      tramos.unshift({
+        label: (mismoMes ? `${Number(ini.slice(8))}–${fechaCorta(ult)}` : `${fechaCorta(ini)}–${fechaCorta(ult)}`) + (parcial ? '*' : ''),
+        largo: `del ${fechaCorta(ini)} al ${fechaCorta(ult)}` + (parcial ? ` (solo ${grupo.length} días)` : ''),
+        parcial,
+        cost: grupo.reduce((s, d) => s + Number(d.cost), 0),
+        kg: grupo.reduce((s, d) => s + Number(d.kg), 0),
+        records: grupo.reduce((s, d) => s + d.records, 0),
+      });
+    }
+    return tramos;
+  }
+
+  /** Paso "redondo" del eje (4 líneas): 14.56 → 4 (0, 4, 8, 12, 16); 25.27 → 8 (hasta 32). */
+  function pasoRedondo(max) {
+    if (max <= 0) return 1;
+    const crudo = max / 4;
+    const mag = 10 ** Math.floor(Math.log10(crudo));
+    for (const p of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) {
+      if (p * mag >= crudo) return p * mag;
+    }
+    return 10 * mag;
+  }
+
+  function renderWasteTrend() {
+    const a = wasteAnalysis.data;
+    const box = $('wasteDayChart');
+    if (!a || !box) return;
+    const porKg = wasteAnalysis.metric === 'kg';
+    const valorDe = (x) => (porKg ? x.kg : x.cost);
+    const fmtEje = (n) => (porKg ? `${qty(n)} kg` : `$${Number(n).toLocaleString('es-PA', { maximumFractionDigits: n < 10 ? 2 : 0 })}`);
+    const fmtValor = (n) => (porKg ? kgTxt(n) : money(n));
+
+    const tramos = tramosMerma(a.by_day);
+    const semanal = a.by_day.length > 14;
+    const unidadTramo = semanal ? 'semana' : 'día';
+    $('wasteDayTitle').textContent = `Pérdida por ${unidadTramo}`;
+    $('wasteDayNote').textContent = porKg ? 'En kilos' : 'En dólares';
+
+    if (!a.totals.records) {
+      $('wasteDayHeadline').textContent = '';
+      box.innerHTML = emptyStateHtml('bar-chart-3', 'Sin mermas en el período', 'Cuando se registren, acá se ve cuánto se perdió en cada tramo.');
+      utils.renderIcons();
+      return;
+    }
+
+    const total = tramos.reduce((s, x) => s + valorDe(x), 0);
+    // Promedio y "el más alto" sobre tramos completos cuando los hay (un tramo parcial no compite).
+    const completos = tramos.filter((x) => !x.parcial);
+    const base = completos.length ? completos : tramos;
+    const promedio = base.reduce((s, x) => s + valorDe(x), 0) / base.length;
+    const peor = base.reduce((m, x) => (valorDe(x) > valorDe(m) ? x : m), base[0]);
+    $('wasteDayHeadline').innerHTML = total > 0
+      ? `En estos ${a.by_day.length} días se ${porKg ? 'descartaron' : 'perdieron'} <strong>${esc(fmtValor(total))}</strong>, ` +
+        `unos <strong>${esc(fmtValor(promedio))}</strong> por ${unidadTramo}. ` +
+        `El${semanal ? ' tramo' : ''} más alto fue ${semanal ? esc(peor.largo) : `el ${esc(peor.largo)}`} (<strong>${esc(fmtValor(valorDe(peor)))}</strong>).`
+      : (porKg ? 'Ninguna merma del período tiene kilos conocidos.' : 'Ninguna merma del período tiene costo conocido todavía.');
+
+    // ---- SVG: eje con montos, barras con su valor encima, promedio punteado ----
+    const W = Math.max(300, box.clientWidth || 700);
+    const H = 250;
+    // A la derecha queda lugar para la etiqueta del promedio, afuera de las barras (adentro se
+    // encimaba con el monto de la última).
+    const M = { top: 26, right: W < 520 ? 58 : 96, bottom: 34, left: 52 };
+    const iw = W - M.left - M.right;
+    const ih = H - M.top - M.bottom;
+    const paso4 = pasoRedondo(Math.max(...tramos.map(valorDe)));
+    const max = paso4 * 4;
+    const y = (v) => M.top + ih - (v / max) * ih;
+    const paso = iw / tramos.length;
+    const barW = Math.min(64, paso * 0.62);
+    const angosto = paso < 44;   // en el celular con 7 días: los montos se escriben más chicos
+
+    let svg = '';
+    for (let i = 0; i <= 4; i++) {
+      const v = (max / 4) * i;
+      svg += `<line class="inv-trend-grid" x1="${M.left}" x2="${W - M.right}" y1="${y(v)}" y2="${y(v)}"/>`;
+      svg += `<text class="inv-trend-axis" x="${M.left - 8}" y="${y(v) + 4}" text-anchor="end">${esc(fmtEje(v))}</text>`;
+    }
+    tramos.forEach((x, i) => {
+      const v = valorDe(x);
+      const cx = M.left + paso * i + paso / 2;
+      const alto = Math.max(0, M.top + ih - y(v));
+      const esPeor = x === peor && v > 0;
+      const detalle = `${x.largo}: ${money(x.cost)} · ${kgTxt(x.kg)} · ${pluralize(x.records, 'merma', 'mermas')}`;
+      svg += `<g class="inv-trend-bar${esPeor ? ' is-peak' : ''}" tabindex="0" aria-label="${esc(detalle)}"><title>${esc(detalle)}</title>`;
+      if (v > 0) {
+        svg += `<rect x="${cx - barW / 2}" y="${y(v)}" width="${barW}" height="${Math.max(2, alto)}" rx="5"/>`;
+        svg += `<text class="inv-trend-value${angosto ? ' is-small' : ''}" x="${cx}" y="${y(v) - 7}" text-anchor="middle">${esc(fmtValor(v))}</text>`;
+      } else {
+        svg += `<rect class="is-empty" x="${cx - barW / 2}" y="${M.top + ih - 2}" width="${barW}" height="2" rx="1"/>`;
+      }
+      svg += `<text class="inv-trend-label" x="${cx}" y="${H - 12}" text-anchor="middle">${esc(x.label)}</text></g>`;
+    });
+    if (promedio > 0) {
+      svg += `<line class="inv-trend-avg" x1="${M.left}" x2="${W - M.right + 4}" y1="${y(promedio)}" y2="${y(promedio)}"/>`;
+      svg += `<text class="inv-trend-avg-label" x="${W - M.right + 8}" y="${y(promedio) - 3}">Promedio</text>`;
+      svg += `<text class="inv-trend-avg-label is-value" x="${W - M.right + 8}" y="${y(promedio) + 11}">${esc(fmtValor(promedio))}</text>`;
+    }
+    box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Pérdida por ${unidadTramo}">${svg}</svg>` +
+      (tramos.some((x) => x.parcial) ? '<p class="inv-trend-foot">* Semana incompleta: se muestra, pero no entra en el promedio ni compite como la más alta.</p>' : '');
+  }
+
+  // El gráfico se dibuja al ancho real de su caja: al cambiar el tamaño de la ventana se redibuja.
+  let trendResizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(trendResizeTimer);
+    trendResizeTimer = setTimeout(() => { if (wasteAnalysis.tab === 'analisis') renderWasteTrend(); }, 150);
+  });
+
   function barsHtml(filas, { valor, etiqueta, extra }) {
     const tope = Math.max(...filas.map(valor), 0);
     return filas.map((f) => `
@@ -1923,24 +2051,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <span class="inv-kpi-sub">${esc(k.sub)}</span>
       </div>`).join('');
 
-    // ---- Pérdida por día: barras hechas con CSS (se adaptan al ancho, en el celular también) ----
-    const dias = a.by_day;
-    const topeDia = Math.max(...dias.map(val), 0);
-    const cadaCuanto = dias.length > 16 ? Math.ceil(dias.length / 8) : 1;
-    $('wasteDayNote').textContent = porKg ? 'En kilos' : 'En dólares';
-    $('wasteDayChart').innerHTML = t.records ? `
-      <div class="inv-daychart-top">${topeDia > 0 ? (porKg ? kgTxt(topeDia) : money(topeDia)) : ''}</div>
-      <div class="inv-daychart-bars">
-        ${dias.map((d, i) => {
-          const alto = topeDia > 0 ? (val(d) / topeDia) * 100 : 0;
-          const detalle = `${fechaCorta(d.date)}: ${money(d.cost)} · ${kgTxt(d.kg)} · ${pluralize(d.records, 'merma', 'mermas')}`;
-          return `
-            <div class="inv-daybar" title="${esc(detalle)}" aria-label="${esc(detalle)}" tabindex="0">
-              <span class="inv-daybar-fill${val(d) > 0 ? '' : ' is-zero'}" style="height:${val(d) > 0 ? Math.max(4, alto) : 0}%"></span>
-              <span class="inv-daybar-label">${i % cadaCuanto === 0 ? esc(fechaCorta(d.date)) : ''}</span>
-            </div>`;
-        }).join('')}
-      </div>` : emptyStateHtml('bar-chart-3', 'Sin mermas en el período', 'Cuando se registren, acá se ve cuánto se perdió cada día.');
+    renderWasteTrend();
 
     // ---- Insumos ----
     // Los que no suman en la medida elegida (sin costo, o sin kilos) van al final: en "$" un

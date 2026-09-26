@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.5.0">
-  <link rel="stylesheet" href="css/inventory.css?v=4.8.1">
+  <link rel="stylesheet" href="css/inventory.css?v=4.8.4">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -304,11 +304,12 @@
 
             <div class="inv-panel inv-panel-wide">
               <div class="inv-panel-head">
-                <h2>Pérdida por día</h2>
+                <h2 id="wasteDayTitle">Pérdida por semana</h2>
                 <span class="inv-panel-note" id="wasteDayNote"></span>
               </div>
-              <p class="inv-chart-help">Cada barra es un día: más alta, más se perdió. Tocá o pasá el mouse por una barra para ver el detalle. Un día que sobresale del resto es el que conviene revisar (un pedido que llegó mal, una nevera, un feriado).</p>
-              <div class="inv-daychart" id="wasteDayChart"></div>
+              <p class="inv-chart-headline" id="wasteDayHeadline"></p>
+              <div class="inv-trend" id="wasteDayChart"></div>
+              <p class="inv-chart-help inv-chart-help-after">El número arriba de cada barra es lo que se perdió en ese tramo. La línea punteada es el promedio: lo que queda por encima es lo que conviene revisar (un pedido que llegó mal, una nevera, un feriado).</p>
             </div>
 
             <div class="inv-panel-grid">
@@ -838,6 +839,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.8.1"></script>
+  <script src="js/modules/inventory.js?v=4.8.4"></script>
 </body>
 </html>

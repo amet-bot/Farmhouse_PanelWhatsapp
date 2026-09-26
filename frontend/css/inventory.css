@@ -2482,53 +2482,46 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
   animation: invPhotoShimmer 1.2s ease-in-out infinite;
 }
 
-/* ---- Pérdida por día: barras verticales con CSS, se adaptan a cualquier ancho ---- */
-.inv-daychart { position: relative; }
-.inv-daychart-top { font-size: 11px; color: var(--inv-text-muted); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
-
-.inv-daychart-bars {
-  display: flex;
-  align-items: stretch;
-  gap: 3px;
-  height: 190px;
-  padding-bottom: 22px;
-  border-bottom: 1px solid var(--inv-border-light);
-  background: repeating-linear-gradient(to top, transparent 0, transparent 41px, var(--inv-border-light) 41px, var(--inv-border-light) 42px);
-  background-size: 100% calc(100% - 22px);
-  background-repeat: no-repeat;
+/* ---- Pérdida por semana / día: SVG con eje, monto encima de cada barra y promedio ---- */
+.inv-chart-headline {
+  margin: -6px 0 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--inv-text-secondary);
 }
 
-.inv-daybar {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: flex-end;
-  border-radius: 4px 4px 0 0;
-  outline: none;
+.inv-chart-headline strong { color: var(--inv-text); font-weight: 700; }
+.inv-chart-help-after { margin: 10px 0 0; }
+
+.inv-trend svg { display: block; overflow: visible; }
+.inv-trend-grid { stroke: var(--inv-border-light); stroke-width: 1; }
+.inv-trend-axis { fill: var(--inv-text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.inv-trend-label { fill: var(--inv-text-secondary); font-size: 11.5px; font-weight: 600; }
+
+.inv-trend-bar rect { fill: var(--inv-loss); opacity: .55; transition: opacity .15s ease; }
+.inv-trend-bar rect.is-empty { fill: var(--inv-border); opacity: 1; }
+.inv-trend-bar.is-peak rect { opacity: 1; }
+.inv-trend-bar:hover rect:not(.is-empty),
+.inv-trend-bar:focus-visible rect:not(.is-empty) { opacity: .9; }
+.inv-trend-bar:focus-visible { outline: none; }
+
+.inv-trend-value {
+  /* Halo del color del panel: la línea del promedio pasa por detrás sin tapar el número. */
+  paint-order: stroke;
+  stroke: var(--inv-panel);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  fill: var(--inv-text);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
-.inv-daybar-fill {
-  width: 100%;
-  border-radius: 4px 4px 0 0;
-  background: var(--inv-loss);
-  opacity: .85;
-  transition: opacity .15s ease;
-}
+.inv-trend-value.is-small { font-size: 10px; }
+.inv-trend-bar.is-peak .inv-trend-value { fill: var(--inv-loss-text); }
 
-.inv-daybar:hover .inv-daybar-fill,
-.inv-daybar:focus-visible .inv-daybar-fill { opacity: 1; }
-.inv-daybar:focus-visible { box-shadow: 0 0 0 2px var(--inv-green); }
-
-.inv-daybar-label {
-  position: absolute;
-  bottom: -20px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 10px;
-  color: var(--inv-text-muted);
-  white-space: nowrap;
-}
+.inv-trend-avg { stroke: var(--inv-text-secondary); stroke-width: 1.25; stroke-dasharray: 5 4; }
+.inv-trend-avg-label { fill: var(--inv-text-secondary); font-size: 11px; font-weight: 600; }
 
 .inv-analysis-method {
   display: flex;
@@ -2550,9 +2543,10 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
   .inv-analysis-filters .inv-segmented:not(.inv-segmented-sm) { width: 100%; }
   .inv-analysis-filters .inv-segmented:not(.inv-segmented-sm) button { flex: 1; justify-content: center; padding: 7px 4px; }
   .inv-analysis-filters .inv-segmented-sm { margin-left: 0; }
-  .inv-daychart-bars { height: 150px; gap: 2px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .inv-kpi-skeleton { animation: none; }
 }
+.inv-trend-avg-label.is-value { font-weight: 700; fill: var(--inv-text); }
+.inv-trend-foot { margin: 4px 0 0; font-size: 11px; color: var(--inv-text-muted); }
