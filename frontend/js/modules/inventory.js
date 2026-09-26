@@ -93,6 +93,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const unitCostFormatter = new Intl.NumberFormat('es-PA', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
   const unitCost = (n) => `$${unitCostFormatter.format(Number(n || 0))}`;
 
+  // Fotos de evidencia de la merma (ver "Evidencia de la merma" más abajo). Arriba y no allá: el detalle de una
+  // merma se puede pintar antes de que el módulo llegue a esa parte.
+  const WASTE_PHOTOS_MAX = 6;           // mismo tope que el servidor
+  const PHOTO_MAX_SIDE = 1600;          // px del lado largo: se ve bien el detalle y pesa ~300 KB
+  let pendingWastePhotos = [];          // [{ blob, url }] elegidas en el modal; se suben al guardar
+  const wastePhotoUrls = new Map();     // id de foto → URL ya descargada (no se vuelve a pedir)
+
   /** Cantidades con hasta 3 decimales pero sin ceros de relleno: 2.500 → "2.5", 3.000 → "3". */
   const qty = (n) => {
     const num = Number(n || 0);
@@ -1699,6 +1706,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <strong>${esc(w.reason_label)}</strong>
             <small>${esc(sub)}</small>
           </span>
+          ${(w.photos || []).length ? `<span class="inv-photo-flag" title="${pluralize(w.photos.length, 'foto', 'fotos')}" aria-label="Con foto"><i data-lucide="camera"></i></span>` : ''}
           <span class="inv-badge muted">${esc(wasteQuantityLabel(w))}</span>
           <span class="inv-row-amount inv-row-amount-waste">${w.total_cost != null ? `-${money(w.total_cost)}` : '—'}</span>
         </button>`;
@@ -1726,6 +1734,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    const fotos = w.photos || [];
     const rowsHtml = w.items.map((l) => {
       const subtotal = l.unit_cost != null ? money(Number(l.quantity) * Number(l.unit_cost)) : '—';
       return `
@@ -1757,6 +1766,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="inv-metrics">
         <div><span>Ítems</span><strong>${w.items.length} <small>${w.items.length === 1 ? 'línea' : 'líneas'}</small></strong></div>
         <div><span>Pérdida</span><strong>${w.total_cost != null ? money(w.total_cost) : '—'}</strong></div>
+        <div><span>Peso</span><strong>${w.weight_value != null ? `${esc(qty(w.weight_value))} <small>${esc(w.weight_unit || 'kg')}</small>` : '—'}</strong></div>
+        <div><span>Evidencia</span><strong>${fotos.length ? `${fotos.length} <small>${fotos.length === 1 ? 'foto' : 'fotos'}</small>` : '—'}</strong></div>
       </div>
       <div class="inv-detail-section-header"><span>Insumos perdidos</span></div>
       <table class="inv-detail-table">
@@ -1766,6 +1777,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         <tbody>${rowsHtml}</tbody>
         ${footHtml}
       </table>
+      <div class="inv-detail-section-header"><span>Evidencia</span></div>
+      <div class="inv-photo-grid" id="wasteDetailPhotos">
+        ${fotos.map((p) => `<button type="button" class="inv-photo-thumb is-loading" data-photo-id="${p.id}" aria-label="Ver foto (subida por ${esc(p.uploaded_by_name || 'alguien')})"></button>`).join('')}
+        ${fotos.length < WASTE_PHOTOS_MAX ? `
+          <button type="button" class="inv-photo-add" id="btnAddWastePhoto">
+            <i data-lucide="camera"></i><span>${fotos.length ? 'Agregar' : 'Agregar foto'}</span>
+          </button>` : ''}
+      </div>
+      ${fotos.length ? '' : '<p class="inv-photo-empty">Esta merma no tiene foto de evidencia.</p>'}
       <div class="inv-detail-section-header"><span>Detalles</span></div>
       <div class="inv-detail-rows">
         <div><span>Sucursal</span><strong>${esc(w.branch_name)}</strong></div>
@@ -1774,6 +1794,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><span>Cargado al sistema</span><strong>${esc(utils.formatDateTime(w.created_at))}</strong></div>
       </div>`;
     utils.renderIcons();
+    wirePhotoGallery(w);
   }
 
   $('wasteSearch')?.addEventListener('input', (e) => {
@@ -2073,9 +2094,174 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('wasteBranchSelect')?.addEventListener('change', loadWasteStock);
 
+  // ==========================================================================
+  // Evidencia de la merma: fotos de lo que se descartó. Se guardan en la base con la merma.
+  // ==========================================================================
+
+  /** Achica la foto antes de subirla (una de celular pesa 3-5 MB). Si no se puede, va tal cual. */
+  async function compressPhoto(file) {
+    let tmpUrl = null;
+    try {
+      let source;
+      if (window.createImageBitmap) {
+        source = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      } else {
+        tmpUrl = URL.createObjectURL(file);
+        source = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = tmpUrl;
+        });
+      }
+      const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(source.width, source.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(source.width * scale);
+      canvas.height = Math.round(source.height * scale);
+      canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+      if (source.close) source.close();
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+      if (blob) return blob;
+    } catch (e) {
+      /* Un formato que este navegador no sabe dibujar (p. ej. HEIC fuera de Safari): se manda
+         el original y el servidor decide si es una imagen aceptada. */
+    } finally {
+      if (tmpUrl) URL.revokeObjectURL(tmpUrl);
+    }
+    return file;
+  }
+
+  function renderPendingPhotos() {
+    const grid = $('wastePhotoPreviews');
+    if (!grid) return;
+    const add = grid.querySelector('.inv-photo-add');
+    grid.querySelectorAll('.inv-photo-thumb').forEach((n) => n.remove());
+    pendingWastePhotos.forEach((p, i) => {
+      const el = document.createElement('div');
+      el.className = 'inv-photo-thumb';
+      el.innerHTML = `<img src="${p.url}" alt="Foto ${i + 1}">
+        <button type="button" class="inv-photo-remove" data-idx="${i}" aria-label="Quitar foto ${i + 1}">&times;</button>`;
+      grid.insertBefore(el, add);
+    });
+    add.hidden = pendingWastePhotos.length >= WASTE_PHOTOS_MAX;
+  }
+
+  function resetPendingPhotos() {
+    pendingWastePhotos.forEach((p) => URL.revokeObjectURL(p.url));
+    pendingWastePhotos = [];
+    renderPendingPhotos();
+  }
+
+  $('wastePhotoInput')?.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';   // elegir la misma foto otra vez tiene que volver a disparar el cambio
+    for (const f of files) {
+      if (pendingWastePhotos.length >= WASTE_PHOTOS_MAX) break;
+      const blob = await compressPhoto(f);
+      pendingWastePhotos.push({ blob, url: URL.createObjectURL(blob) });
+    }
+    renderPendingPhotos();
+  });
+
+  $('wastePhotoPreviews')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.inv-photo-remove');
+    if (!btn) return;
+    const [quitada] = pendingWastePhotos.splice(Number(btn.dataset.idx), 1);
+    if (quitada) URL.revokeObjectURL(quitada.url);
+    renderPendingPhotos();
+  });
+
+  /** Sube las fotos una por una. Devuelve la merma como quedó y cuántas fallaron. */
+  async function uploadWastePhotos(wasteId, blobs) {
+    let ultima = null;
+    let fallidas = 0;
+    for (const blob of blobs) {
+      const fd = new FormData();
+      fd.append('file', blob, blob.type === 'image/png' ? 'peso.png' : 'peso.jpg');
+      try {
+        ultima = await api.request(`/inventory/waste/${wasteId}/photos`, { method: 'POST', body: fd });
+      } catch (err) {
+        fallidas += 1;
+      }
+    }
+    return { ultima, fallidas };
+  }
+
+  /** La foto con los mismos encabezados que el resto (un <img src> no manda el del dispositivo). */
+  async function wastePhotoUrl(wasteId, photoId) {
+    if (wastePhotoUrls.has(photoId)) return wastePhotoUrls.get(photoId);
+    const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+    const deviceId = api.getDeviceId();
+    if (deviceId) headers['X-Device-ID'] = deviceId;
+    const res = await fetch(`${api.baseUrl}/inventory/waste/${wasteId}/photos/${photoId}`, { credentials: 'include', headers });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const url = URL.createObjectURL(await res.blob());
+    wastePhotoUrls.set(photoId, url);
+    return url;
+  }
+
+  function openPhotoViewer(url) {
+    $('wastePhotoViewerImg').src = url;
+    $('wastePhotoViewer').hidden = false;
+    $('btnCloseWastePhoto').focus();
+  }
+  function closePhotoViewer() {
+    $('wastePhotoViewer').hidden = true;
+    $('wastePhotoViewerImg').removeAttribute('src');
+  }
+  $('btnCloseWastePhoto')?.addEventListener('click', closePhotoViewer);
+  $('wastePhotoViewer')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closePhotoViewer(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('wastePhotoViewer').hidden) closePhotoViewer();
+  });
+
+  /** Galería del detalle: carga las miniaturas y deja agregar más. */
+  function wirePhotoGallery(w) {
+    const grid = $('wasteDetailPhotos');
+    if (!grid) return;
+    grid.querySelectorAll('[data-photo-id]').forEach((btn) => {
+      const photoId = Number(btn.dataset.photoId);
+      wastePhotoUrl(w.id, photoId)
+        .then((url) => {
+          if (!btn.isConnected) return;
+          btn.classList.remove('is-loading');
+          btn.innerHTML = `<img src="${url}" alt="Foto de la merma">`;
+          btn.addEventListener('click', () => openPhotoViewer(url));
+        })
+        .catch(() => {
+          if (!btn.isConnected) return;
+          btn.classList.remove('is-loading');
+          btn.classList.add('is-error');
+          btn.innerHTML = '<i data-lucide="image-off"></i>';
+          utils.renderIcons();
+        });
+    });
+    $('btnAddWastePhoto')?.addEventListener('click', () => $('wasteDetailPhotoInput').click());
+  }
+
+  $('wasteDetailPhotoInput')?.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    const w = state.waste.find((x) => x.id === state.selected.waste);
+    if (!w || !files.length) return;
+    const libres = WASTE_PHOTOS_MAX - (w.photos || []).length;
+    const blobs = [];
+    for (const f of files.slice(0, Math.max(0, libres))) blobs.push(await compressPhoto(f));
+    if (!blobs.length) return;
+    utils.showToast('Subiendo foto...', 'info');
+    const { ultima, fallidas } = await uploadWastePhotos(w.id, blobs);
+    if (ultima) Object.assign(w, ultima);
+    if (fallidas) utils.showToast(`${pluralize(fallidas, 'foto no se pudo', 'fotos no se pudieron')} subir.`, 'error');
+    else utils.showToast(blobs.length === 1 ? 'Foto agregada.' : 'Fotos agregadas.', 'success');
+    renderWasteList();
+  });
+
   function openWasteModal() {
     $('wasteError').style.display = 'none';
     $('wasteNotes').value = '';
+    $('wasteWeightValue').value = '';
+    $('wasteWeightUnit').value = 'kg';
+    resetPendingPhotos();
     $('wasteOccurredAt').value = toLocalInputValue(new Date());
     if (state.wasteReasons.length) $('wasteReasonSelect').value = state.wasteReasons[0].code;
     wasteLinesContainer.innerHTML = '';
@@ -2116,6 +2302,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       occurredAt = parsed.toISOString();
     }
 
+    const weightRaw = $('wasteWeightValue').value.trim();
+    if (weightRaw && !(Number(weightRaw) > 0)) {
+      showModalError('wasteError', 'El peso tiene que ser mayor que cero.');
+      $('wasteWeightValue').focus();
+      return;
+    }
+
     const btn = $('btnSubmitWaste');
     btn.disabled = true;
     btn.textContent = 'Registrando...';
@@ -2126,12 +2319,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         occurred_at: occurredAt,
         notes: $('wasteNotes').value.trim() || null,
         items,
+        weight_value: weightRaw || null,
+        weight_unit: weightRaw ? $('wasteWeightUnit').value : null,
       });
-      closeModal('modalWaste');
 
-      // El servidor avisa qué quedó en negativo. No es un error: es que falta cargar el
-      // inventario de arranque, y conviene decirlo con esas palabras.
-      if (creada.negative_items && creada.negative_items.length) {
+      // Las fotos van después, una por una, contra la merma ya creada: si una falla, la merma
+      // igual quedó guardada y la foto se puede agregar desde su detalle.
+      let fotosFallidas = 0;
+      if (pendingWastePhotos.length) {
+        btn.textContent = 'Subiendo fotos...';
+        ({ fallidas: fotosFallidas } = await uploadWastePhotos(creada.id, pendingWastePhotos.map((p) => p.blob)));
+      }
+      closeModal('modalWaste');
+      resetPendingPhotos();
+
+      if (fotosFallidas) {
+        utils.showToast(
+          `Merma registrada, pero ${pluralize(fotosFallidas, 'foto no se subió', 'fotos no se subieron')}. Agregala${fotosFallidas === 1 ? '' : 's'} desde el detalle de la merma.`,
+          'warning'
+        );
+      } else if (creada.negative_items && creada.negative_items.length) {
+        // El servidor avisa qué quedó en negativo. No es un error: es que falta cargar el
+        // inventario de arranque, y conviene decirlo con esas palabras.
         utils.showToast(
           `Merma registrada. ${creada.negative_items.join(', ')} ${creada.negative_items.length === 1 ? 'queda' : 'quedan'} en negativo: hacé un conteo para cargar lo que hay.`,
           'warning'

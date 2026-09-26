@@ -3,10 +3,10 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from database import get_db
 from models.branch import Branch
@@ -14,7 +14,7 @@ from models.inventory_item import InventoryItem
 from models.supplier import Supplier
 from models.shipment import Shipment, ShipmentItem
 from models.user import User
-from models.waste import WasteRecord, WasteItem
+from models.waste import WasteRecord, WasteItem, WastePhoto
 from models.stock_count import StockCount, StockCountItem
 from models.inventory_movement import InventoryMovement
 from models.transfer import Transfer, TransferItem
@@ -24,7 +24,7 @@ from schemas.inventory import (
     SupplierCreate, SupplierResponse,
     ShipmentCreate, ShipmentResponse, ShipmentItemResponse,
     StockCountCreate, StockCountItemResponse, StockCountResponse,
-    StockRowResponse, WasteCreate, WasteItemResponse, WasteReasonResponse, WasteResponse,
+    StockRowResponse, WasteCreate, WasteItemResponse, WastePhotoResponse, WasteReasonResponse, WasteResponse,
     MovementComparisonResponse,
 )
 from services import invu_client, invu_items_sync, invu_sync
@@ -459,6 +459,16 @@ def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -
         items=items,
         total_cost=total_cost.quantize(Decimal("0.01")) if has_cost else None,
         negative_items=negativos,
+        weight_value=record.weight_value,
+        weight_unit=record.weight_unit,
+        photos=[
+            WastePhotoResponse(
+                id=p.id, content_type=p.content_type, size_bytes=p.size_bytes,
+                uploaded_by_name=(p.uploaded_by_user.name if p.uploaded_by_user else None),
+                created_at=p.created_at,
+            )
+            for p in record.photos
+        ],
     )
 
 
@@ -525,6 +535,8 @@ def create_waste(
         occurred_at=waste_in.occurred_at or datetime.now(timezone.utc),
         reason=waste_in.reason,
         notes=(waste_in.notes or None),
+        weight_value=waste_in.weight_value,
+        weight_unit=((waste_in.weight_unit or "kg") if waste_in.weight_value is not None else None),
     )
     for line in waste_in.items:
         costo = line.unit_cost
@@ -578,6 +590,8 @@ def list_waste(
         joinedload(WasteRecord.items).joinedload(WasteItem.inventory_item),
         joinedload(WasteRecord.branch),
         joinedload(WasteRecord.recorded_by_user),
+        # Las fotos en una consulta aparte (sin sus bytes: `data` es diferida), no una por merma.
+        selectinload(WasteRecord.photos).joinedload(WastePhoto.uploaded_by_user),
     )
 
     efectiva = _visible_branch_filter(current_user, branch_id)
@@ -588,6 +602,100 @@ def list_waste(
 
     records = query.order_by(WasteRecord.occurred_at.desc(), WasteRecord.id.desc()).offset(offset).limit(limit).all()
     return [_serialize_waste(r) for r in records]
+
+
+# ---- Fotos de respaldo de la merma (el peso en la balanza) ----
+# El navegador las achica a ~300 KB antes de subirlas; el tope es para una que llegue entera.
+WASTE_PHOTO_MAX_BYTES = 8 * 1024 * 1024
+WASTE_PHOTOS_PER_RECORD = 6
+
+
+def _image_type(data: bytes) -> Optional[str]:
+    """El tipo real por los primeros bytes, no por lo que dice el navegador ni la extensión."""
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def _waste_for_user(db: Session, waste_id: int, current_user: User) -> WasteRecord:
+    """La merma, si quien pregunta puede verla (misma regla de sucursal que el listado)."""
+    record = db.query(WasteRecord).filter(WasteRecord.id == waste_id).first()
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Merma no encontrada.")
+    efectiva = _visible_branch_filter(current_user, record.branch_id)
+    if efectiva is not None and efectiva != record.branch_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a las mermas de otra sucursal.")
+    return record
+
+
+@router.post("/waste/{waste_id}/photos", response_model=WasteResponse, status_code=status.HTTP_201_CREATED)
+async def add_waste_photo(
+    waste_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Agrega una foto a una merma ya registrada (se llama una vez por foto, justo después de
+    crearla o más tarde desde su detalle). Solo JPG, PNG o WebP, verificado por su contenido.
+    """
+    record = _waste_for_user(db, waste_id, current_user)
+    if len(record.photos) >= WASTE_PHOTOS_PER_RECORD:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Una merma admite hasta {WASTE_PHOTOS_PER_RECORD} fotos.",
+        )
+
+    data = await file.read(WASTE_PHOTO_MAX_BYTES + 1)
+    if len(data) > WASTE_PHOTO_MAX_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="La foto supera los 8 MB.")
+    content_type = _image_type(data)
+    if not content_type:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Solo se aceptan fotos (JPG, PNG o WebP).",
+        )
+
+    record.photos.append(WastePhoto(
+        content_type=content_type,
+        size_bytes=len(data),
+        data=data,
+        uploaded_by_user_id=current_user.id,
+    ))
+    log_audit_event(
+        db, current_user.id, record.branch_id, "waste.photo_add", "waste_record", record.id,
+        {"size_bytes": len(data), "content_type": content_type}
+    )
+    db.commit()
+    db.refresh(record)
+    return _serialize_waste(record)
+
+
+@router.get("/waste/{waste_id}/photos/{photo_id}")
+def get_waste_photo(
+    waste_id: int,
+    photo_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    record = _waste_for_user(db, waste_id, current_user)
+    photo = db.query(WastePhoto).filter(WastePhoto.id == photo_id, WastePhoto.waste_record_id == record.id).first()
+    if not photo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Foto no encontrada.")
+    return Response(
+        content=photo.data,
+        media_type=photo.content_type,
+        headers={
+            # Una foto de merma no cambia nunca: se puede guardar en el navegador de quien la vio.
+            "Cache-Control": "private, max-age=86400",
+            "Content-Security-Policy": "sandbox",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 # ==========================================================================

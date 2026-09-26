@@ -2302,3 +2302,125 @@ body {
   .inv-kpi { transition: none; }
   .inv-kpi:hover { transform: none; }
 }
+
+/* ============================================================================
+   EVIDENCIA DE LA MERMA: peso de la balanza y fotos
+   ============================================================================ */
+.inv-evidence-field {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--inv-border-light);
+}
+
+/* Peso: el número y su unidad en una fila. */
+.inv-weight-row { display: grid; grid-template-columns: minmax(0, 220px) 84px; gap: 8px; }
+
+.inv-photo-field-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.inv-photo-field-head small { font-size: 12px; color: var(--inv-text-muted); }
+
+.inv-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 10px;
+}
+
+.inv-photo-thumb,
+.inv-photo-add {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--inv-border);
+  background: var(--inv-panel-2);
+}
+
+button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
+.inv-photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.inv-photo-thumb.is-loading {
+  background: linear-gradient(90deg, var(--inv-panel-2), var(--inv-panel), var(--inv-panel-2));
+  background-size: 200% 100%;
+  animation: invPhotoShimmer 1.2s ease-in-out infinite;
+}
+
+.inv-photo-thumb.is-error { display: flex; align-items: center; justify-content: center; color: var(--inv-text-muted); }
+
+@keyframes invPhotoShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+.inv-photo-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-style: dashed;
+  color: var(--inv-green-dark);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.inv-photo-add:hover { border-color: var(--inv-green-border); background: var(--inv-green-soft); }
+.inv-photo-add i, .inv-photo-add svg { width: 20px; height: 20px; }
+
+.inv-photo-remove {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .6);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.inv-photo-empty { margin: 8px 0 0; font-size: 12.5px; color: var(--inv-text-muted); }
+
+.inv-photo-flag { display: inline-flex; color: var(--inv-text-muted); flex-shrink: 0; }
+.inv-photo-flag i, .inv-photo-flag svg { width: 15px; height: 15px; }
+
+.inv-photo-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(3, 8, 6, .9);
+}
+
+.inv-photo-viewer img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .55);
+}
+
+.inv-photo-viewer-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, .25);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .12);
+  color: #fff;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inv-photo-thumb.is-loading { animation: none; }
+}

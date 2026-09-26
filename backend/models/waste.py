@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Text, Index
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Text, Index, LargeBinary
+from sqlalchemy.dialects.mysql import MEDIUMBLOB
+from sqlalchemy.orm import deferred, relationship
 from datetime import datetime, timezone
 from database import Base
 
@@ -31,15 +32,45 @@ class WasteRecord(Base):
     # motivos son vocabulario de negocio y van a cambiar antes que el esquema.
     reason = Column(String(40), nullable=False)
     notes = Column(Text, nullable=True)
+    # El peso de lo que se descartó, tal como se leyó en la balanza (migración 044). Aparte de la
+    # cantidad de cada insumo: esa va en la unidad del insumo (una piña se cuenta por unidad) y
+    # el peso es lo que respalda la merma, junto con la foto de evidencia.
+    weight_value = Column(Numeric(10, 3), nullable=True)
+    weight_unit = Column(String(5), nullable=True)   # "kg" | "g" | "lb"
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     branch = relationship("Branch")
     recorded_by_user = relationship("User", foreign_keys=[recorded_by_user_id])
     items = relationship("WasteItem", back_populates="waste_record", cascade="all, delete-orphan")
+    photos = relationship("WastePhoto", back_populates="waste_record", cascade="all, delete-orphan",
+                          order_by="WastePhoto.id")
 
     __table_args__ = (
         Index("ix_waste_branch_occurred", "branch_id", "occurred_at"),
     )
+
+
+class WastePhoto(Base):
+    """
+    Foto de respaldo de una merma (típicamente el peso en la balanza).
+
+    La imagen va DENTRO de la base y no en el disco del servidor: los adjuntos de WhatsApp viven
+    en backend/media, que en Railway se pierde en cada deploy si no hay un volumen montado, y una
+    prueba de merma no puede depender de eso. El navegador la achica antes de subirla (~300 KB),
+    así que pesa poco. `data` es diferida: listar mermas nunca trae los bytes, solo pedir la foto.
+    """
+    __tablename__ = "waste_photos"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    waste_record_id = Column(Integer, ForeignKey("waste_records.id", ondelete="CASCADE"), nullable=False, index=True)
+    content_type = Column(String(40), nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    data = deferred(Column(LargeBinary().with_variant(MEDIUMBLOB(), "mysql"), nullable=False))
+    uploaded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    waste_record = relationship("WasteRecord", back_populates="photos")
+    uploaded_by_user = relationship("User", foreign_keys=[uploaded_by_user_id])
 
 
 class WasteItem(Base):

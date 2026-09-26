@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.5.0">
-  <link rel="stylesheet" href="css/inventory.css?v=4.6.0">
+  <link rel="stylesheet" href="css/inventory.css?v=4.7.1">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -376,6 +376,15 @@
     </div>
   </div>
 
+  <!-- Para agregar fotos a una merma ya registrada, desde su detalle. -->
+  <input type="file" id="wasteDetailPhotoInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*" multiple hidden>
+
+  <!-- Visor de fotos de merma -->
+  <div class="inv-photo-viewer" id="wastePhotoViewer" hidden role="dialog" aria-modal="true" aria-label="Foto de la merma">
+    <button type="button" class="inv-photo-viewer-close" id="btnCloseWastePhoto" aria-label="Cerrar">&times;</button>
+    <img id="wastePhotoViewerImg" alt="Foto de la merma">
+  </div>
+
   <!-- ================= Modal: registrar merma ================= -->
   <div class="modal-backdrop" id="modalWaste">
     <div class="modal-card modal-lg">
@@ -426,6 +435,38 @@
         <button type="button" class="inv-add-line-btn" id="btnAddWasteLine">
           <i data-lucide="plus"></i> Agregar insumo
         </button>
+
+        <!-- Peso leído en la balanza: se guarda con la merma, aparte de la cantidad de cada insumo
+             (que va en su unidad: una piña se cuenta por unidad). -->
+        <div class="inv-evidence-field">
+          <div class="inv-photo-field-head">
+            <label class="modal-label" for="wasteWeightValue">Peso</label>
+            <small>Lo que marcó la balanza (opcional).</small>
+          </div>
+          <div class="inv-weight-row">
+            <input type="number" id="wasteWeightValue" class="modal-input" min="0" step="0.001" inputmode="decimal" placeholder="Ej. 1.35">
+            <select id="wasteWeightUnit" class="modal-input" aria-label="Unidad del peso">
+              <option value="kg">kg</option>
+              <option value="g">g</option>
+              <option value="lb">lb</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Evidencia: fotos de lo que se descartó. Se guardan en la base junto con la merma.
+             Sin `capture`: en el celular deja elegir entre sacar la foto o tomarla de la galería. -->
+        <div class="inv-evidence-field">
+          <div class="inv-photo-field-head">
+            <span class="modal-label">Evidencia (foto)</span>
+            <small>Una foto de lo que se descartó, como respaldo. Hasta 6.</small>
+          </div>
+          <div class="inv-photo-grid" id="wastePhotoPreviews">
+            <label class="inv-photo-add" for="wastePhotoInput">
+              <i data-lucide="camera"></i><span>Agregar foto</span>
+            </label>
+          </div>
+          <input type="file" id="wastePhotoInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*" multiple hidden>
+        </div>
       </div>
       <div class="modal-footer inv-modal-footer">
         <div class="inv-total-box">
@@ -719,6 +760,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.6.0"></script>
+  <script src="js/modules/inventory.js?v=4.7.1"></script>
 </body>
 </html>

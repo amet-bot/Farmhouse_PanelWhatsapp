@@ -116,12 +116,24 @@ class WasteItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class WastePhotoResponse(BaseModel):
+    """Datos de una foto de merma, sin los bytes (se piden aparte, ver GET .../photos/{id})."""
+    id: int
+    content_type: str
+    size_bytes: int
+    uploaded_by_name: Optional[str] = None
+    created_at: datetime
+
+
 class WasteCreate(BaseModel):
     branch_id: int
     reason: str = Field(..., min_length=1, max_length=40)
     occurred_at: Optional[datetime] = None
     notes: Optional[str] = None
     items: List[WasteItemCreate] = Field(..., min_length=1, max_length=100)
+    # El peso leído en la balanza (opcional). Va con su unidad; sin unidad se toma kg.
+    weight_value: Optional[Decimal] = Field(None, gt=0, max_digits=10, decimal_places=3)
+    weight_unit: Optional[str] = Field(None, pattern="^(kg|g|lb)$")
 
 
 class WasteResponse(BaseModel):
@@ -141,6 +153,10 @@ class WasteResponse(BaseModel):
     # (ver create_waste): el sistema empezó a contar entradas hace poco y nadie cargó el
     # inventario de arranque, así que un negativo dice "falta cargar el arranque", no "error".
     negative_items: List[str] = []
+    # Evidencia: el peso leído en la balanza y las fotos (estas se suben después de crear la merma).
+    weight_value: Optional[Decimal] = None
+    weight_unit: Optional[str] = None
+    photos: List[WastePhotoResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 
