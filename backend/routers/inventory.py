@@ -434,11 +434,22 @@ def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -
     total_cost = Decimal("0.00")
     has_cost = False
     negativos: List[str] = []
+    # Lo que se muestra: el costo de cargamento y, donde no hay, el de referencia de Invu (el mismo
+    # criterio del Análisis). Sin esto la lista decía "—" aunque el formulario estimó $5.61.
+    display = Decimal("0.00")
+    display_has = False
+    estimado = False
 
     for line in record.items:
         if line.unit_cost is not None:
             total_cost += (Decimal(line.quantity) * Decimal(line.unit_cost))
             has_cost = True
+            display += Decimal(line.quantity) * Decimal(line.unit_cost)
+            display_has = True
+        elif line.inventory_item.reference_cost is not None:
+            display += Decimal(line.quantity) * Decimal(line.inventory_item.reference_cost)
+            display_has = True
+            estimado = True
 
         previo = None
         if stock_before is not None:
@@ -453,6 +464,7 @@ def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -
             unit=line.inventory_item.unit,
             quantity=line.quantity,
             unit_cost=line.unit_cost,
+            reference_cost=(line.inventory_item.reference_cost if line.unit_cost is None else None),
             stock_before=previo,
         ))
 
@@ -469,6 +481,8 @@ def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -
         created_at=record.created_at,
         items=items,
         total_cost=total_cost.quantize(Decimal("0.01")) if has_cost else None,
+        display_cost=display.quantize(Decimal("0.01")) if display_has else None,
+        cost_estimated=estimado,
         negative_items=negativos,
         weight_value=record.weight_value,
         weight_unit=record.weight_unit,

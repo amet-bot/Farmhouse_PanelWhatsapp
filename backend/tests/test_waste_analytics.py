@@ -175,3 +175,15 @@ def test_rendimiento_sin_sentido_no_se_informa(client, clayton_branch, admin_use
                  reason="recorte", processed_value="1", processed_unit="kg")
     assert rec["yield_pct"] is None
     assert _analisis(client, h)["yields"] == []
+
+
+def test_la_merma_muestra_su_costo_estimado_con_invu(client, db_session, clayton_branch, admin_user):
+    """Sin cargamento con costo, la lista y el detalle muestran el estimado de Invu (≈), no "—"."""
+    h = _h(admin_user)
+    aguacate = _item(client, h, "Aguacate", "gramos")
+    db_session.get(InventoryItem, aguacate["id"]).reference_cost = Decimal("0.0066")
+    db_session.commit()
+    w = _merma(client, h, clayton_branch.id, [{"inventory_item_id": aguacate["id"], "quantity": "850"}])
+    assert w["total_cost"] is None                     # costo real: no hay cargamento
+    assert Decimal(w["display_cost"]) == Decimal("5.61") and w["cost_estimated"] is True
+    assert Decimal(w["items"][0]["reference_cost"]) == Decimal("0.0066")

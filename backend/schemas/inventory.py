@@ -109,6 +109,7 @@ class WasteItemResponse(BaseModel):
     unit: str
     quantity: Decimal
     unit_cost: Optional[Decimal] = None
+    reference_cost: Optional[Decimal] = None   # costo de Invu del insumo, si no hay unit_cost
     # Existencia que quedaba de ese insumo en esa sucursal justo antes de este registro. Se
     # calcula al responder, no se guarda: sirve para avisar "esto deja el stock en negativo".
     stock_before: Optional[Decimal] = None
@@ -153,6 +154,10 @@ class WasteResponse(BaseModel):
     created_at: datetime
     items: List[WasteItemResponse]
     total_cost: Optional[Decimal] = None
+    # Lo que muestra la pantalla: total_cost (costo de los cargamentos) completado con el costo de
+    # referencia de Invu donde no hay cargamento. `cost_estimated` avisa que salió de Invu (≈).
+    display_cost: Optional[Decimal] = None
+    cost_estimated: bool = False
     # Insumos de este registro que dejaron la existencia por debajo de cero. No impide guardar
     # (ver create_waste): el sistema empezó a contar entradas hace poco y nadie cargó el
     # inventario de arranque, así que un negativo dice "falta cargar el arranque", no "error".

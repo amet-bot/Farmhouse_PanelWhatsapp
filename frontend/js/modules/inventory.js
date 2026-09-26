@@ -92,6 +92,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // dos decimales se verían como $0.01.
   const unitCostFormatter = new Intl.NumberFormat('es-PA', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
   const unitCost = (n) => `$${unitCostFormatter.format(Number(n || 0))}`;
+  // Costo de una merma para mostrar: el de cargamento o, si no hay, el estimado con Invu (≈).
+  const wasteCostValue = (w) => (w.display_cost != null ? Number(w.display_cost) : (w.total_cost != null ? Number(w.total_cost) : null));
+  const wasteCostTxt = (w) => { const v = wasteCostValue(w); return v == null ? '—' : `${w.cost_estimated ? '≈ ' : ''}${money(v)}`; };
 
   // Fotos de evidencia de la merma (ver "Evidencia de la merma" más abajo). Arriba y no allá: el detalle de una
   // merma se puede pintar antes de que el módulo llegue a esa parte.
@@ -672,11 +675,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const fecha = utils._parseServerDate(w.occurred_at);
       return fecha && fecha >= desde;
     });
-    const conCosto = rows.filter((w) => w.total_cost != null);
+    const conCosto = rows.filter((w) => wasteCostValue(w) != null);
     return {
       rows,
       count: rows.length,
-      total: conCosto.length ? conCosto.reduce((acc, w) => acc + Number(w.total_cost), 0) : null,
+      total: conCosto.length ? conCosto.reduce((acc, w) => acc + wasteCostValue(w), 0) : null,
     };
   }
 
@@ -766,8 +769,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     rows.forEach((w) => {
       const entry = porMotivo.get(w.reason) || { label: w.reason_label, costo: 0, veces: 0, conCosto: false };
       entry.veces += 1;
-      if (w.total_cost != null) {
-        entry.costo += Number(w.total_cost);
+      if (wasteCostValue(w) != null) {
+        entry.costo += wasteCostValue(w);
         entry.conCosto = true;
       }
       porMotivo.set(w.reason, entry);
@@ -1725,7 +1728,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </span>
           ${(w.photos || []).length ? `<span class="inv-photo-flag" title="${pluralize(w.photos.length, 'foto', 'fotos')}" aria-label="Con foto"><i data-lucide="camera"></i></span>` : ''}
           <span class="inv-badge muted">${esc(wasteQuantityLabel(w))}</span>
-          <span class="inv-row-amount inv-row-amount-waste">${w.total_cost != null ? `-${money(w.total_cost)}` : '—'}</span>
+          <span class="inv-row-amount inv-row-amount-waste">${wasteCostValue(w) != null ? `${w.cost_estimated ? '≈ ' : ''}-${money(wasteCostValue(w))}` : '—'}</span>
         </button>`;
     }).join('');
 
@@ -1753,21 +1756,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const fotos = w.photos || [];
     const rowsHtml = w.items.map((l) => {
-      const subtotal = l.unit_cost != null ? money(Number(l.quantity) * Number(l.unit_cost)) : '—';
+      // Sin cargamento con costo, el de Invu marcado con ≈ (igual que en la lista y el análisis).
+      const costo = l.unit_cost != null ? Number(l.unit_cost) : (l.reference_cost != null ? Number(l.reference_cost) : null);
+      const aprox = l.unit_cost == null && l.reference_cost != null ? '≈ ' : '';
+      const subtotal = costo != null ? `${aprox}${money(Number(l.quantity) * costo)}` : '—';
       return `
         <tr>
           <td class="inv-td-name" data-label="Insumo">${esc(l.item_name)}</td>
-          <td class="num" data-label="Cantidad">${esc(qty(l.quantity))} ${esc(l.unit)}</td>
-          <td class="num" data-label="Costo unit.">${l.unit_cost != null ? money(l.unit_cost) : '—'}</td>
+          <td class="num" data-label="Cantidad">${esc(qty(l.quantity))} ${esc(unitShort(l.unit))}</td>
+          <td class="num" data-label="Costo unit.">${costo != null ? `${aprox}${unitCost(costo)}` : '—'}</td>
           <td class="num" data-label="Pérdida">${subtotal}</td>
         </tr>`;
     }).join('');
 
-    const footHtml = w.total_cost != null ? `
+    const footHtml = wasteCostValue(w) != null ? `
       <tfoot>
         <tr>
           <td colspan="3" class="inv-td-total-label">Pérdida total</td>
-          <td class="num" data-label="Pérdida total">${money(w.total_cost)}</td>
+          <td class="num" data-label="Pérdida total">${esc(wasteCostTxt(w))}</td>
         </tr>
       </tfoot>` : '';
 
@@ -1782,7 +1788,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${w.notes ? `<p class="inv-detail-note">${esc(w.notes)}</p>` : ''}
       <div class="inv-metrics">
         <div><span>Ítems</span><strong>${w.items.length} <small>${w.items.length === 1 ? 'línea' : 'líneas'}</small></strong></div>
-        <div><span>Pérdida</span><strong>${w.total_cost != null ? money(w.total_cost) : '—'}</strong></div>
+        <div><span>Pérdida</span><strong>${esc(wasteCostTxt(w))}${w.cost_estimated ? ' <small>costo de Invu</small>' : ''}</strong></div>
         <div><span>Peso</span><strong>${w.weight_value != null ? `${esc(qty(w.weight_value))} <small>${esc(w.weight_unit || 'kg')}</small>` : '—'}</strong></div>
         <div><span>Evidencia</span><strong>${fotos.length ? `${fotos.length} <small>${fotos.length === 1 ? 'foto' : 'fotos'}</small>` : '—'}</strong></div>
         ${w.is_process && w.processed_value != null ? `

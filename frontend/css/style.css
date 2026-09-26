@@ -2725,26 +2725,28 @@ input:-webkit-autofill:focus {
   display: flex;
 }
 
+/* Los colores de estado son translúcidos (en oscuro, rgba .2): sobre la superficie opaca del
+   panel, el aviso no deja ver lo que tiene detrás a través del texto. */
 .toast-banner.toast-success {
-  background: var(--success-badge-bg);
+  background: linear-gradient(var(--success-badge-bg), var(--success-badge-bg)), var(--panel-elevated);
   color: var(--success-text);
   border: 1px solid var(--success-border);
 }
 
 .toast-banner.toast-error {
-  background: var(--danger-badge-bg);
+  background: linear-gradient(var(--danger-badge-bg), var(--danger-badge-bg)), var(--panel-elevated);
   color: var(--danger-text);
   border: 1px solid var(--danger-border);
 }
 
 .toast-banner.toast-warning {
-  background: var(--warning-badge-bg);
+  background: linear-gradient(var(--warning-badge-bg), var(--warning-badge-bg)), var(--panel-elevated);
   color: var(--warning-text);
   border: 1px solid var(--warning-border);
 }
 
 .toast-banner.toast-info {
-  background: var(--info-badge-bg);
+  background: linear-gradient(var(--info-badge-bg), var(--info-badge-bg)), var(--panel-elevated);
   color: var(--info-text);
   border: 1px solid var(--info-border);
 }
