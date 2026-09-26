@@ -21,8 +21,17 @@ const notificationModule = {
 
   init() {
     this.originalTitle = document.title || 'Atención al Cliente — Farmhouse Link';
-    const savedSound = localStorage.getItem('fh_sound_enabled');
+    let savedSound = null;
+    try { savedSound = localStorage.getItem('fh_sound_enabled'); } catch (e) { /* almacenamiento bloqueado */ }
     this.soundEnabled = savedSound !== null ? savedSound === 'true' : true;
+
+    // El título parpadeante ("(3) 💬 Juan") nunca se apagaba: clearTitleAlert() existía pero
+    // nadie lo llamaba, y el contador solo crecía. Se apaga cuando la persona vuelve a la pestaña.
+    const clearWhenBack = () => {
+      if (document.visibilityState === 'visible') this.clearTitleAlert();
+    };
+    document.addEventListener('visibilitychange', clearWhenBack);
+    window.addEventListener('focus', clearWhenBack);
 
     // Desbloquear AudioContext en la primera interacción del usuario (política de navegadores modernos)
     const unlockAudio = () => {
@@ -58,7 +67,7 @@ const notificationModule = {
 
   toggleSound() {
     this.soundEnabled = !this.soundEnabled;
-    localStorage.setItem('fh_sound_enabled', this.soundEnabled);
+    try { localStorage.setItem('fh_sound_enabled', this.soundEnabled); } catch (e) { /* no persiste, no es fatal */ }
     this.updateSoundToggleBtn();
     if (this.soundEnabled) {
       this.playMessageSound();
@@ -207,6 +216,10 @@ const notificationModule = {
    */
   notifyIncomingMessage(data) {
     if (!this.canBeNotifiedAbout(data)) return;
+    // El backend también emite "new_incoming_message" para las burbujas que manda el propio bot
+    // (para que el chat abierto las muestre al instante). Eso no es un mensaje del cliente:
+    // antes cada burbuja del bot (~3 por turno) sonaba y abría una tarjeta de aviso.
+    if (data.message && data.message.direction === 'outgoing') return;
     const contactName = data.contact_name || 'Cliente';
     const msgContent = (data.message && data.message.content) ? data.message.content : 'Nuevo mensaje recibido';
     const convId = data.conversation_id;
@@ -475,6 +488,7 @@ const notificationModule = {
   },
 
   clearTitleAlert() {
+    if (!this.titleFlashInterval && !this.unreadCount) return;
     clearInterval(this.titleFlashInterval);
     this.titleFlashInterval = null;
     this.unreadCount = 0;

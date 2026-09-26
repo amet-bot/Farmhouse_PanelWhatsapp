@@ -17,6 +17,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (pill) chatModule.insertQuickReply(pill.dataset.quickReply);
   });
 
+  document.getElementById('btnCloseDetails')?.addEventListener('click', () => {
+    document.querySelector('.panel-details')?.classList.remove('active');
+  });
+
   // 2.1 Menú lateral como panel deslizante en celular (hamburguesa + fondo + botón cerrar)
   const sidebarEl = document.querySelector('.sidebar');
   const sidebarBackdrop = document.getElementById('sidebarBackdrop');
@@ -109,6 +113,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       await auth.login(username, password);
+      // Volver a iniciar sesión en la misma pestaña (tras salir o tras vencer la sesión): los
+      // módulos ya engancharon sus listeners y el refresco periódico la primera vez, y correr
+      // initApp() de nuevo los duplicaba (doble polling, el botón de sonido se activaba y
+      // desactivaba en el mismo clic...). Recargar arranca limpio con la cookie nueva.
+      if (appInitialized) {
+        window.location.reload();
+        return;
+      }
       hideLoginModal();
       await initApp();
     } catch (err) {
@@ -158,6 +170,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     },
     afterLogout: () => {
+      stopBackgroundSync();
       wsClient.disconnect();
       chatModule.renderEmpty();
       const passInp = document.getElementById('password');
@@ -168,7 +181,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Eventos de Autenticación y Seguridad
   window.addEventListener('auth:unauthorized', () => {
+    // Antes solo se mostraba el login: auth seguía creyendo que había sesión, así que el
+    // refresco de 6 s seguía disparando peticiones que daban 401 (y cada una volvía a resetear
+    // el aviso del login mientras la persona escribía), y el WebSocket reintentaba para siempre.
+    auth._currentUser = null;
+    auth._wsToken = null;
+    stopBackgroundSync();
     wsClient.disconnect();
+    if (modalLogin && modalLogin.classList.contains('active')) return;
     chatModule.renderEmpty();
     showLoginModal('Tu sesión expiró. Inicia sesión nuevamente.');
   });
@@ -185,9 +205,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // 4. Inicialización Global de la Aplicación
+  let appInitialized = false;
+  let backgroundSyncTimer = null;
+
+  function stopBackgroundSync() {
+    if (backgroundSyncTimer) {
+      clearInterval(backgroundSyncTimer);
+      backgroundSyncTimer = null;
+    }
+  }
+
   async function initApp() {
     const user = auth.getUser();
     if (!user) return;
+    appInitialized = true;
 
     // Encabezado de Usuario (utilidad compartida, ver js/shared/shell.js)
     FarmhouseShell.fillUserHeader({ nameId: 'topAgentName', roleId: 'topAgentRole', avatarId: 'topAgentAvatar' }, user);
@@ -220,7 +251,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Sincronizador de Respaldo Silencioso en Tiempo Real (cada 6 segundos)
     // Garantiza que ningún mensaje o conversación quede estancado si el WebSocket se reconecta
-    setInterval(() => {
+    stopBackgroundSync();
+    backgroundSyncTimer = setInterval(() => {
       if (typeof auth !== 'undefined' && auth.isAuthenticated()) {
         if (chatModule.currentConversation && chatModule.currentConversation.id) {
           chatModule.syncCurrentMessagesSilently();
@@ -264,11 +296,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         utils.showToast('Bloqueaste las notificaciones para este sitio. Actívalas desde los ajustes del navegador.', 'warning');
         return;
       }
-      const ok = await pushModule.requestPermissionAndSubscribe();
+      // requestPermissionAndSubscribe ya muestra su propio aviso de éxito (antes salían dos).
+      await pushModule.requestPermissionAndSubscribe();
       updateNotifBellIcon();
-      if (ok) {
-        utils.showToast('Notificaciones push activadas para esta sucursal.', 'success');
-      }
     });
   }
 
@@ -671,11 +701,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const data = {
       username: document.getElementById('editUserUsername').value.trim().toLowerCase(),
       name: document.getElementById('editUserName').value.trim(),
-      email: emailVal || null,
       role: document.getElementById('editUserRole').value,
       branch_id: branchVal ? parseInt(branchVal) : null,
       active: document.getElementById('editUserStatus').value === 'true'
     };
+    // Este formulario de Centro WhatsApp no tiene campo de correo (el de Administración sí).
+    // Mandar email: null igual borraba el correo guardado del usuario en cada edición.
+    if (editEmailInput) data.email = emailVal || null;
     if (pwdVal) data.password = pwdVal;
 
     try {

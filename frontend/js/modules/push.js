@@ -76,10 +76,8 @@ const pushModule = {
 
     document.getElementById('btnPromptActivatePush')?.addEventListener('click', async () => {
       banner.remove();
-      const ok = await this.requestPermissionAndSubscribe();
-      if (ok && typeof updateNotifBellIcon === 'function') {
-        updateNotifBellIcon();
-      }
+      // requestPermissionAndSubscribe ya actualiza el ícono de la campana y avisa con un toast.
+      await this.requestPermissionAndSubscribe();
     });
 
     document.getElementById('btnPromptDismissPush')?.addEventListener('click', () => {
@@ -126,6 +124,13 @@ const pushModule = {
       const { public_key } = await api.get('/push/vapid-public-key');
 
       let subscription = await this._registration.pushManager.getSubscription();
+      // Una suscripción creada con otra clave VAPID (el servidor las regeneró) ya no sirve: el
+      // servicio push la rechaza y el servidor la borra. Reusarla dejaba el aviso muerto para
+      // siempre en este navegador, así que se rehace con la clave vigente.
+      if (subscription && !this._sameServerKey(subscription, public_key)) {
+        try { await subscription.unsubscribe(); } catch (e) { /* se reemplaza igual abajo */ }
+        subscription = null;
+      }
       if (!subscription) {
         subscription = await this._registration.pushManager.subscribe({
           userVisibleOnly: true,
@@ -146,7 +151,20 @@ const pushModule = {
     }
   },
 
+  _sameServerKey(subscription, publicKeyB64) {
+    const current = subscription.options && subscription.options.applicationServerKey;
+    if (!current) return true; // el navegador no expone la clave: no se puede comparar, se conserva
+    const a = new Uint8Array(current);
+    const b = this.urlBase64ToUint8Array(publicKeyB64);
+    return a.length === b.length && a.every((v, i) => v === b[i]);
+  },
+
   async unsubscribe() {
+    // Páginas que cierran sesión sin haber llamado init() (ver FarmhouseShell.initLogout)
+    // igual tienen que poder cancelar la suscripción de este navegador.
+    if (!this._registration && this.isSupported()) {
+      try { this._registration = await navigator.serviceWorker.getRegistration('/sw.js') || null; } catch (e) { /* sin SW */ }
+    }
     if (!this._registration) return;
     try {
       const subscription = await this._registration.pushManager.getSubscription();

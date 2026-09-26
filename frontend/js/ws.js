@@ -5,17 +5,52 @@
 const wsClient = {
   socket: null,
   reconnectInterval: 4000,
+  // Rechazo por credenciales (código 1008: dispositivo revocado, usuario inactivo): antes se
+  // reintentaba cada 5 s para siempre, pidiendo un ticket nuevo en cada intento. Ahora se
+  // espacia hasta un minuto, y vuelve a 5 s en cuanto una conexión se abre bien.
+  authRetryDelay: 5000,
+  maxAuthRetryDelay: 60000,
   pingTimer: null,
+  reconnectTimer: null,
   lastPongAt: null,
   listeners: {},
+  // connect() espera el ticket antes de crear el socket, y en ese intervalo `this.socket` sigue
+  // en null: focus + visibilitychange + pageshow (que llegan juntos al volver a la pestaña), o
+  // useDevice() + initApp(), pasaban los dos el chequeo y abrían DOS sockets — cada evento
+  // llegaba duplicado (sonidos, contadores). `connecting` cierra esa ventana; `generation`
+  // descarta un connect() que quedó esperando si mientras tanto se llamó disconnect().
+  connecting: false,
+  connectingGeneration: -1,
+  generation: 0,
 
   async connect() {
+    // Un connect() anterior que sigue esperando su ticket solo bloquea si es de la misma
+    // generación: después de disconnect() (useDevice hace disconnect + connect) el pendiente
+    // ya quedó descartado y este tiene que poder arrancar.
+    if (this.connecting && this.connectingGeneration === this.generation) return;
     if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
       return;
     }
+    const generation = this.generation;
+    this.connecting = true;
+    this.connectingGeneration = generation;
+    try {
+      await this._openSocket(generation);
+    } finally {
+      if (this.connectingGeneration === generation) this.connecting = false;
+    }
+  },
 
+  scheduleReconnect(delay) {
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (typeof auth !== 'undefined' && auth.isAuthenticated()) this.connect();
+    }, delay);
+  },
+
+  async _openSocket(generation) {
     let token = null;
-    let isTicket = false;
 
     // Intentar obtener un ticket de un solo uso para no exponer JWTs en query params (Punto 14)
     try {
@@ -23,12 +58,14 @@ const wsClient = {
         const ticketRes = await api.request('/auth/ws-token', { method: 'POST' });
         if (ticketRes && ticketRes.ws_ticket) {
           token = ticketRes.ws_ticket;
-          isTicket = true;
         }
       }
     } catch (e) {
       console.warn('[WS] No se pudo obtener ws_ticket efímero, usando token de respaldo:', e);
     }
+
+    // Se llamó disconnect() (logout, cambio de dispositivo) mientras se esperaba el ticket.
+    if (generation !== this.generation) return;
 
     if (!token && typeof auth !== 'undefined') {
       token = auth.getWsToken();
@@ -50,26 +87,32 @@ const wsClient = {
 
     console.log('[WS] Conectando a sala en tiempo real...');
     this.updateStatus('connecting');
+    let socket;
     try {
-      this.socket = new WebSocket(wsUrl);
+      socket = new WebSocket(wsUrl);
     } catch (err) {
       console.error('[WS] Error instanciando WebSocket:', err);
       this.updateStatus('disconnected');
-      if (auth.isAuthenticated()) {
-        setTimeout(() => this.connect(), this.reconnectInterval);
-      }
+      this.scheduleReconnect(this.reconnectInterval);
       return;
     }
+    this.socket = socket;
 
-    this.socket.onopen = () => {
+    // Cada manejador ignora los eventos de un socket que ya no es el actual: sin esto, el
+    // onclose de un socket reemplazado apagaba el ping del vigente y mostraba "Desconectado"
+    // aunque la conexión real siguiera viva.
+    socket.onopen = () => {
+      if (this.socket !== socket) return;
       console.log('[WS] Conexión WebSocket establecida.');
       this.lastPongAt = Date.now();
+      this.authRetryDelay = 5000;
       this.updateStatus('connected');
       this.startPing();
       this.emit('connected');
     };
 
-    this.socket.onmessage = (event) => {
+    socket.onmessage = (event) => {
+      if (this.socket !== socket) return;
       if (event.data === 'pong') {
         this.lastPongAt = Date.now();
         return;
@@ -85,19 +128,24 @@ const wsClient = {
       }
     };
 
-    this.socket.onerror = (err) => {
+    socket.onerror = (err) => {
       console.error('[WS] Error de WebSocket:', err);
     };
 
-    this.socket.onclose = (event) => {
+    socket.onclose = (event) => {
+      if (this.socket !== socket) return;
       console.log(`[WS] Conexión cerrada (código: ${event.code}).`);
+      this.socket = null;
       this.stopPing();
       this.updateStatus('disconnected');
       this.emit('disconnected');
 
-      if (auth.isAuthenticated()) {
-        const delay = event.code === 1008 ? 5000 : this.reconnectInterval;
-        setTimeout(() => this.connect(), delay);
+      if (event.code === 1008) {
+        const delay = this.authRetryDelay;
+        this.authRetryDelay = Math.min(this.authRetryDelay * 2, this.maxAuthRetryDelay);
+        this.scheduleReconnect(delay);
+      } else {
+        this.scheduleReconnect(this.reconnectInterval);
       }
     };
   },
@@ -123,10 +171,16 @@ const wsClient = {
   },
 
   disconnect() {
+    this.generation += 1;
     this.stopPing();
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
     if (this.socket) {
-      this.socket.close();
+      const socket = this.socket;
+      // Se suelta la referencia ANTES de cerrar: así su onclose ve que ya no es el socket
+      // actual y no agenda una reconexión propia.
       this.socket = null;
+      socket.close();
     }
   },
 

@@ -1327,7 +1327,12 @@ const flowEditorModule = (function () {
   }
 
   function addNode(type) {
-    idCounter++;
+    // El contador arrancaba siempre en 1000: en cada sesión nueva el primer nodo agregado volvía
+    // a ser "n1001" aunque el flujo guardado ya tuviera uno con ese id (dos nodos con el mismo
+    // id: borrar uno borraba los dos y las conexiones quedaban ambiguas). Se salta cualquier id
+    // que ya exista en el grafo cargado.
+    const existingIds = new Set((graph.nodes || []).map((n) => n.id));
+    do { idCounter++; } while (existingIds.has('n' + idCounter));
     const id = 'n' + idCounter;
     const defaults = newNodeDefaults(type);
     // scrollLeft/scrollTop están en píxeles visuales (ya con el zoom aplicado); se dividen

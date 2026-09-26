@@ -238,6 +238,13 @@
   padding: 0;
 }
 
+/* El atributo [hidden] siempre gana. Cualquier componente con `display: flex/grid` propio le
+   ganaba a la regla del navegador y el elemento seguía visible aunque el JS lo "ocultara"
+   (p. ej. la fila "Estado del pago" del pedido). Una sola regla en vez de un parche por clase. */
+[hidden] {
+  display: none !important;
+}
+
 html, body {
   height: 100%;
   width: 100%;
@@ -999,9 +1006,45 @@ a:focus-visible {
   background: var(--table-row-hover);
 }
 
+/* conversations.js marca la conversación abierta con .active: la regla solo existía para
+   .selected (que ningún código pone), así que la fila abierta nunca se resaltaba. */
+.conv-item.active,
 .conv-item.selected {
   background: var(--green-soft);
   border-left: 3px solid var(--green);
+}
+
+.conv-item:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: -2px;
+}
+
+/* Botón para cerrar el panel de detalles cuando se abre como capa (tablet/celular): antes el
+   único botón para cerrarlo estaba en el header del chat, que el propio panel tapaba. */
+.btn-close-details {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .btn-close-details {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-end;
+    margin-bottom: 8px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--panel-subtle);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .btn-close-details i,
+  .btn-close-details svg {
+    width: 14px;
+    height: 14px;
+  }
 }
 
 .avatar-circle {

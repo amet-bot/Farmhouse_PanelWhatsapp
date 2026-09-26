@@ -100,40 +100,34 @@ const branchesModule = {
     if (transferSelect) transferSelect.innerHTML = '<option value="">-- Seleccionar Sucursal Destino --</option>' + optionsHtml;
   },
 
-  async updateCounters() {
+  // Varios disparadores piden los contadores casi a la vez (cada carga de la lista, cada evento
+  // del WebSocket): se agrupan en una sola petición por ráfaga.
+  _countersTimer: null,
+
+  updateCounters() {
+    clearTimeout(this._countersTimer);
+    this._countersTimer = setTimeout(() => this._fetchCounters(), 250);
+  },
+
+  async _fetchCounters() {
     try {
-      // Las 4 llamadas son independientes entre sí: se disparan en paralelo (antes eran
-      // secuenciales) para que actualizar los contadores tome el tiempo de la más lenta, no
-      // la suma de las 4.
-      const [convs, unassigned, allConvs, pending] = await Promise.all([
-        api.get('/conversations/?status=abiertas&limit=100'),
-        api.get('/conversations/?status=no-asignadas&limit=100'),
-        api.get('/conversations/?status=todas&limit=100'),
-        api.get('/conversations/?status=pendientes&limit=100'),
-      ]);
+      // Un solo GET agrupado en el servidor. Antes eran 4 listados completos de hasta 100
+      // conversaciones (con todos sus mensajes) solo para contarlos, y el número se quedaba
+      // en 100 aunque hubiera más.
+      const c = await api.get('/conversations/counts');
+      const setText = (el, value) => { if (el) el.textContent = value; };
 
-      const badgeConv = document.getElementById('badgeConversaciones');
-      if (badgeConv) badgeConv.textContent = convs.length;
-      const tabAbiertas = document.getElementById('tabCountAbiertas');
-      if (tabAbiertas) tabAbiertas.textContent = convs.length;
+      setText(document.getElementById('badgeConversaciones'), c.abiertas);
+      setText(document.getElementById('tabCountAbiertas'), c.abiertas);
+      setText(document.querySelector('[data-nav="no-asignadas"] .nav-badge'), c.no_asignadas);
+      setText(document.getElementById('tabCountNoAsignadas'), c.no_asignadas);
+      setText(document.querySelector('[data-nav="todas"] .nav-badge'), c.todas);
+      setText(document.getElementById('tabCountTodas'), c.todas);
+      setText(document.getElementById('tabCountPendientes'), c.pendientes);
 
-      const badgeUnassigned = document.querySelector('[data-nav="no-asignadas"] .nav-badge');
-      if (badgeUnassigned) badgeUnassigned.textContent = unassigned.length;
-      const tabUnassigned = document.getElementById('tabCountNoAsignadas');
-      if (tabUnassigned) tabUnassigned.textContent = unassigned.length;
-
-      const badgeAll = document.querySelector('[data-nav="todas"] .nav-badge');
-      if (badgeAll) badgeAll.textContent = allConvs.length;
-      const tabAll = document.getElementById('tabCountTodas');
-      if (tabAll) tabAll.textContent = allConvs.length;
-
-      const tabPending = document.getElementById('tabCountPendientes');
-      if (tabPending) tabPending.textContent = pending.length;
-
+      const byBranch = c.abiertas_por_sucursal || {};
       this.branches.forEach(b => {
-        const count = convs.filter(c => c.branch_id === b.id).length;
-        const bBadge = document.getElementById(`badgeBranch_${b.id}`);
-        if (bBadge) bBadge.textContent = count;
+        setText(document.getElementById(`badgeBranch_${b.id}`), byBranch[String(b.id)] || 0);
       });
     } catch (e) {
       console.warn('Error actualizando contadores:', e);

@@ -3,7 +3,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from database import get_db
 from models.conversation import Conversation
@@ -24,6 +26,49 @@ logger = logging.getLogger("farmhouse.conversations")
 
 router = APIRouter(prefix="/conversations", tags=["Conversaciones"])
 
+def _scoped_conversations(db: Session, current_user: User, branch_id: Optional[int]):
+    """Conversaciones visibles para el usuario (mismo alcance por sucursal que el listado)."""
+    query = db.query(Conversation).filter(Conversation.deleted_at.is_(None))
+    if current_user.role == "agent":
+        if not current_user.branch_id:
+            return None
+        query = query.filter(Conversation.branch_id == current_user.branch_id)
+    elif current_user.role == "supervisor" and current_user.branch_id:
+        query = query.filter(Conversation.branch_id == current_user.branch_id)
+    elif branch_id:
+        query = query.filter(Conversation.branch_id == branch_id)
+    return query
+
+
+_STATUS_FILTERS = {
+    "abiertas": ["open", "new", "unassigned"], "open": ["open", "new", "unassigned"],
+    "pendientes": ["pending"], "pending": ["pending"],
+    "no-asignadas": ["unassigned"], "unassigned": ["unassigned"],
+}
+
+
+def _last_messages_by_conversation(db: Session, conversation_ids: List[int]) -> dict:
+    """
+    Por conversación, el último mensaje visible y el último visible que no es nota interna, en
+    dos consultas agrupadas. Es todo lo que la bandeja necesita: la vista previa usa el último,
+    y needs_reminder mira el último mensaje "real" del cliente.
+    """
+    if not conversation_ids:
+        return {}
+    base = db.query(Message.conversation_id, func.max(Message.id)).filter(
+        Message.conversation_id.in_(conversation_ids), Message.deleted_at.is_(None)
+    )
+    last_any = dict(base.group_by(Message.conversation_id).all())
+    last_ext = dict(base.filter(Message.is_internal == False).group_by(Message.conversation_id).all())  # noqa: E712
+    wanted = set(last_any.values()) | set(last_ext.values())
+    by_id = {m.id: m for m in db.query(Message).filter(Message.id.in_(wanted)).all()} if wanted else {}
+    result = {}
+    for conv_id in conversation_ids:
+        picked = {by_id[i] for i in (last_any.get(conv_id), last_ext.get(conv_id)) if i in by_id}
+        result[conv_id] = sorted(picked, key=lambda m: (m.created_at, m.id))
+    return result
+
+
 @router.get("/", response_model=List[ConversationResponse])
 def get_conversations(
     branch_id: Optional[int] = None,
@@ -36,31 +81,24 @@ def get_conversations(
 ):
     """
     Listado optimizado y aislado de conversaciones por sucursal (Punto 3).
+
+    Cada fila trae en `messages` solo los últimos mensajes visibles (el último, y el último que
+    no es nota interna) y `orders` vacío: antes serializaba el historial COMPLETO de cada
+    conversación (y sus pedidos) con una consulta por fila, incluidos mensajes borrados, y el
+    panel lo pide cada 6 s. El detalle (GET /conversations/{id}) sigue trayendo todo.
     """
-    query = db.query(Conversation).options(
+    query = _scoped_conversations(db, current_user, branch_id)
+    if query is None:
+        return []
+    query = query.options(
         joinedload(Conversation.contact),
         joinedload(Conversation.branch),
         joinedload(Conversation.assigned_user)
-    ).filter(Conversation.deleted_at.is_(None))
-
-    if current_user.role == "agent":
-        if not current_user.branch_id:
-            return []
-        query = query.filter(Conversation.branch_id == current_user.branch_id)
-    elif current_user.role == "supervisor" and current_user.branch_id:
-        query = query.filter(Conversation.branch_id == current_user.branch_id)
-    elif branch_id:
-        query = query.filter(Conversation.branch_id == branch_id)
+    )
 
     if status_filter and status_filter not in ["todas", "all"]:
-        if status_filter in ["abiertas", "open"]:
-            query = query.filter(Conversation.status.in_(["open", "new", "unassigned"]))
-        elif status_filter in ["pendientes", "pending"]:
-            query = query.filter(Conversation.status == "pending")
-        elif status_filter in ["no-asignadas", "unassigned"]:
-            query = query.filter(Conversation.status == "unassigned")
-        else:
-            query = query.filter(Conversation.status == status_filter)
+        statuses = _STATUS_FILTERS.get(status_filter, [status_filter])
+        query = query.filter(Conversation.status.in_(statuses))
 
     if search:
         s_term = f"%{search}%"
@@ -68,11 +106,51 @@ def get_conversations(
             (Contact.name.ilike(s_term)) | (Contact.phone.ilike(s_term))
         )
 
-    results = query.order_by(Conversation.updated_at.desc()).offset(skip).limit(limit).all()
+    results = query.order_by(Conversation.updated_at.desc(), Conversation.id.desc()).offset(skip).limit(limit).all()
+    ids = [c.id for c in results]
     # Expiración perezosa de carritos activos abandonados (Punto 16): no hay scheduler/cron en
     # el proyecto, así que se resuelve al leer, sin bloquear el listado con N+1 queries.
-    expire_stale_carts_for_conversations(db, [c.id for c in results])
+    expire_stale_carts_for_conversations(db, ids)
+
+    last_messages = _last_messages_by_conversation(db, ids)
+    for conv in results:
+        # set_committed_value: se fija la relación sin cargar el historial completo y sin
+        # marcar la conversación como modificada (no genera ningún UPDATE).
+        set_committed_value(conv, "messages", last_messages.get(conv.id, []))
+        set_committed_value(conv, "orders", [])
     return results
+
+
+@router.get("/counts")
+def get_conversation_counts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user)
+):
+    """
+    Contadores de la bandeja (sidebar y pestañas) en una sola consulta agrupada. Antes el panel
+    bajaba cuatro listados completos de hasta 100 conversaciones solo para contarlos (y con más
+    de 100 el número quedaba tope en 100).
+    """
+    query = _scoped_conversations(db, current_user, None)
+    if query is None:
+        return {"abiertas": 0, "no_asignadas": 0, "pendientes": 0, "todas": 0, "abiertas_por_sucursal": {}}
+    rows = query.with_entities(Conversation.branch_id, Conversation.status, func.count(Conversation.id)).group_by(
+        Conversation.branch_id, Conversation.status
+    ).all()
+    counts = {"abiertas": 0, "no_asignadas": 0, "pendientes": 0, "todas": 0}
+    by_branch: dict = {}
+    for b_id, st, n in rows:
+        counts["todas"] += n
+        if st in _STATUS_FILTERS["abiertas"]:
+            counts["abiertas"] += n
+            if b_id is not None:
+                by_branch[str(b_id)] = by_branch.get(str(b_id), 0) + n
+        if st == "unassigned":
+            counts["no_asignadas"] += n
+        if st == "pending":
+            counts["pendientes"] += n
+    counts["abiertas_por_sucursal"] = by_branch
+    return counts
 
 @router.get("/{conversation_id}", response_model=ConversationResponse)
 def get_conversation(
@@ -111,9 +189,14 @@ def get_conversation(
     recent_messages = db.query(Message).filter(
         Message.conversation_id == conversation_id,
         Message.deleted_at.is_(None)
-    ).order_by(Message.created_at.desc()).limit(50).all()
+    ).order_by(Message.created_at.desc(), Message.id.desc()).limit(50).all()
 
-    conv.messages = sorted(recent_messages, key=lambda m: m.created_at)
+    # set_committed_value y no `conv.messages = ...`: la relación tiene cascade delete-orphan,
+    # y asignarle un subconjunto marcaba el resto del historial como huérfano — cualquier flush
+    # posterior en esta misma sesión lo habría BORRADO. Así solo se fija qué se devuelve.
+    # Orden por (created_at, id): MySQL guarda DATETIME sin fracciones de segundo y las burbujas
+    # del bot enviadas en el mismo segundo salían desordenadas.
+    set_committed_value(conv, "messages", sorted(recent_messages, key=lambda m: (m.created_at, m.id)))
     return conv
 
 @router.get("/{conversation_id}/messages", response_model=List[MessageResponse])

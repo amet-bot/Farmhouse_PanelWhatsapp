@@ -16,13 +16,43 @@ const chatModule = {
   // IDs de mensajes ya animados al entrar, para no repetir la animación en cada
   // re-render (renderMessages reconstruye todas las burbujas desde cero).
   seenMessageIds: new Set(),
+  // Borrador sin enviar de cada conversación (id -> texto). Antes el cuadro de texto no se
+  // limpiaba al cambiar de conversación: lo escrito para el cliente A podía mandarse a B.
+  drafts: {},
+  // Envío de texto en curso: el backend espera a Meta antes de responder (~0.5-2 s) y un doble
+  // Enter o doble clic en ese intervalo le mandaba el mensaje duplicado al cliente.
+  sending: false,
+
+  _saveDraft() {
+    const input = document.getElementById('messageInput');
+    if (!input || !this.currentConversation) return;
+    const id = Number(this.currentConversation.id);
+    if (input.value.trim()) this.drafts[id] = input.value;
+    else delete this.drafts[id];
+  },
+
+  _restoreDraft(convId) {
+    const input = document.getElementById('messageInput');
+    if (input) input.value = this.drafts[Number(convId)] || '';
+  },
 
   async loadConversation(convId) {
-    if (this.currentConversation && Number(this.currentConversation.id) !== Number(convId)) {
+    const switching = !this.currentConversation || Number(this.currentConversation.id) !== Number(convId);
+    if (switching) {
+      this._saveDraft();
       this.clearAttachment();
+      this._restoreDraft(convId);
+      // El panel de detalles en celular se abre como capa encima del chat: si quedaba
+      // abierto al cambiar de conversación tapaba el chat nuevo sin forma evidente de cerrarlo.
+      document.querySelector('.panel-details')?.classList.remove('active');
     }
     this.seenMessageIds = new Set();
     this.activeRequestConvId = convId;
+    // Notificaciones, contactos y push abren el chat directo por acá: sin esto la lista seguía
+    // resaltando la conversación anterior.
+    if (typeof conversationsModule !== 'undefined') conversationsModule.markSelected(Number(convId));
+    // Abrir un chat es atender el aviso: el título de la pestaña deja de parpadear.
+    if (typeof notificationModule !== 'undefined') notificationModule.clearTitleAlert();
     this.renderLoadingState();
 
     // En móvil, cambiar a la vista de chat
@@ -38,6 +68,9 @@ const chatModule = {
       if (this.activeRequestConvId !== convId) return; // ya se seleccionó otra conversación
       console.error('Error cargando conversación:', e);
       utils.showToast(`Error: ${e.message}`, 'error');
+      // Antes se quedaba "Cargando..." para siempre, sin composer, y los botones del header
+      // (Resolver, Transferir, Eliminar) seguían actuando sobre la conversación ANTERIOR.
+      this.renderEmpty();
       return;
     }
 
@@ -47,7 +80,7 @@ const chatModule = {
 
     this.currentConversation = data;
     this.renderHeader();
-    this.renderMessages();
+    this.renderMessages({ forceScroll: true });
     this.renderOrderPanel();
     this.setupComposer();
   },
@@ -60,6 +93,9 @@ const chatModule = {
     try {
       const data = await api.get(`/conversations/${convId}`);
       if (!this.currentConversation || Number(this.currentConversation.id) !== convId) return;
+      // Mientras esta petición viajaba el agente pudo abrir otra conversación: currentConversation
+      // sigue siendo la vieja hasta que llegue la nueva, y pintar esto taparía el "Cargando...".
+      if (this.activeRequestConvId && Number(this.activeRequestConvId) !== convId) return;
 
       const oldMessages = this.currentConversation.messages || [];
       const newMessages = data.messages || [];
@@ -231,6 +267,7 @@ const chatModule = {
     if (btnBack) {
       btnBack.addEventListener('click', () => {
         document.getElementById('workspaceContainer')?.classList.remove('show-chat');
+        document.querySelector('.panel-details')?.classList.remove('active');
       });
     }
 
@@ -309,9 +346,16 @@ const chatModule = {
     input.setSelectionRange(text.length, text.length);
   },
 
-  renderMessages() {
+  renderMessages({ forceScroll = false } = {}) {
     const container = document.getElementById('chatMessages');
     if (!container || !this.currentConversation) return;
+
+    // Solo se baja al último mensaje si el agente ya estaba abajo (o al abrir la conversación /
+    // enviar él mismo). Antes cada re-render —incluido el refresco de 6 s cuando cambiaba un
+    // tilde de entregado— lo arrastraba al final mientras leía mensajes viejos.
+    const previousScrollTop = container.scrollTop;
+    const wasNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+    const stickToBottom = forceScroll || wasNearBottom;
 
     // Red de seguridad: nunca pintar dos burbujas con el mismo ID, sin importar
     // por qué ruta (HTTP, WebSocket) haya llegado el mensaje duplicado.
@@ -482,8 +526,7 @@ const chatModule = {
       container.appendChild(msgDiv);
     });
 
-    // Auto-scroll al último mensaje
-    container.scrollTop = container.scrollHeight;
+    container.scrollTop = stickToBottom ? container.scrollHeight : previousScrollTop;
     utils.renderIcons();
   },
 
@@ -513,7 +556,9 @@ const chatModule = {
       detailBranchTag.style.color = branch.color || 'var(--blue)';
     }
     if (detailNotes) {
-      detailNotes.textContent = conv.notes || 'Sin notas registradas para esta conversación.';
+      // Las notas son del contacto (ConversationResponse no tiene `notes`): antes se leía
+      // conv.notes y siempre mostraba "Sin notas" aunque el cliente tuviera notas guardadas.
+      detailNotes.textContent = contact.notes || 'Sin notas registradas para esta conversación.';
     }
 
     // 2. Actualizar Bloque de Pedido Actual (carrito activo del Menú Digital en tiempo real,
@@ -626,7 +671,8 @@ const chatModule = {
 
     // Fallback 3: Extraer monto del texto de mensajes si vino con "TOTAL: $XX.XX"
     if (totalNum === 0 && conv.messages && conv.messages.length > 0) {
-      for (const m of conv.messages) {
+      // Del más reciente al más viejo: con varios pedidos en la conversación, el vigente es el último.
+      for (const m of [...conv.messages].reverse()) {
         if (m.content && m.content.includes("TOTAL: $")) {
           const match = m.content.match(/TOTAL:\s*\$([0-9]+(?:\.[0-9]{2})?)/i);
           if (match && match[1]) {
@@ -807,6 +853,9 @@ const chatModule = {
 
   async sendAttachment() {
     if (!this.currentConversation || !this.pendingAttachment || this.isInternalNote) return;
+    // Enter con el botón ya deshabilitado reenviaba el mismo archivo.
+    if (this.sendingAttachment) return;
+    this.sendingAttachment = true;
     const file = this.pendingAttachment;
     const conversationId = Number(this.currentConversation.id);
     const input = document.getElementById('messageInput');
@@ -826,11 +875,12 @@ const chatModule = {
         const exists = this.currentConversation.messages.some(message => message.id === newMsg.id);
         if (!exists) {
           this.currentConversation.messages.push(newMsg);
-          this.renderMessages();
+          this.renderMessages({ forceScroll: true });
         }
         if (input) input.value = '';
         this.clearAttachment();
       }
+      delete this.drafts[conversationId];
       conversationsModule.loadConversations();
       if (newMsg.status === 'failed') {
         utils.showToast('No se pudo enviar el archivo a WhatsApp. Puedes reintentarlo desde el mensaje.', 'error');
@@ -840,39 +890,52 @@ const chatModule = {
     } catch (e) {
       utils.showToast(`Error enviando archivo: ${e.message}`, 'error');
     } finally {
+      this.sendingAttachment = false;
       if (btnSend) btnSend.disabled = false;
       if (sendLabel) sendLabel.textContent = 'Enviar';
     }
   },
 
   async sendMessage(text) {
-    if (!this.currentConversation || !text.trim()) return;
+    if (!this.currentConversation || !text.trim() || this.sending) return;
 
+    // Se fija ANTES del await: si el agente cambia de conversación mientras se envía, la
+    // respuesta no se mete en la otra ni le borra su borrador (sendAttachment ya lo hacía así).
+    const conversationId = Number(this.currentConversation.id);
+    const btnSend = document.getElementById('btnSend');
+    this.sending = true;
+    if (btnSend) btnSend.disabled = true;
     try {
       const payload = {
-        conversation_id: this.currentConversation.id,
+        conversation_id: conversationId,
         content: text.trim(),
         is_internal: this.isInternalNote
       };
 
       const newMsg = await api.post('/messages/', payload);
-      if (!this.currentConversation.messages) {
-        this.currentConversation.messages = [];
-      }
-      // El WebSocket (new_outgoing_message) puede insertar este mismo mensaje
-      // antes de que esta promesa se resuelva; evitar duplicarlo en pantalla.
-      const yaExiste = this.currentConversation.messages.some(m => m.id === newMsg.id);
-      if (!yaExiste) {
-        this.currentConversation.messages.push(newMsg);
-        this.renderMessages();
-      }
+      delete this.drafts[conversationId];
+      if (this.currentConversation && Number(this.currentConversation.id) === conversationId) {
+        if (!this.currentConversation.messages) {
+          this.currentConversation.messages = [];
+        }
+        // El WebSocket (new_outgoing_message) puede insertar este mismo mensaje
+        // antes de que esta promesa se resuelva; evitar duplicarlo en pantalla.
+        const yaExiste = this.currentConversation.messages.some(m => m.id === newMsg.id);
+        if (!yaExiste) {
+          this.currentConversation.messages.push(newMsg);
+          this.renderMessages({ forceScroll: true });
+        }
 
-      const input = document.getElementById('messageInput');
-      if (input) input.value = '';
+        const input = document.getElementById('messageInput');
+        if (input) input.value = '';
+      }
 
       conversationsModule.loadConversations();
     } catch (e) {
       utils.showToast(`Error enviando mensaje: ${e.message}`, 'error');
+    } finally {
+      this.sending = false;
+      if (btnSend) btnSend.disabled = false;
     }
   },
 
@@ -1032,13 +1095,15 @@ const chatModule = {
     modal.style.display = 'flex';
     utils.renderIcons();
 
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        this.closeLightbox();
-        document.removeEventListener('keydown', onKeyDown);
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
+    // Un único listener de Escape para toda la vida de la página: antes se agregaba uno por
+    // cada apertura y solo se quitaba al cerrar con Escape, así que cerrar con clic los iba
+    // acumulando.
+    if (!this._lightboxEscapeBound) {
+      this._lightboxEscapeBound = true;
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') this.closeLightbox();
+      });
+    }
   },
 
   closeLightbox(e) {

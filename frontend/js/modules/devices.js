@@ -153,7 +153,7 @@ const devicesModule = {
   async registerDevice(data) {
     const newDev = await api.post('/devices/', data);
     await this.loadDevices();
-    utils.showToast(`✓ Dispositivo '${newDev.name}' registrado en SQL Server.`, 'success');
+    utils.showToast(`✓ Dispositivo '${newDev.name}' registrado.`, 'success');
     return newDev;
   },
 
@@ -165,10 +165,14 @@ const devicesModule = {
   },
 
   async revokeDevice(id) {
-    if (confirm('¿Estás seguro de que deseas revocar el acceso a este dispositivo?')) {
+    if (!confirm('¿Estás seguro de que deseas revocar el acceso a este dispositivo?')) return;
+    // Sin try/catch un fallo (sin permiso, red) quedaba como promesa rechazada sin aviso.
+    try {
       await api.post(`/devices/${id}/revoke`, {});
       await this.loadDevices();
       utils.showToast('Acceso del dispositivo revocado.', 'info');
+    } catch (e) {
+      utils.showToast(`No se pudo revocar el dispositivo: ${e.message}`, 'error');
     }
   },
 

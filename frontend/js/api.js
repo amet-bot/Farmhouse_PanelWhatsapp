@@ -41,7 +41,11 @@ const api = {
     // (404 siempre). El endpoint de medios vive en <origen>/api/media/..., así que se arma
     // con `mediaBaseUrl` (origen sin "/api") en vez de `baseUrl`.
     let url = `${this.mediaBaseUrl}/api/media/${cleanPath}`;
-    const token = typeof auth !== 'undefined' ? auth.getWsToken() : null;
+    // Mismo origen (producción): la cookie HttpOnly de sesión ya viaja sola con <img>/<audio>/
+    // descargas, así que el token NO se pone en la URL — antes el JWT de sesión completo (8 h)
+    // quedaba en los logs del servidor, el historial del navegador y cualquier enlace copiado.
+    // Solo en desarrollo con el frontend en otro puerto (sin cookie) hace falta el ?token=.
+    const token = this.mediaBaseUrl && typeof auth !== 'undefined' ? auth.getWsToken() : null;
     if (token) {
       url += (url.includes('?') ? '&' : '?') + `token=${encodeURIComponent(token)}`;
     }
@@ -50,14 +54,22 @@ const api = {
 
 
   getDeviceId() {
-    return localStorage.getItem('fh_device_id') || '';
+    try {
+      return localStorage.getItem('fh_device_id') || '';
+    } catch (e) {
+      return ''; // Almacenamiento bloqueado (navegación privada estricta): sin dispositivo guardado.
+    }
   },
 
   setDeviceId(id) {
-    if (id) {
-      localStorage.setItem('fh_device_id', id);
-    } else {
-      localStorage.removeItem('fh_device_id');
+    try {
+      if (id) {
+        localStorage.setItem('fh_device_id', id);
+      } else {
+        localStorage.removeItem('fh_device_id');
+      }
+    } catch (e) {
+      /* Sin almacenamiento el dispositivo no persiste entre visitas; la sesión sigue funcionando. */
     }
   },
 
@@ -120,7 +132,11 @@ const api = {
         if (response.status === 401) {
           window.dispatchEvent(new CustomEvent('auth:unauthorized', { detail: errMsg }));
         } else if (response.status === 403) {
-          if (errMsg.toLowerCase().includes('dispositivo') || errMsg.toLowerCase().includes('equipo') || errMsg.toLowerCase().includes('sucursal')) {
+          // Solo los rechazos por dispositivo (todos dicen "dispositivo", ver
+          // services/device_access.py). Antes también "sucursal": un 403 normal como "No tienes
+          // acceso a conversaciones de otra sucursal" (p. ej. justo después de una transferencia)
+          // abría el modal de dispositivo no autorizado, y el refresco de cada 6 s lo reabría.
+          if (errMsg.toLowerCase().includes('dispositivo')) {
             window.dispatchEvent(new CustomEvent('auth:device_forbidden', { detail: errMsg }));
           }
         } else if (response.status === 429) {

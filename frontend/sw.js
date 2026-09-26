@@ -46,10 +46,16 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = (event.notification.data && event.notification.data.url) || '/';
 
+  // Se enfoca una pestaña de la MISMA página que el aviso (/app para WhatsApp, /interno para
+  // Comunicación Interna). Antes se tomaba la primera pestaña abierta cualquiera: con el hub o
+  // Inventario abiertos, el clic enfocaba esa página y no se abría ninguna conversación.
+  const targetPath = new URL(targetUrl, self.location.origin).pathname;
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsArr) => {
       for (const client of clientsArr) {
-        if ('focus' in client) {
+        if (!('focus' in client)) continue;
+        if (new URL(client.url).pathname === targetPath) {
           client.postMessage({ type: 'push_notification_click', url: targetUrl });
           return client.focus();
         }

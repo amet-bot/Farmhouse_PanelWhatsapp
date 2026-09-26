@@ -100,9 +100,22 @@ const conversationsModule = {
     this.loadConversations();
   },
 
+  // Número de la petición de lista más reciente: el refresco de 6 s, los eventos del WebSocket
+  // y un cambio de pestaña pueden pedir la lista casi a la vez, y la respuesta de una pestaña
+  // anterior que llegaba última pisaba la lista de la pestaña ya elegida.
+  _loadSeq: 0,
+  // Tope del backend para `limit` en GET /conversations/.
+  MAX_LIMIT: 100,
+
   async loadConversations(append = false) {
+    const seq = ++this._loadSeq;
+    // Un refresco (append=false) trae desde el principio todo lo ya cargado. Antes pedía solo
+    // la "página actual": después de "Cargar más", el siguiente refresco de 6 s reemplazaba la
+    // lista entera por la página 2 sola.
+    const skip = append ? this.currentPage * this.pageSize : 0;
+    const limit = append ? this.pageSize : Math.min((this.currentPage + 1) * this.pageSize, this.MAX_LIMIT);
     try {
-      let endpoint = `/conversations/?status=${encodeURIComponent(this.activeTab)}&skip=${this.currentPage * this.pageSize}&limit=${this.pageSize}`;
+      let endpoint = `/conversations/?status=${encodeURIComponent(this.activeTab)}&skip=${skip}&limit=${limit}`;
       if (this.activeBranchId) {
         endpoint += `&branch_id=${this.activeBranchId}`;
       }
@@ -111,13 +124,21 @@ const conversationsModule = {
       }
 
       const results = await api.get(endpoint);
+      if (seq !== this._loadSeq) return this.conversations; // llegó otra más nueva
+
       if (append) {
-        this.conversations = [...this.conversations, ...results];
+        const known = new Set(this.conversations.map((c) => c.id));
+        this.conversations = [...this.conversations, ...results.filter((c) => !known.has(c.id))];
+      } else if (this.conversations.length > limit) {
+        // Se habían cargado más de las que entran en un refresco (tope de 100): se actualiza el
+        // principio y se conserva el resto ya cargado en vez de cortar la lista.
+        const fresh = new Set(results.map((c) => c.id));
+        this.conversations = [...results, ...this.conversations.slice(limit).filter((c) => !fresh.has(c.id))];
       } else {
         this.conversations = results;
       }
 
-      this.hasMore = results.length === this.pageSize;
+      this.hasMore = results.length === limit;
       this.checkReminders(results);
       this.renderList();
       branchesModule.updateCounters();
@@ -134,19 +155,19 @@ const conversationsModule = {
    * needs_reminder (ver Conversation.needs_reminder en el backend).
    */
   checkReminders(list) {
-    const stillPendingIds = new Set();
     list.forEach(conv => {
-      if (!conv.needs_reminder) return;
-      stillPendingIds.add(conv.id);
+      if (!conv.needs_reminder) {
+        // Libera solo las que el servidor confirma que ya no están pendientes (se abrieron o se
+        // respondieron), para que puedan volver a alertar si el cliente escribe de nuevo. Antes
+        // se liberaba toda la que no apareciera en ESTA lista: al cambiar de pestaña, filtro o
+        // búsqueda se "olvidaban" y al volver se repetían el modal y el sonido de cada una.
+        this.remindedIds.delete(conv.id);
+        return;
+      }
       if (!this.remindedIds.has(conv.id)) {
         this.remindedIds.add(conv.id);
         notificationModule.notifyPendingReminder(conv);
       }
-    });
-    // Libera las que ya no están pendientes (se abrieron o se respondieron) para que puedan
-    // volver a alertar si el cliente escribe de nuevo más tarde.
-    this.remindedIds.forEach(id => {
-      if (!stillPendingIds.has(id)) this.remindedIds.delete(id);
     });
   },
 
@@ -233,8 +254,18 @@ const conversationsModule = {
         </div>
       `;
 
+      // Fila navegable con teclado (Tab + Enter/Espacio), no solo con mouse.
+      item.tabIndex = 0;
+      item.setAttribute('role', 'button');
+      item.setAttribute('aria-label', `Abrir conversación con ${contactName}`);
       item.addEventListener('click', () => {
         this.selectConversation(conv.id);
+      });
+      item.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.selectConversation(conv.id);
+        }
       });
 
       listContainer.appendChild(item);
@@ -256,10 +287,17 @@ const conversationsModule = {
     utils.renderIcons();
   },
 
-  selectConversation(convId) {
+  /** Marca cuál conversación está abierta (también cuando se abre desde una notificación). */
+  markSelected(convId) {
+    if (this.selectedId === convId) return;
     this.selectedId = convId;
-    document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
-    this.renderList();
+    document.querySelectorAll('.conv-item').forEach((el) => {
+      el.classList.toggle('active', Number(el.dataset.id) === Number(convId));
+    });
+  },
+
+  selectConversation(convId) {
+    this.markSelected(convId);
     
     // Soporte para vista móvil (oculta lista y muestra chat en pantallas pequeñas)
     const wsContainer = document.getElementById('workspaceContainer');

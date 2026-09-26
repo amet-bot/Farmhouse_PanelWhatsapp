@@ -59,6 +59,21 @@
   }
 
   /**
+   * Cancela la suscripción push de este navegador, esté o no cargado push.js en la página (el
+   * hub, Inventario y el resto no lo cargan, pero el navegador pudo suscribirse desde /app).
+   */
+  async function unsubscribePush() {
+    if (typeof pushModule !== 'undefined') return pushModule.unsubscribe();
+    if (!('serviceWorker' in navigator)) return;
+    const registration = await navigator.serviceWorker.getRegistration('/sw.js');
+    if (!registration || !registration.pushManager) return;
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) return;
+    await api.post('/push/unsubscribe', { endpoint: subscription.endpoint });
+    await subscription.unsubscribe();
+  }
+
+  /**
    * Engancha el botón de logout. `beforeLogout`/`afterLogout` son opcionales para las páginas con
    * un paso extra (app.js corta websocket/push antes, y no redirige — vuelve a mostrar su propio
    * modal de login; hub.js tampoco redirige, vuelve a su propia pantalla de login).
@@ -71,6 +86,16 @@
           await beforeLogout();
         } catch (e) {
           console.warn('[shell] beforeLogout falló:', e);
+        }
+      } else {
+        // Antes solo Centro WhatsApp cancelaba la suscripción push al salir: saliendo desde
+        // cualquier otra página, en un equipo compartido el siguiente usuario seguía recibiendo
+        // los avisos del anterior. Tiene que ir antes del logout: /push/unsubscribe necesita la
+        // sesión todavía válida.
+        try {
+          await unsubscribePush();
+        } catch (e) {
+          console.warn('[shell] No se pudo cancelar la suscripción push:', e);
         }
       }
       await auth.logout();
