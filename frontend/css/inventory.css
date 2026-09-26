@@ -859,6 +859,9 @@ body {
 .inv-badge.ok { background: var(--inv-green-soft); color: var(--inv-green-soft-text); }
 .inv-badge.warn { background: var(--inv-amber-soft); color: var(--inv-amber); }
 .inv-badge.muted { background: var(--inv-panel-2); color: var(--inv-text-muted); }
+/* Tipo de insumo (Invu): preparación de la casa en ámbar, materia prima en turquesa. */
+.inv-badge.kind-house { background: var(--inv-amber-soft); color: var(--inv-amber); }
+.inv-badge.kind-raw { background: var(--inv-cyan-soft); color: var(--inv-cyan); }
 
 .inv-row-amount {
   flex-shrink: 0;

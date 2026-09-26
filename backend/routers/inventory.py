@@ -27,7 +27,7 @@ from schemas.inventory import (
     StockRowResponse, WasteCreate, WasteItemResponse, WasteReasonResponse, WasteResponse,
     MovementComparisonResponse,
 )
-from services import invu_client, invu_sync
+from services import invu_client, invu_items_sync, invu_sync
 from services.audit import log_audit_event
 from security.auth import get_current_authorized_user
 from security.access_control import check_target_branch_valid
@@ -88,7 +88,8 @@ def _serialize_shipment(shipment: Shipment) -> ShipmentResponse:
 @router.get("/items", response_model=List[InventoryItemResponse])
 def search_inventory_items(
     q: str = Query("", max_length=150),
-    limit: int = Query(8, ge=1, le=200),
+    # 500: con los ingredientes de Invu el catálogo ronda los 160-200 y la pantalla lo pide entero.
+    limit: int = Query(8, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_authorized_user),
 ):
@@ -965,6 +966,44 @@ def invu_status(
         local_count=db.query(func.count(Supplier.id)).filter(
             Supplier.invu_id.is_(None), Supplier.active == True
         ).scalar() or 0,
+        items_last_synced_at=(invu_items_sync.ultima_sincronizacion(db) if configurada else None),
+        items_synced_count=db.query(func.count(InventoryItem.id)).filter(
+            InventoryItem.invu_id.isnot(None), InventoryItem.active == True
+        ).scalar() or 0,
+        items_local_count=db.query(func.count(InventoryItem.id)).filter(
+            InventoryItem.invu_id.is_(None), InventoryItem.active == True
+        ).scalar() or 0,
+    )
+
+
+@router.post("/invu/sync-items", response_model=InvuSyncResult)
+def sync_items_from_invu(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Trae los insumos (Ingredientes de Invu) ahora mismo. Pasada COMPLETA, como la de
+    proveedores: quien aprieta el botón sospecha que falta algo.
+    """
+    if not invu_client.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La integración con Invu no está configurada en el servidor.",
+        )
+
+    try:
+        resumen = invu_items_sync.sync_items(db)
+    except invu_client.InvuError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+
+    logger.info(f"Sincronización de insumos pedida por {current_user.name}: {resumen}")
+    return InvuSyncResult(
+        received=resumen["recibidos"],
+        created=resumen["creados"],
+        linked=resumen["enlazados"],
+        updated=resumen["actualizados"],
+        deactivated=resumen["apagados"],
+        synced_at=resumen["sincronizado_en"],
     )
 
 

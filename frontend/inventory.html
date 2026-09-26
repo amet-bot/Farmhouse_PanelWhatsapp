@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.5.0">
-  <link rel="stylesheet" href="css/inventory.css?v=4.4.7">
+  <link rel="stylesheet" href="css/inventory.css?v=4.6.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -184,9 +184,21 @@
               <h1>Insumos</h1>
               <p>El catálogo compartido por todas las sucursales.</p>
             </div>
-            <button type="button" class="inv-primary-btn" id="btnNewItem">
-              <i data-lucide="plus"></i> Nuevo insumo
-            </button>
+            <!-- Con Invu conectado se sincroniza desde ahí, y además se puede seguir creando a mano
+                 (hace falta al recibir un cargamento). -->
+            <div class="inv-view-head-actions">
+              <button type="button" class="inv-secondary-btn" id="btnSyncInvuItems" hidden title="Sincronizar con Invu" aria-label="Sincronizar con Invu">
+                <i data-lucide="refresh-cw"></i> <span>Sincronizar con Invu</span>
+              </button>
+              <button type="button" class="inv-primary-btn" id="btnNewItem">
+                <i data-lucide="plus"></i> Nuevo insumo
+              </button>
+            </div>
+          </div>
+
+          <div class="inv-invu-note" id="invuItemsNote" hidden>
+            <i data-lucide="link"></i>
+            <span></span>
           </div>
 
           <div class="inv-workspace">
@@ -194,8 +206,13 @@
               <div class="inv-toolbar">
                 <div class="inv-search">
                   <i data-lucide="search"></i>
-                  <input type="text" id="itemSearch" placeholder="Buscar insumo, unidad o categoría...">
+                  <input type="text" id="itemSearch" placeholder="Buscar insumo, código, unidad o categoría...">
                 </div>
+                <select id="itemKindFilter" class="inv-filter-select" aria-label="Tipo de insumo">
+                  <option value="">Todos los tipos</option>
+                  <option value="materia_prima">Materia prima</option>
+                  <option value="casa">De la casa</option>
+                </select>
               </div>
               <div class="inv-list-header">
                 <span id="itemsCount">Insumos</span>
@@ -702,6 +719,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.0.0"></script>
+  <script src="js/modules/inventory.js?v=4.6.0"></script>
 </body>
 </html>

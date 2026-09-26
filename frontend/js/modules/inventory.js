@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     branchFilter: '',
     selected: { shipment: null, item: null, supplier: null, waste: null, count: null },
     search: { shipment: '', item: '', supplier: '', waste: '', stock: '', count: '', countItem: '' },
+    itemKind: '',   // filtro de Insumos: '' | 'materia_prima' | 'casa'
     selectedSupplierId: '',
 
     // ---- Merma y existencias ----
@@ -87,6 +88,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   const moneyFormatter = new Intl.NumberFormat('es-PA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const money = (n) => `$${moneyFormatter.format(Number(n || 0))}`;
+  // Costo de referencia de Invu: por gramo o mililitro son fracciones de centavo ($0.0065) y con
+  // dos decimales se verían como $0.01.
+  const unitCostFormatter = new Intl.NumberFormat('es-PA', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  const unitCost = (n) => `$${unitCostFormatter.format(Number(n || 0))}`;
 
   /** Cantidades con hasta 3 decimales pero sin ceros de relleno: 2.500 → "2.5", 3.000 → "3". */
   const qty = (n) => {
@@ -353,7 +358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function loadCatalogs() {
     const [items, suppliers] = await Promise.all([
-      api.get('/inventory/items?limit=200').catch(() => []),
+      api.get('/inventory/items?limit=500').catch(() => []),
       api.get('/inventory/suppliers?limit=200').catch(() => []),
     ]);
     state.items = items;
@@ -443,6 +448,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     $('btnNewSupplier').hidden = configured;
     $('btnSyncInvu').hidden = !configured;
+    applyInvuItemsMode();
 
     const note = $('invuNote');
     if (!configured) {
@@ -470,6 +476,59 @@ document.addEventListener('DOMContentLoaded', async () => {
       `${cuando} · ${detalle.join('; ')}.`;
     utils.renderIcons();
   }
+
+  /**
+   * Insumos: con Invu conectado se ofrece "Sincronizar con Invu" y se explica el origen, pero
+   * "Nuevo insumo" sigue ahí (a diferencia de Proveedores): hace falta al recibir un cargamento.
+   */
+  function applyInvuItemsMode() {
+    const { configured, items_last_synced_at, items_synced_count, items_local_count } = state.invu;
+    $('btnSyncInvuItems').hidden = !configured;
+    const note = $('invuItemsNote');
+    if (!configured) {
+      note.hidden = true;
+      return;
+    }
+    const cuando = items_last_synced_at
+      ? `Última sincronización el ${utils.formatDateTime(items_last_synced_at)}`
+      : 'Todavía no se sincronizó ninguna vez';
+    const detalle = [`${items_synced_count || 0} ${items_synced_count === 1 ? 'viene' : 'vienen'} de Invu`];
+    if (items_local_count) detalle.push(`${pluralize(items_local_count, 'se cargó', 'se cargaron')} a mano`);
+    note.hidden = false;
+    note.querySelector('span').textContent =
+      `Los insumos se traen de Invu (Ingredientes) una vez al día, y se pueden seguir creando acá. ` +
+      `${cuando} · ${detalle.join('; ')}.`;
+    utils.renderIcons();
+  }
+
+  $('btnSyncInvuItems')?.addEventListener('click', async () => {
+    const btn = $('btnSyncInvuItems');
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="refresh-cw"></i> <span>Sincronizando...</span>';
+    utils.renderIcons();
+    try {
+      const r = await api.post('/inventory/invu/sync-items', {});
+      const partes = [];
+      if (r.created) partes.push(`${r.created} nuevo${r.created === 1 ? '' : 's'}`);
+      if (r.linked) partes.push(`${r.linked} emparejado${r.linked === 1 ? '' : 's'} con los que ya estaban`);
+      if (r.updated) partes.push(`${r.updated} actualizado${r.updated === 1 ? '' : 's'}`);
+      if (r.deactivated) partes.push(`${r.deactivated} archivado${r.deactivated === 1 ? '' : 's'} en Invu`);
+      utils.showToast(
+        partes.length
+          ? `Invu devolvió ${r.received} insumos: ${partes.join(', ')}.`
+          : `Invu devolvió ${r.received} insumos; no había nada que cambiar.`,
+        'success'
+      );
+      await Promise.all([loadCatalogs(), loadInvuStatus()]);
+      renderItemList();
+    } catch (err) {
+      utils.showToast(err.message || 'No se pudo sincronizar con Invu.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="refresh-cw"></i> <span>Sincronizar con Invu</span>';
+      utils.renderIcons();
+    }
+  });
 
   $('btnSyncInvu')?.addEventListener('click', async () => {
     const btn = $('btnSyncInvu');
@@ -958,10 +1017,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Vista: Insumos
   // ==========================================================================
+  // Tipo de insumo (viene de Invu): una preparación hecha en la casa o materia prima comprada.
+  const KIND_LABELS = { casa: 'De la casa', materia_prima: 'Materia prima' };
+  const kindBadge = (i) => (i.kind === 'casa'
+    ? '<span class="inv-badge kind-house">De la casa</span>'
+    : i.kind === 'materia_prima' ? '<span class="inv-badge kind-raw">Materia prima</span>' : '');
+
   function renderItemList() {
     const q = state.search.item.trim().toLowerCase();
     const rows = state.items.filter((i) =>
-      !q || `${i.name} ${i.unit} ${i.category || ''}`.toLowerCase().includes(q)
+      (!state.itemKind || i.kind === state.itemKind) &&
+      (!q || `${i.name} ${i.code || ''} ${i.unit} ${i.category || ''} ${KIND_LABELS[i.kind] || ''}`.toLowerCase().includes(q))
     );
 
     $('itemsCount').textContent = rows.length ? pluralize(rows.length, 'insumo', 'insumos') : 'Insumos';
@@ -981,16 +1047,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     list.innerHTML = rows.map((i) => {
       const stats = itemStats(i.id);
       const active = i.id === state.selected.item ? ' active' : '';
+      // Con el tipo a la vista, "Sin registros" se omite: con 160 insumos recién traídos de Invu
+      // la lista entera decía lo mismo. Queda el de "Recibido", que sí distingue.
       const badge = stats.shipments
         ? `<span class="inv-badge ok">Recibido</span>`
-        : `<span class="inv-badge warn">Sin registros</span>`;
+        : (i.kind ? '' : `<span class="inv-badge warn">Sin registros</span>`);
       return `
         <button type="button" class="inv-row${active}" data-item-id="${i.id}">
-          <span class="inv-row-thumb"><i data-lucide="package"></i></span>
+          <span class="inv-row-thumb"><i data-lucide="${i.kind === 'casa' ? 'chef-hat' : 'package'}"></i></span>
           <span class="inv-row-info">
             <strong>${esc(i.name)}</strong>
-            <small>${esc(i.unit)}${i.category ? ` · ${esc(i.category)}` : ''}</small>
+            <small>${i.code ? `${esc(i.code)} · ` : ''}${esc(i.unit)}${i.category ? ` · ${esc(i.category)}` : ''}</small>
           </span>
+          ${kindBadge(i)}
           ${badge}
           <span class="inv-row-amount">${stats.shipments || ''}</span>
         </button>`;
@@ -1025,8 +1094,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     detail.innerHTML = `
       ${detailBackHtml()}
       <div class="inv-detail-header">
-        <span class="inv-detail-thumb"><i data-lucide="package"></i></span>
-        ${stats.shipments ? '<span class="inv-badge ok">Recibido</span>' : '<span class="inv-badge warn">Sin registros</span>'}
+        <span class="inv-detail-thumb"><i data-lucide="${item.kind === 'casa' ? 'chef-hat' : 'package'}"></i></span>
+        <span class="inv-chip-row">
+          ${kindBadge(item)}
+          ${item.invu_id ? '<span class="inv-badge invu" title="Viene de Invu">Invu</span>' : ''}
+          ${stats.shipments ? '<span class="inv-badge ok">Recibido</span>' : '<span class="inv-badge warn">Sin registros</span>'}
+        </span>
       </div>
       <h3>${esc(item.name)}</h3>
       <p class="inv-detail-sub">Se cuenta en ${esc(item.unit)}${item.category ? ` · ${esc(item.category)}` : ''}</p>
@@ -1041,8 +1114,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="inv-chip-row">${suppliers.map((n) => `<span class="inv-chip">${esc(n)}</span>`).join('')}</div>` : ''}
       <div class="inv-detail-section-header"><span>Detalles</span></div>
       <div class="inv-detail-rows">
+        ${item.code ? `<div><span>Código en Invu</span><strong>${esc(item.code)}</strong></div>` : ''}
+        <div><span>Tipo</span><strong>${esc(KIND_LABELS[item.kind] || 'Sin clasificar')}</strong></div>
         <div><span>Unidad</span><strong>${esc(item.unit)}</strong></div>
         <div><span>Categoría</span><strong>${esc(item.category || 'Sin categoría')}</strong></div>
+        ${item.reference_cost != null ? `<div><span>Costo de referencia (Invu)</span><strong>${esc(unitCost(item.reference_cost))} <small>por ${esc(item.unit)}</small></strong></div>` : ''}
         <div><span>Última recepción</span><strong>${stats.last ? esc(utils.formatDate(stats.last.toISOString())) : 'Nunca'}</strong></div>
         <div><span>Sucursales que lo reciben</span><strong>${branches.length ? esc(branches.join(', ')) : '—'}</strong></div>
         <div><span>Estado</span><strong>${item.active ? 'Activo' : 'Inactivo'}</strong></div>
@@ -1052,6 +1128,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('itemSearch')?.addEventListener('input', (e) => {
     state.search.item = e.target.value;
+    renderItemList();
+  });
+
+  $('itemKindFilter')?.addEventListener('change', (e) => {
+    state.itemKind = e.target.value;
     renderItemList();
   });
 
@@ -1327,6 +1408,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       itemInput.value = item.name;
       itemInput.dataset.itemId = String(item.id);
       unitLabel.textContent = item.unit ? `Se cuenta en ${item.unit}` : '';
+      // El costo de Invu como sugerencia, no como valor: si no se escribe nada, el cargamento
+      // queda sin costo (como siempre) en vez de guardar uno que nadie confirmó.
+      if (!('defaultPlaceholder' in costInput.dataset)) costInput.dataset.defaultPlaceholder = costInput.placeholder;
+      costInput.placeholder = item.reference_cost != null
+        ? `Ref. ${unitCost(item.reference_cost)}`
+        : costInput.dataset.defaultPlaceholder;
       hideSuggestions();
       qtyInput.focus();
     }

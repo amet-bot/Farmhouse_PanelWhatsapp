@@ -16,6 +16,12 @@ class InventoryItemResponse(BaseModel):
     unit: str
     category: Optional[str] = None
     active: bool
+    # Lo que viene de Invu (ver models/inventory_item.py). `invu_id` presente = se sincroniza.
+    invu_id: Optional[int] = None
+    code: Optional[str] = None
+    kind: Optional[str] = None                 # "materia_prima" | "casa"
+    reference_cost: Optional[Decimal] = None   # costo de Invu, solo referencia
+    synced_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -231,6 +237,10 @@ class InvuStatusResponse(BaseModel):
     synced_count: int = 0
     inactive_count: int = 0    # vinieron de Invu pero allá están apagados
     local_count: int = 0       # cargados a mano en el panel, sin equivalente en Invu
+    # Lo mismo para los insumos (Ingredientes de Invu). Ahí el panel sigue pudiendo crear a mano.
+    items_last_synced_at: Optional[datetime] = None
+    items_synced_count: int = 0
+    items_local_count: int = 0
 
 
 class InvuSyncResult(BaseModel):
@@ -238,6 +248,7 @@ class InvuSyncResult(BaseModel):
     created: int               # altas nuevas en el panel
     linked: int                # ya existían acá con el mismo nombre y quedaron emparejados
     updated: int               # ya estaban sincronizados y algún dato cambió
+    deactivated: int = 0       # insumos: archivados en Invu, apagados acá
     synced_at: datetime
 
 

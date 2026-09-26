@@ -201,9 +201,27 @@ def _sync_en_segundo_plano() -> None:
         db.close()
 
 
+def _sync_insumos_en_segundo_plano() -> None:
+    """Los insumos (Ingredientes de Invu) en la misma pasada diaria, con su propia sesión y margen."""
+    from services import invu_items_sync  # acá: ese módulo importa helpers de este
+
+    db = SessionLocal()
+    try:
+        desde = invu_items_sync.ultima_sincronizacion(db)
+        if desde:
+            desde = desde - INCREMENTAL_MARGIN
+        invu_items_sync.sync_items(db, updated_after=desde)
+    except invu_client.InvuNotConfigured:
+        logger.info("[Invu] Integración no configurada; no hay insumos que sincronizar.")
+    except Exception:
+        logger.exception("[Invu] Falló la sincronización automática de insumos.")
+    finally:
+        db.close()
+
+
 async def run_provider_sync_loop() -> None:
     """
-    Sincroniza al arrancar y una vez por día.
+    Sincroniza al arrancar y una vez por día: proveedores y, después, insumos.
 
     Es el segundo loop en segundo plano del proyecto (el otro es el seguimiento del bot, ver
     services/bot_followup.py) y sigue sus mismas reglas: nunca arranca bajo pytest, y una
@@ -220,6 +238,10 @@ async def run_provider_sync_loop() -> None:
             await asyncio.to_thread(_sync_en_segundo_plano)
         except Exception:
             logger.exception("[Invu] Error en una pasada de la sincronización de proveedores.")
+        try:
+            await asyncio.to_thread(_sync_insumos_en_segundo_plano)
+        except Exception:
+            logger.exception("[Invu] Error en una pasada de la sincronización de insumos.")
         await asyncio.sleep(SYNC_INTERVAL_SECONDS)
 
 

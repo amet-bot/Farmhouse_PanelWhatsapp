@@ -258,6 +258,44 @@ def iter_providers(updated_after: Optional[datetime] = None) -> Iterator[Dict[st
         time.sleep(PAUSE_BETWEEN_PAGES)
 
 
+def _iter_pages(route: str, params: Optional[Dict[str, Any]] = None) -> Iterator[Dict[str, Any]]:
+    """Recorre una lista paginada de la API nueva (`data` + `last_page`), página por página."""
+    page = 1
+    while True:
+        payload = _get(route, {**(params or {}), "page": page, "per_page": PAGE_SIZE})
+        filas: List[Dict[str, Any]] = payload.get("data") or []
+        for fila in filas:
+            yield fila
+        if page >= int(payload.get("last_page") or 0) or not filas:
+            return
+        page += 1
+        time.sleep(PAUSE_BETWEEN_PAGES)
+
+
+def iter_ingredients(updated_after: Optional[datetime] = None) -> Iterator[Dict[str, Any]]:
+    """
+    Los "Ingredientes" de Invu (admin.invupos.com/producto), activos E inactivos: los inactivos
+    hacen falta para apagar acá los que se archivaron allá. `include_inactive` tiene que ir como
+    1 — con "true" la API responde 406.
+    """
+    params: Dict[str, Any] = {"include_inactive": 1}
+    if updated_after:
+        params["updated_at[after]"] = updated_after.strftime("%Y-%m-%d %H:%M:%S")
+    yield from _iter_pages("ingredients/list", params)
+
+
+def ingredient_categories() -> Dict[int, str]:
+    """{id: nombre} de las categorías de ingredientes (Lacteos, Vegetales, Packaging...)."""
+    return {int(c["id"]): str(c.get("name") or "").strip() for c in _iter_pages("ingredient-categories/list") if c.get("id")}
+
+
+def units() -> Dict[int, str]:
+    """{id: nombre} de las unidades de producto (gramos, kilogramo, Mazo, unidad...)."""
+    payload = _get("unidades")
+    filas = payload.get("data") if isinstance(payload, dict) else payload
+    return {int(u["id"]): str(u.get("nombre") or u.get("abreviatura") or "").strip() for u in (filas or []) if u.get("id")}
+
+
 # ==========================================================================
 # Ventas y menú (Farmhouse Link). Siempre con las credenciales de UNA sucursal.
 # ==========================================================================
