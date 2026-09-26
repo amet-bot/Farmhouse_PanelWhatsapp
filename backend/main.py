@@ -33,7 +33,7 @@ from routers import (
     prep,
 )
 from services.bot_followup import run_followup_sweep_loop
-from services import invu_sync, invu_sales_sync
+from services import invu_recipes_sync, invu_sync, invu_sales_sync
 
 logging.basicConfig(
     level=logging.INFO,
@@ -85,9 +85,15 @@ async def lifespan(app: FastAPI):
     if invu_sales_sync.debe_arrancar_loop():
         ventas_task = asyncio.create_task(invu_sales_sync.run_sales_sync_loop())
 
+    # Cuarto loop: las recetas de Invu (platos y modificadores), para cruzar la merma con el uso
+    # real de cada insumo. Una vez al día, con demora al arrancar (ver invu_recipes_sync).
+    recetas_task = None
+    if invu_recipes_sync.debe_arrancar_loop():
+        recetas_task = asyncio.create_task(invu_recipes_sync.run_recipes_sync_loop())
+
     yield
 
-    for task in (followup_task, invu_task, ventas_task):
+    for task in (followup_task, invu_task, ventas_task, recetas_task):
         if task:
             task.cancel()
             try:

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from database import get_db
 from models.branch import Branch
 from models.inventory_item import InventoryItem, KIND_HOUSE, KIND_RAW
-from models.invu_sales import InvuSyncDay
+from models.invu_sales import InvuRecipeLine, InvuSaleLine, InvuSaleModifier, InvuSyncDay
 from models.supplier import Supplier
 from models.shipment import Shipment, ShipmentItem
 from models.user import User
@@ -27,11 +27,14 @@ from schemas.inventory import (
     StockCountCreate, StockCountItemResponse, StockCountResponse,
     StockRowResponse, WasteCreate, WasteItemResponse, WastePhotoResponse, WasteReasonResponse, WasteResponse,
     WasteAnalyticsGroup, WasteAnalyticsItem, WasteAnalyticsDay, WasteAnalyticsResponse, WasteAnalyticsTotals,
+    WasteRecipeDish, WasteRecipeDishShare, WasteRecipeUsageItem, WasteRecipeUsageResponse,
     MovementComparisonResponse,
 )
-from services import invu_client, invu_items_sync, invu_sales_sync, invu_sync
+from config import settings
+from services import invu_client, invu_items_sync, invu_recipes_sync, invu_sales_sync, invu_sync
 from services.audit import log_audit_event
 from security.auth import get_current_authorized_user
+from security.permissions import require_permission
 from security.access_control import check_target_branch_valid
 
 logger = logging.getLogger("farmhouse.inventory")
@@ -807,6 +810,185 @@ def waste_analytics(
         by_branch=sorted(por_sucursal.values(), key=orden, reverse=True),
         by_kind=sorted(por_tipo.values(), key=orden, reverse=True),
     )
+
+
+# ---- Merma × recetas de Invu ----
+# Para pasar la cantidad de una receta a la unidad del insumo: (familia, factor a la base de la
+# familia). Solo se convierte dentro de la misma familia (peso con peso, volumen con volumen).
+_UNIT_FAMILY = {
+    **{k: ("peso", v) for k, v in _KG_POR_UNIDAD.items()},
+    "ml": ("volumen", Decimal("0.001")), "mililitro": ("volumen", Decimal("0.001")), "mililitros": ("volumen", Decimal("0.001")),
+    "l": ("volumen", Decimal("1")), "litro": ("volumen", Decimal("1")), "litros": ("volumen", Decimal("1")),
+    "unidad": ("unidad", Decimal("1")), "unidades": ("unidad", Decimal("1")), "u": ("unidad", Decimal("1")), "und": ("unidad", Decimal("1")),
+}
+
+
+def _a_unidad_del_insumo(cantidad: Decimal, unidad_receta: Optional[str], unidad_insumo: Optional[str]) -> Optional[Decimal]:
+    """La cantidad de la receta en la unidad del insumo, o None si no se puede convertir."""
+    r = (unidad_receta or "").strip().lower()
+    i = (unidad_insumo or "").strip().lower()
+    if not r or r == i:
+        return cantidad
+    fr, fi = _UNIT_FAMILY.get(r), _UNIT_FAMILY.get(i)
+    if fr and fi and fr[0] == fi[0]:
+        return cantidad * fr[1] / fi[1]
+    return None
+
+
+@router.get("/waste/recipe-usage", response_model=WasteRecipeUsageResponse)
+def waste_recipe_usage(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    La merma de cada insumo contra lo que se USÓ de verdad en los platos vendidos, según las
+    recetas de Invu. Responde "de todo el arroz que pasó por la cocina, qué parte se botó" y en
+    qué platos se usa.
+
+      usado = Σ (platos vendidos × su receta) + Σ (modificadores elegidos × su receta)
+      % merma = merma / (usado + merma)
+
+    Y "platos más afectados": la merma de cada insumo se reparte entre los platos que lo usan,
+    en proporción a cuánto usa cada uno. Es una estimación, y así se presenta.
+
+    Límites que se informan en vez de esconderse: las preparaciones de la casa (salsas,
+    arroces) cuentan como tales, lo que llevan adentro todavía no se desglosa; una receta en una
+    unidad que no se puede pasar a la del insumo (unidad contra gramos) no suma.
+    """
+    hasta = date_to or invu_sales_sync.hoy_panama()
+    desde = date_from or (hasta - timedelta(days=29))
+    if desde > hasta or (hasta - desde).days + 1 > WASTE_ANALYTICS_MAX_DAYS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Período no válido (hasta un año).")
+    efectiva = _visible_branch_filter(current_user, branch_id)
+
+    # ---- Lo vendido en el período ----
+    platos_q = db.query(
+        InvuSaleLine.branch_id, InvuSaleLine.invu_item_id, func.max(InvuSaleLine.name), func.sum(InvuSaleLine.quantity)
+    ).filter(
+        InvuSaleLine.business_date >= desde, InvuSaleLine.business_date <= hasta,
+        InvuSaleLine.counted == True, InvuSaleLine.invu_item_id.isnot(None),  # noqa: E712
+    )
+    mods_q = db.query(
+        InvuSaleLine.branch_id, InvuSaleModifier.invu_modifier_id, func.max(InvuSaleModifier.name), func.sum(InvuSaleModifier.quantity)
+    ).join(InvuSaleLine, InvuSaleLine.id == InvuSaleModifier.line_id).filter(
+        InvuSaleLine.business_date >= desde, InvuSaleLine.business_date <= hasta,
+        InvuSaleLine.counted == True, InvuSaleModifier.invu_modifier_id.isnot(None),  # noqa: E712
+    )
+    recetas_q = db.query(InvuRecipeLine)
+    if efectiva is not None:
+        platos_q = platos_q.filter(InvuSaleLine.branch_id == efectiva)
+        mods_q = mods_q.filter(InvuSaleLine.branch_id == efectiva)
+        recetas_q = recetas_q.filter(InvuRecipeLine.branch_id == efectiva)
+    vendidos = [("item",) + tuple(r) for r in platos_q.group_by(InvuSaleLine.branch_id, InvuSaleLine.invu_item_id).all()]
+    vendidos += [("modifier",) + tuple(r) for r in mods_q.group_by(InvuSaleLine.branch_id, InvuSaleModifier.invu_modifier_id).all()]
+
+    recetas: dict = {}
+    for linea in recetas_q.all():
+        recetas.setdefault((linea.branch_id, linea.source_type, linea.source_invu_id), []).append(linea)
+
+    insumos = {i.invu_id: i for i in db.query(InventoryItem).filter(InventoryItem.invu_id.isnot(None))}
+
+    usado: dict = {}                 # inventory_item_id -> Decimal (en su unidad)
+    usado_por_plato: dict = {}       # inventory_item_id -> {(tipo, nombre): Decimal}
+    unidades_vendidas = Decimal("0")
+    unidades_con_receta = Decimal("0")
+    lineas_sin_conversion = 0
+    for tipo, b_id, source_id, nombre, cantidad in vendidos:
+        cantidad = Decimal(cantidad or 0)
+        if tipo == "item":
+            unidades_vendidas += cantidad
+        lineas = recetas.get((b_id, tipo, source_id))
+        if not lineas:
+            continue
+        if tipo == "item":
+            unidades_con_receta += cantidad
+        for linea in lineas:
+            item = insumos.get(linea.product_invu_id)
+            if not item:
+                continue   # ingrediente archivado en Invu que no se trajo al catálogo
+            por_unidad = _a_unidad_del_insumo(Decimal(linea.quantity), linea.unit_name, item.unit)
+            if por_unidad is None:
+                lineas_sin_conversion += 1
+                continue
+            uso = cantidad * por_unidad
+            usado[item.id] = usado.get(item.id, Decimal("0")) + uso
+            clave = ("plato" if tipo == "item" else "modificador", nombre or "Sin nombre")
+            usado_por_plato.setdefault(item.id, {})
+            usado_por_plato[item.id][clave] = usado_por_plato[item.id].get(clave, Decimal("0")) + uso
+
+    # ---- La merma del período (mismo criterio de costo que el análisis) ----
+    tz = invu_sales_sync.PANAMA_TZ
+    inicio_utc = datetime.combine(desde, datetime.min.time(), tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None)
+    fin_utc = datetime.combine(hasta + timedelta(days=1), datetime.min.time(), tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None)
+    merma_q = db.query(
+        WasteItem.inventory_item_id,
+        func.sum(WasteItem.quantity),
+        func.sum(WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.reference_cost, 0)),
+        func.sum(case((WasteItem.unit_cost.is_(None), 1), else_=0)),
+    ).join(WasteRecord, WasteRecord.id == WasteItem.waste_record_id).join(
+        InventoryItem, InventoryItem.id == WasteItem.inventory_item_id
+    ).filter(WasteRecord.occurred_at >= inicio_utc, WasteRecord.occurred_at < fin_utc)
+    if efectiva is not None:
+        merma_q = merma_q.filter(WasteRecord.branch_id == efectiva)
+    merma = {r[0]: (Decimal(r[1] or 0), Decimal(r[2] or 0), bool(r[3])) for r in merma_q.group_by(WasteItem.inventory_item_id).all()}
+
+    items_por_id = {i.id: i for i in db.query(InventoryItem).filter(InventoryItem.id.in_(list(merma.keys()) or [0]))}
+    filas: List[WasteRecipeUsageItem] = []
+    platos_afectados: dict = {}
+    for item_id, (cant, costo, estimado) in merma.items():
+        item = items_por_id.get(item_id)
+        if not item:
+            continue
+        uso = usado.get(item_id)
+        por_plato = usado_por_plato.get(item_id, {})
+        top = sorted(por_plato.items(), key=lambda kv: kv[1], reverse=True)
+        filas.append(WasteRecipeUsageItem(
+            inventory_item_id=item.id, name=item.name, unit=item.unit, kind=item.kind,
+            wasted=cant.quantize(Decimal("0.001")), wasted_cost=costo.quantize(Decimal("0.01")), estimated=estimado,
+            used=(uso.quantize(Decimal("0.001")) if uso else None),
+            waste_pct=((cant / (uso + cant) * 100).quantize(Decimal("0.1")) if uso else None),
+            dishes=[WasteRecipeDishShare(name=n, type=t, used=u.quantize(Decimal("0.001")),
+                                          share_pct=(u / uso * 100).quantize(Decimal("0.1")))
+                    for (t, n), u in top[:3]] if uso else [],
+        ))
+        if uso and costo:
+            for (t, n), u in por_plato.items():
+                p = platos_afectados.setdefault((t, n), {"cost": Decimal("0"), "items": {}})
+                parte = costo * u / uso
+                p["cost"] += parte
+                p["items"][item.name] = p["items"].get(item.name, Decimal("0")) + parte
+
+    filas.sort(key=lambda f: (f.waste_pct is not None, f.waste_pct or 0, f.wasted_cost), reverse=True)
+    platos = sorted(platos_afectados.items(), key=lambda kv: kv[1]["cost"], reverse=True)[:10]
+    return WasteRecipeUsageResponse(
+        date_from=desde.isoformat(), date_to=hasta.isoformat(), branch_id=efectiva,
+        recipes_synced_at=invu_recipes_sync.ultima_sincronizacion(db),
+        recipes_count=len(recetas),
+        recipes_running=bool(invu_recipes_sync.estado().get("running")),
+        sold_units=unidades_vendidas.quantize(Decimal("1")),
+        sold_units_with_recipe=unidades_con_receta.quantize(Decimal("1")),
+        lines_without_conversion=lineas_sin_conversion,
+        items=filas,
+        dishes=[WasteRecipeDish(name=n, type=t, allocated_cost=v["cost"].quantize(Decimal("0.01")),
+                                ingredients=[k for k, _ in sorted(v["items"].items(), key=lambda kv: kv[1], reverse=True)[:3]])
+                for (t, n), v in platos],
+    )
+
+
+@router.post("/invu/sync-recipes", status_code=status.HTTP_202_ACCEPTED)
+def sync_recipes_from_invu(current_user: User = Depends(require_permission("integrations.manage"))):
+    """
+    Trae las recetas de Invu ahora (en segundo plano: son cientos de llamadas, ~12 min por sucursal).
+    La pantalla consulta el avance en GET /waste/recipe-usage (`recipes_running`).
+    """
+    if not invu_client.is_configured() or not settings.invu_branch_credentials():
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="La integración con Invu no está configurada en el servidor.")
+    iniciada = invu_recipes_sync.lanzar_en_segundo_plano()
+    logger.info(f"Sincronización de recetas pedida por {current_user.name} ({'iniciada' if iniciada else 'ya estaba corriendo'})")
+    return {"started": iniciada, "running": True}
 
 
 # ---- Evidencia de la merma: fotos de lo que se descartó ----

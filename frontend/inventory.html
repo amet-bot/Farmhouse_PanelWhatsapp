@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.5.0">
-  <link rel="stylesheet" href="css/inventory.css?v=4.9.0">
+  <link rel="stylesheet" href="css/inventory.css?v=4.10.2">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -345,6 +345,25 @@
                 <p class="inv-chart-help">Materia prima es lo que se compra; de la casa, lo que se prepara (salsas, arroces...). Mucha merma de la casa suele ser producción de más.</p>
                 <div class="inv-bars" id="wasteKindBars"></div>
               </div>
+            </div>
+
+            <!-- Merma × recetas de Invu (GET /inventory/waste/recipe-usage) -->
+            <div class="inv-panel inv-panel-wide" id="wasteRecipePanel">
+              <div class="inv-panel-head">
+                <h2>Merma contra lo que se usó en los platos</h2>
+                <span class="inv-panel-note" id="wasteRecipeNote">Recetas de Invu</span>
+              </div>
+              <p class="inv-chart-help">De todo lo que pasó por la cocina de cada insumo —lo que fue a los platos vendidos, según las recetas de Invu, más lo que se botó— qué parte se botó. Arriba de 5% suele valer una revisión.</p>
+              <div id="wasteRecipeBody"></div>
+            </div>
+
+            <div class="inv-panel inv-panel-wide" id="wasteDishPanel" hidden>
+              <div class="inv-panel-head">
+                <h2>Platos más afectados</h2>
+                <span class="inv-panel-note">Estimado</span>
+              </div>
+              <p class="inv-chart-help">La merma de cada insumo repartida entre los platos que lo usan, según cuánto usa cada uno. Dice dónde mirar primero (porción, preparación de más), no quién la causó.</p>
+              <div class="inv-bars" id="wasteDishBars"></div>
             </div>
 
             <p class="inv-analysis-method">
@@ -851,6 +870,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.9.0"></script>
+  <script src="js/modules/inventory.js?v=4.10.2"></script>
 </body>
 </html>

@@ -1824,7 +1824,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Merma → Análisis (los números salen de GET /inventory/waste/analytics)
   // ==========================================================================
-  const wasteAnalysis = { tab: 'registros', period: '30', branch: '', metric: 'cost', data: null, seq: 0 };
+  const wasteAnalysis = { tab: 'registros', period: '30', branch: '', metric: 'cost', data: null, recipes: null, seq: 0 };
 
   /** Hoy en Panamá (YYYY-MM-DD): los días de la merma y de las ventas se cuentan en esa hora. */
   function hoyPanama() {
@@ -1884,6 +1884,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (wasteAnalysis.branch) params.set('branch_id', wasteAnalysis.branch);
     const seq = ++wasteAnalysis.seq;
     $('wasteKpis').innerHTML = '<div class="inv-kpi inv-kpi-skeleton"></div>'.repeat(4);
+    // El cruce con recetas va aparte: si falla (o todavía no hay recetas) no tapa el resto.
+    api.get(`/inventory/waste/recipe-usage?${params}`)
+      .then((r) => { if (seq === wasteAnalysis.seq) { wasteAnalysis.recipes = r; renderWasteRecipes(); } })
+      .catch(() => { if (seq === wasteAnalysis.seq) { wasteAnalysis.recipes = null; renderWasteRecipes(); } });
     try {
       const data = await api.get(`/inventory/waste/analytics?${params}`);
       if (seq !== wasteAnalysis.seq) return;   // llegó otra más nueva (se cambió el período)
@@ -2023,6 +2027,106 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearTimeout(trendResizeTimer);
     trendResizeTimer = setTimeout(() => { if (wasteAnalysis.tab === 'analisis') renderWasteTrend(); }, 150);
   });
+
+  /** Merma contra el uso real en platos (recetas de Invu) y los platos más afectados. */
+  function renderWasteRecipes() {
+    const r = wasteAnalysis.recipes;
+    const body = $('wasteRecipeBody');
+    if (!body) return;
+    const puedeTraer = (state.user?.permissions || []).includes('integrations.manage');
+    const botonTraer = puedeTraer
+      ? `<button type="button" class="inv-secondary-btn" id="btnSyncRecipes"${r?.recipes_running ? ' disabled' : ''}>
+           <i data-lucide="refresh-cw"></i> <span>${r?.recipes_running ? 'Trayendo recetas…' : 'Actualizar recetas de Invu'}</span>
+         </button>`
+      : '';
+
+    if (!r) {
+      body.innerHTML = emptyStateHtml('chef-hat', 'No se pudo cruzar con las recetas', 'Probá de nuevo en un momento.');
+      $('wasteDishPanel').hidden = true;
+      utils.renderIcons();
+      return;
+    }
+
+    const cobertura = Number(r.sold_units) > 0 ? Math.round((Number(r.sold_units_with_recipe) / Number(r.sold_units)) * 100) : null;
+    $('wasteRecipeNote').textContent = r.recipes_synced_at
+      ? `Recetas del ${utils.formatDate(r.recipes_synced_at)}${cobertura != null ? ` · ${cobertura}% de lo vendido tiene receta` : ''}`
+      : 'Recetas de Invu';
+
+    if (!r.recipes_count) {
+      body.innerHTML = `
+        ${emptyStateHtml('chef-hat', r.recipes_running ? 'Trayendo las recetas de Invu…' : 'Todavía no se trajeron las recetas de Invu',
+          r.recipes_running ? 'Son cientos de platos y modificadores: tarda unos 12 minutos por sucursal. Volvé a abrir esta vista más tarde.'
+                            : 'Se traen solas una vez por semana. Con ellas se calcula cuánto de cada insumo fue a los platos vendidos.')}
+        ${botonTraer ? `<div class="inv-recipe-actions">${botonTraer}</div>` : ''}`;
+      $('wasteDishPanel').hidden = true;
+      wireSyncRecipes();
+      utils.renderIcons();
+      return;
+    }
+
+    const nivel = (pct) => (pct == null ? '' : pct >= 8 ? 'bad' : pct >= 3 ? 'warn' : 'ok');
+    const filas = r.items;
+    body.innerHTML = filas.length ? `
+      <table class="inv-detail-table inv-recipe-table">
+        <thead>
+          <tr>
+            <th>Insumo</th>
+            <th class="num">Fue a platos<small>según recetas</small></th>
+            <th class="num">Se botó<small>merma</small></th>
+            <th class="num">% merma<small>de lo que pasó por cocina</small></th>
+            <th>Dónde más se usa</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filas.map((f) => {
+            const pct = f.waste_pct != null ? Number(f.waste_pct) : null;
+            return `
+              <tr>
+                <td class="inv-td-name" data-label="Insumo">${esc(f.name)}${f.kind === 'casa' ? ' <span class="inv-badge kind-house">Casa</span>' : ''}
+                  <small>${Number(f.wasted_cost) > 0 ? `${money(f.wasted_cost)} perdidos${f.estimated ? ' ≈' : ''}` : 'sin costo conocido'}</small></td>
+                <td class="num" data-label="Fue a platos">${f.used != null ? `${esc(qty(f.used))} <small>${esc(unitShort(f.unit))}</small>` : '<span class="inv-stock-none">sin receta</span>'}</td>
+                <td class="num" data-label="Se botó">${esc(qty(f.wasted))} <small>${esc(unitShort(f.unit))}</small></td>
+                <td class="num" data-label="% merma">${pct != null ? `<span class="inv-pct-pill ${nivel(pct)}">${pct.toLocaleString('es-PA', { maximumFractionDigits: 1 })}%</span>` : '—'}</td>
+                <td data-label="Dónde más se usa">${f.dishes.length
+                  ? f.dishes.map((d) => `<span class="inv-chip" title="${esc(d.type === 'modificador' ? 'Opción elegida en el plato' : 'Plato')}">${esc(d.name)} <small>${Number(d.share_pct).toLocaleString('es-PA', { maximumFractionDigits: 0 })}%</small></span>`).join(' ')
+                  : '<span class="inv-stock-none">ninguna receta lo usa</span>'}</td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      <p class="inv-recipe-foot">Los insumos marcados "Casa" (salsas, arroces…) se cuentan como preparación: lo que llevan adentro todavía no se desglosa.${r.lines_without_conversion ? ` ${pluralize(r.lines_without_conversion, 'línea de receta', 'líneas de receta')} en una unidad que no se puede pasar a la del insumo no ${r.lines_without_conversion === 1 ? 'suma' : 'suman'}.` : ''}</p>
+      ${botonTraer ? `<div class="inv-recipe-actions">${botonTraer}</div>` : ''}`
+      : `${emptyStateHtml('bar-chart-3', 'Sin mermas en el período', 'Cuando se registren, acá se ve qué parte de cada insumo se botó frente a lo que se usó.')}
+         ${botonTraer ? `<div class="inv-recipe-actions">${botonTraer}</div>` : ''}`;
+
+    // Platos más afectados
+    const platos = r.dishes.filter((d) => Number(d.allocated_cost) > 0);
+    $('wasteDishPanel').hidden = !platos.length;
+    if (platos.length) {
+      $('wasteDishBars').innerHTML = barsHtml(platos, {
+        valor: (d) => Number(d.allocated_cost),
+        etiqueta: (d) => `${esc(d.name)}${d.type === 'modificador' ? ' <span class="inv-badge muted">opción</span>' : ''}`,
+        extra: (d) => `${money(d.allocated_cost)} <small>${esc(d.ingredients.join(', '))}</small>`,
+      });
+    }
+    wireSyncRecipes();
+    utils.renderIcons();
+  }
+
+  function wireSyncRecipes() {
+    $('btnSyncRecipes')?.addEventListener('click', async () => {
+      try {
+        const res = await api.post('/inventory/invu/sync-recipes', {});
+        utils.showToast(res.started
+          ? 'Se están trayendo las recetas de Invu. Tarda unos 12 minutos por sucursal; podés seguir usando el sistema.'
+          : 'Ya se estaban trayendo las recetas.', 'success');
+        if (wasteAnalysis.recipes) wasteAnalysis.recipes.recipes_running = true;
+        renderWasteRecipes();
+      } catch (err) {
+        utils.showToast(err.message || 'No se pudieron pedir las recetas.', 'error');
+      }
+    });
+  }
 
   function barsHtml(filas, { valor, etiqueta, extra }) {
     const tope = Math.max(...filas.map(valor), 0);

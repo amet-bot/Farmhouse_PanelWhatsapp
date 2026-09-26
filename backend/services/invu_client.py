@@ -44,6 +44,10 @@ class InvuError(Exception):
     """Cualquier problema hablando con Invu, ya traducido a algo que se le puede mostrar a alguien."""
 
 
+class InvuNotFound(InvuError):
+    """HTTP 404: lo pedido no existe (p. ej. un plato sin receta, o que ya no es receta)."""
+
+
 class InvuNotConfigured(InvuError):
     def __init__(self):
         super().__init__("La integración con Invu no está configurada en el servidor.")
@@ -201,6 +205,8 @@ def _get(
         time.sleep(espera)
         return _get(path_query, params, _retrying=True, credenciales=credenciales)
 
+    if response.status_code == 404:
+        raise InvuNotFound(f"Invu respondió HTTP 404 en '{path_query}'.")
     if response.status_code != 200:
         raise InvuError(f"Invu respondió HTTP {response.status_code} en '{path_query}'.")
 
@@ -287,6 +293,29 @@ def iter_ingredients(updated_after: Optional[datetime] = None) -> Iterator[Dict[
 def ingredient_categories() -> Dict[int, str]:
     """{id: nombre} de las categorías de ingredientes (Lacteos, Vegetales, Packaging...)."""
     return {int(c["id"]): str(c.get("name") or "").strip() for c in _iter_pages("ingredient-categories/list") if c.get("id")}
+
+
+def recipe_ingredients(credenciales: Credenciales, recipe_id: int) -> Optional[List[Dict[str, Any]]]:
+    """
+    Los ingredientes de la receta de un plato (su id de menú en ESA sucursal). None si Invu dice
+    que no tiene receta (404): pasa con platos que no son receta o que se desactivaron.
+    """
+    try:
+        payload = _get("recipes/ingredients", {"recipe_id": int(recipe_id)}, credenciales=credenciales)
+    except InvuNotFound:
+        return None
+    data = payload.get("data") if isinstance(payload, dict) else None
+    return list((data or {}).get("ingredients") or [])
+
+
+def modifier_option_ingredients(credenciales: Credenciales, option_id: int) -> Optional[Dict[str, Any]]:
+    """Una opción de modificador con sus ingredientes ("Pollo Spiced" → 160 g). None si no existe."""
+    try:
+        payload = _get(f"modifier-options/get/{int(option_id)}", credenciales=credenciales)
+    except InvuNotFound:
+        return None
+    data = payload.get("data") if isinstance(payload, dict) else None
+    return data or None
 
 
 def units() -> Dict[int, str]:

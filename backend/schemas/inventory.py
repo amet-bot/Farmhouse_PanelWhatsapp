@@ -217,6 +217,48 @@ class WasteAnalyticsResponse(BaseModel):
     by_kind: List[WasteAnalyticsGroup]
 
 
+class WasteRecipeDishShare(BaseModel):
+    name: str
+    type: str                                 # "plato" | "modificador"
+    used: Decimal                             # cuánto de este insumo usó, en la unidad del insumo
+    share_pct: Decimal                        # parte del uso total del insumo
+
+
+class WasteRecipeUsageItem(BaseModel):
+    inventory_item_id: int
+    name: str
+    unit: str
+    kind: Optional[str] = None
+    wasted: Decimal                           # merma del período, en la unidad del insumo
+    wasted_cost: Decimal
+    estimated: bool = False
+    used: Optional[Decimal] = None            # uso según recetas × ventas; None = ninguna receta lo usa
+    waste_pct: Optional[Decimal] = None       # merma / (usado + merma) × 100
+    dishes: List[WasteRecipeDishShare] = []   # los platos que más lo usan (hasta 3)
+
+
+class WasteRecipeDish(BaseModel):
+    name: str
+    type: str
+    allocated_cost: Decimal                   # merma repartida por uso (estimación)
+    ingredients: List[str] = []               # los insumos que más le suman
+
+
+class WasteRecipeUsageResponse(BaseModel):
+    """Merma de cada insumo contra su uso real en los platos vendidos (recetas de Invu)."""
+    date_from: str
+    date_to: str
+    branch_id: Optional[int] = None
+    recipes_synced_at: Optional[datetime] = None
+    recipes_count: int = 0
+    recipes_running: bool = False
+    sold_units: Decimal = Decimal("0")
+    sold_units_with_recipe: Decimal = Decimal("0")
+    lines_without_conversion: int = 0
+    items: List[WasteRecipeUsageItem]
+    dishes: List[WasteRecipeDish]
+
+
 class WasteReasonResponse(BaseModel):
     code: str
     label: str

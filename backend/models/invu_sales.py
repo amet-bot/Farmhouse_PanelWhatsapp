@@ -125,6 +125,38 @@ class InvuSaleModifier(Base):
     line = relationship("InvuSaleLine", back_populates="modifiers")
 
 
+class InvuRecipeLine(Base):
+    """
+    Un renglón de receta de Invu: cuánto de un ingrediente lleva un plato o un modificador.
+
+    Sirve para calcular el uso real de cada insumo (platos vendidos × receta) y cruzarlo con la
+    merma. Es por sucursal porque cada sucursal es una base aparte en Invu y el id del plato
+    cambia de una a otra; el ingrediente, en cambio, tiene el mismo id y código en todas (el
+    mismo `invu_id` / `code` de InventoryItem).
+
+    `source_type`: "item" = plato del menú (recipes/ingredients); "modifier" = opción de
+    modificador (modifier-options/get), que es donde viven los ingredientes de un bowl armado
+    ("Pollo Spiced" → 160 g de pollo). `quantity` es por unidad vendida, en `unit_name`.
+    """
+    __tablename__ = "invu_recipe_lines"
+    __table_args__ = (
+        UniqueConstraint("branch_id", "source_type", "source_invu_id", "product_invu_id", name="uq_invu_recipe_line"),
+        Index("ix_invu_recipe_source", "branch_id", "source_type", "source_invu_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    source_type = Column(String(10), nullable=False)
+    source_invu_id = Column(Integer, nullable=False)
+    source_name = Column(String(200), nullable=True)
+    product_invu_id = Column(Integer, nullable=False, index=True)
+    product_code = Column(String(50), nullable=True)
+    product_name = Column(String(200), nullable=True)
+    quantity = Column(Numeric(12, 4), nullable=False)
+    unit_name = Column(String(30), nullable=True)
+    synced_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class InvuSyncDay(Base):
     """
     Bitácora de sincronización: un renglón por sucursal y día. Dice qué días ya se trajeron
