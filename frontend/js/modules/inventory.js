@@ -1728,6 +1728,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    // La columna de traslados solo aparece cuando hubo alguno: la mayoría de las sucursales
+    // todavía no los usa y una columna llena de "—" solo le quita lugar al resto en celular.
+    const hayTraslados = rows.some((r) => Number(r.transferred));
     table.innerHTML = `
       <table class="inv-detail-table inv-stock-grid">
         <thead>
@@ -1736,6 +1739,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <th class="num">Entró</th>
             <th class="num">Merma</th>
             <th class="num">Conteo</th>
+            ${hayTraslados ? '<th class="num">Traslados</th>' : ''}
             <th class="num">Queda</th>
             <th class="num">Perdido</th>
           </tr>
@@ -1753,6 +1757,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td class="num" data-label="Entró">${esc(qty(r.entered))}</td>
                 <td class="num" data-label="Merma">${Number(r.wasted) ? esc(qty(r.wasted)) : '—'}</td>
                 <td class="num" data-label="Conteo" title="${r.last_counted_at ? `Último conteo: ${esc(utils.formatDateTime(r.last_counted_at))}` : 'Nunca se contó'}">${Number(r.adjusted) ? esc(signedQty(r.adjusted)) : '—'}</td>
+                ${hayTraslados ? `<td class="num" data-label="Traslados">${Number(r.transferred) ? esc(signedQty(r.transferred)) : '—'}</td>` : ''}
                 <td class="num inv-stock-onhand" data-label="Queda"><span class="inv-stock-pill${clase}">${esc(qty(r.on_hand))} <small>${esc(r.unit)}</small></span></td>
                 <td class="num" data-label="Perdido">${r.wasted_cost != null ? money(r.wasted_cost) : '—'}</td>
               </tr>`;
@@ -2251,7 +2256,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Lo que ya se anotó nunca se esconde: desaparecer de la vista algo que se contó hace
       // pensar que se perdió.
       if (state.countEntries.has(r.inventory_item_id)) return !q || r.item_name.toLowerCase().includes(q);
-      if (state.countOnlyStocked && !Number(r.entered) && !Number(r.wasted) && !Number(r.adjusted)) return false;
+      if (state.countOnlyStocked && !Number(r.entered) && !Number(r.wasted) && !Number(r.adjusted) && !Number(r.transferred)) return false;
       return !q || `${r.item_name} ${r.category || ''}`.toLowerCase().includes(q);
     });
   }

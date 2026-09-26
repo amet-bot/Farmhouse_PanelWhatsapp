@@ -5,6 +5,9 @@ from datetime import date, datetime
 
 
 class PrepTemplateItemIn(BaseModel):
+    # Al editar, el id del ítem existente: así se actualiza en su lugar y el historial de
+    # checklists sigue apuntando al mismo ítem. Ausente = ítem nuevo.
+    id: Optional[int] = None
     section: str = Field(..., min_length=1, max_length=60)
     name: str = Field(..., min_length=1, max_length=150)
     unit_label: Optional[str] = Field(None, max_length=60)

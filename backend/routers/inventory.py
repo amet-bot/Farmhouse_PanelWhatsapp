@@ -17,6 +17,7 @@ from models.user import User
 from models.waste import WasteRecord, WasteItem
 from models.stock_count import StockCount, StockCountItem
 from models.inventory_movement import InventoryMovement
+from models.transfer import Transfer, TransferItem
 from schemas.inventory import (
     InventoryItemCreate, InventoryItemResponse,
     InvuStatusResponse, InvuSyncResult,
@@ -296,6 +297,10 @@ def _visible_branch_filter(current_user: User, branch_id: Optional[int]):
     """
     if current_user.role == "admin" or (current_user.role == "supervisor" and current_user.branch_id is None):
         return branch_id
+    if current_user.branch_id is None:
+        # Un agente sin sucursal (dato inválido) devolvía None = "todas": veía el inventario de
+        # todas las sucursales. Falla cerrado.
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tu usuario no tiene una sucursal asignada.")
     return current_user.branch_id
 
 
@@ -337,8 +342,47 @@ def _last_costs_map(db: Session, branch_id: int) -> dict:
     return {item_id: costo for item_id, costo in filas}
 
 
+# Un traslado sale de la sucursal de origen al despacharse y entra a la de destino al recibirse
+# (mismo criterio que los movimientos transfer_out/transfer_in del libro, routers/transfers.py).
+_TRANSFER_OUT_STATUSES = ("dispatched", "received")
+
+
+def _transfer_net_map(db: Session, branch_id: Optional[int], item_ids: Optional[List[int]] = None) -> dict:
+    """
+    Neto de traslados por insumo (lo que entró por traslado menos lo que salió), en esa sucursal
+    o en todas si branch_id es None. Sin esto la existencia ignoraba los traslados: quien mandaba
+    seguía mostrando lo mandado, quien recibía no lo veía, y el siguiente conteo "descubría" la
+    diferencia como un ajuste — que en el libro de movimientos quedaba contado dos veces.
+
+    Sumando todas las sucursales, lo despachado y todavía no recibido resta: está en camino.
+    """
+    salidas_q = (
+        db.query(TransferItem.inventory_item_id, func.coalesce(func.sum(TransferItem.quantity), 0))
+        .join(Transfer, Transfer.id == TransferItem.transfer_id)
+        .filter(Transfer.status.in_(_TRANSFER_OUT_STATUSES))
+    )
+    entradas_q = (
+        db.query(TransferItem.inventory_item_id, func.coalesce(func.sum(TransferItem.quantity), 0))
+        .join(Transfer, Transfer.id == TransferItem.transfer_id)
+        .filter(Transfer.status == "received")
+    )
+    if branch_id is not None:
+        salidas_q = salidas_q.filter(Transfer.from_branch_id == branch_id)
+        entradas_q = entradas_q.filter(Transfer.to_branch_id == branch_id)
+    if item_ids is not None:
+        salidas_q = salidas_q.filter(TransferItem.inventory_item_id.in_(item_ids))
+        entradas_q = entradas_q.filter(TransferItem.inventory_item_id.in_(item_ids))
+
+    neto: dict = {}
+    for item_id, cantidad in entradas_q.group_by(TransferItem.inventory_item_id).all():
+        neto[item_id] = neto.get(item_id, Decimal("0")) + Decimal(cantidad)
+    for item_id, cantidad in salidas_q.group_by(TransferItem.inventory_item_id).all():
+        neto[item_id] = neto.get(item_id, Decimal("0")) - Decimal(cantidad)
+    return neto
+
+
 def _on_hand_map(db: Session, branch_id: int, item_ids: List[int]) -> dict:
-    """Existencia actual (entradas - mermas + diferencias de conteo) de esos insumos en esa sucursal."""
+    """Existencia actual (entradas - mermas + diferencias de conteo ± traslados) de esos insumos en esa sucursal."""
     if not item_ids:
         return {}
 
@@ -363,8 +407,12 @@ def _on_hand_map(db: Session, branch_id: int, item_ids: List[int]) -> dict:
         .group_by(StockCountItem.inventory_item_id)
         .all()
     )
+    traslados = _transfer_net_map(db, branch_id, item_ids)
     return {
-        item_id: Decimal(entradas.get(item_id, 0)) - Decimal(salidas.get(item_id, 0)) + Decimal(ajustes.get(item_id, 0))
+        item_id: (
+            Decimal(entradas.get(item_id, 0)) - Decimal(salidas.get(item_id, 0))
+            + Decimal(ajustes.get(item_id, 0)) + traslados.get(item_id, Decimal("0"))
+        )
         for item_id in item_ids
     }
 
@@ -597,6 +645,7 @@ def list_stock(
     entradas = {r.item_id: r for r in entradas_q.group_by(ShipmentItem.inventory_item_id).all()}
     salidas = {r.item_id: r for r in salidas_q.group_by(WasteItem.inventory_item_id).all()}
     ajustes = {r.item_id: r for r in ajustes_q.group_by(StockCountItem.inventory_item_id).all()}
+    traslados = _transfer_net_map(db, efectiva)
 
     ultimos_costos = _last_costs_map(db, efectiva) if efectiva is not None else {}
 
@@ -617,7 +666,8 @@ def list_stock(
         ajuste = ajustes.get(item.id)
         # Un insumo que solo se contó también "se movió": el conteo de arranque es justamente
         # su primer movimiento.
-        if only_stocked and not entrada and not salida and not ajuste:
+        trasladado = traslados.get(item.id, Decimal("0"))
+        if only_stocked and not entrada and not salida and not ajuste and item.id not in traslados:
             continue
 
         entro = Decimal(entrada.cantidad) if entrada else Decimal("0")
@@ -639,7 +689,8 @@ def list_stock(
             entered=entro,
             wasted=salio,
             adjusted=ajustado,
-            on_hand=entro - salio + ajustado,
+            transferred=trasladado,
+            on_hand=entro - salio + ajustado + trasladado,
             wasted_cost=(Decimal(salida.costo).quantize(Decimal("0.01")) if salida and salida.costo else None),
             last_movement_at=(max(fechas) if fechas else None),
             last_unit_cost=ultimos_costos.get(item.id),

@@ -28,6 +28,8 @@ from services.whatsapp_service import get_whatsapp_service
 logger = logging.getLogger("farmhouse.bot_followup")
 
 FOLLOWUP_THRESHOLD_MINUTES = 5
+# Pasada esta antigüedad del último mensaje del bot ya no se manda el seguimiento.
+FOLLOWUP_MAX_AGE_MINUTES = 60
 # Revisa cada minuto: con un umbral de 5 minutos, un margen de 1 minuto es suficiente
 # resolución sin generar carga innecesaria en la base de datos.
 SWEEP_INTERVAL_SECONDS = 60
@@ -59,7 +61,19 @@ async def _sweep_once() -> None:
             Conversation.deleted_at.is_(None),
         ).all()
         for conv in candidates:
-            await _maybe_follow_up(db, conv)
+            # Una conversación que falla (Meta rechaza el envío: ventana de 24 h vencida, número
+            # bloqueado...) antes abortaba la pasada entera: ninguna conversación posterior
+            # recibía su seguimiento, y la misma fallaba contra Meta cada minuto para siempre.
+            try:
+                await _maybe_follow_up(db, conv)
+            except Exception:
+                db.rollback()
+                logger.exception(f"[BotFollowup] No se pudo enviar el seguimiento a conv {conv.id}; no se reintenta para esta pausa.")
+                try:
+                    conv.bot_followup_sent_at = datetime.utcnow()
+                    db.commit()
+                except Exception:
+                    db.rollback()
     finally:
         db.close()
 
@@ -81,9 +95,15 @@ async def _maybe_follow_up(db, conv: Conversation) -> None:
 
     # Naive UTC a propósito, igual que en Conversation.needs_reminder: las columnas DATETIME
     # de MySQL no conservan tzinfo, comparar contra un datetime "aware" revienta.
-    threshold = datetime.utcnow() - timedelta(minutes=FOLLOWUP_THRESHOLD_MINUTES)
+    now = datetime.utcnow()
+    threshold = now - timedelta(minutes=FOLLOWUP_THRESHOLD_MINUTES)
     if last_msg.created_at > threshold:
         return  # todavía no pasaron los 5 minutos
+    if last_msg.created_at < now - timedelta(minutes=FOLLOWUP_MAX_AGE_MINUTES):
+        # Un "¿sigues ahí?" horas o días después no reengancha a nadie (y pasadas 24 h Meta lo
+        # rechaza). Solo aplica a pausas recientes; esto también evita barrer el historial viejo
+        # de conversaciones que quedaron abiertas.
+        return
 
     if conv.bot_followup_sent_at is not None and conv.bot_followup_sent_at >= last_msg.created_at:
         return  # ya se mandó el único seguimiento para esta pausa del cliente

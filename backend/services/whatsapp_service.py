@@ -157,7 +157,10 @@ class MockWhatsAppService(WhatsAppService):
 
             result = {
                 "from_phone": msg.get("from"),
-                "contact_name": contact.get("profile", {}).get("name", "Cliente WhatsApp"),
+                # `or` y no un default de .get(): Meta a veces manda el nombre vacío (""), y un
+                # contacto con nombre vacío rompía la validación de ContactResponse (min_length=1)
+                # — la lista de conversaciones completa daba 500 para todos los que lo veían.
+                "contact_name": (contact.get("profile", {}).get("name") or "").strip() or "Cliente WhatsApp",
                 "wamid": msg.get("id"),
                 "timestamp": msg.get("timestamp"),
                 "message_type": msg_type,

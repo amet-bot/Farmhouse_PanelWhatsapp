@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  $('btnCreateTemplate').addEventListener('click', async () => {
+  $('btnCreateTemplate').addEventListener('click', () => withButtonBusy($('btnCreateTemplate'), async () => {
     try {
       const created = await api.post('/prep/templates', {
         branch_id: branchId, name: 'Bowls', checkpoints: ['10am', '3pm', '8pm'], items: [],
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       utils.showToast(err.message || 'No se pudo crear la plantilla.', 'error');
     }
-  });
+  }));
 
   // ==========================================================================
   // Pestañas
@@ -96,14 +96,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     activeCheckpoint = checkpoint;
     existingEntries = {};
     document.querySelectorAll('.prep-chip').forEach((c) => c.classList.toggle('active', c.dataset.checkpoint === checkpoint));
+    const templateId = template.id;
+    const entries = {};
     try {
-      const checks = await api.get(`/prep/templates/${template.id}/checks`);
+      const checks = await api.get(`/prep/templates/${templateId}/checks`);
       const existing = checks.find((c) => c.checkpoint === checkpoint);
       if (existing) {
-        existing.entries.forEach((e) => { existingEntries[e.template_item_id] = e; });
+        existing.entries.forEach((e) => { entries[e.template_item_id] = e; });
       }
     } catch (err) { /* si falla, se llena en blanco — no bloquea el checklist */ }
+    // Tocar 10am y enseguida 3pm: la respuesta de 10am llegaba después y pintaba (y guardaba)
+    // sus cantidades como si fueran las de 3pm. Si el usuario ya eligió otro, se descarta.
+    if (checkpoint !== activeCheckpoint || !template || template.id !== templateId) return;
+    existingEntries = entries;
     renderItemSections();
+  }
+
+  // Deshabilita el botón mientras corre la acción: un doble toque ya no crea dos plantillas ni
+  // manda el checklist dos veces.
+  async function withButtonBusy(button, action) {
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      await action();
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function renderItemSections() {
@@ -140,7 +158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     `).join('');
   }
 
-  $('btnSubmitCheck').addEventListener('click', async () => {
+  $('btnSubmitCheck').addEventListener('click', () => withButtonBusy($('btnSubmitCheck'), async () => {
     if (!template || !activeCheckpoint) return;
     const entries = [];
     document.querySelectorAll('#prepSections .prep-item-row').forEach((row) => {
@@ -157,7 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       utils.showToast(err.message || 'No se pudo guardar el checklist.', 'error');
     }
-  });
+  }));
 
   // ==========================================================================
   // Editor de plantilla (supervisor/admin)
@@ -176,7 +194,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('checkpointEditRow').innerHTML = editCheckpoints.map((cp, idx) => `
       <span class="prep-checkpoint-edit-item">
         <input type="text" value="${esc(cp)}" data-idx="${idx}" class="prep-checkpoint-input">
-        <button type="button" data-remove-cp="${idx}"><i data-lucide="x"></i></button>
+        <button type="button" data-remove-cp="${idx}" aria-label="Quitar checkpoint" title="Quitar checkpoint"><i data-lucide="x"></i></button>
       </span>
     `).join('');
     utils.renderIcons();
@@ -198,9 +216,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td><input type="text" class="ei-section" value="${esc(item.section)}"></td>
         <td><input type="text" class="ei-name" value="${esc(item.name)}"></td>
         <td><input type="text" class="ei-unit" value="${esc(item.unit_label || '')}"></td>
-        <td><input type="number" step="0.01" min="0" class="ei-par" value="${item.par_target ?? ''}"></td>
+        <td><input type="number" step="0.01" min="0" class="ei-par" value="${esc(item.par_target ?? '')}"></td>
         <td><input type="text" class="ei-notes" value="${esc(item.notes || '')}"></td>
-        <td><button type="button" class="prep-row-delete" data-remove-item="${idx}"><i data-lucide="trash-2"></i></button></td>
+        <td><button type="button" class="prep-row-delete" data-remove-item="${idx}" aria-label="Quitar ítem" title="Quitar ítem"><i data-lucide="trash-2"></i></button></td>
       </tr>
     `).join('');
     utils.renderIcons();
@@ -246,7 +264,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     utils.showToast(`${added} ítem(s) agregado(s). Recordá "Guardar plantilla".`, 'success');
   });
 
-  $('btnSaveTemplate').addEventListener('click', async () => {
+  $('btnSaveTemplate').addEventListener('click', () => withButtonBusy($('btnSaveTemplate'), async () => {
     const cleanCheckpoints = editCheckpoints.map((c) => c.trim()).filter(Boolean);
     if (!cleanCheckpoints.length) {
       utils.showToast('Necesitás al menos un checkpoint.', 'error');
@@ -255,6 +273,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cleanItems = editItems
       .filter((i) => i.section.trim() && i.name.trim())
       .map((i) => ({
+        // El id viaja para que el servidor actualice el ítem en su lugar y el historial de
+        // checklists siga apuntando a él; los ítems nuevos no tienen id.
+        id: i.id ?? null,
         section: i.section.trim(), name: i.name.trim(),
         unit_label: i.unit_label ? i.unit_label.trim() : null,
         par_target: i.par_target === '' || i.par_target == null ? null : i.par_target,
@@ -272,7 +293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       utils.showToast(err.message || 'No se pudo guardar la plantilla.', 'error');
     }
-  });
+  }));
 
   // ==========================================================================
   // Arranque

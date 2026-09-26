@@ -155,7 +155,8 @@ class StockRowResponse(BaseModel):
     entered: Decimal                     # todo lo que entró por cargamentos
     wasted: Decimal                      # todo lo que salió por merma
     adjusted: Decimal = Decimal("0")     # suma de las diferencias de conteo; negativo = faltó
-    on_hand: Decimal                     # entered - wasted + adjusted; puede ser negativo, a propósito
+    transferred: Decimal = Decimal("0")  # neto de traslados: recibido - despachado
+    on_hand: Decimal                     # entered - wasted + adjusted + transferred; puede ser negativo, a propósito
     wasted_cost: Optional[Decimal] = None
     last_movement_at: Optional[datetime] = None
     last_counted_at: Optional[datetime] = None

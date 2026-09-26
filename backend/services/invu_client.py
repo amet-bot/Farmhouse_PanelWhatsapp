@@ -266,7 +266,12 @@ def list_orders(credenciales: Credenciales, desde_epoch: int, hasta_epoch: int) 
         f"citas/ordenesAllAdv/fini/{int(desde_epoch)}/ffin/{int(hasta_epoch)}/tipo/all/grouping/false",
         credenciales=credenciales,
     )
-    return payload.get("data") or []
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if data is None:
+        return []
+    if not isinstance(data, list):
+        raise InvuError("Invu devolvió las órdenes en un formato inesperado.")
+    return data
 
 
 def order_totals(credenciales: Credenciales, desde_epoch: int, hasta_epoch: int) -> Dict[str, Any]:

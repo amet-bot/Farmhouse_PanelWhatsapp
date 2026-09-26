@@ -53,6 +53,17 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
   const money = (n) => `$${Number(n || 0).toFixed(2)}`;
+  // Mismo tope que valida el servidor (PublicOrderItem.quantity le=20): antes el modal llegaba a
+  // 50 y el carrito no tenía tope, y el pedido fallaba con un 422 al enviarlo.
+  const MAX_ITEM_QTY = 20;
+  // FastAPI manda `detail` como texto en errores de negocio y como lista de {msg} en los de
+  // validación (422): mostrarlo tal cual daba "[object Object]".
+  function errorDetailText(detail) {
+    if (!detail) return "";
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) return detail.map((d) => (d && d.msg) ? d.msg : String(d)).join(" ");
+    return "";
+  }
   // El backend cuenta ocurrencias repetidas del mismo SKU en addon_skus para saber la cantidad
   // de ese adicional (ver services/order_pricing.price_cart_items), así que un adicional con
   // quantity=2 se manda como ese SKU repetido 2 veces en la lista plana.
@@ -629,6 +640,7 @@
     if (!size) return;
     const existing = state.cart.find((it) => it.sku === size.sku && (!it.addons || it.addons.length === 0) && !it.notes);
     if (existing) {
+      if (existing.quantity >= MAX_ITEM_QTY) return showToast(`Máximo ${MAX_ITEM_QTY} unidades por producto.`, true);
       existing.quantity += 1;
     } else {
       state.cart.push({
@@ -981,7 +993,10 @@
       list.querySelectorAll(".btn-cart-inc").forEach((b) => {
         b.addEventListener("click", () => {
           const idx = Number(b.dataset.idx);
-          if (state.cart[idx]) state.cart[idx].quantity += 1;
+          if (state.cart[idx]) {
+            if (state.cart[idx].quantity >= MAX_ITEM_QTY) return showToast(`Máximo ${MAX_ITEM_QTY} unidades por producto.`, true);
+            state.cart[idx].quantity += 1;
+          }
           persistCart();
           renderCart();
           scheduleCartSync();
@@ -1175,7 +1190,7 @@
     }
     if (qp) {
       qp.addEventListener("click", () => {
-        if (state.modal.quantity < 50) {
+        if (state.modal.quantity < MAX_ITEM_QTY) {
           state.modal.quantity += 1;
           el("qtyValue").textContent = String(state.modal.quantity);
           updateModalPrice();
@@ -1472,6 +1487,9 @@
       customer_name: customerName,
       customer_phone: customerPhone,
       origin_wa: state.originWaNumber || null,
+      // Sin la sesión, el servidor buscaba la conversación por teléfono y podía no encontrar el
+      // carrito ya sincronizado (pedido duplicado). La sincronización del carrito ya la mandaba.
+      session: state.sessionToken || null,
       items: state.cart.map((item) => ({
         sku: item.sku,
         quantity: item.quantity,
@@ -1490,8 +1508,8 @@
         headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "No se pudo enviar el pedido.");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(errorDetailText(data.detail) || "No se pudo enviar el pedido.");
 
       state.cart = [];
       persistCart();

@@ -30,6 +30,7 @@ from services.active_cart import get_active_cart, upsert_active_cart, clear_acti
 from services.websocket_manager import ws_manager
 from services.whatsapp_service import get_whatsapp_service
 from services.yappy_payment import build_yappy_payment_url, is_yappy_configured
+from services.invu_sales_sync import PANAMA_TZ
 
 logger = logging.getLogger("farmhouse.orders")
 
@@ -204,7 +205,20 @@ async def create_public_order(
     phone = f"+{phone_digits}"
 
     now = datetime.now(timezone.utc)
+    session_data = decode_menu_session_token(order_in.session) if order_in.session else None
+    session_conv = None
+    if session_data:
+        session_conv = db.query(Conversation).filter(
+            Conversation.id == session_data["conv"],
+            Conversation.deleted_at.is_(None),
+        ).first()
+
     contact = db.query(Contact).filter(Contact.phone == phone).first()
+    # Este endpoint no pide autenticación: sin una sesión de menú válida que pertenezca a ESE
+    # contacto, cualquiera que supiera un teléfono podía reescribir el nombre y la dirección de
+    # ese cliente. Sin sesión el pedido se registra igual (con su dirección en la comanda), pero
+    # los datos guardados de un contacto existente no se tocan.
+    can_update_contact = contact is None or (session_conv is not None and session_conv.customer_id == contact.id)
     if not contact:
         contact = Contact(name=order_in.customer_name.strip(), phone=phone, created_at=now, last_interaction=now)
         db.add(contact)
@@ -213,10 +227,10 @@ async def create_public_order(
         contact.last_interaction = now
         if contact.deleted_at:
             contact.deleted_at = None
-        if order_in.customer_name.strip():
+        if can_update_contact and order_in.customer_name.strip():
             contact.name = order_in.customer_name.strip()
 
-    if order_in.delivery_type == "delivery":
+    if order_in.delivery_type == "delivery" and can_update_contact:
         contact.address = (order_in.delivery_address or "").strip() or None
         contact.building_or_house = (order_in.delivery_building or "").strip() or None
         contact.floor_or_unit = (order_in.delivery_unit or "").strip() or None
@@ -231,14 +245,8 @@ async def create_public_order(
     #    ejemplo si el contacto tiene más de una conversación "abierta" a la vez). Si no hay
     #    sesión válida (enlace viejo, o cliente entrando a /menu sin pasar por el bot), se cae
     #    al comportamiento histórico de buscar/crear por teléfono.
-    conv = None
+    conv = session_conv
     is_new_conv = False
-    session_data = decode_menu_session_token(order_in.session) if order_in.session else None
-    if session_data:
-        conv = db.query(Conversation).filter(
-            Conversation.id == session_data["conv"],
-            Conversation.deleted_at.is_(None),
-        ).first()
 
     if not conv:
         conv = db.query(Conversation).filter(
@@ -533,7 +541,13 @@ def _build_whatsapp_order_text(order_code: str, branch_name: str, line_items: li
         if order_in.delivery_latitude is not None and order_in.delivery_longitude is not None:
             lines.append(f"Pin: https://maps.google.com/?q={order_in.delivery_latitude},{order_in.delivery_longitude}")
     if order_in.fulfillment_type == "scheduled" and order_in.scheduled_for:
-        lines.append(f"Para: {order_in.scheduled_for.strftime('%d/%m/%Y %I:%M %p')}")
+        # El menú manda la hora en UTC (toISOString): formatearla tal cual mostraba "05:00 PM"
+        # para un pedido de las 12:00 PM en Panamá. Se pasa a hora de Panamá antes de escribirla
+        # (un valor sin zona se toma como UTC, igual que en _scheduled_value).
+        para = order_in.scheduled_for
+        if para.tzinfo is None:
+            para = para.replace(tzinfo=timezone.utc)
+        lines.append(f"Para: {para.astimezone(PANAMA_TZ).strftime('%d/%m/%Y %I:%M %p')}")
     else:
         lines.append("Para: Lo antes posible")
     lines.append(f"Método de pago: {PAYMENT_METHOD_LABELS[order_in.payment_method]}")

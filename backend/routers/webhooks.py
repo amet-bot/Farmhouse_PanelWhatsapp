@@ -1467,8 +1467,28 @@ async def receive_webhook(
                 logger.info(f"[Idempotency] Mensaje WAMID {wamid} ya fue procesado anteriormente. Omitiendo duplicado.")
                 return {"status": "duplicate", "detail": "Message already processed"}
 
+        # 5. Descarga rápida de archivos multimedia (inline) para que el mensaje nazca ya con su
+        #    imagen. Va ANTES de tocar contacto/conversación a propósito: esperar a Meta (hasta
+        #    3.5 s) después de un flush dejaba filas bloqueadas en MySQL, y un segundo webhook del
+        #    mismo cliente (álbum de fotos, audio + texto) se quedaba esperando ese candado con
+        #    una llamada síncrona dentro del event loop — congelando todo el servidor hasta el
+        #    lock_wait_timeout. La descarga no depende de nada de la base.
+        media_url = None
+        media_mime = msg_data.get("media_mime_type")
+        if message_type != "text" and msg_data.get("media_id"):
+            try:
+                media_res = await asyncio.wait_for(
+                    wa_service.download_media(msg_data["media_id"]),
+                    timeout=3.5
+                )
+                if media_res:
+                    media_url = save_media_bytes(media_res["bytes"], media_res["mime_type"])
+                    media_mime = media_res["mime_type"]
+                    logger.info(f"[FastMedia] Media descargado inline para WAMID {wamid}: {media_url}")
+            except Exception as me:
+                logger.warning(f"[FastMedia] Descarga inline no completada (se completará en background): {me}")
 
-        # 5. Contacto
+        # 6. Contacto
         contact = db.query(Contact).filter(Contact.phone == phone).first()
         now = datetime.now(timezone.utc)
         if not contact:
@@ -1480,7 +1500,7 @@ async def receive_webhook(
             if contact.deleted_at:
                 contact.deleted_at = None
 
-        # 6. Conversación activa
+        # 7. Conversación activa
         conv = db.query(Conversation).filter(
             Conversation.customer_id == contact.id,
             Conversation.status.in_(["new", "unassigned", "open", "pending"]),
@@ -1505,22 +1525,6 @@ async def receive_webhook(
         # de Meta es la fuente autoritativa para saber cuál número recibió el último mensaje.
         if receiving_phone_id and conv.whatsapp_phone_number_id != receiving_phone_id:
             conv.whatsapp_phone_number_id = receiving_phone_id
-
-        # 7. Descarga rápida de archivos multimedia (inline) para que el mensaje nazca ya con su imagen
-        media_url = None
-        media_mime = msg_data.get("media_mime_type")
-        if message_type != "text" and msg_data.get("media_id"):
-            try:
-                media_res = await asyncio.wait_for(
-                    wa_service.download_media(msg_data["media_id"]),
-                    timeout=3.5
-                )
-                if media_res:
-                    media_url = save_media_bytes(media_res["bytes"], media_res["mime_type"])
-                    media_mime = media_res["mime_type"]
-                    logger.info(f"[FastMedia] Media descargado inline para WAMID {wamid}: {media_url}")
-            except Exception as me:
-                logger.warning(f"[FastMedia] Descarga inline no completada (se completará en background): {me}")
 
         # 8. Insertar mensaje entrante de forma atómica.
         #    media_type solo debe reflejar adjuntos reales: "interactive" (el cliente tocó un

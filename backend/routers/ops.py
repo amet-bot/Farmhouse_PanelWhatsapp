@@ -25,6 +25,9 @@ def _visible_branch_filter(current_user: User, branch_id: Optional[int]):
     """Mismo criterio que el resto de inventario: admin/supervisor global eligen o ven todo, el resto queda en la suya."""
     if current_user.role == "admin" or (current_user.role == "supervisor" and current_user.branch_id is None):
         return branch_id
+    if current_user.branch_id is None:
+        # Sin sucursal (dato inválido) no significa "todas": falla cerrado.
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tu usuario no tiene una sucursal asignada.")
     return current_user.branch_id
 
 

@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import date as date_cls, datetime, timezone
+from datetime import date as date_cls
 from decimal import Decimal
 from typing import List, Optional
 
@@ -17,6 +17,7 @@ from schemas.prep import (
 from security.auth import get_current_authorized_user
 from security.access_control import check_target_branch_valid
 from services.audit import log_audit_event
+from services.invu_sales_sync import hoy_panama
 
 logger = logging.getLogger("farmhouse.prep")
 
@@ -48,6 +49,9 @@ def _require_can_edit_template(current_user: User, branch_id: int):
 def _visible_branch_filter(current_user: User, branch_id: Optional[int]):
     if _is_global(current_user):
         return branch_id
+    if current_user.branch_id is None:
+        # Sin sucursal (dato inválido) no significa "todas": falla cerrado.
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tu usuario no tiene una sucursal asignada.")
     return current_user.branch_id
 
 
@@ -62,7 +66,7 @@ def _serialize_template(template: PrepTemplate) -> PrepTemplateResponse:
             PrepTemplateItemResponse(
                 id=i.id, section=i.section, name=i.name, unit_label=i.unit_label,
                 par_target=i.par_target, notes=i.notes, sort_order=i.sort_order,
-            ) for i in template.items
+            ) for i in template.items if i.is_active
         ],
         created_at=template.created_at,
         updated_at=template.updated_at,
@@ -125,7 +129,7 @@ def list_templates(
     return [
         PrepTemplateSummary(
             id=t.id, branch_id=t.branch_id, branch_name=t.branch.name, name=t.name,
-            checkpoints=json.loads(t.checkpoints_json), item_count=len(t.items),
+            checkpoints=json.loads(t.checkpoints_json), item_count=sum(1 for i in t.items if i.is_active),
         ) for t in templates
     ]
 
@@ -148,7 +152,13 @@ def update_template(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_authorized_user),
 ):
-    """Reemplaza nombre, checkpoints e ítems completos — editar la plantilla es poco frecuente, no vale la pena un diff fino."""
+    """
+    Reemplaza nombre, checkpoints e ítems. Los ítems se actualizan en su lugar por id (no se
+    borran y recrean): antes `items.clear()` borraba filas que los checklists ya llenados
+    referencian, y en MySQL la clave foránea lo rechazaba — la plantilla quedaba imposible de
+    editar en cuanto alguien llenaba el primer checklist. Un ítem que se saca y tiene historial
+    se retira (deja de mostrarse) en vez de borrarse.
+    """
     template = _get_template_or_404(db, template_id)
     _require_can_edit_template(current_user, template.branch_id)
     if template_in.branch_id != template.branch_id:
@@ -158,13 +168,37 @@ def update_template(
 
     template.name = template_in.name
     template.checkpoints_json = json.dumps(template_in.checkpoints)
-    template.items.clear()
-    db.flush()
+
+    existing_by_id = {i.id: i for i in template.items}
+    kept_ids = set()
     for idx, item in enumerate(template_in.items):
-        template.items.append(PrepTemplateItem(
-            section=item.section, name=item.name, unit_label=item.unit_label,
-            par_target=item.par_target, notes=item.notes, sort_order=idx,
-        ))
+        current = existing_by_id.get(item.id) if item.id is not None else None
+        if current is not None and current.id not in kept_ids:
+            current.section = item.section
+            current.name = item.name
+            current.unit_label = item.unit_label
+            current.par_target = item.par_target
+            current.notes = item.notes
+            current.sort_order = idx
+            kept_ids.add(current.id)
+        else:
+            template.items.append(PrepTemplateItem(
+                section=item.section, name=item.name, unit_label=item.unit_label,
+                par_target=item.par_target, notes=item.notes, sort_order=idx,
+            ))
+
+    removed = [i for i in existing_by_id.values() if i.id not in kept_ids and i.is_active]
+    if removed:
+        with_history = {
+            row[0] for row in db.query(PrepCheckEntry.template_item_id)
+            .filter(PrepCheckEntry.template_item_id.in_([i.id for i in removed]))
+            .distinct().all()
+        }
+        for item in removed:
+            if item.id in with_history:
+                item.sort_order = PrepTemplateItem.RETIRED_SORT_ORDER
+            else:
+                template.items.remove(item)
     log_audit_event(db, current_user.id, template.branch_id, "prep_template.update", "prep_template", template.id, {"items": len(template_in.items)})
     db.commit()
     db.refresh(template)
@@ -228,15 +262,22 @@ def submit_check(
             detail=f"'{submission.checkpoint}' no es un checkpoint de esta plantilla. Válidos: {checkpoints}"
         )
 
-    valid_item_ids = {i.id for i in template.items}
+    valid_item_ids = {i.id for i in template.items if i.is_active}
+    seen_item_ids = set()
     for entry in submission.entries:
         if entry.template_item_id not in valid_item_ids:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"El ítem {entry.template_item_id} no pertenece a esta plantilla."
             )
+        if entry.template_item_id in seen_item_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El ítem {entry.template_item_id} viene repetido en el checklist."
+            )
+        seen_item_ids.add(entry.template_item_id)
 
-    check_date = submission.check_date or date_cls.today()
+    check_date = submission.check_date or hoy_panama()
     existing = db.query(PrepCheck).filter(
         PrepCheck.template_id == template_id,
         PrepCheck.checkpoint == submission.checkpoint,
@@ -286,6 +327,8 @@ def list_checks(
     if check_date:
         query = query.filter(PrepCheck.check_date == check_date)
     else:
-        query = query.filter(PrepCheck.check_date == date_cls.today())
+        # "Hoy" en Panamá, no en el reloj del servidor (UTC en Railway): con date.today() el
+        # checkpoint de las 8pm se guardaba ya como el día siguiente.
+        query = query.filter(PrepCheck.check_date == hoy_panama())
     checks = query.order_by(PrepCheck.checkpoint).all()
     return [_serialize_check(c) for c in checks]

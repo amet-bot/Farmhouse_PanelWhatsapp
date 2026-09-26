@@ -176,6 +176,13 @@ def sync_now(
             except invu_client.InvuError as e:
                 invu_sales_sync._anotar_error(db, branch, dia, str(e))
                 dias.append(LinkSyncDayResult(business_date=dia, error=str(e)))
+            except Exception as e:
+                # Un choque con el proceso automático (IntegrityError al sincronizar el mismo día
+                # a la vez) o una respuesta rara de Invu antes daba 500 con la sesión sucia y
+                # dejaba sin sincronizar el resto de las sucursales. Se anota como error del día.
+                logger.exception(f"[Link] Error inesperado sincronizando {branch.code} {dia}")
+                invu_sales_sync._anotar_error(db, branch, dia, f"Error inesperado: {e}")
+                dias.append(LinkSyncDayResult(business_date=dia, error="Error inesperado al sincronizar este día."))
             dia -= timedelta(days=1)
 
         resultados.append(LinkSyncBranchResult(branch_id=branch.id, branch_code=branch.code, menu=menu, days=dias))
@@ -199,10 +206,23 @@ def daily_sales(
     desde, hasta = _rango(date_from, date_to)
     visible = _sucursal_visible(current_user, branch_id)
 
+    # Un día que ya se había sincronizado bien y después falló UNA vez (error transitorio de
+    # Invu) conserva sus totales pero queda con `error`: filtrar por error lo borraba del gráfico
+    # y de los KPIs mientras platos y canales lo seguían contando. Cuenta si tiene totales.
     dias_q = db.query(InvuSyncDay, Branch).join(Branch, Branch.id == InvuSyncDay.branch_id).filter(
         InvuSyncDay.business_date >= desde,
         InvuSyncDay.business_date <= hasta,
-        InvuSyncDay.error.is_(None),
+        InvuSyncDay.net_total.isnot(None),
+    )
+    # Órdenes reales por día, sin las notas de crédito: InvuSyncDay.orders_count cuenta todo lo
+    # que vino de Invu (incluidas las devoluciones) y así inflaba "Órdenes" y bajaba el "Ticket
+    # promedio", contradiciendo a /sales/channels en la misma pantalla.
+    ordenes_q = db.query(
+        InvuSale.branch_id, InvuSale.business_date, func.count(InvuSale.id)
+    ).filter(
+        InvuSale.business_date >= desde,
+        InvuSale.business_date <= hasta,
+        InvuSale.is_credit_note == False,  # noqa: E712
     )
     platos_q = db.query(
         InvuSaleLine.branch_id, InvuSaleLine.business_date, func.coalesce(func.sum(InvuSaleLine.quantity), 0)
@@ -214,10 +234,15 @@ def daily_sales(
     if visible is not None:
         dias_q = dias_q.filter(InvuSyncDay.branch_id == visible)
         platos_q = platos_q.filter(InvuSaleLine.branch_id == visible)
+        ordenes_q = ordenes_q.filter(InvuSale.branch_id == visible)
 
     platos = {
         (b, d): Decimal(q)
         for b, d, q in platos_q.group_by(InvuSaleLine.branch_id, InvuSaleLine.business_date).all()
+    }
+    ordenes = {
+        (b, d): n
+        for b, d, n in ordenes_q.group_by(InvuSale.branch_id, InvuSale.business_date).all()
     }
 
     return [
@@ -226,7 +251,7 @@ def daily_sales(
             branch_code=branch.code,
             branch_name=branch.name,
             business_date=dia.business_date,
-            orders_count=dia.orders_count,
+            orders_count=ordenes.get((branch.id, dia.business_date), 0),
             net_total=dia.net_total,
             invu_total=dia.invu_total,
             matches=dia.matches,

@@ -48,7 +48,16 @@ class PrepTemplateItem(Base):
     unit_label = Column(String(60), nullable=True)  # "repuesto", "cambro", "peso 500gr", "unidades"...
     par_target = Column(Numeric(10, 2), nullable=True)
     notes = Column(Text, nullable=True)             # nota de prep, calcada de "Comentarios"
+    # sort_order < 0 (RETIRED_SORT_ORDER) = ítem sacado de la plantilla que ya tenía checklists
+    # llenados: no se puede borrar (esos checklists lo referencian), así que se retira y deja de
+    # mostrarse, pero el historial sigue diciendo qué se contó.
     sort_order = Column(Integer, nullable=False, default=0)
+
+    RETIRED_SORT_ORDER = -1
+
+    @property
+    def is_active(self) -> bool:
+        return self.sort_order >= 0
 
     template = relationship("PrepTemplate", back_populates="items")
 

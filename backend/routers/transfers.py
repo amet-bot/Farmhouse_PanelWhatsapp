@@ -73,6 +73,25 @@ def _serialize(transfer: Transfer) -> TransferResponse:
     )
 
 
+def _claim_transition(db: Session, transfer: Transfer, from_statuses: tuple, to_status: str) -> None:
+    """
+    Cambia el estado con un UPDATE condicional (… WHERE status IN from_statuses) en vez de
+    leer-y-escribir: dos "despachar" (o "recibir") simultáneos pasaban los dos el chequeo de
+    estado y cada uno escribía sus movimientos en el libro — el insumo salía o entraba dos veces.
+    Ahora solo uno gana; el otro recibe 409.
+    """
+    updated = db.query(Transfer).filter(
+        Transfer.id == transfer.id, Transfer.status.in_(from_statuses)
+    ).update({Transfer.status: to_status}, synchronize_session=False)
+    if updated != 1:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="El traslado cambió de estado mientras tanto. Recargá para ver su estado actual.",
+        )
+    transfer.status = to_status
+
+
 def _get_transfer_or_404(db: Session, transfer_id: int) -> Transfer:
     transfer = db.query(Transfer).options(
         joinedload(Transfer.items).joinedload(TransferItem.inventory_item),
@@ -204,12 +223,12 @@ def approve_transfer(
     if transfer.status != "requested":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"El traslado está en estado '{transfer.status}', no se puede aprobar.")
 
-    transfer.status = "approved"
+    _claim_transition(db, transfer, ("requested",), "approved")
     transfer.approved_by_user_id = current_user.id
     transfer.approved_at = datetime.now(timezone.utc)
     if action.notes:
         transfer.notes = f"{transfer.notes}\n{action.notes}" if transfer.notes else action.notes
-    log_audit_event(db, current_user.id, current_user.branch_id, "transfer.approve", "transfer", transfer.id)
+    log_audit_event(db, current_user.id, transfer.from_branch_id, "transfer.approve", "transfer", transfer.id)
     db.commit()
     db.refresh(transfer)
     return _serialize(transfer)
@@ -228,7 +247,7 @@ def dispatch_transfer(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"El traslado está en estado '{transfer.status}', no se puede despachar.")
 
     now = datetime.now(timezone.utc)
-    transfer.status = "dispatched"
+    _claim_transition(db, transfer, ("approved",), "dispatched")
     transfer.dispatched_by_user_id = current_user.id
     transfer.dispatched_at = now
     for line in transfer.items:
@@ -265,7 +284,7 @@ def receive_transfer(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"El traslado está en estado '{transfer.status}', no se puede recibir.")
 
     now = datetime.now(timezone.utc)
-    transfer.status = "received"
+    _claim_transition(db, transfer, ("dispatched",), "received")
     transfer.received_by_user_id = current_user.id
     transfer.received_at = now
     for line in transfer.items:
@@ -300,10 +319,10 @@ def reject_transfer(
     if transfer.status not in ("requested", "approved"):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"El traslado está en estado '{transfer.status}', ya no se puede rechazar.")
 
-    transfer.status = "rejected"
+    _claim_transition(db, transfer, ("requested", "approved"), "rejected")
     if action.notes:
         transfer.notes = f"{transfer.notes}\n{action.notes}" if transfer.notes else action.notes
-    log_audit_event(db, current_user.id, current_user.branch_id, "transfer.reject", "transfer", transfer.id)
+    log_audit_event(db, current_user.id, transfer.from_branch_id, "transfer.reject", "transfer", transfer.id)
     db.commit()
     db.refresh(transfer)
     return _serialize(transfer)
@@ -325,10 +344,10 @@ def cancel_transfer(
     if transfer.status not in ("requested", "approved"):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"El traslado está en estado '{transfer.status}', ya no se puede cancelar.")
 
-    transfer.status = "cancelled"
+    _claim_transition(db, transfer, ("requested", "approved"), "cancelled")
     if action.notes:
         transfer.notes = f"{transfer.notes}\n{action.notes}" if transfer.notes else action.notes
-    log_audit_event(db, current_user.id, current_user.branch_id, "transfer.cancel", "transfer", transfer.id)
+    log_audit_event(db, current_user.id, transfer.from_branch_id, "transfer.cancel", "transfer", transfer.id)
     db.commit()
     db.refresh(transfer)
     return _serialize(transfer)

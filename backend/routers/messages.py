@@ -38,6 +38,17 @@ MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_DOCUMENT_BYTES = 25 * 1024 * 1024
 
 
+def _pause_bot_for_human_reply(conv) -> None:
+    """
+    Cuando un agente le escribe al cliente, el bot deja de contestar en esa conversación. Antes
+    seguía activo: el cliente recibía respuestas del bot y del agente a la vez, y un "cancelar" o
+    "cambiar sucursal" del cliente podía sacar la conversación de la bandeja del agente sin
+    aviso. Mismo mecanismo (automation_paused) que ya usan los handoffs del propio bot; al
+    cerrarse la conversación, la siguiente del cliente arranca con el bot activo otra vez.
+    """
+    conv.automation_paused = True
+
+
 def _extract_wamid(send_res) -> str | None:
     if isinstance(send_res, dict) and send_res.get("messages"):
         return send_res["messages"][0].get("id")
@@ -129,6 +140,8 @@ async def send_message(
     conv.updated_at = now
     if conv.status == "new":
         conv.status = "open"
+    if not is_internal and msg_status == "sent":
+        _pause_bot_for_human_reply(conv)
 
     db.commit()
     db.refresh(msg)
@@ -238,6 +251,8 @@ async def send_media_message(
     conv.updated_at = now
     if conv.status == "new":
         conv.status = "open"
+    if msg_status == "sent":
+        _pause_bot_for_human_reply(conv)
     db.commit()
     db.refresh(msg)
 

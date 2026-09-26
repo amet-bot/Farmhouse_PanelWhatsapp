@@ -275,6 +275,15 @@ def sync_day(db, branch: Branch, credenciales: invu_client.Credenciales, dia: da
         if venta.total is not None:
             neto += -venta.total if es_nota else venta.total
 
+    if not vistas and existentes:
+        # Una respuesta vacía (Invu caído a medias, o un 200 sin "data") borraba todas las
+        # ventas ya guardadas de ese día. Que un día con ventas pase a tener cero no es algo que
+        # ocurra de verdad, así que se trata como error y no se toca nada.
+        db.rollback()
+        raise invu_client.InvuError(
+            f"Invu devolvió 0 órdenes para un día que tenía {len(existentes)}; no se borró nada."
+        )
+
     for orden_id, venta in existentes.items():
         if orden_id not in vistas:
             db.delete(venta)
