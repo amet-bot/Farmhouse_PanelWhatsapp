@@ -10,7 +10,7 @@ constante de módulo más abajo.
 """
 from typing import Optional, TYPE_CHECKING
 
-from services.flow_content import get_node_text, get_node_options
+from services.flow_content import get_node_text
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session

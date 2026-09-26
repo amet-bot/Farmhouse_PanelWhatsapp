@@ -910,16 +910,6 @@ a:focus-visible {
 .btn-cart-del:hover { text-decoration: underline; }
 .cart-empty { text-align: center; color: var(--fh-text-muted); font-size: 13.5px; padding: 32px 12px; line-height: 1.6; }
 
-.cart-section { margin-bottom: var(--space-5); }
-.cart-section h3 {
-  font-size: 11.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--fh-text-soft);
-  margin-bottom: var(--space-3);
-}
-
 .delivery-toggle { display: flex; gap: var(--space-2); }
 .delivery-option {
   flex: 1;
@@ -1134,7 +1124,6 @@ a:focus-visible {
 
 @media (max-width: 560px) {
   .delivery-map { height: 260px; }
-  .address-details-grid { grid-template-columns: 1fr; }
   .address-search-row { grid-template-columns: 1fr; }
   .btn-address-search { min-height: 42px; }
 }

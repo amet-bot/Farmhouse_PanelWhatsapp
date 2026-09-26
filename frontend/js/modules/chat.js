@@ -160,9 +160,6 @@ const chatModule = {
     if (orderLiveDot) orderLiveDot.hidden = true;
     if (orderItemsWrap) orderItemsWrap.hidden = true;
 
-    const oldDeliveryRow = document.getElementById('orderDeliveryFee')?.closest('.order-row');
-    if (oldDeliveryRow) oldDeliveryRow.remove();
-
     const orderFieldDefaults = {
       orderId: 'Cargando...', orderBranch: '-', orderDeliveryType: '-', orderPaymentMethod: '-', orderPaymentStatus: '-',
       orderType: '-', orderStatus: '-', orderSubtotal: '$0.00', orderTotal: '$0.00',
@@ -565,9 +562,6 @@ const chatModule = {
     //    o el último pedido confirmado). conv.orders ya viene ordenado del más reciente al más
     //    antiguo (ver models/conversation.py), así que orders[0] siempre es "lo vigente" — salvo
     //    que sea un carrito abandonado, en cuyo caso se busca el siguiente relevante.
-    const oldDeliveryRow = document.getElementById('orderDeliveryFee')?.closest('.order-row');
-    if (oldDeliveryRow) oldDeliveryRow.remove();
-
     const orderId = document.getElementById('orderId');
     const orderBranch = document.getElementById('orderBranch');
     const orderDeliveryType = document.getElementById('orderDeliveryType');
@@ -1041,18 +1035,6 @@ const chatModule = {
       utils.showToast('✓ Mensaje enviado exitosamente.', 'success');
     } catch (e) {
       utils.showToast(`Error en reintento: ${e.message}`, 'error');
-    }
-  },
-
-  async toggleAutomation() {
-    if (!this.currentConversation) return;
-    try {
-      const res = await api.post(`/conversations/${this.currentConversation.id}/toggle-automation`, {});
-      this.currentConversation.automation_paused = res.automation_paused;
-      const state = res.automation_paused ? 'pausada' : 'reanudada';
-      utils.showToast(`✓ Respuestas automáticas del bot ${state}.`, 'info');
-    } catch (e) {
-      utils.showToast(`Error al cambiar automatización: ${e.message}`, 'error');
     }
   },
 

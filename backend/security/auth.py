@@ -18,7 +18,7 @@ logger = logging.getLogger("farmhouse.security")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
 
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import timezone
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Compara la contraseña en texto plano contra el hash bcrypt"""

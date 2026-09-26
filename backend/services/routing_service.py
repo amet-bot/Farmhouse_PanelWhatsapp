@@ -5,29 +5,10 @@ from fastapi import HTTPException, status
 
 from models.conversation import Conversation
 from models.message import Message
-from models.branch import Branch
 from models.user import User
 from security.access_control import check_conversation_access, check_target_branch_valid
 
 class RoutingService:
-    @staticmethod
-    def assign_to_branch(db: Session, conversation_id: int, branch_id: int) -> Conversation:
-        conv = db.query(Conversation).filter(
-            Conversation.id == conversation_id,
-            Conversation.deleted_at.is_(None)
-        ).first()
-        if not conv:
-            raise HTTPException(status_code=404, detail="Conversación no encontrada.")
-        branch = check_target_branch_valid(db, branch_id)
-            
-        conv.branch_id = branch_id
-        conv.assigned_user_id = None
-        conv.status = "unassigned"
-        conv.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(conv)
-        return conv
-
     @staticmethod
     def take_conversation(db: Session, conversation_id: int, user: User) -> Conversation:
         # Validar acceso de lectura/sucursal

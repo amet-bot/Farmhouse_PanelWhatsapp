@@ -17,8 +17,6 @@ from main import app
 from models.branch import Branch
 from models.user import User
 from models.device import Device
-from models.contact import Contact
-from models.conversation import Conversation
 from security.auth import get_password_hash, create_access_token
 
 @pytest.fixture(autouse=True)

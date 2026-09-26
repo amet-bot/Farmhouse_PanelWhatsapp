@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import datetime, timezone
 from typing import List, Optional
 from urllib.parse import quote
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from config import get_all_official_whatsapp_numbers, get_whatsapp_number_for_branch
@@ -585,7 +585,7 @@ def create_order(
                 detail="No tienes permiso para crear pedidos en otra sucursal."
             )
 
-    branch = check_target_branch_valid(db, order_in.branch_id)
+    check_target_branch_valid(db, order_in.branch_id)
 
     # 3. Idempotencia: un mismo external_reference no puede repetirse
     if order_in.external_reference:

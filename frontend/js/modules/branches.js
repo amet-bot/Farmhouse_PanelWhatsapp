@@ -66,6 +66,8 @@ const branchesModule = {
 
   selectBranch(branchId) {
     this.activeBranchId = branchId;
+    const topSelect = document.getElementById('branchSelect');
+    if (topSelect && !topSelect.disabled) topSelect.value = String(branchId);
     document.querySelectorAll('.sidebar .nav-btn').forEach(btn => {
       btn.classList.remove('active');
       if (btn.dataset.branchId && parseInt(btn.dataset.branchId) === branchId) {
@@ -98,6 +100,31 @@ const branchesModule = {
     if (devSelect) devSelect.innerHTML = '<option value="">-- Seleccionar Sucursal --</option>' + optionsHtml;
     if (editDevSelect) editDevSelect.innerHTML = '<option value="">-- Seleccionar Sucursal --</option>' + optionsHtml;
     if (transferSelect) transferSelect.innerHTML = '<option value="">-- Seleccionar Sucursal Destino --</option>' + optionsHtml;
+
+    // "Sucursal actual" de la barra superior: estaba siempre vacío. Filtra la bandeja igual
+    // que tocar una sucursal en el sidebar (un agente solo ve la suya, fija).
+    const topSelect = document.getElementById('branchSelect');
+    if (topSelect && !topSelect.dataset.bound) {
+      const user = auth.getUser();
+      if (user && user.role === 'agent' && user.branch_id) {
+        const own = this.branches.find((b) => b.id === user.branch_id);
+        topSelect.innerHTML = own ? `<option value="${own.id}">${utils.escapeHtml(own.name)}</option>` : '';
+        topSelect.disabled = true;
+      } else {
+        topSelect.innerHTML = '<option value="">Todas las sucursales</option>' + optionsHtml;
+        topSelect.addEventListener('change', () => {
+          const id = topSelect.value ? Number(topSelect.value) : null;
+          if (id) {
+            this.selectBranch(id);
+          } else {
+            this.activeBranchId = null;
+            document.querySelectorAll('.sidebar .nav-btn[data-branch-id]').forEach((btn) => btn.classList.remove('active'));
+            conversationsModule.setBranchFilter(null);
+          }
+        });
+      }
+      topSelect.dataset.bound = '1';
+    }
   },
 
   // Varios disparadores piden los contadores casi a la vez (cada carga de la lista, cada evento

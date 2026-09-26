@@ -21,9 +21,3 @@ class TokenResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class TokenPayload(BaseModel):
-    sub: Optional[str] = None
-    jti: Optional[str] = None
-    iat: Optional[int] = None
-    exp: Optional[int] = None
-

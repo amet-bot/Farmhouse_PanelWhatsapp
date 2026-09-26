@@ -22,8 +22,6 @@ class ConnectionManager:
     def __init__(self):
         # Mapeo: user_id -> Set[WebSocket]. Un usuario puede tener varias pestañas abiertas.
         self.active_users: Dict[int, Set[WebSocket]] = {}
-        # Mapeo: branch_id -> Set[WebSocket]. Solo con sucursal real (nunca None).
-        self.branch_rooms: Dict[int, Set[WebSocket]] = {}
         # Identidad autenticada de cada conexión: WebSocket -> {"user_id", "role", "branch_id"}.
         # Es la fuente de verdad del filtrado; sin esto no se puede decidir si una conexión
         # tiene derecho a un evento.
@@ -45,24 +43,14 @@ class ConnectionManager:
             "role": role,
             "branch_id": branch_id,
         }
-
-        # 3. Registrar en sala de sucursal (solo informativo/diagnóstico: el filtrado real
-        #    se hace por connection_context, no por pertenencia a esta sala)
-        if branch_id:
-            if branch_id not in self.branch_rooms:
-                self.branch_rooms[branch_id] = set()
-            self.branch_rooms[branch_id].add(websocket)
+        # (Había también un `branch_rooms` por sucursal que se escribía y nunca se leía: el
+        # filtrado real siempre fue por connection_context. Se quitó.)
 
     def disconnect(self, websocket: WebSocket, user_id: int, branch_id: int = None, role: str = "agent"):
         if user_id in self.active_users and websocket in self.active_users[user_id]:
             self.active_users[user_id].remove(websocket)
             if not self.active_users[user_id]:
                 del self.active_users[user_id]
-
-        if branch_id and branch_id in self.branch_rooms and websocket in self.branch_rooms[branch_id]:
-            self.branch_rooms[branch_id].remove(websocket)
-            if not self.branch_rooms[branch_id]:
-                del self.branch_rooms[branch_id]
 
         self.connection_context.pop(websocket, None)
 
@@ -97,10 +85,6 @@ class ConnectionManager:
             sock_set.discard(websocket)
             if not sock_set:
                 self.active_users.pop(uid, None)
-        for bid, sock_set in list(self.branch_rooms.items()):
-            sock_set.discard(websocket)
-            if not sock_set:
-                self.branch_rooms.pop(bid, None)
 
     async def _send_to(self, targets: Set[WebSocket], message: dict) -> int:
         """Envía a las conexiones dadas y limpia las que ya están muertas."""

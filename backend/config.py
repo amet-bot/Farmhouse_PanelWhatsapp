@@ -193,7 +193,10 @@ class Settings(BaseSettings):
                 )
         
         if self.WHATSAPP_MODE == "meta":
-            import logging
+            # Sin `import logging` local: un import dentro de la función convertía `logging` en
+            # variable local de TODA la función, y cualquier uso anterior a esta línea (el aviso
+            # de SECRET_KEY de arriba, o el de Yappy sin modo meta) reventaba con
+            # UnboundLocalError. El módulo ya lo importa arriba.
             log = logging.getLogger("farmhouse.config")
             if not self.META_WA_PHONE_NUMBER_ID or not self.META_WA_PHONE_NUMBER_ID.strip():
                 log.warning("[Config Warning] WHATSAPP_MODE=meta pero META_WA_PHONE_NUMBER_ID no está configurado.")

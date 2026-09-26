@@ -1,4 +1,3 @@
-import pytest
 from tests.conftest import auth_headers_for
 from models.user import User
 

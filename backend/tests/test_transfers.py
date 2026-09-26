@@ -1,5 +1,4 @@
-﻿import pytest
-from tests.conftest import auth_headers_for
+﻿from tests.conftest import auth_headers_for
 from models.contact import Contact
 from models.conversation import Conversation
 from models.message import Message

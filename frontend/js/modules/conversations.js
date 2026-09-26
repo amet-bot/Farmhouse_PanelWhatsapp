@@ -69,6 +69,8 @@ const conversationsModule = {
         }
         document.querySelectorAll('.sidebar .nav-btn').forEach(b => b.classList.remove('active'));
         e.currentTarget.classList.add('active');
+        const topSelect = document.getElementById('branchSelect');
+        if (topSelect && !topSelect.disabled) topSelect.value = '';
 
         // Sincronizar tabs de filtro
         document.querySelectorAll('.tab-btn, .filter-pill').forEach(p => {

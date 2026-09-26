@@ -2,12 +2,9 @@ import hmac
 import hashlib
 import json
 from decimal import Decimal
-import pytest
 from config import settings
 from models.conversation import Conversation
 from models.contact import Contact
-from models.message import Message
-from models.order import Order
 from tests.conftest import auth_headers_for
 
 # 1. Login con usuario inactivo (Punto 9)

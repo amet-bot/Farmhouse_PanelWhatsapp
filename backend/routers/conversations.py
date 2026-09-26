@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import func
@@ -10,10 +9,8 @@ from sqlalchemy.orm.attributes import set_committed_value
 from database import get_db
 from models.conversation import Conversation
 from models.contact import Contact
-from models.branch import Branch
 from models.user import User
 from models.message import Message
-from models.order import Order
 from schemas.conversation import ConversationResponse, ConversationCreate, ConversationTransferRequest
 from schemas.message import MessageResponse
 from security.auth import get_current_authorized_user

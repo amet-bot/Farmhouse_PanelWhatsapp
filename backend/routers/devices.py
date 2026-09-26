@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models.device import Device
-from models.branch import Branch
 from models.user import User
 from schemas.device import DeviceResponse, DeviceCreate, DeviceUpdate
 from security.auth import get_current_user, get_current_authorized_user

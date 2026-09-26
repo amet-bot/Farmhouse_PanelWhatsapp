@@ -7,7 +7,6 @@ from models.contact import Contact
 from models.order import Order
 from models.user import User
 from models.branch import Branch
-from models.shipment import Shipment
 
 logger = logging.getLogger("farmhouse.access_control")
 
@@ -142,38 +141,6 @@ def check_order_access(
         )
 
     return order
-
-def check_shipment_access(
-    db: Session,
-    shipment_id: int,
-    user: User,
-    action: str = "read"
-) -> Shipment:
-    """
-    Control de acceso centralizado para cargamentos (calcado de check_order_access).
-    """
-    shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
-
-    if not shipment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cargamento no encontrado."
-        )
-
-    if user.role == "admin" or (user.role == "supervisor" and user.branch_id is None):
-        return shipment
-
-    if shipment.branch_id != user.branch_id:
-        logger.warning(
-            f"Acceso a cargamento denegado ({action}): Usuario {user.name} [@{user.username}] "
-            f"intentó acceder a cargamento ID {shipment_id} de sucursal ID {shipment.branch_id}."
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para acceder a cargamentos de otra sucursal."
-        )
-
-    return shipment
 
 def check_target_branch_valid(db: Session, branch_id: int) -> Branch:
     """Verifica que la sucursal de destino exista y esté activa."""

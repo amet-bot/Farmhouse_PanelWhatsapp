@@ -280,7 +280,7 @@ def test_empty_whatsapp_profile_name_falls_back():
 from tests.test_link_sales_sync import invu_ventas, _dia_con_devolucion, DIA  # noqa: E402,F401
 
 
-def test_daily_sales_orders_exclude_credit_notes(client, db_session, invu_ventas, clayton_branch, admin_user):
+def test_daily_sales_orders_exclude_credit_notes(client, db_session, invu_ventas, clayton_branch, admin_user):  # noqa: F811 (fixture importado de test_link_sales_sync)
     from services import invu_client, invu_sales_sync
     invu_ventas["ordenes"]["api_cly"] = _dia_con_devolucion()
     invu_ventas["totales"]["api_cly"] = {"total": 50.4}
@@ -290,7 +290,7 @@ def test_daily_sales_orders_exclude_credit_notes(client, db_session, invu_ventas
     assert rows[0]["orders_count"] == 2  # el KPI "Órdenes" no cuenta la nota de crédito
 
 
-def test_day_that_failed_later_still_shows_its_totals(client, db_session, invu_ventas, clayton_branch, admin_user):
+def test_day_that_failed_later_still_shows_its_totals(client, db_session, invu_ventas, clayton_branch, admin_user):  # noqa: F811 (fixture importado de test_link_sales_sync)
     from services import invu_client, invu_sales_sync
     invu_ventas["ordenes"]["api_cly"] = _dia_con_devolucion()
     invu_ventas["totales"]["api_cly"] = {"total": 50.4}
@@ -300,7 +300,7 @@ def test_day_that_failed_later_still_shows_its_totals(client, db_session, invu_v
     assert len(rows) == 1
 
 
-def test_empty_invu_response_does_not_wipe_stored_day(db_session, invu_ventas, clayton_branch):
+def test_empty_invu_response_does_not_wipe_stored_day(db_session, invu_ventas, clayton_branch):  # noqa: F811 (fixture importado de test_link_sales_sync)
     from models.invu_sales import InvuSale
     from services import invu_client, invu_sales_sync
     cred = invu_client.Credenciales("api_cly", "clave")

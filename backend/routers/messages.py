@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from config import BASE_DIR
 from database import get_db
 from models.message import Message
-from models.conversation import Conversation
 from models.user import User
 from schemas.message import MessageResponse, MessageCreate
 from security.auth import get_current_authorized_user

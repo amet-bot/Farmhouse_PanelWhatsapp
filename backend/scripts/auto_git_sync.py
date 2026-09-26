@@ -58,7 +58,7 @@ def sync_to_github():
         # Si aún no se ha configurado el remote o no hay internet
         if "fatal: No configured push destination" in err or "remote" in err.lower() or "does not appear to be a git repository" in err:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚠️ Advertencia: No hay un repositorio remoto configurado.")
-            print(f"    Ejecuta: git remote add origin <URL_DE_TU_REPOSITORIO_GITHUB>\n")
+            print("    Ejecuta: git remote add origin <URL_DE_TU_REPOSITORIO_GITHUB>\n")
         else:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚠️ Intento de push fallido: {err or out}\n")
         return False

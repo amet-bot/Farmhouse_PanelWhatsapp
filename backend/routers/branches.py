@@ -6,8 +6,7 @@ from typing import List
 from database import get_db
 from models.branch import Branch
 from schemas.branch import BranchResponse, BranchCreate, BranchUpdate
-from security.auth import get_current_user, require_role
-from models.user import User
+from security.auth import require_role
 
 router = APIRouter(prefix="/branches", tags=["Sucursales"])
 

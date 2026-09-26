@@ -356,8 +356,8 @@ async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, c
         button_text = "Ver menú y pedir"
     else:
         fallback_body = (
-            f"🍽️ Aquí tienes nuestro Menú Digital de Farmhouse *{{sucursal}}*.\n\n"
-            f"_Así vas viendo qué se te antoja antes de llegar, o si prefieres, también puedes hacer tu pedido desde aquí mismo._"
+            "🍽️ Aquí tienes nuestro Menú Digital de Farmhouse *{sucursal}*.\n\n"
+            "_Así vas viendo qué se te antoja antes de llegar, o si prefieres, también puedes hacer tu pedido desde aquí mismo._"
         )
         body_text = get_node_text(db, "menu_link_generic_body", fallback_body, sucursal=branch_name)
         button_text = "Ver menú"

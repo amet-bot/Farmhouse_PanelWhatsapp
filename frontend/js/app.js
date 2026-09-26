@@ -21,6 +21,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelector('.panel-details')?.classList.remove('active');
   });
 
+  // "Acciones rápidas" del panel de detalles: los tres botones estaban en pantalla sin ningún
+  // manejador (tocarlos no hacía nada). Usan lo que ya existe: las mismas respuestas rápidas del
+  // composer (el agente revisa y envía) y el modal de transferencia del header.
+  const requireOpenConversation = () => {
+    if (chatModule.currentConversation) return true;
+    utils.showToast('Abrí una conversación primero.', 'info');
+    return false;
+  };
+  document.getElementById('btnActionMenu')?.addEventListener('click', () => {
+    if (requireOpenConversation()) chatModule.insertQuickReply('menu');
+  });
+  document.getElementById('btnActionStatus')?.addEventListener('click', () => {
+    if (requireOpenConversation()) chatModule.insertQuickReply('order');
+  });
+  document.getElementById('btnActionTransfer')?.addEventListener('click', () => {
+    if (requireOpenConversation()) chatModule.openTransferModal();
+  });
+
   // 2.1 Menú lateral como panel deslizante en celular (hamburguesa + fondo + botón cerrar)
   const sidebarEl = document.querySelector('.sidebar');
   const sidebarBackdrop = document.getElementById('sidebarBackdrop');
@@ -40,7 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   sidebarBackdrop?.addEventListener('click', closeSidebarDrawer);
   // Al elegir cualquier opción del menú en celular, se cierra solo y regresa a la vista de lista
   sidebarEl?.addEventListener('click', (e) => {
-    if (e.target.closest('.nav-btn') || e.target.closest('.branch-btn')) {
+    if (e.target.closest('.nav-btn')) {
       closeSidebarDrawer();
       document.getElementById('workspaceContainer')?.classList.remove('show-chat');
     }
@@ -90,8 +108,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Enviar formulario de Login
   async function handleLoginSubmit(e) {
     if (e) e.preventDefault();
-    const usernameInput = document.getElementById('username') || document.getElementById('email') || document.querySelector('input[name="username"]') || document.querySelector('input[name="email"]');
-    const passwordInput = document.getElementById('password') || document.querySelector('input[name="password"]');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
     const username = usernameInput ? usernameInput.value.trim().toLowerCase() : '';
     const password = passwordInput ? passwordInput.value.trim() : '';
     const errBox = document.getElementById('loginError');
@@ -808,9 +826,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initApp();
   } else {
     showLoginModal();
-    try {
-      await branchesModule.loadBranches();
-    } catch (e) {}
     utils.renderIcons();
   }
 });
