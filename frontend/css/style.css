@@ -989,6 +989,41 @@ a:focus-visible {
   flex-shrink: 0;
 }
 
+/* "Sucursal: Clayton ✕" — qué sucursal filtra la bandeja y cómo volver a todas (conversations.js). */
+.branch-filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 12px 8px;
+  padding: 5px 5px 5px 12px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--green-soft);
+  border: 1px solid var(--green-border);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.branch-filter-chip-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.branch-filter-chip strong { color: var(--text-primary); font-weight: 700; }
+
+.branch-filter-chip button {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--panel-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.branch-filter-chip button:hover { color: var(--danger-text); background: var(--danger-bg); }
+.branch-filter-chip button svg { width: 14px; height: 14px; }
+
 .filter-tabs {
   display: flex;
   gap: 6px;

@@ -84,14 +84,49 @@ const conversationsModule = {
         }
 
         this.currentPage = 0;
+        this.renderBranchChip();
         this.loadConversations();
       });
     });
   },
 
+  /**
+   * Aviso "Filtrando: Clayton ✕" arriba de la lista. En celular el selector "Sucursal actual"
+   * de la barra no se muestra y el menú está escondido: sin esto no se veía qué sucursal
+   * estaba filtrando la bandeja ni cómo volver a todas.
+   */
+  renderBranchChip() {
+    const title = document.querySelector('.panel-conversations .panel-header-title');
+    if (!title) return;
+    let chip = document.getElementById('branchFilterChip');
+    const branch = this.activeBranchId && (branchesModule.branches || []).find((b) => b.id === this.activeBranchId);
+    if (!branch) {
+      if (chip) chip.hidden = true;
+      return;
+    }
+    if (!chip) {
+      chip = document.createElement('div');
+      chip.id = 'branchFilterChip';
+      chip.className = 'branch-filter-chip';
+      title.insertAdjacentElement('afterend', chip);
+      chip.addEventListener('click', (e) => {
+        if (e.target.closest('button')) branchesModule.clearBranch();
+      });
+    }
+    chip.hidden = false;
+    chip.innerHTML = `
+      <span class="branch-dot" style="background-color:${utils.escapeHtml(branch.color || '#16a34a')}"></span>
+      <span class="branch-filter-chip-label">Sucursal: <strong>${utils.escapeHtml(branch.name)}</strong></span>
+      <button type="button" aria-label="Quitar filtro: ver todas las sucursales" title="Ver todas las sucursales">
+        <i data-lucide="x"></i>
+      </button>`;
+    utils.renderIcons();
+  },
+
   setBranchFilter(branchId) {
     this.activeBranchId = branchId;
     this.currentPage = 0;
+    this.renderBranchChip();
 
     // En móvil, asegurarse de mostrar la columna de conversaciones
     const wsContainer = document.getElementById('workspaceContainer');

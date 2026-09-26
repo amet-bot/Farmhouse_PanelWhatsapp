@@ -130,23 +130,34 @@ def get_conversation_counts(
     """
     query = _scoped_conversations(db, current_user, None)
     if query is None:
-        return {"abiertas": 0, "no_asignadas": 0, "pendientes": 0, "todas": 0, "abiertas_por_sucursal": {}}
+        return {"abiertas": 0, "no_asignadas": 0, "pendientes": 0, "todas": 0, "abiertas_por_sucursal": {}, "por_sucursal": {}}
     rows = query.with_entities(Conversation.branch_id, Conversation.status, func.count(Conversation.id)).group_by(
         Conversation.branch_id, Conversation.status
     ).all()
-    counts = {"abiertas": 0, "no_asignadas": 0, "pendientes": 0, "todas": 0}
-    by_branch: dict = {}
-    for b_id, st, n in rows:
-        counts["todas"] += n
+
+    def empty():
+        return {"abiertas": 0, "no_asignadas": 0, "pendientes": 0, "todas": 0}
+
+    def add(target, st, n):
+        target["todas"] += n
         if st in _STATUS_FILTERS["abiertas"]:
-            counts["abiertas"] += n
-            if b_id is not None:
-                by_branch[str(b_id)] = by_branch.get(str(b_id), 0) + n
+            target["abiertas"] += n
         if st == "unassigned":
-            counts["no_asignadas"] += n
+            target["no_asignadas"] += n
         if st == "pending":
-            counts["pendientes"] += n
-    counts["abiertas_por_sucursal"] = by_branch
+            target["pendientes"] += n
+
+    counts = empty()
+    # Los cuatro contadores también por sucursal: con una sucursal elegida en la bandeja, las
+    # pestañas (Todas / Abiertas / No asignadas / Pendientes) mostraban los totales de todas las
+    # sucursales aunque la lista de abajo fuera solo de esa.
+    per_branch: dict = {}
+    for b_id, st, n in rows:
+        add(counts, st, n)
+        if b_id is not None:
+            add(per_branch.setdefault(str(b_id), empty()), st, n)
+    counts["abiertas_por_sucursal"] = {k: v["abiertas"] for k, v in per_branch.items() if v["abiertas"]}
+    counts["por_sucursal"] = per_branch
     return counts
 
 @router.get("/{conversation_id}", response_model=ConversationResponse)

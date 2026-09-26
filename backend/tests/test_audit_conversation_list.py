@@ -67,6 +67,9 @@ def test_counts_endpoint(client, db_session, clayton_branch, obarrio_branch, adm
     admin = client.get("/api/conversations/counts", headers=auth_headers_for(admin_user)).json()
     assert admin["abiertas"] == 3 and admin["no_asignadas"] == 1 and admin["pendientes"] == 1 and admin["todas"] == 5
     assert admin["abiertas_por_sucursal"] == {str(clayton_branch.id): 2, str(obarrio_branch.id): 1}
+    # Los cuatro contadores por sucursal: las pestañas de la bandeja filtrada por una sucursal.
+    assert admin["por_sucursal"][str(clayton_branch.id)] == {"abiertas": 2, "no_asignadas": 1, "pendientes": 1, "todas": 4}
+    assert admin["por_sucursal"][str(obarrio_branch.id)] == {"abiertas": 1, "no_asignadas": 0, "pendientes": 0, "todas": 1}
 
-    agent = client.get("/api/conversations/counts", headers=auth_headers_for(clayton_agent, clayton_device.device_id)).json()
+    agent =client.get("/api/conversations/counts", headers=auth_headers_for(clayton_agent, clayton_device.device_id)).json()
     assert agent["todas"] == 4  # solo su sucursal

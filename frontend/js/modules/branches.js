@@ -84,6 +84,15 @@ const branchesModule = {
     conversationsModule.setBranchFilter(branchId);
   },
 
+  /** Vuelve a todas las sucursales (select de arriba en "Todas" o la ✕ del aviso de la lista). */
+  clearBranch() {
+    this.activeBranchId = null;
+    const topSelect = document.getElementById('branchSelect');
+    if (topSelect && !topSelect.disabled) topSelect.value = '';
+    document.querySelectorAll('.sidebar .nav-btn[data-branch-id]').forEach((btn) => btn.classList.remove('active'));
+    conversationsModule.setBranchFilter(null);
+  },
+
   populateSelects() {
     const userSelect = document.getElementById('addUserBranch');
     const editUserSelect = document.getElementById('editUserBranch');
@@ -117,9 +126,7 @@ const branchesModule = {
           if (id) {
             this.selectBranch(id);
           } else {
-            this.activeBranchId = null;
-            document.querySelectorAll('.sidebar .nav-btn[data-branch-id]').forEach((btn) => btn.classList.remove('active'));
-            conversationsModule.setBranchFilter(null);
+            this.clearBranch();
           }
         });
       }
@@ -144,13 +151,20 @@ const branchesModule = {
       const c = await api.get('/conversations/counts');
       const setText = (el, value) => { if (el) el.textContent = value; };
 
+      // El sidebar muestra siempre el total; las pestañas cuentan lo que está filtrando la
+      // lista de abajo (con una sucursal elegida decían "Abiertas 18" sobre 8 conversaciones).
       setText(document.getElementById('badgeConversaciones'), c.abiertas);
-      setText(document.getElementById('tabCountAbiertas'), c.abiertas);
       setText(document.querySelector('[data-nav="no-asignadas"] .nav-badge'), c.no_asignadas);
-      setText(document.getElementById('tabCountNoAsignadas'), c.no_asignadas);
       setText(document.querySelector('[data-nav="todas"] .nav-badge'), c.todas);
-      setText(document.getElementById('tabCountTodas'), c.todas);
-      setText(document.getElementById('tabCountPendientes'), c.pendientes);
+
+      const filtered = conversationsModule.activeBranchId;
+      const tabs = filtered
+        ? ((c.por_sucursal || {})[String(filtered)] || { abiertas: 0, no_asignadas: 0, pendientes: 0, todas: 0 })
+        : c;
+      setText(document.getElementById('tabCountAbiertas'), tabs.abiertas);
+      setText(document.getElementById('tabCountNoAsignadas'), tabs.no_asignadas);
+      setText(document.getElementById('tabCountTodas'), tabs.todas);
+      setText(document.getElementById('tabCountPendientes'), tabs.pendientes);
 
       const byBranch = c.abiertas_por_sucursal || {};
       this.branches.forEach(b => {
