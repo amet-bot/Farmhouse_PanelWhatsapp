@@ -190,13 +190,40 @@ def test_public_order_without_session_does_not_rewrite_existing_contact(client, 
     db_session.commit()
     sku = "DRK_AGUA"
     res = client.post("/api/orders/public", json={
-        "branch_code": "CLY", "delivery_type": "pickup", "payment_method": "yappy",
+        "branch_code": "CLY", "delivery_type": "pickup", "payment_method": "card",
         "fulfillment_type": "asap", "customer_name": "Otro Nombre", "customer_phone": "+507 6111-2222",
         "items": [{"sku": sku, "quantity": 1}],
     }, headers={"X-Requested-With": "XMLHttpRequest"})
     assert res.status_code == 200, res.text
     db_session.refresh(contact)
     assert contact.name == "Nombre Real"
+
+
+def test_public_order_with_session_of_closed_conversation_goes_to_active_one(client, db_session, clayton_branch, monkeypatch):
+    from security.auth import create_menu_session_token
+    monkeypatch.setattr("routers.orders.resolve_whatsapp_destination", lambda *a, **k: "50760000000")
+    contact = Contact(name="Cliente Sesion", phone="+50761113333")
+    db_session.add(contact)
+    db_session.flush()
+    closed = Conversation(customer_id=contact.id, branch_id=clayton_branch.id, status="closed")
+    db_session.add(closed)
+    db_session.commit()
+    res = client.post("/api/orders/public", json={
+        "branch_code": "CLY", "delivery_type": "pickup", "payment_method": "card",
+        "fulfillment_type": "asap", "customer_name": "Cliente Sesion", "customer_phone": "+50761113333",
+        "session": create_menu_session_token(closed.id, clayton_branch.id),
+        "items": [{"sku": "DRK_AGUA", "quantity": 1}],
+    }, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert res.status_code == 200, res.text
+    active = db_session.query(Conversation).filter(Conversation.customer_id == contact.id, Conversation.status != "closed").all()
+    assert len(active) == 1  # el pedido abrió/usó una conversación activa, no la cerrada
+
+
+def test_list_orders_treats_empty_payloads_as_no_orders(monkeypatch):
+    from services import invu_client
+    for empty in ({}, "", None, []):
+        monkeypatch.setattr(invu_client, "_get", lambda *a, _e=empty, **k: {"data": _e})
+        assert invu_client.list_orders(invu_client.Credenciales("u", "p"), 0, 1) == []
 
 
 # ---- Bot ----

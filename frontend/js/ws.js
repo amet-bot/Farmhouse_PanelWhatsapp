@@ -55,7 +55,16 @@ const wsClient = {
     // Intentar obtener un ticket de un solo uso para no exponer JWTs en query params (Punto 14)
     try {
       if (typeof api !== 'undefined' && api.request) {
-        const ticketRes = await api.request('/auth/ws-token', { method: 'POST' });
+        // Con tope de 10 s: mientras esta petición no termina, `connecting` bloquea cualquier
+        // otro intento; si se colgaba (celular volviendo de segundo plano) nunca reconectaba.
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = controller ? setTimeout(() => controller.abort(), 10000) : null;
+        let ticketRes;
+        try {
+          ticketRes = await api.request('/auth/ws-token', { method: 'POST', signal: controller?.signal });
+        } finally {
+          clearTimeout(timer);
+        }
         if (ticketRes && ticketRes.ws_ticket) {
           token = ticketRes.ws_ticket;
         }
@@ -73,6 +82,9 @@ const wsClient = {
 
     if (!token) {
       console.warn('[WS] No hay credenciales de autenticación para WebSocket.');
+      // Sin ticket (red caída, petición abortada) se reintenta más tarde en vez de quedarse sin
+      // tiempo real; scheduleReconnect no hace nada si la sesión ya se cerró.
+      this.scheduleReconnect(this.reconnectInterval);
       return;
     }
 

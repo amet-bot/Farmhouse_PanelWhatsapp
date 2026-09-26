@@ -38,6 +38,8 @@ router = APIRouter(prefix="/orders", tags=["Pedidos"])
 
 ITBMS_RATE = Decimal("0.07") # 7% impuesto ITBMS en Panamá
 
+ACTIVE_CONVERSATION_STATUSES = ("new", "unassigned", "open", "pending")
+
 PAYMENT_METHOD_LABELS = {"yappy": "Yappy", "ach": "ACH / Transferencia", "card": "Tilopay (Tarjeta)"}
 WA_NUMBER_RE = re.compile(r"^\d{8,15}$")
 
@@ -245,7 +247,11 @@ async def create_public_order(
     #    ejemplo si el contacto tiene más de una conversación "abierta" a la vez). Si no hay
     #    sesión válida (enlace viejo, o cliente entrando a /menu sin pasar por el bot), se cae
     #    al comportamiento histórico de buscar/crear por teléfono.
-    conv = session_conv
+    # La sesión dura 12 h: si en ese tiempo el agente cerró la conversación, el pedido NO se
+    # cuelga de ella (quedaría fuera de la bandeja y el panel de la conversación nueva que abre
+    # el "MI PEDIDO" del cliente saldría vacío). Se busca/crea una activa por teléfono, como
+    # siempre; la sesión sigue valiendo para confirmar que el contacto es quien dice ser.
+    conv = session_conv if session_conv is not None and session_conv.status in ACTIVE_CONVERSATION_STATUSES else None
     is_new_conv = False
 
     if not conv:

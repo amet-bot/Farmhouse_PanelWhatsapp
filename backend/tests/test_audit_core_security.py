@@ -143,6 +143,22 @@ def test_image_media_still_inline(client, admin_user, db_session, clayton_branch
         Path(path).unlink(missing_ok=True)
 
 
+def test_pdf_inline_without_sandbox(client, admin_user, db_session, clayton_branch):
+    """El visor de PDF de Chrome no dibuja un documento con CSP sandbox."""
+    path = _stored_media(db_session, clayton_branch, "audit_test_doc.pdf", "application/pdf", b"%PDF-1.4")
+    try:
+        res = client.get("/api/media/audit_test_doc.pdf", headers=auth_headers_for(admin_user))
+        assert res.headers["content-disposition"].startswith("inline")
+        assert "content-security-policy" not in res.headers
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+def test_pages_can_be_framed_only_by_same_origin(client):
+    res = client.get("/api/health")
+    assert res.headers["x-frame-options"] == "SAMEORIGIN"
+
+
 # ---- Seed: no recrea "admin" con la contraseña del repositorio ----
 
 def test_seed_does_not_recreate_admin_when_another_admin_exists(db_session, monkeypatch):

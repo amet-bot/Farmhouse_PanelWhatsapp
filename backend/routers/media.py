@@ -37,6 +37,14 @@ def _media_response(path: Path, mime_type: Optional[str], filename: str) -> File
     inline = mime not in _INLINE_UNSAFE_TYPES and (
         mime in _INLINE_SAFE_TYPES or mime.startswith(_INLINE_SAFE_PREFIXES)
     )
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, max-age=3600",
+    }
+    # El visor de PDF de Chrome no dibuja un documento con CSP sandbox (página en blanco). Un
+    # PDF no ejecuta el JavaScript de la página, así que se le exime; todo lo demás lo lleva.
+    if mime != "application/pdf":
+        headers["Content-Security-Policy"] = "sandbox"
     return FileResponse(
         path=str(path),
         media_type=mime if inline else "application/octet-stream",
@@ -44,11 +52,7 @@ def _media_response(path: Path, mime_type: Optional[str], filename: str) -> File
         # nombre con comillas, raya larga o emoji ya no rompe el encabezado (antes daba 500).
         filename=filename,
         content_disposition_type="inline" if inline else "attachment",
-        headers={
-            "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": "sandbox",
-            "Cache-Control": "private, max-age=3600",
-        },
+        headers=headers,
     )
 
 

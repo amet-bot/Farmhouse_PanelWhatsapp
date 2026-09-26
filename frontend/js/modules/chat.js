@@ -23,21 +23,26 @@ const chatModule = {
   // Enter o doble clic en ese intervalo le mandaba el mensaje duplicado al cliente.
   sending: false,
 
+  // De qué conversación es lo que hay ahora en el cuadro de texto. No se usa
+  // currentConversation: al tocar A→B→C rápido, B todavía no cargó y currentConversation sigue
+  // siendo A mientras el cuadro ya muestra el borrador de B — se guardaba en A y se perdía.
+  draftConvId: null,
+
   _saveDraft() {
     const input = document.getElementById('messageInput');
-    if (!input || !this.currentConversation) return;
-    const id = Number(this.currentConversation.id);
-    if (input.value.trim()) this.drafts[id] = input.value;
-    else delete this.drafts[id];
+    if (!input || this.draftConvId == null) return;
+    if (input.value.trim()) this.drafts[this.draftConvId] = input.value;
+    else delete this.drafts[this.draftConvId];
   },
 
   _restoreDraft(convId) {
     const input = document.getElementById('messageInput');
-    if (input) input.value = this.drafts[Number(convId)] || '';
+    this.draftConvId = Number(convId);
+    if (input) input.value = this.drafts[this.draftConvId] || '';
   },
 
   async loadConversation(convId) {
-    const switching = !this.currentConversation || Number(this.currentConversation.id) !== Number(convId);
+    const switching = this.draftConvId !== Number(convId);
     if (switching) {
       this._saveDraft();
       this.clearAttachment();
@@ -172,6 +177,12 @@ const chatModule = {
 
   renderEmpty() {
     this.clearAttachment();
+    // Lo escrito queda guardado como borrador de esa conversación y el cuadro se vacía: sin
+    // conversación abierta no puede quedar texto "huérfano" que después se mande a otra.
+    this._saveDraft();
+    this.draftConvId = null;
+    const input = document.getElementById('messageInput');
+    if (input) input.value = '';
     this.currentConversation = null;
     // Invalida cualquier loadConversation() todavía en vuelo: si llega tarde, ya no
     // coincidirá con activeRequestConvId y se descartará en vez de repoblar el panel.
@@ -330,7 +341,9 @@ const chatModule = {
    */
   insertQuickReply(kind) {
     const templates = {
-      menu: 'Claro, te comparto nuestro menú para que veas todos los productos disponibles 😊',
+      // Con el enlace: antes el texto prometía el menú y no lo incluía. /menu funciona sin la
+      // sesión del bot (el pedido se asocia por teléfono).
+      menu: `Claro, te comparto nuestro menú para que veas todos los productos disponibles 😊\n${window.location.origin}/menu`,
       order: '¿Me confirmas tu nombre o número de pedido para revisar el estado?',
       hours: 'Nuestro horario es de Lunes a Domingo, 10:30 AM a 9:30 PM. ¿Te comparto la dirección de la sucursal más cercana?',
       human: 'Con gusto te comunico con un asesor para que te ayude personalmente.',
@@ -347,12 +360,23 @@ const chatModule = {
     const container = document.getElementById('chatMessages');
     if (!container || !this.currentConversation) return;
 
-    // Solo se baja al último mensaje si el agente ya estaba abajo (o al abrir la conversación /
+    // Solo se baja al último mensaje si el agente está abajo (o al abrir la conversación /
     // enviar él mismo). Antes cada re-render —incluido el refresco de 6 s cuando cambiaba un
     // tilde de entregado— lo arrastraba al final mientras leía mensajes viejos.
+    // "Está abajo" sale de su propio scroll (followBottom), no de medir en este instante: las
+    // imágenes cargan después (lazy) y empujan el contenido, y medir acá hacía creer que el
+    // agente había subido — el chat dejaba de seguir los mensajes nuevos.
+    if (!this._scrollTrackingBound) {
+      this._scrollTrackingBound = true;
+      this.followBottom = true;
+      container.addEventListener('scroll', () => {
+        if (this._programmaticScroll) return;
+        this.followBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+      }, { passive: true });
+    }
+    if (forceScroll) this.followBottom = true;
     const previousScrollTop = container.scrollTop;
-    const wasNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
-    const stickToBottom = forceScroll || wasNearBottom;
+    const stickToBottom = this.followBottom;
 
     // Red de seguridad: nunca pintar dos burbujas con el mismo ID, sin importar
     // por qué ruta (HTTP, WebSocket) haya llegado el mensaje duplicado.
@@ -523,7 +547,19 @@ const chatModule = {
       container.appendChild(msgDiv);
     });
 
-    container.scrollTop = stickToBottom ? container.scrollHeight : previousScrollTop;
+    const scrollTo = (top) => {
+      this._programmaticScroll = true;
+      container.scrollTop = top;
+      requestAnimationFrame(() => { this._programmaticScroll = false; });
+    };
+    scrollTo(stickToBottom ? container.scrollHeight : previousScrollTop);
+    if (stickToBottom) {
+      // Cuando termina de cargar una imagen, se vuelve a bajar si el agente sigue abajo.
+      container.querySelectorAll('img').forEach((img) => {
+        if (img.complete) return;
+        img.addEventListener('load', () => { if (this.followBottom) scrollTo(container.scrollHeight); }, { once: true });
+      });
+    }
     utils.renderIcons();
   },
 
@@ -1100,3 +1136,7 @@ const chatModule = {
     }
   }
 };
+
+// `const` de nivel superior no queda en window: el Panel General (hub.js) lo necesita para abrir
+// una conversación puntual dentro de Centro WhatsApp embebido sin recargarlo.
+window.chatModule = chatModule;

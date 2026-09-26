@@ -267,7 +267,9 @@ def list_orders(credenciales: Credenciales, desde_epoch: int, hasta_epoch: int) 
         credenciales=credenciales,
     )
     data = payload.get("data") if isinstance(payload, dict) else None
-    if data is None:
+    # Un día sin ventas puede venir como null, [], {} o "": todo eso es "cero órdenes" (y el
+    # guardia de sync_day ya impide que un vacío borre un día que tenía ventas).
+    if not data:
         return []
     if not isinstance(data, list):
         raise InvuError("Invu devolvió las órdenes en un formato inesperado.")
