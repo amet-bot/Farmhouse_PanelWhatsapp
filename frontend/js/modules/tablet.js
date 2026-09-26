@@ -14,12 +14,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let branchId = null;
   let itemSearchTimer = null;
+  let itemSearchSeq = 0;
 
   FarmhouseShell.initTheme();
   FarmhouseShell.initLogout({ redirectTo: '/' });
 
   function openModal(id) { $(id).hidden = false; }
   function closeModal(id) { $(id).hidden = true; }
+
+  window.addEventListener('auth:unauthorized', () => { window.location.href = '/'; });
+
+  // Un doble toque en "Enviar" creaba la solicitud, el traslado o la incidencia dos veces: el
+  // botón queda bloqueado hasta que responde el servidor.
+  function guardSubmit(form, handler) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('[type="submit"]');
+      if (btn && btn.disabled) return;
+      if (btn) btn.disabled = true;
+      try {
+        await handler(e);
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    });
+  }
 
   document.querySelectorAll('[data-close]').forEach((btn) => {
     btn.addEventListener('click', () => btn.closest('.tablet-modal-overlay').hidden = true);
@@ -41,8 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     openModal('modalRequest');
   });
 
-  $('requestForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
+  guardSubmit($('requestForm'), async () => {
     const errorBox = $('requestError');
     errorBox.style.display = 'none';
     try {
@@ -84,11 +102,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearTimeout(itemSearchTimer);
     if (q.length < 2) { $('transferItemResults').hidden = true; return; }
     itemSearchTimer = setTimeout(async () => {
+      const seq = ++itemSearchSeq;
       try {
         const items = await api.get(`/inventory/items?q=${encodeURIComponent(q)}`);
+        // Una búsqueda anterior que responde tarde no pisa la lista de la búsqueda actual.
+        if (seq !== itemSearchSeq) return;
         const box = $('transferItemResults');
         if (!items.length) { box.hidden = true; return; }
-        box.innerHTML = items.map((i) => `<div class="tablet-autocomplete-row" data-id="${i.id}" data-name="${esc(i.name)}">${esc(i.name)}</div>`).join('');
+        box.innerHTML = items.map((i) => `<button type="button" class="tablet-autocomplete-row" data-id="${i.id}" data-name="${esc(i.name)}">${esc(i.name)}</button>`).join('');
         box.hidden = false;
         box.querySelectorAll('.tablet-autocomplete-row').forEach((row) => {
           row.addEventListener('click', () => {
@@ -101,8 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 250);
   });
 
-  $('transferForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
+  guardSubmit($('transferForm'), async () => {
     const errorBox = $('transferError');
     errorBox.style.display = 'none';
     const itemId = $('transferItemId').value;
@@ -133,8 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     openModal('modalIncident');
   });
 
-  $('incidentForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
+  guardSubmit($('incidentForm'), async () => {
     const errorBox = $('incidentError');
     errorBox.style.display = 'none';
     try {
@@ -171,7 +190,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // supervisor sin sucursal) no tiene una sucursal que fijar acá — usa Inventario directo.
     $('tabletBranchBadge').textContent = 'Sin sucursal fija';
     $('tabletHeaderScope').textContent = 'Esta vista es para dispositivos de una sucursal. Usá Inventario para elegir sucursal.';
-    document.querySelectorAll('.tablet-tile').forEach((btn) => { btn.disabled = true; });
+    // Solo se bloquean los formularios de acá, que necesitan una sucursal fija. Recibir,
+    // contar, merma y Prep abren pantallas que ya dejan elegir sucursal a un usuario global —
+    // antes se bloqueaban todos y Prep quedaba sin ninguna entrada para admins.
+    ['btnOpenRequest', 'btnOpenTransfer', 'btnOpenIncident'].forEach((id) => { if ($(id)) $(id).disabled = true; });
     utils.renderIcons();
     return;
   }

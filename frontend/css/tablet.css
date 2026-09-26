@@ -184,13 +184,28 @@
   z-index: 5;
 }
 
+/* Cada resultado es un <button> (enfocable y usable con teclado), con aspecto de fila de lista. */
 .tablet-autocomplete-row {
+  display: block;
+  width: 100%;
   padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
-.tablet-autocomplete-row:hover {
+.tablet-autocomplete-row:hover,
+.tablet-autocomplete-row:focus-visible {
   background: var(--panel-subtle);
+  outline: none;
+}
+
+.tablet-submit-btn:disabled {
+  opacity: .6;
+  cursor: progress;
 }
 
 .tablet-submit-btn {

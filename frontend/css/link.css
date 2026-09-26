@@ -21,8 +21,10 @@
   --link-down: #b91c1c;
 }
 
-[data-theme="dark"] :root, [data-theme="light"] {
-  /* En :root y no en .inv-app: el globo del hover vive fuera del armazón y usa los mismos. */
+/* Antes el selector era `[data-theme="dark"] :root, [data-theme="light"]`: la primera parte
+   nunca coincide (:root no tiene ancestro) y la segunda pisaba la paleta clara con esta, así
+   que el modo claro usaba los tonos del oscuro (verde #4ade80 ilegible sobre blanco) y viceversa. */
+[data-theme="dark"] {
   --link-series-1: #3987e5;
   --link-series-2: #d95926;
   --link-series-3: #199e70;

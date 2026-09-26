@@ -111,7 +111,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     return p.toString();
   }
 
+  // Tocar rápido entre períodos o sucursales dejaba que una respuesta vieja llegara última y
+  // pisara los KPIs y gráficos del filtro ya elegido.
+  let loadSeq = 0;
+
   async function loadSales() {
+    const seq = ++loadSeq;
     const [from, to] = rangeDates(state.range);
     const len = daysBetween(from, to).length;
     const prevTo = addDays(from, -1);
@@ -125,6 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         api.get(`/link/sales/items?${query(from, to)}&limit=15`),
         api.get(`/link/sales/channels?${query(from, to)}`),
       ]);
+      if (seq !== loadSeq) return;
       state.daily = daily;
       daily.concat(prevDaily).forEach((r) => branchCodes.set(r.branch_id, r.branch_code));
       state.days = daysBetween(from, to);
@@ -139,7 +145,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderItems(items);
       utils.renderIcons();
     } catch (err) {
+      if (seq !== loadSeq) return;
       utils.showToast(err.message || 'No se pudieron cargar las ventas.', 'error');
+      // Antes los esqueletos de carga quedaban para siempre: se reemplazan por un aviso claro.
+      ['dailyChart', 'branchBars', 'channelBars', 'itemsTable'].forEach((id) => {
+        $(id).innerHTML = emptyHtml('No se pudieron cargar las ventas', 'Probá de nuevo en unos segundos.');
+      });
+      utils.renderIcons();
     }
   }
 
@@ -465,7 +477,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   function fmtDateTime(value) {
     if (!value) return '—';
-    const d = new Date(value.endsWith('Z') || value.includes('+') ? value : `${value}Z`);  // el servidor guarda UTC sin zona
+    // Mismo parser que el resto del panel (utils._parseServerDate): el de acá no reconocía un
+    // offset negativo ("-05:00"), le agregaba una Z y daba "Invalid Date".
+    const d = utils._parseServerDate(value);
     return d.toLocaleString('es-PA', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
   }
 

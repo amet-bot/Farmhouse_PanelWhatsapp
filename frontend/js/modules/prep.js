@@ -23,6 +23,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   FarmhouseShell.initTheme();
   FarmhouseShell.initLogout({ redirectTo: '/' });
+  // Sesión vencida: volver al login en vez de quedarse en una página que solo tira errores.
+  window.addEventListener('auth:unauthorized', () => { window.location.href = '/'; });
 
   // ==========================================================================
   // Carga de la plantilla

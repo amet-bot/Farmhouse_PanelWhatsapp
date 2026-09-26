@@ -11,11 +11,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=2.10.0">
+  <link rel="stylesheet" href="css/style.css?v=4.0.0">
   <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario: se reusa su hoja tal cual
        y tablet.css solo agrega la grilla de botones grandes, que Inventario no tiene. -->
-  <link rel="stylesheet" href="css/inventory.css?v=3.6.0">
-  <link rel="stylesheet" href="css/tablet.css?v=1.0.0">
+  <link rel="stylesheet" href="css/inventory.css?v=4.0.0">
+  <link rel="stylesheet" href="css/tablet.css?v=4.0.0">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -96,7 +96,7 @@
     <div class="tablet-modal">
       <div class="tablet-modal-head">
         <h2>Solicitar insumos</h2>
-        <button type="button" class="tablet-modal-close" data-close><i data-lucide="x"></i></button>
+        <button type="button" class="tablet-modal-close" data-close aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
       <div class="tablet-modal-error" id="requestError" style="display:none"></div>
       <form id="requestForm">
@@ -122,7 +122,7 @@
     <div class="tablet-modal">
       <div class="tablet-modal-head">
         <h2>Transferir insumo</h2>
-        <button type="button" class="tablet-modal-close" data-close><i data-lucide="x"></i></button>
+        <button type="button" class="tablet-modal-close" data-close aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
       <div class="tablet-modal-error" id="transferError" style="display:none"></div>
       <form id="transferForm">
@@ -154,7 +154,7 @@
     <div class="tablet-modal">
       <div class="tablet-modal-head">
         <h2>Reportar incidencia</h2>
-        <button type="button" class="tablet-modal-close" data-close><i data-lucide="x"></i></button>
+        <button type="button" class="tablet-modal-close" data-close aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
       <div class="tablet-modal-error" id="incidentError" style="display:none"></div>
       <form id="incidentForm">
@@ -185,9 +185,9 @@
   </div>
 
   <script src="js/utils.js?v=3.5.0"></script>
-  <script src="js/api.js?v=3.5.0"></script>
+  <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/shared/shell.js?v=1.0.0"></script>
-  <script src="js/modules/tablet.js?v=1.1.0"></script>
+  <script src="js/shared/shell.js?v=4.0.0"></script>
+  <script src="js/modules/tablet.js?v=4.0.0"></script>
 </body>
 </html>

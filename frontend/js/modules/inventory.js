@@ -234,7 +234,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       openSuggestions.forEach((b) => { b.hidden = true; b.innerHTML = ''; });
       return;
     }
-    document.querySelectorAll('.modal-backdrop.active').forEach((m) => m.classList.remove('active'));
+    // Solo el de arriba (el último en el DOM se pinta encima). Antes cerraba todos: con "Nuevo
+    // insumo" abierto sobre "Registrar cargamento", Escape también tiraba el cargamento a medio
+    // llenar.
+    const open = document.querySelectorAll('.modal-backdrop.active');
+    if (open.length) open[open.length - 1].classList.remove('active');
   });
 
   // Cierra cualquier autocomplete al hacer clic afuera (un solo listener delegado).
@@ -308,7 +312,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Carga de datos
   // ==========================================================================
+  // Número de la petición más reciente por lista. Cambiar el filtro de sucursal dos veces
+  // seguidas (o tocar "Cargar más" durante un reinicio) dejaba que la respuesta vieja llegara
+  // después y se concatenara: filas de dos sucursales mezcladas y el offset corrido.
+  const loadSeq = { shipments: 0, waste: 0, counts: 0, stock: 0, wasteStock: 0, countStock: 0 };
+
   async function loadShipments({ reset = false } = {}) {
+    const seq = ++loadSeq.shipments;
     if (reset) {
       state.shipments = [];
       state.shipmentsOffset = 0;
@@ -318,10 +328,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (state.branchFilter) params.set('branch_id', state.branchFilter);
     try {
       const page = await api.get(`/inventory/shipments?${params.toString()}`);
+      if (seq !== loadSeq.shipments) return;
       state.shipments = state.shipments.concat(page);
       state.shipmentsOffset += page.length;
       state.shipmentsHasMore = page.length === PAGE_SIZE;
     } catch (err) {
+      if (seq !== loadSeq.shipments) return;
       utils.showToast(err.message || 'No se pudo cargar el historial.', 'error');
       state.shipmentsHasMore = false;
     }
@@ -366,6 +378,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function loadWaste({ reset = false } = {}) {
+    const seq = ++loadSeq.waste;
     if (reset) {
       state.waste = [];
       state.wasteOffset = 0;
@@ -376,10 +389,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (state.wasteReasonFilter) params.set('reason', state.wasteReasonFilter);
     try {
       const page = await api.get(`/inventory/waste?${params.toString()}`);
+      if (seq !== loadSeq.waste) return;
       state.waste = state.waste.concat(page);
       state.wasteOffset += page.length;
       state.wasteHasMore = page.length === PAGE_SIZE;
     } catch (err) {
+      if (seq !== loadSeq.waste) return;
       utils.showToast(err.message || 'No se pudo cargar la merma.', 'error');
       state.wasteHasMore = false;
     }
@@ -388,6 +403,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function loadCounts({ reset = false } = {}) {
+    const seq = ++loadSeq.counts;
     if (reset) {
       state.counts = [];
       state.countsOffset = 0;
@@ -397,10 +413,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (state.countBranchFilter) params.set('branch_id', state.countBranchFilter);
     try {
       const page = await api.get(`/inventory/counts?${params.toString()}`);
+      if (seq !== loadSeq.counts) return;
       state.counts = state.counts.concat(page);
       state.countsOffset += page.length;
       state.countsHasMore = page.length === PAGE_SIZE;
     } catch (err) {
+      if (seq !== loadSeq.counts) return;
       utils.showToast(err.message || 'No se pudieron cargar los conteos.', 'error');
       state.countsHasMore = false;
     }
@@ -490,12 +508,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function loadStock() {
+    const seq = ++loadSeq.stock;
     const params = new URLSearchParams();
     if (state.stockBranchFilter) params.set('branch_id', state.stockBranchFilter);
     if (state.stockOnlyMoved) params.set('only_stocked', 'true');
     try {
-      state.stock = await api.get(`/inventory/stock?${params.toString()}`);
+      const rows = await api.get(`/inventory/stock?${params.toString()}`);
+      if (seq !== loadSeq.stock) return;
+      state.stock = rows;
     } catch (err) {
+      if (seq !== loadSeq.stock) return;
       state.stock = [];
       utils.showToast(err.message || 'No se pudieron cargar las existencias.', 'error');
     }
@@ -1499,7 +1521,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       closeModal('modalShipment');
       utils.showToast('Cargamento registrado.', 'success');
       state.selected.shipment = null;
-      await Promise.all([loadShipments({ reset: true }), loadAnalytics()]);
+      // loadStock también: Existencias quedaba mostrando lo de antes del cargamento hasta
+      // recargar la página (merma y conteo ya la refrescaban).
+      await Promise.all([loadShipments({ reset: true }), loadAnalytics(), loadStock()]);
       renderResumen();
       renderItemList();
       renderSupplierList();
@@ -1798,11 +1822,15 @@ document.addEventListener('DOMContentLoaded', async () => {
    * aparece al instante al lado de la línea.
    */
   async function loadWasteStock() {
+    const seq = ++loadSeq.wasteStock;
     state.wasteStock = new Map();
     const branchId = wasteModalBranchId();
     if (!branchId) return;
     try {
       const rows = await api.get(`/inventory/stock?branch_id=${branchId}&only_stocked=true`);
+      // Cambiar de sucursal en el modal: la respuesta de la anterior ya no escribe su stock
+      // en el mapa de la nueva.
+      if (seq !== loadSeq.wasteStock) return;
       rows.forEach((r) => state.wasteStock.set(r.inventory_item_id, r));
     } catch (err) {
       // Sin existencias no se bloquea nada: la línea simplemente no muestra el "te quedan".
@@ -2226,6 +2254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function loadCountStock() {
+    const seq = ++loadSeq.countStock;
     state.countStock = [];
     state.countEntries = new Map();
     state.countIsFirst = false;
@@ -2240,6 +2269,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         api.get(`/inventory/stock?branch_id=${branchId}`),
         api.get(`/inventory/counts?branch_id=${branchId}&limit=1`),
       ]);
+      // Si se cambió la sucursal del conteo mientras tanto, las cifras de "Sistema" de la
+      // anterior no se muestran en la nueva.
+      if (seq !== loadSeq.countStock) return;
       state.countStock = stock;
       state.countIsFirst = previos.length === 0;
     } catch (err) {

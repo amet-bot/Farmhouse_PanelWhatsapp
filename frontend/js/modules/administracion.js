@@ -37,11 +37,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function loadBranchesForSelects() {
     branches = await api.get('/branches/admin');
     const options = branches.map((b) => `<option value="${b.id}">${esc(b.name)}${b.active ? '' : ' (inactiva)'}</option>`).join('');
-    ['addUserBranch', 'editUserBranch', 'addDevBranch', 'editDevBranch'].forEach((id) => {
+    // Los de usuario llevan la opción "sin sucursal" (como en Centro WhatsApp): sin ella el
+    // <select> quedaba siempre en la primera sucursal, y crear o editar un admin o un
+    // supervisor general lo dejaba atado a una sucursal — perdía el alcance global en
+    // Inventario, Reportes, Prep y Operación.
+    ['addUserBranch', 'editUserBranch'].forEach((id) => {
       const el = $(id);
-      if (el) el.innerHTML = options;
+      if (el) el.innerHTML = '<option value="">-- Sin sucursal (Admin / Supervisor general) --</option>' + options;
+    });
+    ['addDevBranch', 'editDevBranch'].forEach((id) => {
+      const el = $(id);
+      if (el) el.innerHTML = '<option value="">-- Seleccionar sucursal --</option>' + options;
     });
   }
+
+  // Bloquea el botón de envío del formulario mientras corre la petición: un doble clic ya no
+  // registra dos dispositivos o dos sucursales.
+  async function withSubmitBusy(form, action) {
+    const btn = form.querySelector('[type="submit"]');
+    if (btn && btn.disabled) return;
+    if (btn) btn.disabled = true;
+    try {
+      await action();
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  window.addEventListener('auth:unauthorized', () => { window.location.href = '/'; });
 
   // ==========================================================================
   // Usuarios — reusa usersModule tal cual (js/modules/users.js), mismos ids de formulario.
@@ -127,12 +150,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     if (pwdVal) data.password = pwdVal;
 
-    try {
-      await usersModule.updateUser(id, data);
-      $('modalEditUser').classList.remove('active');
-    } catch (err) {
-      showError(`Error actualizando usuario: ${err.message}`);
-    }
+    await withSubmitBusy(e.target, async () => {
+      try {
+        await usersModule.updateUser(id, data);
+        $('modalEditUser').classList.remove('active');
+      } catch (err) {
+        showError(`Error actualizando usuario: ${err.message}`);
+      }
+    });
   });
 
   // ==========================================================================
@@ -146,7 +171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderDeviceTable() {
     const tbody = $('deviceTableBody');
     if (!devices.length) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">No hay dispositivos registrados.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">No hay dispositivos registrados.</td></tr>`;
       return;
     }
     tbody.innerHTML = devices.map((dev) => {
@@ -154,7 +179,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const userName = dev.assigned_user ? esc(dev.assigned_user.name) : 'Sin asignar';
       let statusBadge = '<span class="dev-badge offline">○ Inactivo</span>';
       if (dev.status === 'active') statusBadge = '<span class="dev-badge online">● Activo</span>';
-      else if (dev.status === 'revoked' || dev.status === 'disabled') statusBadge = '<span class="dev-badge disabled">✕ Revocado</span>';
+      else if (dev.status === 'revoked') statusBadge = '<span class="dev-badge disabled">✕ Revocado</span>';
+      else if (dev.status === 'disabled') statusBadge = '<span class="dev-badge disabled">⏸ Deshabilitado</span>';
 
       let actions = `<button class="btn-sm-action" onclick="adminModule.openEditDevice(${dev.id})" title="Editar"><i data-lucide="pencil"></i> Editar</button>`;
       if (dev.status === 'active') {
@@ -218,15 +244,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       branch_id: parseInt($('addDevBranch').value),
       assigned_user_id: $('addDevUser').value ? parseInt($('addDevUser').value) : null,
     };
-    try {
-      const newDev = await api.post('/devices/', data);
-      await loadDevices();
-      utils.showToast(`✓ Dispositivo '${newDev.name}' registrado.`, 'success');
-      $('modalAddDevice').classList.remove('active');
-    } catch (err) {
-      errBox.textContent = `⚠️ ${err.message}`;
+    if (!data.branch_id) {
+      errBox.textContent = '⚠️ Seleccioná la sucursal del dispositivo.';
       errBox.style.display = 'block';
+      return;
     }
+    await withSubmitBusy(e.target, async () => {
+      try {
+        const newDev = await api.post('/devices/', data);
+        await loadDevices();
+        utils.showToast(`✓ Dispositivo '${newDev.name}' registrado.`, 'success');
+        $('modalAddDevice').classList.remove('active');
+      } catch (err) {
+        errBox.textContent = `⚠️ ${err.message}`;
+        errBox.style.display = 'block';
+      }
+    });
   });
 
   $('formEditDevice').addEventListener('submit', async (e) => {
@@ -240,15 +273,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       branch_id: parseInt($('editDevBranch').value),
       status: $('editDevStatus').value,
     };
-    try {
-      const updated = await api.put(`/devices/${id}`, data);
-      await loadDevices();
-      utils.showToast(`✓ Dispositivo '${updated.name}' actualizado.`, 'success');
-      $('modalEditDevice').classList.remove('active');
-    } catch (err) {
-      errBox.textContent = `⚠️ ${err.message}`;
-      errBox.style.display = 'block';
-    }
+    await withSubmitBusy(e.target, async () => {
+      try {
+        const updated = await api.put(`/devices/${id}`, data);
+        await loadDevices();
+        utils.showToast(`✓ Dispositivo '${updated.name}' actualizado.`, 'success');
+        $('modalEditDevice').classList.remove('active');
+      } catch (err) {
+        errBox.textContent = `⚠️ ${err.message}`;
+        errBox.style.display = 'block';
+      }
+    });
   });
 
   // ==========================================================================
@@ -262,7 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderBranchTable() {
     const tbody = $('branchTableBody');
     if (!branchesList.length) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">No hay sucursales registradas.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">No hay sucursales registradas.</td></tr>`;
       return;
     }
     tbody.innerHTML = branchesList.map((b) => {
@@ -327,15 +362,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       color: $('addBranchColor').value,
       accepts_delivery: $('addBranchDelivery').checked,
     };
-    try {
-      await api.post('/branches/', data);
-      await Promise.all([loadBranchesTable(), loadBranchesForSelects()]);
-      utils.showToast('✓ Sucursal creada.', 'success');
-      $('modalAddBranch').classList.remove('active');
-    } catch (err) {
-      errBox.textContent = `⚠️ ${err.message}`;
-      errBox.style.display = 'block';
-    }
+    await withSubmitBusy(e.target, async () => {
+      try {
+        await api.post('/branches/', data);
+        await Promise.all([loadBranchesTable(), loadBranchesForSelects()]);
+        utils.showToast('✓ Sucursal creada.', 'success');
+        $('modalAddBranch').classList.remove('active');
+      } catch (err) {
+        errBox.textContent = `⚠️ ${err.message}`;
+        errBox.style.display = 'block';
+      }
+    });
   });
 
   $('formEditBranch').addEventListener('submit', async (e) => {
@@ -350,15 +387,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       color: $('editBranchColor').value,
       accepts_delivery: $('editBranchDelivery').checked,
     };
-    try {
-      await api.put(`/branches/${id}`, data);
-      await Promise.all([loadBranchesTable(), loadBranchesForSelects()]);
-      utils.showToast('✓ Sucursal actualizada.', 'success');
-      $('modalEditBranch').classList.remove('active');
-    } catch (err) {
-      errBox.textContent = `⚠️ ${err.message}`;
-      errBox.style.display = 'block';
-    }
+    await withSubmitBusy(e.target, async () => {
+      try {
+        await api.put(`/branches/${id}`, data);
+        await Promise.all([loadBranchesTable(), loadBranchesForSelects()]);
+        utils.showToast('✓ Sucursal actualizada.', 'success');
+        $('modalEditBranch').classList.remove('active');
+      } catch (err) {
+        errBox.textContent = `⚠️ ${err.message}`;
+        errBox.style.display = 'block';
+      }
+    });
   });
 
   // ==========================================================================
@@ -378,9 +417,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('adminMain').hidden = false;
   FarmhouseShell.fillUserHeader({ nameId: 'adminAgentName', roleId: 'adminAgentRole', avatarId: 'adminAgentAvatar' }, user);
 
-  await loadBranchesForSelects();
-  await usersModule.loadUsers();
-  await loadDevices();
-  await loadBranchesTable();
+  // Cada carga por su lado: antes eran awaits en cadena sin try/catch, y si fallaba una (p. ej.
+  // /devices/) las siguientes nunca corrían y la pantalla quedaba a medias sin ningún aviso.
+  const loaders = [
+    ['las sucursales', loadBranchesForSelects],
+    ['los usuarios', () => usersModule.loadUsers()],
+    ['los dispositivos', loadDevices],
+    ['la tabla de sucursales', loadBranchesTable],
+  ];
+  const results = await Promise.allSettled(loaders.map(([, fn]) => fn()));
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') utils.showToast(`No se pudieron cargar ${loaders[i][0]}.`, 'error');
+  });
   utils.renderIcons();
 });
