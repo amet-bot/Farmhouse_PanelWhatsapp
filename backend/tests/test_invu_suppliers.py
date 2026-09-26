@@ -292,3 +292,78 @@ def test_los_proveedores_sincronizados_salen_en_el_autocomplete(client, clayton_
 
     res = client.get("/api/inventory/suppliers?q=nikkei", headers=_headers(clayton_agent, clayton_device))
     assert "Distribuidora Nikkei" in [s["name"] for s in res.json()]
+
+
+# ==========================================================================
+# Credenciales: con las de las sucursales alcanza
+# ==========================================================================
+def test_sin_usuario_de_proveedores_usa_el_de_una_sucursal(monkeypatch):
+    """
+    El padrón de proveedores es de la cuenta: cualquier usuario de sucursal lo ve entero. Antes
+    hacía falta un usuario aparte y, sin él, los proveedores no se sincronizaban nunca aunque las
+    sucursales ya estuvieran conectadas para ventas.
+    """
+    monkeypatch.setattr(settings, "INVU_USER_CDE", "api_cde")
+    monkeypatch.setattr(settings, "INVU_PASS_CDE", "clave_cde")
+    monkeypatch.setattr(settings, "INVU_USER_VP", "api_vp")
+    monkeypatch.setattr(settings, "INVU_PASS_VP", "clave_vp")
+    assert invu_client.is_configured() is True
+    # Primera en el orden de config (CLY, CDE, VP...), entre las que tienen los dos datos.
+    assert invu_client._credenciales_por_defecto() == invu_client.Credenciales("api_cde", "clave_cde")
+
+
+def test_el_usuario_de_proveedores_tiene_prioridad(monkeypatch, invu_encendido):
+    monkeypatch.setattr(settings, "INVU_USER_CLY", "api_cly")
+    monkeypatch.setattr(settings, "INVU_PASS_CLY", "clave_cly")
+    assert invu_client._credenciales_por_defecto() == invu_client.Credenciales("usuario-de-prueba", "clave-de-prueba")
+
+
+def test_sin_ninguna_credencial_no_esta_configurado():
+    assert invu_client.is_configured() is False
+    with pytest.raises(invu_client.InvuNotConfigured):
+        invu_client._credenciales_por_defecto()
+
+
+def test_la_pasada_diaria_pide_con_un_dia_de_margen(monkeypatch):
+    """synced_at es UTC y updated_at de Invu no trae huso: sin margen se perdían los recientes."""
+    from datetime import datetime, timezone
+
+    ultima = datetime(2026, 9, 26, 15, 0, tzinfo=timezone.utc)
+    pedido = {}
+
+    class _Sesion:
+        def close(self):
+            pass
+
+    monkeypatch.setattr(invu_sync, "SessionLocal", lambda: _Sesion())
+    monkeypatch.setattr(invu_sync, "ultima_sincronizacion", lambda db: ultima)
+    monkeypatch.setattr(invu_sync, "sync_providers", lambda db, updated_after=None: pedido.update(desde=updated_after))
+    invu_sync._sync_en_segundo_plano()
+    assert pedido["desde"] == ultima - invu_sync.INCREMENTAL_MARGIN
+
+
+def test_dos_proveedores_con_el_mismo_nombre_no_tumban_la_sincronizacion(
+    client, db_session, admin_user, invu_encendido, responde_invu
+):
+    """
+    En Invu hay dos "Fruteria Mimi" (S24 activo, S29 archivado) y en el panel el nombre es único:
+    el segundo chocaba y la pasada entera fallaba sin guardar ninguno. Ahora entran los dos y el
+    repetido lleva su código.
+    """
+    responde_invu([
+        _proveedor(24, "Fruteria Mimi"),
+        _proveedor(29, "Fruteria Mimi", status=0),
+        _proveedor(30, "Bioenvases"),
+    ])
+    res = client.post("/api/inventory/invu/sync-suppliers", headers=_headers(admin_user))
+    assert res.status_code == 200, res.text
+    assert res.json()["created"] == 3
+
+    nombres = {s.invu_id: (s.name, s.active) for s in db_session.query(Supplier).all()}
+    assert nombres[24] == ("Fruteria Mimi", True)
+    assert nombres[29] == ("Fruteria Mimi (S29)", False)
+    assert nombres[30] == ("Bioenvases", True)
+
+    # Una segunda pasada no los renombra ni cuenta cambios.
+    again = client.post("/api/inventory/invu/sync-suppliers", headers=_headers(admin_user)).json()
+    assert again["created"] == 0 and again["updated"] == 0

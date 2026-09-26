@@ -100,7 +100,14 @@ class Settings(BaseSettings):
     INVU_API_PASSWORD: Optional[str] = None
 
     def is_invu_configured(self) -> bool:
-        return bool(self.INVU_API_USERNAME and self.INVU_API_PASSWORD)
+        """
+        Si hay con qué leer los proveedores de Invu. Además del usuario propio de proveedores,
+        sirve el de cualquier sucursal: el padrón de proveedores es de la cuenta entera y cada
+        usuario de sucursal lo ve completo (verificado: los mismos 41 que en admin.invupos.com).
+        Antes solo contaba el usuario propio y, con las sucursales ya configuradas para ventas,
+        los proveedores no se sincronizaban nunca.
+        """
+        return bool(self.INVU_API_USERNAME and self.INVU_API_PASSWORD) or bool(self.invu_branch_credentials())
 
     # Invu POS por sucursal — de donde salen las ventas (Farmhouse Link).
     # Un usuario de API ve una sola sucursal y ninguna ruta de Invu deja elegir otra: la

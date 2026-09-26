@@ -18,7 +18,7 @@ desaparecer se llevaría por delante la referencia de los cargamentos que lo men
 import asyncio
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from sqlalchemy import func
@@ -36,6 +36,9 @@ SYNC_INTERVAL_SECONDS = 24 * 60 * 60
 # Espera antes de la primera pasada al arrancar: que el servidor termine de levantar y conteste
 # el health check antes de ponerse a hablar con una API de afuera.
 STARTUP_DELAY_SECONDS = 20
+
+# Ver _sync_en_segundo_plano: diferencia de huso entre synced_at (UTC) y updated_at de Invu.
+INCREMENTAL_MARGIN = timedelta(days=1)
 
 
 def _texto(valor: Any, tope: int) -> Optional[str]:
@@ -91,6 +94,20 @@ def _aplicar(proveedor: Supplier, fila: Dict[str, Any], ahora: datetime) -> bool
     return cambio
 
 
+def _nombre_libre(db, nombre: str, fila: Dict[str, Any], propio_id: Optional[int]) -> str:
+    """`nombre`, o `nombre (S29)` si otro proveedor del panel ya se llama así."""
+    def ocupado(candidato: str) -> bool:
+        q = db.query(Supplier.id).filter(func.lower(Supplier.name) == candidato.lower())
+        if propio_id is not None:
+            q = q.filter(Supplier.id != propio_id)
+        return q.first() is not None
+
+    if not ocupado(nombre):
+        return nombre
+    sufijo = _texto(fila.get("code"), 20) or f"Invu {_entero(fila.get('id'))}"
+    return f"{nombre[:150 - len(sufijo) - 3]} ({sufijo})"
+
+
 def sync_providers(db, updated_after: Optional[datetime] = None) -> Dict[str, Any]:
     """
     Trae los proveedores de Invu y los deja al día en la base local.
@@ -125,12 +142,20 @@ def sync_providers(db, updated_after: Optional[datetime] = None) -> Dict[str, An
             ).first()
             if proveedor:
                 enlazado = True
-            else:
-                proveedor = Supplier(name=nombre)
-                db.add(proveedor)
-                nuevo = True
 
-        cambio = _aplicar(proveedor, fila, ahora)
+        # El nombre es único en el panel y en Invu no: hay dos "Fruteria Mimi" (S24 y S29,
+        # archivado). Sin esto el segundo chocaba contra el primero y la pasada ENTERA fallaba,
+        # sin guardar ninguno de los 41. El repetido queda con su código de Invu al lado.
+        nombre_final = _nombre_libre(db, nombre, fila, proveedor.id if proveedor else None)
+        if not proveedor:
+            proveedor = Supplier(name=nombre_final)
+            db.add(proveedor)
+            nuevo = True
+
+        cambio = _aplicar(proveedor, {**fila, "name": nombre_final}, ahora)
+        # La sesión no hace autoflush: sin esto la fila siguiente no "ve" a esta al buscar
+        # nombres repetidos (y el choque recién aparecía en el commit del final).
+        db.flush()
 
         if nuevo:
             creados += 1
@@ -161,6 +186,12 @@ def _sync_en_segundo_plano() -> None:
     db = SessionLocal()
     try:
         desde = ultima_sincronizacion(db)
+        # Con margen: `synced_at` se guarda en UTC y el `updated_at` de Invu no dice su huso
+        # (en hora de Panamá serían 5 h menos). Pidiendo "cambiados después de <hora UTC>" se perdían para siempre
+        # los proveedores creados o editados en las horas siguientes a cada pasada. Un día de
+        # margen repasa unos pocos de más, que no cambian nada.
+        if desde:
+            desde = desde - INCREMENTAL_MARGIN
         sync_providers(db, updated_after=desde)
     except invu_client.InvuNotConfigured:
         logger.info("[Invu] Integración no configurada; no hay proveedores que sincronizar.")

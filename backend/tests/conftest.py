@@ -26,6 +26,20 @@ def _no_bot_response_delay(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_invu_credentials_from_env(monkeypatch):
+    """
+    Las credenciales de Invu del .env local no entran a las pruebas: con las de las sucursales la
+    integración de proveedores cuenta como encendida (config.is_invu_configured) y el panel deja
+    de crear proveedores a mano. Cada prueba que necesita Invu lo enciende con monkeypatch.
+    """
+    monkeypatch.setattr(settings, "INVU_API_USERNAME", None)
+    monkeypatch.setattr(settings, "INVU_API_PASSWORD", None)
+    for code in settings.INVU_SALES_BRANCH_CODES:
+        monkeypatch.setattr(settings, f"INVU_USER_{code}", None)
+        monkeypatch.setattr(settings, f"INVU_PASS_{code}", None)
+
+
+@pytest.fixture(autouse=True)
 def _clean_conversation_locks():
     """
     Vacía el diccionario de locks por conversación de routers/webhooks.py antes de cada test.

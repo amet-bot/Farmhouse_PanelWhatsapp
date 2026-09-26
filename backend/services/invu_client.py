@@ -98,10 +98,17 @@ def _base_url() -> str:
 
 
 def _credenciales_por_defecto() -> Credenciales:
-    """El usuario de los proveedores (INVU_API_USERNAME), el primero que existió."""
-    if not is_configured():
-        raise InvuNotConfigured()
-    return Credenciales(settings.INVU_API_USERNAME, settings.INVU_API_PASSWORD)
+    """
+    El usuario de los proveedores (INVU_API_USERNAME), el primero que existió. Si no está, el de
+    la primera sucursal configurada: el padrón de proveedores es de la cuenta y lo ven todos.
+    """
+    if settings.INVU_API_USERNAME and settings.INVU_API_PASSWORD:
+        return Credenciales(settings.INVU_API_USERNAME, settings.INVU_API_PASSWORD)
+    sucursales = settings.invu_branch_credentials()
+    for code in settings.INVU_SALES_BRANCH_CODES:
+        if code in sucursales:
+            return Credenciales(*sucursales[code])
+    raise InvuNotConfigured()
 
 
 def _authenticate(credenciales: Credenciales) -> str:
