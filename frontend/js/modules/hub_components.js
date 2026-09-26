@@ -21,7 +21,7 @@
     return items.map((item) => {
       const active = item.id === activeId;
       return `
-        <a class="hub-nav-item${active ? ' active' : ''}" href="${esc(item.route)}"
+        <a class="hub-nav-item${active ? ' active' : ''}" href="${esc(item.route)}" data-nav-id="${esc(item.id)}"
            ${active ? 'aria-current="page"' : ''} title="${esc(item.label)}">
           ${icon(item.icon)}<span>${esc(item.label)}</span>
         </a>`;

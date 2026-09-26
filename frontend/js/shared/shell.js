@@ -11,6 +11,21 @@
  * step), y expone todo bajo `window.FarmhouseShell`.
  */
 (function () {
+  /**
+   * ¿Esta página se está mostrando DENTRO del Panel General (iframe del mismo origen)? Ahí el
+   * hub ya tiene su propio header con usuario, tema y Salir, así que la página esconde los suyos
+   * (ver `.fh-embedded` en style.css). Se marca en <html> lo antes posible.
+   */
+  function detectEmbedded() {
+    try {
+      return window.self !== window.top && window.top.location.origin === window.location.origin;
+    } catch (e) {
+      return false; // enmarcado por otro origen: no es el hub (y el servidor ya lo impide)
+    }
+  }
+  const embedded = detectEmbedded();
+  if (embedded) document.documentElement.classList.add('fh-embedded');
+
   function readStoredTheme() {
     try {
       return localStorage.getItem('fh_theme') || 'light';
@@ -39,7 +54,17 @@
    * `onThemeChange` es para el caso de Reportes (Farmhouse Link): sus gráficos leen colores del
    * tema y necesitan repintarse cada vez que cambia.
    */
+  // Opciones con las que la página llamó a initTheme: el hub las usa (setTheme) para cambiarle
+  // el tema a un sistema embebido exactamente como lo haría su propio botón.
+  let pageThemeOptions = {};
+
+  /** Cambia el tema de ESTA página con sus propias opciones (ícono, etiqueta, repintado). */
+  function setTheme(theme) {
+    applyTheme(theme === 'dark' ? 'dark' : 'light', pageThemeOptions);
+  }
+
   function initTheme({ toggleId = 'btnThemeToggle', themeIconId = 'themeIconSlot', themeLabelSelector = '#btnThemeToggle .theme-label', onThemeChange } = {}) {
+    pageThemeOptions = { themeIconId, themeLabelSelector, onThemeChange };
     applyTheme(readStoredTheme(), { themeIconId, themeLabelSelector, onThemeChange });
     const btn = toggleId ? document.getElementById(toggleId) : null;
     btn?.addEventListener('click', () => {
@@ -107,5 +132,5 @@
     });
   }
 
-  window.FarmhouseShell = { applyTheme, initTheme, fillUserHeader, initLogout };
+  window.FarmhouseShell = { applyTheme, initTheme, setTheme, fillUserHeader, initLogout, embedded };
 })();

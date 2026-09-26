@@ -80,7 +80,15 @@ const HUB_MOBILE_QUICK = ['whatsapp', 'operacion', 'inventario', 'equipo'];
 const ACTIVITY_VISIBLE = 3;
 const ACTIVITY_MAX = 8;
 
+// Si el hub mismo se carga DENTRO de un sistema embebido (ese sistema mandó a "/" o "/hub",
+// p. ej. al vencer la sesión o con un "Volver"), se recarga la ventana de arriba en vez de
+// mostrar un hub dentro del hub.
+if (window.FarmhouseShell && FarmhouseShell.embedded) {
+  window.top.location.href = window.location.pathname === '/' ? '/hub' : window.location.href;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  if (window.FarmhouseShell && FarmhouseShell.embedded) return;
   const $ = (id) => document.getElementById(id);
   const C = window.HubComponents;
 
@@ -96,8 +104,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let activityEntries = [];
   let activityExpanded = false;
+  // Sistemas abiertos dentro del hub: id del sidebar -> <iframe>. Cada uno queda vivo al cambiar
+  // de sistema (conserva la conversación abierta, los filtros, el WebSocket y sus avisos).
+  const appFrames = {};
+  let activeAppId = null;
+  const mobileQuery = window.matchMedia('(max-width: 767px)');
 
-  FarmhouseShell.initTheme({ onThemeChange: syncMobileThemeButton });
+  FarmhouseShell.initTheme({
+    onThemeChange: (theme) => {
+      syncMobileThemeButton(theme);
+      // Los sistemas abiertos adentro cambian de tema junto con el hub (su propio botón está
+      // oculto en modo embebido).
+      Object.values(appFrames).forEach((frame) => {
+        try { frame.contentWindow.FarmhouseShell?.setTheme(theme); } catch (e) { /* todavía cargando */ }
+      });
+    },
+  });
 
   $('hubHeroArt').innerHTML = C.heroArt();
   $('hubSidebarArt').innerHTML = C.leafArt();
@@ -135,6 +157,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderMobile(modules);
     utils.renderIcons();
     loadDashboardData();
+
+    // /hub?app=whatsapp (refrescar o volver a una pestaña) abre ese sistema directamente.
+    const requested = new URLSearchParams(window.location.search).get('app');
+    const requestedItem = requested && HUB_SIDEBAR.filter(allowed).find((s) => s.id === requested);
+    if (requestedItem && requestedItem.id !== 'inicio') openApp(requestedItem.id, null, { push: false });
   }
 
   if (btnTogglePassword && passwordInput) {
@@ -172,6 +199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const afterLogout = () => {
     passwordInput.value = '';
+    closeAllApps();
     showLoginScreen();
   };
   FarmhouseShell.initLogout({ logoutBtnId: 'btnLogout', afterLogout });
@@ -182,10 +210,180 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ==========================================================================
+  // Sistemas dentro del hub (escritorio / tablet)
+  // En celular se sigue entrando a cada sistema a pantalla completa: ya tienen su propia
+  // navegación inferior y adentro del hub quedarían dos barras apiladas.
+  // ==========================================================================
+  const ROUTE_TO_APP = [
+    // [prefijo de ruta, id del sidebar] — el primero que coincide gana.
+    ['/link?view=sincronizacion', 'integraciones'],
+    ['/app', 'whatsapp'],
+    ['/operacion', 'operacion'],
+    ['/prep', 'operacion'],        // Prep se abre desde Operación
+    ['/inventario', 'inventario'],
+    ['/link', 'reportes'],
+    ['/interno', 'equipo'],
+    ['/administracion', 'ajustes'],
+  ];
+
+  function appIdForRoute(route) {
+    const hit = ROUTE_TO_APP.find(([prefix]) => route === prefix || route.startsWith(prefix + '?') || route.startsWith(prefix + '/') || (prefix.includes('?') && route.startsWith(prefix)));
+    return hit ? hit[1] : null;
+  }
+
+  function sidebarItem(id) { return HUB_SIDEBAR.find((s) => s.id === id); }
+
+  function setActiveNav(id) {
+    document.querySelectorAll('#hubSidebarNav .hub-nav-item').forEach((a) => {
+      const on = a.dataset.navId === id;
+      a.classList.toggle('active', on);
+      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+  }
+
+  function showHome({ push = true } = {}) {
+    activeAppId = null;
+    $('hubApps').hidden = true;
+    $('hubContent').hidden = false;
+    screenMain.classList.remove('hub-app-mode');
+    Object.values(appFrames).forEach((f) => { f.hidden = true; });
+    setActiveNav('inicio');
+    document.title = 'Farmhouse Link';
+    if (push && window.location.search) history.pushState({}, '', '/hub');
+  }
+
+  /**
+   * Abre un sistema dentro del hub. `route` puede traer parámetros (p. ej. una conversación
+   * puntual): si el sistema ya estaba abierto, se lo lleva a esa ruta.
+   */
+  function openApp(id, route, { push = true } = {}) {
+    const item = sidebarItem(id);
+    if (!item) return;
+    const target = route || item.route;
+    if (mobileQuery.matches) {
+      window.location.href = target;
+      return;
+    }
+    let frame = appFrames[id];
+    if (!frame) {
+      frame = document.createElement('iframe');
+      frame.className = 'hub-app-frame';
+      frame.title = item.label;
+      frame.dataset.appId = id;
+      frame.src = target;
+      frame.addEventListener('load', () => onFrameLoaded(frame));
+      appFrames[id] = frame;
+      $('hubApps').appendChild(frame);
+    } else if (route && route !== item.route) {
+      navigateFrame(frame, route);
+    }
+    activeAppId = id;
+    Object.values(appFrames).forEach((f) => { f.hidden = f !== frame; });
+    $('hubContent').hidden = true;
+    $('hubApps').hidden = false;
+    screenMain.classList.add('hub-app-mode');
+    setActiveNav(id);
+    document.title = `${item.label} — Farmhouse Link`;
+    if (push) {
+      const url = `/hub?app=${encodeURIComponent(id)}`;
+      if (window.location.pathname + window.location.search !== url) history.pushState({ app: id }, '', url);
+    }
+  }
+
+  /** Lleva un sistema ya abierto a otra ruta, sin recargarlo si se puede resolver adentro. */
+  function navigateFrame(frame, route) {
+    const convId = new URLSearchParams(route.split('?')[1] || '').get('conversation_id');
+    try {
+      const win = frame.contentWindow;
+      if (convId && win.chatModule && win.location.pathname === '/app') {
+        win.chatModule.loadConversation(Number(convId));
+        return;
+      }
+    } catch (e) { /* sin acceso todavía: se recarga abajo */ }
+    frame.src = route;
+  }
+
+  /**
+   * Un sistema puede navegar solo a otro (Operación → /inventario?open=shipment, → /prep): el
+   * sidebar se actualiza para marcar dónde se está. Si fue a otro sistema que no estaba abierto,
+   * ese iframe pasa a ser el de ese sistema.
+   */
+  function onFrameLoaded(frame) {
+    let path;
+    try {
+      path = frame.contentWindow.location.pathname + frame.contentWindow.location.search;
+    } catch (e) {
+      return;
+    }
+    const newId = appIdForRoute(path);
+    const oldId = frame.dataset.appId;
+    if (!newId || newId === oldId) return;
+    if (appFrames[newId] && appFrames[newId] !== frame) {
+      appFrames[newId].remove();
+    }
+    delete appFrames[oldId];
+    appFrames[newId] = frame;
+    frame.dataset.appId = newId;
+    frame.title = sidebarItem(newId)?.label || frame.title;
+    if (activeAppId === oldId) {
+      activeAppId = newId;
+      setActiveNav(newId);
+      history.replaceState({ app: newId }, '', `/hub?app=${encodeURIComponent(newId)}`);
+    }
+  }
+
+  function closeAllApps() {
+    Object.values(appFrames).forEach((f) => f.remove());
+    Object.keys(appFrames).forEach((k) => delete appFrames[k]);
+    showHome({ push: false });
+  }
+
+  // Un solo manejador para todo enlace a un sistema dentro del panel (sidebar, tarjetas,
+  // actividad, pendientes). Ctrl/⌘/clic del medio sigue abriendo una pestaña nueva, como
+  // cualquier enlace.
+  screenMain.addEventListener('click', (e) => {
+    const link = e.target.closest('a[href]');
+    if (!link || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    const href = link.getAttribute('href');
+    if (href === '/hub' || href === '/') {
+      e.preventDefault();
+      showHome();
+      return;
+    }
+    const id = appIdForRoute(href);
+    if (!id || mobileQuery.matches) return; // en celular: navegación normal
+    e.preventDefault();
+    const item = sidebarItem(id);
+    openApp(id, href === item?.route ? null : href);
+  });
+
+  window.addEventListener('popstate', () => {
+    const id = new URLSearchParams(window.location.search).get('app');
+    if (id && sidebarItem(id) && !mobileQuery.matches) openApp(id, null, { push: false });
+    else showHome({ push: false });
+  });
+
+  // Clic en una notificación push con el hub abierto (ver sw.js): se abre el sistema del aviso
+  // acá adentro (p. ej. /app?conversation_id=12 abre esa conversación en Centro WhatsApp).
+  navigator.serviceWorker?.addEventListener('message', (e) => {
+    if (!e.data || e.data.type !== 'push_notification_click' || !e.data.url) return;
+    const url = new URL(e.data.url, window.location.origin);
+    const route = url.pathname + url.search;
+    const id = appIdForRoute(route);
+    if (id && !mobileQuery.matches) openApp(id, route);
+    else window.location.href = route;
+  });
+
+  // Si se achica la ventana a tamaño celular con un sistema abierto, se vuelve al inicio móvil.
+  mobileQuery.addEventListener('change', (e) => {
+    if (e.matches && activeAppId) showHome({ push: false });
+  });
+
+  // ==========================================================================
   // Escritorio: sidebar, grilla, buscador
   // ==========================================================================
   function renderSidebar(items) {
-    $('hubSidebarNav').innerHTML = C.sidebarNav(items, 'inicio');
+    $('hubSidebarNav').innerHTML = C.sidebarNav(items, activeAppId || 'inicio');
   }
 
   function renderModuleGrid(modules) {
@@ -205,10 +403,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const visible = [...document.querySelectorAll('.hub-module-card')].filter((c) => !c.hidden);
     // Si el texto coincide con un solo módulo, Enter entra a ese módulo; si no, busca el
     // cliente (nombre o teléfono) en la bandeja de Centro WhatsApp.
-    if (visible.length === 1) {
-      window.location.href = visible[0].getAttribute('href');
+    const route = visible.length === 1 && activeAppId === null
+      ? visible[0].getAttribute('href')
+      : `/app?q=${encodeURIComponent(q)}`;
+    const id = appIdForRoute(route);
+    if (id && !mobileQuery.matches) {
+      openApp(id, route === sidebarItem(id)?.route ? null : route);
     } else {
-      window.location.href = `/app?q=${encodeURIComponent(q)}`;
+      window.location.href = route;
     }
   });
 

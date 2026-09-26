@@ -358,6 +358,29 @@ body {
 .hub-logout-btn svg, .hub-logout-btn i { width: 16px; height: 16px; }
 .hub-logout-btn:hover { background: var(--danger-bg); color: var(--danger-text); border-color: var(--danger-border); }
 
+/* ---- Sistemas abiertos dentro del hub ---- */
+/* Con un sistema abierto la página no scrollea: cada sistema maneja su propio scroll adentro
+   de su iframe, que ocupa todo el alto disponible bajo el header. */
+.hub-shell.hub-app-mode { height: 100vh; height: 100dvh; overflow: hidden; }
+
+.hub-apps {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  height: calc(100vh - 72px);
+  height: calc(100dvh - 72px);
+  background: var(--fh-bg);
+}
+
+.hub-app-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--fh-bg);
+}
+
 /* ---- Contenido ---- */
 .hub-content {
   width: 100%;
@@ -902,7 +925,8 @@ body {
   .hub-shell { display: block; }
   .hub-sidebar,
   .hub-topbar,
-  .hub-desktop { display: none; }
+  .hub-desktop,
+  .hub-apps { display: none; }
 
   .hub-m-header {
     position: sticky;

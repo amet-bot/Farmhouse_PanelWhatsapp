@@ -135,7 +135,10 @@ async def security_and_csrf_middleware(request: Request, call_next):
 
     # 2. Encabezados de Seguridad Estrictos (Punto 27)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
+    # SAMEORIGIN (no DENY): el Panel General abre cada sistema dentro de su propia pantalla
+    # (iframe del mismo origen). Sigue bloqueando que cualquier OTRO sitio enmarque el panel
+    # (clickjacking).
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=()"
     if settings.ENVIRONMENT == "production":

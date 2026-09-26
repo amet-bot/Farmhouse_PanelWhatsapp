@@ -250,6 +250,24 @@ html, body {
   width: 100%;
 }
 
+/* ============================================================================
+   MODO EMBEBIDO: la página se muestra dentro del Panel General (/hub), que ya tiene su propio
+   header con usuario, tema y Salir, y su sidebar para cambiar de sistema. Se esconde lo que
+   quedaría repetido. `.fh-embedded` lo pone shell.js (y el script del <head>).
+   ============================================================================ */
+.fh-embedded #btnLogout,
+.fh-embedded #btnThemeToggle,
+.fh-embedded .user-profile,
+.fh-embedded .inv-back[href="/hub"],
+.fh-embedded .int-back,
+.fh-embedded .inv-logout-btn,
+.fh-embedded .int-logout-btn {
+  display: none !important;
+}
+
+/* Centro WhatsApp: el logo de su barra lateral lleva al hub; embebido no tiene a dónde volver. */
+.fh-embedded a.brand-link { pointer-events: none; }
+
 body {
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
   background: var(--bg-primary);

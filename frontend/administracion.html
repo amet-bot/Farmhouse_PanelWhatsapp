@@ -13,8 +13,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
-  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=4.0.2">
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
+  <link rel="stylesheet" href="css/style.css?v=4.2.0">
   <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario. Las tablas, botones y
        modales de Usuarios/Dispositivos son los mismos de Centro WhatsApp (style.css ya los
        define global) — este panel es el lugar dedicado que faltaba, no un sistema nuevo. -->
@@ -434,7 +434,7 @@
   <script src="js/utils.js?v=3.5.0"></script>
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/shared/shell.js?v=4.0.0"></script>
+  <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/modules/users.js?v=4.0.1"></script>
   <script src="js/modules/administracion.js?v=4.0.1"></script>
 </body>

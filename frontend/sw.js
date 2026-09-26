@@ -53,8 +53,15 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsArr) => {
-      for (const client of clientsArr) {
-        if (!('focus' in client)) continue;
+      const topLevel = clientsArr.filter((c) => 'focus' in c && c.frameType !== 'nested');
+      // 1) El Panel General abierto: él abre el sistema del aviso dentro de su pantalla.
+      const hub = topLevel.find((c) => new URL(c.url).pathname === '/hub');
+      if (hub) {
+        hub.postMessage({ type: 'push_notification_click', url: targetUrl });
+        return hub.focus();
+      }
+      // 2) Una pestaña de la misma página del aviso.
+      for (const client of topLevel) {
         if (new URL(client.url).pathname === targetPath) {
           client.postMessage({ type: 'push_notification_click', url: targetUrl });
           return client.focus();
