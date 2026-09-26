@@ -307,6 +307,9 @@
   .link-segmented { width: 100%; }
   .link-segmented button { flex: 1; padding: 7px 6px; }
   .link-table .hide-sm { display: none; }
+  /* Menos aire entre columnas: la de Sincronización se pasaba 12px del ancho (el Menú quedaba
+     cortado detrás del scroll) y la sucursal se partía con el color en una línea y el nombre en otra. */
+  .link-table th, .link-table td { padding-left: 6px; padding-right: 6px; }
   .link-filters .inv-filter-select { width: 100%; }
 }
 

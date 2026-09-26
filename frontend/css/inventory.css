@@ -1437,7 +1437,7 @@ body {
     overflow: visible;
     display: flex;
     align-items: stretch;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
     background: var(--inv-panel);
     border-right: none;
     border-top: 1px solid var(--inv-border);
@@ -1449,10 +1449,13 @@ body {
   .inv-nav-soon,
   .inv-sidebar-foot { display: none; }
 
+  /* min-width: 0 — sin esto la barra medía lo que suman los textos sin cortar (el mínimo de
+     un ítem flex) y con las 7 secciones "Conteo" quedaba fuera de la pantalla, sin poder tocarla. */
   .inv-nav {
     flex: 1;
+    min-width: 0;
     flex-direction: row;
-    gap: 2px;
+    gap: 0;
   }
 
   /* Ícono arriba, etiqueta abajo: las cuatro secciones entran sin recortarse ni desplazarse,
@@ -1474,6 +1477,17 @@ body {
   .inv-nav-item i { width: 19px; height: 19px; }
 
   .inv-nav-item span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Con 7 secciones cada una tiene ~50px: los nombres largos van abreviados (data-short en el
+     HTML; el nombre completo queda en aria-label). */
+  .inv-nav-item[data-short] > span { display: none; }
+  .inv-nav-item[data-short]::after {
+    content: attr(data-short);
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1553,7 +1567,9 @@ body {
 
   .inv-kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
   .inv-kpi { padding: 14px; }
-  .inv-kpi-value { font-size: 22px; }
+  /* Con el ancho de la pantalla: "USD 40,930.29" (sin cortes, lleva espacio duro) no entraba en
+     media tarjeta a 22px y se cortaba contra el borde. */
+  .inv-kpi-value { font-size: min(22px, 4.9vw); }
 
   .inv-panel { padding: 16px; }
   .inv-field-row { grid-template-columns: 1fr; }

@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.4.3">
-  <link rel="stylesheet" href="css/inventory.css?v=4.4.3">
+  <link rel="stylesheet" href="css/inventory.css?v=4.4.7">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -72,11 +72,11 @@
         </div>
         <nav class="inv-nav" id="invNav">
           <button type="button" class="inv-nav-item active" data-view="resumen"><i data-lucide="layout-dashboard"></i> <span>Resumen</span></button>
-          <button type="button" class="inv-nav-item" data-view="cargamentos"><i data-lucide="truck"></i> <span>Cargamentos</span></button>
+          <button type="button" class="inv-nav-item" data-view="cargamentos" data-short="Cargas" aria-label="Cargamentos"><i data-lucide="truck"></i> <span>Cargamentos</span></button>
           <button type="button" class="inv-nav-item" data-view="insumos"><i data-lucide="layout-list"></i> <span>Insumos</span></button>
-          <button type="button" class="inv-nav-item" data-view="proveedores"><i data-lucide="building-2"></i> <span>Proveedores</span></button>
+          <button type="button" class="inv-nav-item" data-view="proveedores" data-short="Proveed." aria-label="Proveedores"><i data-lucide="building-2"></i> <span>Proveedores</span></button>
           <button type="button" class="inv-nav-item" data-view="merma"><i data-lucide="trending-down"></i> <span>Merma</span></button>
-          <button type="button" class="inv-nav-item" data-view="existencias"><i data-lucide="boxes"></i> <span>Existencias</span></button>
+          <button type="button" class="inv-nav-item" data-view="existencias" data-short="Stock" aria-label="Existencias"><i data-lucide="boxes"></i> <span>Existencias</span></button>
           <button type="button" class="inv-nav-item" data-view="conteo"><i data-lucide="clipboard-check"></i> <span>Conteo</span></button>
         </nav>
         <div class="inv-nav-sep">Próximamente</div>

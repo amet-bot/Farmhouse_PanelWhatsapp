@@ -37,6 +37,14 @@
   border-bottom-color: var(--green);
 }
 
+/* Celular: las tres pestañas en partes iguales. Con 16px de aire a cada lado sumaban 362px en
+   una pantalla de 335 y "Sucursales" quedaba cortada contra el borde. */
+@media (max-width: 480px) {
+  .admin-body { padding: 18px 14px 48px; }
+  .admin-tabs { gap: 0; }
+  .admin-tab { flex: 1; min-width: 0; padding: 10px 4px; font-size: .95rem; }
+}
+
 .admin-view-head {
   display: flex;
   justify-content: space-between;
