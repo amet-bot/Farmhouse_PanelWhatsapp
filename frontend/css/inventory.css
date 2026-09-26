@@ -322,6 +322,14 @@ body {
 
 .inv-nav-item i { width: 15px; height: 15px; flex-shrink: 0; }
 
+/* Foco de teclado visible: los estados :focus-visible de abajo quitan el outline y lo cambian
+   por un fondo casi igual al normal (o por una sombra), así que navegando con Tab no se veía
+   dónde estaba parado. :where() no suma especificidad, así que no pisa nada más. */
+:where(.inv-nav-item, .inv-primary-btn, .inv-secondary-btn):focus-visible {
+  outline: 2px solid var(--inv-green) !important;
+  outline-offset: 2px;
+}
+
 .inv-nav-item:hover,
 .inv-nav-item:focus-visible {
   background: var(--inv-panel);

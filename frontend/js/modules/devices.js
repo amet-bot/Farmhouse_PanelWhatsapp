@@ -62,7 +62,7 @@ const devicesModule = {
     if (this.devices.length === 0) {
       tableBody.innerHTML = `
         <tr>
-          <td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">
+          <td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">
             No hay dispositivos registrados para esta sucursal.
           </td>
         </tr>
@@ -89,7 +89,7 @@ const devicesModule = {
       if (user && user.role === 'admin') {
         actionsHtml += `<button class="btn-sm-action" onclick="devicesModule.openEditModal(${dev.id})" title="Editar"><i data-lucide="pencil"></i> Editar</button> `;
         if (dev.status === 'active') {
-          actionsHtml += `<button class="btn-sm-action btn-danger" onclick="devicesModule.revokeDevice(${dev.id})" title="Revocar"><i data-lucide="ban"></i> Revocar</button> `;
+          actionsHtml += `<button class="btn-sm-action delete-action" onclick="devicesModule.revokeDevice(${dev.id})" title="Revocar"><i data-lucide="ban"></i> Revocar</button> `;
         }
       }
 

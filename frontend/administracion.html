@@ -11,13 +11,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=4.0.0">
+  <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
+       entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}</script>
+  <link rel="stylesheet" href="css/style.css?v=4.0.1">
   <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario. Las tablas, botones y
        modales de Usuarios/Dispositivos son los mismos de Centro WhatsApp (style.css ya los
        define global) — este panel es el lugar dedicado que faltaba, no un sistema nuevo. -->
-  <link rel="stylesheet" href="css/inventory.css?v=4.0.0">
+  <link rel="stylesheet" href="css/inventory.css?v=4.0.1">
   <link rel="stylesheet" href="css/administracion.css?v=1.0.0">
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 
@@ -128,7 +132,7 @@
           <h3><i data-lucide="user-plus"></i> Crear Usuario / Agente</h3>
           <span class="modal-subtitle">Asignar nombre de usuario, rol y sucursal</span>
         </div>
-        <button class="modal-close-btn" id="closeModalAddUser">&times;</button>
+        <button class="modal-close-btn" id="closeModalAddUser" aria-label="Cerrar">&times;</button>
       </div>
       <form id="formAddUser">
         <div class="modal-body">
@@ -176,7 +180,7 @@
           <h3><i data-lucide="pencil"></i> Editar Usuario</h3>
           <span class="modal-subtitle">Modificar datos o estado</span>
         </div>
-        <button class="modal-close-btn" id="closeModalEditUser">&times;</button>
+        <button class="modal-close-btn" id="closeModalEditUser" aria-label="Cerrar">&times;</button>
       </div>
       <form id="formEditUser">
         <input type="hidden" id="editUserId" />
@@ -232,7 +236,7 @@
           <h3 class="text-danger-heading"><i data-lucide="trash-2"></i> ¿Eliminar usuario?</h3>
           <span class="modal-subtitle">Confirmación de eliminación</span>
         </div>
-        <button class="modal-close-btn" id="closeModalDeleteUser">&times;</button>
+        <button class="modal-close-btn" id="closeModalDeleteUser" aria-label="Cerrar">&times;</button>
       </div>
       <div class="modal-body" style="line-height:1.5">
         <input type="hidden" id="deleteUserId" />
@@ -260,7 +264,7 @@
           <h3><i data-lucide="plus-circle"></i> Autorizar Nuevo Dispositivo</h3>
           <span class="modal-subtitle">Control de Acceso de Administrador</span>
         </div>
-        <button class="modal-close-btn" id="closeModalAddDevice">&times;</button>
+        <button class="modal-close-btn" id="closeModalAddDevice" aria-label="Cerrar">&times;</button>
       </div>
       <form id="formAddDevice">
         <div class="modal-body">
@@ -302,7 +306,7 @@
           <h3><i data-lucide="pencil"></i> Editar Dispositivo</h3>
           <span class="modal-subtitle">Modificar asignación o estado</span>
         </div>
-        <button class="modal-close-btn" id="closeModalEditDevice">&times;</button>
+        <button class="modal-close-btn" id="closeModalEditDevice" aria-label="Cerrar">&times;</button>
       </div>
       <form id="formEditDevice">
         <input type="hidden" id="editDevId" />
@@ -350,7 +354,7 @@
           <h3><i data-lucide="plus-circle"></i> Nueva Sucursal</h3>
           <span class="modal-subtitle">Alta de sucursal</span>
         </div>
-        <button class="modal-close-btn" id="closeModalAddBranch">&times;</button>
+        <button class="modal-close-btn" id="closeModalAddBranch" aria-label="Cerrar">&times;</button>
       </div>
       <form id="formAddBranch">
         <div class="modal-body">
@@ -389,7 +393,7 @@
           <h3><i data-lucide="pencil"></i> Editar Sucursal</h3>
           <span class="modal-subtitle">Modificar datos</span>
         </div>
-        <button class="modal-close-btn" id="closeModalEditBranch">&times;</button>
+        <button class="modal-close-btn" id="closeModalEditBranch" aria-label="Cerrar">&times;</button>
       </div>
       <form id="formEditBranch">
         <input type="hidden" id="editBranchId" />
@@ -431,7 +435,7 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.0.0"></script>
-  <script src="js/modules/users.js?v=1.0.0"></script>
-  <script src="js/modules/administracion.js?v=4.0.0"></script>
+  <script src="js/modules/users.js?v=4.0.1"></script>
+  <script src="js/modules/administracion.js?v=4.0.1"></script>
 </body>
 </html>

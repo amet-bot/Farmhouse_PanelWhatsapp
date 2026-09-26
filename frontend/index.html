@@ -11,11 +11,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=4.0.0">
+  <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
+       entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}</script>
+  <link rel="stylesheet" href="css/style.css?v=4.0.1">
   <!-- Componente propio de la pestaña "Flujo visual" (contenido real + mapa parcial del bot). -->
   <link rel="stylesheet" href="css/flow-editor.css?v=1.6.0">
   <!-- Lucide Icons CDN -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -484,11 +488,11 @@
           <h3><i data-lucide="users"></i> Gestión de Usuarios y Agentes</h3>
           <span class="modal-subtitle">Administra los operadores autorizados y sus sucursales</span>
         </div>
-        <button class="modal-close-btn" id="closeModalUsersList">&times;</button>
+        <button class="modal-close-btn" id="closeModalUsersList" aria-label="Cerrar">&times;</button>
       </div>
       <div class="modal-body">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <span style="font-size:12px;color:var(--muted)">Usuarios registrados en el sistema</span>
+          <span style="font-size:12px;color:var(--text-muted)">Usuarios registrados en el sistema</span>
           <button class="btn-primary" id="btnOpenAddUser"><i data-lucide="user-plus"></i> Crear Nuevo Agente / Usuario</button>
         </div>
         <div class="device-table-wrap">
@@ -519,7 +523,7 @@
           <h3><i data-lucide="user-plus"></i> Crear Usuario / Agente</h3>
           <span class="modal-subtitle">Asignar nombre de usuario, rol y sucursal</span>
         </div>
-        <button class="modal-close-btn" id="closeModalAddUser">&times;</button>
+        <button class="modal-close-btn" id="closeModalAddUser" aria-label="Cerrar">&times;</button>
       </div>
       <form id="formAddUser">
         <div class="modal-body">
@@ -566,7 +570,7 @@
           <h3><i data-lucide="pencil"></i> Editar Usuario</h3>
           <span class="modal-subtitle">Modificar datos o estado</span>
         </div>
-        <button class="modal-close-btn" id="closeModalEditUser">&times;</button>
+        <button class="modal-close-btn" id="closeModalEditUser" aria-label="Cerrar">&times;</button>
       </div>
       <form id="formEditUser">
         <input type="hidden" id="editUserId" />
@@ -621,7 +625,7 @@
           <h3 class="text-danger-heading"><i data-lucide="trash-2"></i> ¿Eliminar usuario?</h3>
           <span class="modal-subtitle">Confirmación de eliminación en la base de datos</span>
         </div>
-        <button class="modal-close-btn" id="closeModalDeleteUser">&times;</button>
+        <button class="modal-close-btn" id="closeModalDeleteUser" aria-label="Cerrar">&times;</button>
       </div>
       <div class="modal-body" style="line-height:1.5">
         <input type="hidden" id="deleteUserId" />
@@ -652,11 +656,11 @@
           <h3><i data-lucide="laptop"></i> Dispositivos Autorizados de Acceso</h3>
           <span class="modal-subtitle">Inventario de hardware autorizado en el sistema</span>
         </div>
-        <button class="modal-close-btn" id="closeModalDevicesList">&times;</button>
+        <button class="modal-close-btn" id="closeModalDevicesList" aria-label="Cerrar">&times;</button>
       </div>
       <div class="modal-body">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <span style="font-size:12px;color:var(--muted)">Control exclusivo de Administrador.</span>
+          <span style="font-size:12px;color:var(--text-muted)">Control exclusivo de Administrador.</span>
           <button class="btn-primary" id="btnOpenAddDevice" style="display:none"><i data-lucide="plus-circle"></i> Registrar Nuevo Dispositivo</button>
         </div>
         <div class="device-table-wrap">
@@ -688,7 +692,7 @@
           <h3><i data-lucide="plus-circle"></i> Autorizar Nuevo Dispositivo</h3>
           <span class="modal-subtitle">Control de Acceso de Administrador</span>
         </div>
-        <button class="modal-close-btn" id="closeModalAddDevice">&times;</button>
+        <button class="modal-close-btn" id="closeModalAddDevice" aria-label="Cerrar">&times;</button>
       </div>
       <form id="formAddDevice">
         <div class="modal-body">
@@ -732,7 +736,7 @@
           <h3><i data-lucide="pencil"></i> Editar Dispositivo</h3>
           <span class="modal-subtitle">Modificar asignación o estado</span>
         </div>
-        <button class="modal-close-btn" id="closeModalEditDevice">&times;</button>
+        <button class="modal-close-btn" id="closeModalEditDevice" aria-label="Cerrar">&times;</button>
       </div>
       <form id="formEditDevice">
         <input type="hidden" id="editDevId" />
@@ -779,7 +783,7 @@
           <h3><i data-lucide="repeat"></i> Transferir Conversación</h3>
           <span class="modal-subtitle">Reasignar a otra sucursal de Farmhouse</span>
         </div>
-        <button class="modal-close-btn" id="closeModalTransfer">&times;</button>
+        <button class="modal-close-btn" id="closeModalTransfer" aria-label="Cerrar">&times;</button>
       </div>
       <div class="modal-body">
         <label class="modal-label">Sucursal de Destino:</label>
@@ -849,11 +853,11 @@
   <script src="js/ws.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/modules/branches.js?v=4.0.0"></script>
-  <script src="js/modules/users.js?v=3.4.0"></script>
-  <script src="js/modules/devices.js?v=4.0.0"></script>
+  <script src="js/modules/users.js?v=4.0.1"></script>
+  <script src="js/modules/devices.js?v=4.0.1"></script>
   <script src="js/modules/contacts.js?v=1.0.0"></script>
   <script src="js/modules/conversations.js?v=4.0.0"></script>
-  <script src="js/modules/chat.js?v=4.0.0"></script>
+  <script src="js/modules/chat.js?v=4.0.1"></script>
   <script src="js/modules/push.js?v=4.0.0"></script>
   <script src="js/modules/notifications.js?v=4.0.0"></script>
   <script src="js/modules/flow_editor.js?v=4.0.0"></script>

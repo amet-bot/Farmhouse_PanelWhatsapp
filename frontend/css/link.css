@@ -280,6 +280,10 @@
 .link-status.bad { background: var(--inv-loss-soft); color: var(--inv-loss-text); }
 
 /* ---- Cargando ---- */
+/* Dentro del gráfico el esqueleto mide lo mismo que el gráfico (min 220px): con 160px la
+   página saltaba 60px al llegar los datos. */
+.link-chart > .link-skeleton { height: 220px; }
+
 .link-skeleton {
   height: 160px;
   border-radius: 12px;

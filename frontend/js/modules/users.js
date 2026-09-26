@@ -36,7 +36,7 @@ const usersModule = {
     if (this.users.length === 0) {
       tableBody.innerHTML = `
         <tr>
-          <td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">
+          <td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted)">
             No hay usuarios registrados.
           </td>
         </tr>
@@ -67,14 +67,14 @@ const usersModule = {
         actionsHtml += `<button class="btn-sm-action" onclick="usersModule.openEditModal(${u.id})" title="Editar"><i data-lucide="pencil"></i> Editar</button> `;
         if (!isSelf) {
           actionsHtml += `<button class="btn-sm-action" onclick="usersModule.toggleActive(${u.id})" title="Cambiar estado"><i data-lucide="${u.active ? 'pause' : 'play'}"></i> ${u.active ? 'Pausar' : 'Activar'}</button> `;
-          actionsHtml += `<button class="btn-sm-action btn-danger" onclick="usersModule.openDeleteModal(${u.id})" title="Eliminar" aria-label="Eliminar usuario"><i data-lucide="trash-2"></i></button>`;
+          actionsHtml += `<button class="btn-sm-action delete-action" onclick="usersModule.openDeleteModal(${u.id})" title="Eliminar" aria-label="Eliminar usuario"><i data-lucide="trash-2"></i></button>`;
         }
       }
 
       tr.innerHTML = `
         <td>
           <strong>${utils.escapeHtml(u.name)}</strong>
-          <div style="font-size:11px;color:var(--primary);font-weight:600">@${utils.escapeHtml(u.username)}</div>
+          <div style="font-size:11px;color:var(--primary-color);font-weight:600">@${utils.escapeHtml(u.username)}</div>
           ${u.email ? `<div style="font-size:11px;color:var(--text-muted)">${utils.escapeHtml(u.email)}</div>` : ''}
         </td>
         <td>${roleBadge}</td>

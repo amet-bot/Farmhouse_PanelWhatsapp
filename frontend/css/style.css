@@ -499,17 +499,34 @@ a:focus-visible {
   font-weight: 600;
 }
 
-.dot-branch {
+/* branches.js pone `.branch-dot` en cada sucursal del sidebar; la regla se llamaba `.dot-branch`,
+   así que el punto de color de la sucursal nunca se veía. */
+.branch-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
 
-.nav-btn.branch-btn.selected-branch {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+/* Pastilla de rol / tipo de dispositivo / código de sucursal (users.js, devices.js,
+   administracion.js): se usaba en las tablas sin ninguna regla y salía como texto suelto. */
+.tag-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
   font-weight: 600;
+  background: var(--panel-subtle);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.tag-type svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* Botones de herramientas aún no implementadas: visualmente atenuados y marcados */
@@ -884,7 +901,10 @@ a:focus-visible {
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: 340px minmax(400px, 1fr) 290px;
+  /* Con 340px + mín. 400px + 290px fijos el workspace necesitaba ~1166px: entre 1101 y 1165px
+     el panel de detalles quedaba cortado a la derecha. Las columnas laterales ahora ceden un
+     poco; en pantallas anchas el resultado es el mismo de siempre (340 | resto | 290). */
+  grid-template-columns: minmax(280px, 340px) minmax(360px, 1fr) minmax(250px, 290px);
   gap: 16px;
   padding: 16px;
   overflow: hidden;
@@ -897,7 +917,7 @@ a:focus-visible {
    .panel-details es un cajón superpuesto, así que esta regla de 3 columnas no debe aplicar ahí. */
 @media (min-width: 1101px) {
   .workspace.details-collapsed {
-    grid-template-columns: 340px minmax(400px, 1fr) 0px;
+    grid-template-columns: minmax(280px, 340px) minmax(360px, 1fr) 0px;
   }
   .workspace.details-collapsed .panel-details {
     overflow: hidden;
@@ -1208,6 +1228,27 @@ a:focus-visible {
   border-color: #fca5a5;
 }
 
+/* Modo oscuro: los colores fijos de arriba están pensados para fondo claro — sobre el panel
+   oscuro el azul y el naranja quedaban en ~2.3:1 de contraste y el recordatorio era una
+   pastilla rosa pálido. Se usan los tokens semánticos que ya cambian con el tema. */
+[data-theme="dark"] .status-badge.status-open {
+  background: var(--info-badge-bg);
+  color: var(--info-text);
+  border-color: var(--info-border);
+}
+
+[data-theme="dark"] .status-badge.status-unassigned {
+  background: var(--warning-badge-bg);
+  color: var(--warning-text);
+  border-color: var(--warning-border);
+}
+
+[data-theme="dark"] .status-badge.status-reminder {
+  background: var(--danger-badge-bg);
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+}
+
 /* ESTADO VACÍO (bandeja de conversaciones y panel de chat sin selección) */
 .empty-state {
   display: flex;
@@ -1286,11 +1327,22 @@ a:focus-visible {
   flex-shrink: 0;
 }
 
+/* El nombre del cliente es lo único del header que puede achicarse: un nombre largo antes
+   empujaba todo y el header scrolleaba de costado en celular. */
+.chat-header > .meta {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .chat-header .meta strong {
   display: block;
   font-size: 14px;
   line-height: 1.2;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-header .meta span {
@@ -2206,6 +2258,13 @@ a:focus-visible {
 }
 
 .modal-close-btn {
+  /* Área de toque de 32px: antes era solo el glifo "×" (~12x24px). */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 8px;
   background: transparent;
   border: none;
   font-size: 20px;
@@ -2215,6 +2274,25 @@ a:focus-visible {
 
 .modal-close-btn:hover {
   color: var(--text-primary);
+  background: var(--panel-subtle);
+}
+
+/* iOS hace zoom al enfocar un campo con texto de menos de 16px (y no lo deshace). */
+@media (max-width: 640px) {
+  .modal-input,
+  .modal-select,
+  #messageInput,
+  #searchInput {
+    font-size: 16px;
+  }
+}
+
+/* Contadores que se actualizan en vivo: cifras de ancho fijo para que no "bailen". */
+.nav-badge,
+.tab-count,
+.price-total,
+.price-subtotal {
+  font-variant-numeric: tabular-nums;
 }
 
 .modal-body {

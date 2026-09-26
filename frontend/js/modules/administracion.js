@@ -184,7 +184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       let actions = `<button class="btn-sm-action" onclick="adminModule.openEditDevice(${dev.id})" title="Editar"><i data-lucide="pencil"></i> Editar</button>`;
       if (dev.status === 'active') {
-        actions += ` <button class="btn-sm-action btn-danger" onclick="adminModule.revokeDevice(${dev.id})" title="Revocar"><i data-lucide="ban"></i> Revocar</button>`;
+        actions += ` <button class="btn-sm-action delete-action" onclick="adminModule.revokeDevice(${dev.id})" title="Revocar"><i data-lucide="ban"></i> Revocar</button>`;
       }
 
       return `

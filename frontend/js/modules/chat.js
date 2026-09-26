@@ -552,7 +552,7 @@ const chatModule = {
     if (detailLastSeen) detailLastSeen.textContent = conv.updated_at ? utils.formatTime(conv.updated_at) : '-';
     if (detailBranchTag) {
       detailBranchTag.textContent = branch.name || 'Sin sucursal';
-      detailBranchTag.style.backgroundColor = branch.color ? `${branch.color}22` : 'var(--blue-light)';
+      detailBranchTag.style.backgroundColor = branch.color ? `${branch.color}22` : 'var(--blue-soft)';
       detailBranchTag.style.color = branch.color || 'var(--blue)';
     }
     if (detailNotes) {

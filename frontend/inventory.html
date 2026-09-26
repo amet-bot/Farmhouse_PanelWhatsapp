@@ -11,9 +11,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=4.0.0">
-  <link rel="stylesheet" href="css/inventory.css?v=4.0.0">
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
+       entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}</script>
+  <link rel="stylesheet" href="css/style.css?v=4.0.1">
+  <link rel="stylesheet" href="css/inventory.css?v=4.0.1">
+  <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 
