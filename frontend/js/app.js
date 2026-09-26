@@ -259,6 +259,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     await usersModule.init();
     await devicesModule.init();
     wsClient.connect();
+    // Búsqueda que llega desde el buscador del Panel General (/hub → /app?q=...): se busca en
+    // "Todas" porque el cliente puede tener la conversación cerrada.
+    const hubSearch = new URLSearchParams(window.location.search).get('q');
+    if (hubSearch && hubSearch.trim()) {
+      conversationsModule.searchQuery = hubSearch.trim();
+      conversationsModule.activeTab = 'todas';
+      const searchBox = document.getElementById('searchInput');
+      if (searchBox) searchBox.value = hubSearch.trim();
+      document.querySelectorAll('.tab-btn, .filter-pill').forEach((p) => p.classList.toggle('active', p.dataset.tab === 'todas'));
+      const cleanParams = new URLSearchParams(window.location.search);
+      cleanParams.delete('q');
+      const rest = cleanParams.toString();
+      window.history.replaceState({}, document.title, window.location.pathname + (rest ? `?${rest}` : ''));
+    }
     await conversationsModule.init();
     notificationModule.init();
     utils.renderIcons();

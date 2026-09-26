@@ -1,66 +1,125 @@
 /* ============================================================================
-   FARMHOUSE - PANEL GENERAL (HUB DE SISTEMAS)
-   Selector de sistemas en una sola columna. La pantalla de login sigue usando las variables
-   compartidas de style.css sin cambios; el launcher post-login usa una paleta propia --hub-*
-   (más "premium", pensada para el modo oscuro) definida acá, con equivalentes claros que
-   reusan los tokens ya existentes de style.css para no inventar un tema claro nuevo.
+   FARMHOUSE LINK — PANEL GENERAL (HUB)
+   Dos estructuras distintas según el dispositivo (ver hub.html):
+     · escritorio (>= 1100px): sidebar verde fijo + header + dashboard (grilla 3 + actividad)
+     · tablet (768–1099px):    sidebar reducido a íconos + grilla de 2
+     · celular (< 768px):      header mínimo + accesos 2x2 + pendientes + navegación inferior
+   La pantalla de login conserva el estilo compartido de style.css.
    ============================================================================ */
 
 :root, [data-theme="light"] {
-  --hub-bg: var(--bg-primary);
-  --hub-panel: var(--panel-bg);
-  --hub-panel-2: var(--panel-subtle);
-  --hub-border: var(--line);
-  --hub-text: var(--text-primary);
-  --hub-text-secondary: var(--text-secondary);
-  --hub-text-muted: var(--text-muted);
-  --hub-green: var(--green);
-  --hub-green-soft: var(--green-soft);
-  --hub-cyan: #0891b2;
-  --hub-blue: var(--blue);
+  --fh-dark: #073d31;
+  --fh-dark-2: #0b4a3b;
+  --fh-green: #00b86b;
+  --fh-green-strong: #008552;       /* texto verde legible sobre blanco (≥ 4.5:1) */
+  --fh-green-soft: #e7f8ef;
+  --fh-bg: #f6faf8;
+  --fh-panel: #ffffff;
+  --fh-border: #e4ece8;
+  --fh-border-hover: #cfe5da;
+  --fh-text: #0d1f1a;
+  --fh-muted: #63736d;
+  --fh-shadow: 0 2px 10px rgba(0, 0, 0, .03);
+  --fh-shadow-hover: 0 8px 24px rgba(0, 0, 0, .06);
+  --fh-blue: #2563eb;
+  --fh-blue-soft: #eaf1ff;
+  --fh-orange: #d97706;
+  --fh-orange-soft: #fff4e5;
+  --fh-art-1: #cfe9dc;
+  --fh-art-2: #b6dcc8;
+  --fh-art-3: #8cc6a8;
+  --fh-art-4: #5fae86;
 }
 
 [data-theme="dark"] {
-  --hub-bg: #07111F;
-  --hub-panel: #0C1728;
-  --hub-panel-2: #101D30;
-  --hub-border: rgba(100, 140, 190, .18);
-  --hub-text: #F5F7FB;
-  --hub-text-secondary: #8FA4C6;
-  --hub-text-muted: #6B84AC;
-  --hub-green: #16E6A1;
-  --hub-green-soft: rgba(22, 230, 161, .12);
-  --hub-cyan: #24C7FF;
-  --hub-blue: #3B82F6;
+  --fh-dark: #052a21;
+  --fh-dark-2: #0a3a2e;
+  --fh-green: #22c983;
+  --fh-green-strong: #3ddc97;
+  --fh-green-soft: rgba(34, 201, 131, .12);
+  --fh-bg: #0a1411;
+  --fh-panel: #101c18;
+  --fh-border: rgba(255, 255, 255, .08);
+  --fh-border-hover: rgba(34, 201, 131, .35);
+  --fh-text: #eef5f1;
+  --fh-muted: #93a79f;
+  --fh-shadow: 0 2px 10px rgba(0, 0, 0, .25);
+  --fh-shadow-hover: 0 10px 28px rgba(0, 0, 0, .4);
+  --fh-blue: #7aa7ff;
+  --fh-blue-soft: rgba(96, 145, 255, .14);
+  --fh-orange: #f5a524;
+  --fh-orange-soft: rgba(245, 165, 36, .14);
+  --fh-art-1: #15302a;
+  --fh-art-2: #1b3d34;
+  --fh-art-3: #245246;
+  --fh-art-4: #2f6b59;
 }
 
 body {
   margin: 0;
-  background: var(--hub-bg);
+  background: var(--fh-bg);
   font-family: 'Inter', sans-serif;
-  color: var(--hub-text);
-  /* style.css fija height:100vh + overflow:hidden pensando en el Centro WhatsApp (pantalla fija
-     con scroll interno en sus propios paneles) — acá el hub es una página normal que crece con
-     su contenido, así que hay que devolver el scroll de la página. */
+  color: var(--fh-text);
+  /* style.css fija height:100vh + overflow:hidden (Centro WhatsApp scrollea por dentro); el
+     hub es una página normal que crece con su contenido. */
   height: auto;
   min-height: 100vh;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
-/* ---- Pantalla de login (a pantalla completa, no modal flotante) ---- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* :where() = especificidad cero, para que estos reseteos no le ganen a las clases de cada
+   botón o enlace (con `.hub-shell button` el "Ver todo" perdía su tamaño de letra). */
+:where(.hub-shell) a { color: inherit; text-decoration: none; }
+:where(.hub-shell) button { font: inherit; color: inherit; }
+
+.hub-shell :where(a, button, input):focus-visible {
+  outline: 2px solid var(--fh-green);
+  outline-offset: 2px;
+}
+
+/* ---- Arranque (mientras se confirma la sesión) ---- */
+.hub-boot {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.hub-boot img { width: 56px; height: 56px; object-fit: contain; opacity: .9; }
+
+.hub-boot-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid var(--fh-green-soft);
+  border-top-color: var(--fh-green);
+  animation: hubSpin .8s linear infinite;
+}
+
+@keyframes hubSpin { to { transform: rotate(360deg); } }
+
+/* ---- Login (a pantalla completa) ---- */
 .hub-login-screen {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-}
-
-/* .hub-login-screen define display:flex, que le gana al [hidden] nativo (display:none) por
-   especificidad — sin esto, la pantalla de login se quedaba pegada aunque hub.js pusiera
-   hidden=true al entrar. Mismo bug ya visto con el botón de Tilopay (ver style.css). */
-.hub-login-screen[hidden] {
-  display: none !important;
 }
 
 .hub-login-card {
@@ -73,382 +132,800 @@ body {
   overflow: hidden;
 }
 
-/* ---- Encabezado del panel general ---- */
-.hub-header {
+/* ============================================================================
+   ARMAZÓN
+   ============================================================================ */
+.hub-shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+/* ---- Sidebar ---- */
+.hub-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding: 20px 32px;
-  background: var(--hub-panel);
-  border-bottom: 1px solid var(--hub-border);
+  flex-direction: column;
+  gap: 22px;
+  padding: 20px 14px 18px;
+  background: var(--fh-dark);
+  color: #e6f2ec;
+  overflow-y: auto;
 }
 
-.hub-header-brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.hub-header-brand img {
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
-  background: var(--hub-panel-2);
-  border-radius: 10px;
-  padding: 6px;
-  box-sizing: content-box;
-}
-
-.hub-header-titles .hub-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--hub-text);
-}
-
-.hub-header-titles .hub-subtitle {
-  font-size: 12px;
-  color: var(--hub-text-muted);
-}
-
-.hub-header-actions {
+.hub-sidebar-brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-wrap: wrap;
+  padding: 4px 8px;
 }
 
-.hub-header-actions .theme-toggle-btn,
-.hub-header-actions .user-profile {
-  border: 1px solid var(--hub-border);
-  border-radius: 999px;
-  background: var(--hub-panel-2);
-  color: var(--hub-text);
-}
-
-.hub-logout-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 16px;
-  border-radius: 999px;
-  border: 1px solid var(--hub-border);
-  background: var(--hub-panel-2);
-  color: var(--hub-text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.hub-logout-btn:hover,
-.hub-logout-btn:focus-visible {
-  background: var(--danger-bg);
-  color: var(--danger-text);
-  border-color: var(--danger-border);
-  outline: none;
-}
-
-.hub-logout-btn i {
-  width: 16px;
-  height: 16px;
-}
-
-/* ============================================================================
-   LAUNCHER: una sola columna centrada
-   Antes esto era el selector a la izquierda y una vista previa enorme a la derecha, armada con
-   datos inventados. La vista previa se fue: no dejaba usar nada y en celular empujaba el botón
-   de entrar a dos mil píxeles de scroll. Ahora las tarjetas de sistema SON la entrada — se toca
-   una y se entra — así que el launcher es una columna angosta que se lee igual en un monitor
-   que en un teléfono, sin layout aparte para cada uno.
-   ============================================================================ */
-.hub-launcher {
-  width: 100%;
-  max-width: 560px;
-  margin: 0 auto;
-  padding: 40px 24px 56px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-/* ---- Intro ---- */
-.hub-eyebrow {
-  display: block;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--hub-cyan);
-  margin-bottom: 10px;
-  position: relative;
-  padding-bottom: 10px;
-}
-
-.hub-eyebrow::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 28px;
-  height: 2px;
-  background: var(--hub-cyan);
-  border-radius: 2px;
-}
-
-.hub-intro h1 {
-  margin: 0 0 6px;
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1.2;
-  color: var(--hub-text);
-}
-
-.hub-intro p {
-  margin: 0;
-  color: var(--hub-text-secondary);
-  font-size: 14px;
-}
-
-/* ---- Grupos de navegación por dominio ---- */
-.hub-nav-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-
-.hub-nav-group-label {
-  margin: 0 0 12px;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--hub-text-secondary);
-}
-
-/* ---- Lista de sistemas ---- */
-.hub-system-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.hub-system-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  width: 100%;
-  text-align: left;
-  padding: 18px;
-  background: var(--hub-panel);
-  border: 1px solid var(--hub-border);
-  border-radius: 16px;
-  cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, transform 0.15s ease;
-  font-family: inherit;
-  color: inherit;
-}
-
-.hub-system-card:hover {
-  border-color: var(--hub-cyan);
-  transform: translateY(-1px);
-}
-
-.hub-system-card:focus-visible {
-  outline: 2px solid var(--hub-cyan);
-  outline-offset: 2px;
-}
-
-/* Ya no hay estado "elegido" (antes marcaba cuál sistema mostraba la vista previa): ahora la
-   tarjeta se toca y se entra, así que el realce corresponde al hover y al foco de teclado. */
-.hub-system-card:hover:not(.coming-soon),
-.hub-system-card:focus-visible {
-  background: var(--hub-panel-2);
-  border-color: var(--hub-green);
-  box-shadow: 0 0 0 1px var(--hub-green), 0 12px 28px -12px rgba(22, 230, 161, .35);
-  outline: none;
-}
-
-.hub-system-card.coming-soon {
-  opacity: 0.72;
-  cursor: default;
-}
-
-.hub-system-icon {
+.hub-sidebar-brand img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .08);
+  padding: 5px;
+  box-sizing: border-box;
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
+}
+
+.hub-sidebar-brand-text { display: flex; flex-direction: column; min-width: 0; }
+.hub-sidebar-brand-text strong { font-size: 15px; font-weight: 700; color: #fff; }
+.hub-sidebar-brand-text small { font-size: 11.5px; color: rgba(230, 242, 236, .7); }
+
+.hub-sidebar-nav { display: flex; flex-direction: column; gap: 4px; }
+
+.hub-nav-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: var(--hub-green-soft);
-  color: var(--hub-green);
+  gap: 12px;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(230, 242, 236, .82);
+  transition: background .2s ease, color .2s ease;
 }
 
-.hub-system-card.coming-soon .hub-system-icon {
-  background: var(--hub-panel-2);
-  color: var(--hub-text-muted);
-}
+.hub-nav-item i, .hub-nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.hub-nav-item:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+.hub-nav-item.active { background: rgba(255, 255, 255, .10); color: #fff; font-weight: 600; }
+.hub-nav-item.active svg { color: #6ee7b7; }
+.hub-nav-item:focus-visible { outline-color: #6ee7b7; }
 
-.hub-system-icon i {
-  width: 22px;
-  height: 22px;
-}
-
-.hub-system-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.hub-system-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.hub-system-title-row strong {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--hub-text);
-}
-
-.hub-system-badge {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  background: rgba(59, 130, 246, .14);
-  color: var(--hub-blue);
-  border: 1px solid rgba(59, 130, 246, .3);
-}
-
-.hub-system-desc {
-  font-size: 12.5px;
-  color: var(--hub-text-secondary);
-  line-height: 1.5;
-}
-
-.hub-system-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 2px;
-}
-
-.hub-system-tag {
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--hub-panel-2);
-  border: 1px solid var(--hub-border);
-  color: var(--hub-text-secondary);
-  font-size: 10.5px;
-}
-
-.hub-system-chevron {
-  flex-shrink: 0;
-  color: var(--hub-text-muted);
-  margin-top: 10px;
-  transition: color 0.15s ease, transform 0.15s ease;
-}
-
-.hub-system-card:hover:not(.coming-soon) .hub-system-chevron,
-.hub-system-card:focus-visible .hub-system-chevron {
-  color: var(--hub-green);
-  transform: translateX(2px);
-}
-
-.hub-system-card.coming-soon .hub-system-chevron { visibility: hidden; }
-
-.hub-system-chevron i {
-  width: 18px;
-  height: 18px;
-}
-
-/* ---- Card institucional ---- */
-.hub-institutional-card {
+.hub-sidebar-card {
   position: relative;
-  padding: 20px;
-  border-radius: 16px;
-  border: 1px solid var(--hub-border);
-  background: var(--hub-panel);
+  margin-top: auto;
+  min-height: 150px;
+  padding: 18px 16px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .02));
+  border: 1px solid rgba(255, 255, 255, .08);
   overflow: hidden;
 }
 
-.hub-institutional-swoosh {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  color: var(--hub-cyan);
-  opacity: 0.18;
+.hub-sidebar-card p {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(230, 242, 236, .9);
 }
 
-.hub-institutional-title {
+.hub-sidebar-card-bar {
   position: relative;
-  margin: 0 0 4px;
+  z-index: 1;
+  display: block;
+  width: 34px;
+  height: 3px;
+  margin-top: 14px;
+  border-radius: 3px;
+  background: #6ee7b7;
+}
+
+.hub-sidebar-card-art {
+  position: absolute;
+  right: -10px;
+  bottom: -12px;
+  width: 92px;
+  opacity: .5;
+}
+
+.hub-sidebar-card-art .art-leaf { fill: #2f8f6a; }
+.hub-sidebar-card-art .art-leaf-2 { fill: #3aa57b; }
+.hub-sidebar-card-art .art-leaf-3 { fill: #26785a; }
+.hub-sidebar-card-art .art-stem { stroke: #2f8f6a; }
+
+/* ---- Columna principal ---- */
+.hub-main-col { min-width: 0; display: flex; flex-direction: column; }
+
+.hub-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 32px;
+  background: color-mix(in srgb, var(--fh-bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--fh-border);
+}
+
+.hub-search {
+  flex: 0 1 380px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--fh-panel);
+  border: 1px solid var(--fh-border);
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.hub-search:focus-within { border-color: var(--fh-border-hover); box-shadow: 0 0 0 3px var(--fh-green-soft); }
+.hub-search > i, .hub-search > svg { width: 16px; height: 16px; color: var(--fh-muted); flex-shrink: 0; }
+
+.hub-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  color: var(--fh-text);
+  outline: none;
+}
+
+.hub-search input::placeholder { color: var(--fh-muted); }
+.hub-search input:focus-visible { outline: none; }
+
+.hub-search-kbd {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--fh-border);
+  background: var(--fh-bg);
+  font: 600 10.5px/1.4 'Inter', sans-serif;
+  color: var(--fh-muted);
+}
+
+.hub-topbar-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+
+.hub-icon-btn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--fh-border);
+  background: var(--fh-panel);
+  color: var(--fh-text);
+  cursor: pointer;
+  transition: background .2s ease, border-color .2s ease;
+}
+
+.hub-icon-btn:hover { border-color: var(--fh-border-hover); background: var(--fh-green-soft); }
+.hub-icon-btn svg, .hub-icon-btn i { width: 17px; height: 17px; }
+
+.hub-user { display: flex; align-items: center; gap: 10px; }
+
+.hub-avatar {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--fh-green-soft);
+  color: var(--fh-green-strong);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.hub-user-text { display: flex; flex-direction: column; line-height: 1.2; }
+.hub-user-text strong { font-size: 13px; font-weight: 600; }
+.hub-user-text small { font-size: 10.5px; font-weight: 600; letter-spacing: .04em; color: var(--fh-muted); }
+
+.hub-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--fh-border);
+  background: var(--fh-panel);
+  color: var(--fh-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease, border-color .2s ease;
+}
+
+.hub-logout-btn svg, .hub-logout-btn i { width: 16px; height: 16px; }
+.hub-logout-btn:hover { background: var(--danger-bg); color: var(--danger-text); border-color: var(--danger-border); }
+
+/* ---- Contenido ---- */
+.hub-content {
+  width: 100%;
+  max-width: 1240px;
+  padding: 28px 32px 40px;
+  box-sizing: border-box;
+}
+
+/* ---- Hero ---- */
+.hub-hero {
+  position: relative;
+  min-height: 132px;
+  margin-bottom: 8px;
+}
+
+.hub-hero-text { position: relative; z-index: 1; max-width: 560px; }
+
+.hub-eyebrow {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--fh-green-strong);
+}
+
+.hub-hero h1 {
+  margin: 0 0 8px;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -.01em;
+}
+
+.hub-hero p { margin: 0; font-size: 15px; color: var(--fh-muted); }
+
+.hub-hero-art {
+  position: absolute;
+  right: 0;
+  bottom: -18px;
+  width: min(46%, 440px);
+  pointer-events: none;
+}
+
+.hub-hero-art svg { display: block; width: 100%; height: auto; }
+.art-sun { fill: #f8e3a4; opacity: .7; }
+[data-theme="dark"] .art-sun { fill: #6a5a2a; }
+.art-hill-back { fill: var(--fh-art-1); }
+.art-hill-mid { fill: var(--fh-art-2); }
+.art-field path { stroke: var(--fh-art-1); stroke-width: 2; fill: none; opacity: .9; }
+.art-roof { fill: var(--fh-art-4); }
+.art-wall { fill: var(--fh-panel); stroke: var(--fh-art-3); stroke-width: 1.5; }
+.art-door { fill: var(--fh-art-3); }
+.art-trees ellipse { fill: var(--fh-art-3); }
+.art-trees rect { fill: var(--fh-art-4); }
+.art-stem { stroke: var(--fh-art-4); stroke-width: 3; fill: none; stroke-linecap: round; }
+.art-leaf { fill: var(--fh-art-3); }
+.art-leaf-2 { fill: var(--fh-art-4); }
+.art-leaf-3 { fill: var(--fh-art-2); }
+
+/* ---- Grilla de módulos ---- */
+.hub-module-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.hub-module-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 180px;
+  padding: 20px;
+  background: var(--fh-panel);
+  border: 1px solid var(--fh-border);
+  border-radius: 16px;
+  box-shadow: var(--fh-shadow);
+  cursor: pointer;
+  transition: all .2s ease;
+}
+
+.hub-module-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--fh-shadow-hover);
+  border-color: var(--fh-border-hover);
+}
+
+.hub-module-card:active { transform: translateY(0); }
+
+.hub-module-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 6px; }
+
+.hub-module-icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--fh-green-soft);
+  color: var(--fh-green-strong);
+}
+
+.hub-module-icon svg, .hub-module-icon i { width: 22px; height: 22px; }
+
+.hub-module-arrow,
+.hub-m-card-arrow {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--fh-border);
+  color: var(--fh-muted);
+  transition: all .2s ease;
+}
+
+.hub-module-arrow svg, .hub-m-card-arrow svg { width: 15px; height: 15px; }
+.hub-module-card:hover .hub-module-arrow { color: var(--fh-green-strong); border-color: var(--fh-border-hover); transform: translateX(2px); }
+
+.hub-module-title { font-size: 16.5px; font-weight: 700; line-height: 1.25; }
+.hub-module-desc { font-size: 13px; line-height: 1.5; color: var(--fh-muted); }
+
+.hub-module-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 6px; }
+
+.hub-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--fh-border);
+  background: var(--fh-bg);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--fh-muted);
+}
+
+/* Tarjeta de marca: completa la última fila (--span viene de hub.js). */
+.hub-brand-card {
+  grid-column: span var(--span, 1);
+  position: relative;
+  min-height: 180px;
+  padding: 22px 22px;
+  border-radius: 16px;
+  border: 1px solid var(--fh-border);
+  background: linear-gradient(135deg, var(--fh-green-soft), color-mix(in srgb, var(--fh-green-soft) 40%, var(--fh-panel)));
+  overflow: hidden;
+}
+
+.hub-brand-card p {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--fh-text);
+}
+
+.hub-brand-bar {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 38px;
+  height: 3px;
+  margin-top: 16px;
+  border-radius: 3px;
+  background: var(--fh-green);
+}
+
+.hub-brand-art { position: absolute; right: 8px; bottom: -6px; width: 118px; opacity: .9; }
+
+/* A lo ancho (cuando los módulos llenan filas completas) es una franja, no un bloque alto. */
+.hub-brand-card[data-span="3"] { min-height: 116px; }
+.hub-brand-card[data-span="3"] p br:nth-of-type(2) { display: none; }
+.hub-brand-card[data-span="3"] .hub-brand-art { width: 92px; }
+.hub-brand-art svg { display: block; width: 100%; height: auto; }
+
+.hub-search-empty {
+  margin: 14px 2px 0;
+  font-size: 13px;
+  color: var(--fh-muted);
+}
+
+/* ---- Bloques (actividad / pendientes) ---- */
+.hub-activity,
+.hub-pending {
+  margin-top: 18px;
+  padding: 16px 20px 8px;
+  background: var(--fh-panel);
+  border: 1px solid var(--fh-border);
+  border-radius: 16px;
+  box-shadow: var(--fh-shadow);
+}
+
+.hub-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.hub-block-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
   font-size: 15px;
   font-weight: 700;
-  line-height: 1.3;
-  color: var(--hub-text);
 }
 
-.hub-institutional-sub {
-  position: relative;
-  margin: 0;
+.hub-block-head h2 svg, .hub-block-head h2 i { width: 17px; height: 17px; color: var(--fh-muted); }
+
+.hub-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  padding: 4px 2px;
   font-size: 12.5px;
-  color: var(--hub-text-secondary);
+  font-weight: 600;
+  color: var(--fh-green-strong);
+  cursor: pointer;
 }
 
-/* ---- Firma institucional ---- */
-.hub-signature {
-  margin: 4px 0 0;
-  text-align: center;
+.hub-link-btn svg, .hub-link-btn i { width: 14px; height: 14px; }
+.hub-link-btn:hover { text-decoration: underline; }
+
+.hub-activity-row {
+  display: grid;
+  grid-template-columns: 32px 8px minmax(0, 1fr) auto 104px;
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  padding: 6px 4px;
+  border-top: 1px solid var(--fh-border);
+  border-radius: 8px;
+  transition: background .2s ease;
+}
+
+.hub-activity-row:first-child { border-top: 0; }
+.hub-activity-row:hover { background: var(--fh-bg); }
+
+.hub-activity-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+}
+
+.hub-activity-icon svg, .hub-activity-icon i { width: 16px; height: 16px; }
+
+.hub-activity-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+.hub-activity-text { display: flex; flex-direction: column; min-width: 0; }
+
+.hub-activity-text strong,
+.hub-activity-text small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hub-activity-text strong { font-size: 13px; font-weight: 600; }
+.hub-activity-text small { font-size: 12px; color: var(--fh-muted); }
+
+.hub-activity-when {
   font-size: 12px;
-  font-style: italic;
-  color: var(--hub-text-muted);
+  color: var(--fh-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.hub-badge {
+  justify-self: end;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tone-green.hub-activity-icon, .tone-green.hub-badge { background: var(--fh-green-soft); color: var(--fh-green-strong); }
+.tone-blue.hub-activity-icon, .tone-blue.hub-badge { background: var(--fh-blue-soft); color: var(--fh-blue); }
+.tone-orange.hub-activity-icon, .tone-orange.hub-badge { background: var(--fh-orange-soft); color: var(--fh-orange); }
+.hub-activity-dot.tone-green { background: var(--fh-green); }
+.hub-activity-dot.tone-blue { background: var(--fh-blue); }
+.hub-activity-dot.tone-orange { background: var(--fh-orange); }
+
+.hub-block-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 4px 16px;
+  font-size: 13px;
+  color: var(--fh-muted);
+}
+
+.hub-block-empty svg { width: 16px; height: 16px; color: var(--fh-green); }
+
+.hub-skeleton {
+  height: 38px;
+  margin: 8px 0;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--fh-bg), var(--fh-border), var(--fh-bg));
+  background-size: 200% 100%;
+  animation: hubShimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes hubShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+/* ============================================================================
+   CELULAR — piezas propias (ocultas en escritorio)
+   ============================================================================ */
+.hub-m-header,
+.hub-mobile,
+.hub-bottom-nav { display: none; }
+
+.hub-m-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+.hub-m-brand img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: var(--fh-dark);
+  padding: 5px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.hub-m-brand span { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.hub-m-brand strong { font-size: 15px; font-weight: 700; }
+.hub-m-brand small { font-size: 11.5px; color: var(--fh-muted); }
+
+.hub-m-header-actions { display: flex; align-items: center; gap: 10px; }
+
+.hub-avatar-btn { border: 0; cursor: pointer; }
+
+.hub-bell-dot {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fh-green);
+  border: 2px solid var(--fh-panel);
+}
+
+.hub-m-welcome { margin: 4px 0 18px; }
+.hub-m-greeting { margin: 0 0 4px; font-size: 15px; color: var(--fh-text); }
+.hub-m-greeting strong { font-weight: 700; }
+
+.hub-m-welcome h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -.01em;
+}
+
+.hub-m-sub { margin: 0; font-size: 14px; line-height: 1.45; color: var(--fh-muted); }
+
+.hub-m-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+.hub-m-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 130px;
+  padding: 14px;
+  background: var(--fh-panel);
+  border: 1px solid var(--fh-border);
+  border-radius: 16px;
+  box-shadow: var(--fh-shadow);
+  cursor: pointer;
+  transition: all .2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hub-m-card:active { transform: scale(.98); border-color: var(--fh-border-hover); }
+.hub-m-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+.hub-module-icon-lg { width: 46px; height: 46px; }
+.hub-module-icon-lg svg { width: 24px; height: 24px; }
+.hub-m-card-arrow { width: 26px; height: 26px; border: 0; }
+.hub-m-card strong { font-size: 16px; font-weight: 700; }
+.hub-m-card small { font-size: 12.5px; line-height: 1.35; color: var(--fh-muted); }
+
+.hub-pending { scroll-margin-top: 80px; }
+
+.hub-pending-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 2px;
+  border-top: 1px solid var(--fh-border);
+}
+
+.hub-pending-row:first-child { border-top: 0; }
+.hub-pending-row .hub-activity-icon { width: 34px; height: 34px; }
+.hub-pending-arrow { color: var(--fh-muted); }
+.hub-pending-arrow svg { width: 16px; height: 16px; }
+
+.hub-bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  height: calc(68px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--fh-panel);
+  border-top: 1px solid #e7ece9;
+}
+
+[data-theme="dark"] .hub-bottom-nav { border-top-color: var(--fh-border); }
+
+.hub-bottom-item {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fh-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hub-bottom-item svg, .hub-bottom-item i { width: 22px; height: 22px; }
+.hub-bottom-item.active { color: var(--fh-green-strong); font-weight: 600; }
+.hub-bottom-item .hub-bell-dot { top: 10px; right: calc(50% - 16px); }
+
+/* ---- Perfil (hoja inferior) ---- */
+.hub-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(6, 20, 16, .45);
+}
+
+.hub-sheet {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  background: var(--fh-panel);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, .18);
+  animation: hubSheetIn .22s ease-out;
+}
+
+@keyframes hubSheetIn { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.hub-sheet-handle { width: 40px; height: 4px; margin: 0 auto 14px; border-radius: 4px; background: var(--fh-border); }
+
+.hub-sheet-user { display: flex; align-items: center; gap: 12px; padding: 4px 4px 14px; border-bottom: 1px solid var(--fh-border); }
+.hub-sheet-user div { display: flex; flex-direction: column; }
+.hub-sheet-user strong { font-size: 15px; }
+.hub-sheet-user small { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; color: var(--fh-muted); }
+.hub-avatar-lg { width: 46px; height: 46px; font-size: 15px; }
+
+.hub-sheet-links { padding: 6px 0; border-bottom: 1px solid var(--fh-border); }
+.hub-sheet-links:empty { display: none; }
+
+.hub-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 14.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hub-sheet-row svg, .hub-sheet-row i { width: 19px; height: 19px; color: var(--fh-muted); }
+.hub-sheet-row:hover { background: var(--fh-bg); }
+.hub-sheet-danger, .hub-sheet-danger svg { color: var(--danger-icon); }
+
+.hub-sheet-close {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 8px;
+  border: 1px solid var(--fh-border);
+  border-radius: 12px;
+  background: var(--fh-bg);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 /* ============================================================================
-   PANTALLAS CHICAS
-   El launcher ya es una sola columna centrada, así que en celular solo hay que apretar
-   los espacios y comprimir el encabezado a una fila.
+   TABLET (768–1099px): sidebar de íconos, grilla de 2
    ============================================================================ */
-@media (max-width: 720px) {
-  .hub-header { padding: 12px 14px; gap: 10px; flex-wrap: nowrap; }
-  .hub-header-brand { min-width: 0; }
-  .hub-header-brand img { max-height: 34px; }
-  .hub-header-titles { min-width: 0; }
+@media (max-width: 1099px) {
+  .hub-shell { grid-template-columns: 76px minmax(0, 1fr); }
+  .hub-sidebar { padding: 18px 10px; align-items: center; }
+  .hub-sidebar-brand { padding: 0; }
+  .hub-sidebar-brand-text,
+  .hub-nav-item span,
+  .hub-sidebar-card { display: none; }
+  .hub-sidebar-nav { width: 100%; }
+  .hub-nav-item { justify-content: center; padding: 0; height: 44px; }
 
-  .hub-header-titles .hub-title {
-    font-size: 14px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+  .hub-topbar { padding: 0 24px; }
+  .hub-user-text { display: none; }
+  .hub-content { padding: 24px 24px 36px; }
 
-  .hub-header-titles .hub-subtitle { display: none; }
-
-  .hub-header-actions { gap: 7px; flex-wrap: nowrap; }
-  /* Solo el bloque de nombre y rol: el avatar es el otro div hijo directo y se queda. */
-  .hub-header-actions .user-profile > div:not(.profile-avatar) { display: none; }
-  .hub-header-actions .user-profile { padding: 4px; gap: 0; }
-  .hub-logout-btn { padding: 9px 11px; }
-  .hub-logout-btn span { display: none; }
-
-  .hub-launcher { padding: 20px 16px 36px; gap: 20px; }
-  .hub-intro h1 { font-size: 22px; }
-  .hub-system-card { padding: 15px; gap: 12px; }
-  .hub-institutional-card { padding: 18px; }
+  .hub-module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Con 2 columnas la tarjeta de marca va a lo ancho: un span de 3 crearía columnas de más. */
+  .hub-brand-card { grid-column: 1 / -1; min-height: 130px; }
+  .hub-hero-art { width: min(44%, 340px); }
+  .hub-hero h1 { font-size: 28px; }
 }
 
-@media (max-width: 480px) {
-  .hub-system-title-row { flex-wrap: wrap; }
-  .hub-system-tags { gap: 5px; }
+/* ============================================================================
+   CELULAR (< 768px): otra estructura — sin sidebar, sin header de escritorio
+   ============================================================================ */
+@media (max-width: 767px) {
+  .hub-shell { display: block; }
+  .hub-sidebar,
+  .hub-topbar,
+  .hub-desktop { display: none; }
+
+  .hub-m-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    background: color-mix(in srgb, var(--fh-bg) 92%, transparent);
+    backdrop-filter: blur(8px);
+  }
+
+  .hub-mobile { display: block; }
+  .hub-bottom-nav { display: flex; }
+
+  /* Espacio para que la navegación inferior no tape el último bloque. */
+  .hub-content { padding: 8px 16px calc(68px + 28px + env(safe-area-inset-bottom, 0px)); }
+  .hub-pending { padding: 14px 16px 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-module-card, .hub-m-card, .hub-sheet, .hub-skeleton, .hub-boot-spinner { animation: none; transition: none; }
+  .hub-module-card:hover { transform: none; }
 }

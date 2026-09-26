@@ -6,7 +6,7 @@
   <title>Farmhouse Link</title>
   <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#16a34a">
+  <meta name="theme-color" content="#073d31">
   <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,14 +15,22 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.0.2">
-  <link rel="stylesheet" href="css/hub.css?v=3.2.0">
+  <link rel="stylesheet" href="css/hub.css?v=4.1.2">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 
-  <!-- Pantalla de inicio de sesión: se muestra hasta confirmar que hay sesión activa -->
-  <div class="hub-login-screen" id="hubLoginScreen">
+  <!-- Mientras se confirma si hay sesión: ni login ni panel. Antes arrancaba mostrando el
+       login, y quien ya tenía sesión lo veía aparecer un instante antes del panel. -->
+  <div class="hub-boot" id="hubBoot" aria-live="polite">
+    <img src="assets/images/farmhouse-logo.png" alt="" onerror="this.style.display='none'">
+    <span class="hub-boot-spinner" aria-hidden="true"></span>
+    <span class="sr-only">Cargando Farmhouse Link…</span>
+  </div>
+
+  <!-- Pantalla de inicio de sesión -->
+  <div class="hub-login-screen" id="hubLoginScreen" hidden>
     <div class="hub-login-card">
       <div class="modal-header login-modal-header">
         <div class="login-brand-header">
@@ -43,37 +51,14 @@
           <div id="loginError" class="login-error-box" style="display:none"></div>
           <div>
             <label class="modal-label" for="username">Usuario / Código de Empleado:</label>
-            <input
-              type="text"
-              id="username"
-              name="username"
-              autocomplete="username"
-              class="modal-input"
-              placeholder="admin, carlos01..."
-              required
-            />
+            <input type="text" id="username" name="username" autocomplete="username" class="modal-input" placeholder="admin, carlos01..." required />
           </div>
           <div>
             <label class="modal-label" for="password">Contraseña:</label>
             <div style="position:relative;display:flex;align-items:center">
-              <input
-                type="password"
-                id="password"
-                name="password"
-                autocomplete="current-password"
-                class="modal-input"
-                placeholder="••••••••"
-                required
-                style="padding-right:38px"
-              />
-              <button
-                type="button"
-                id="btnTogglePassword"
-                class="btn-toggle-password"
-                title="Mostrar/Ocultar contraseña"
-                aria-label="Mostrar u ocultar contraseña"
-              >
-                <i data-lucide="eye" id="passwordEyeIcon"></i>
+              <input type="password" id="password" name="password" autocomplete="current-password" class="modal-input" placeholder="••••••••" required style="padding-right:38px" />
+              <button type="button" id="btnTogglePassword" class="btn-toggle-password" title="Mostrar/Ocultar contraseña" aria-label="Mostrar u ocultar contraseña">
+                <i data-lucide="eye"></i>
               </button>
             </div>
           </div>
@@ -85,60 +70,171 @@
     </div>
   </div>
 
-  <!-- Panel general: solo visible con sesión confirmada -->
-  <div class="hub-main-wrap" id="hubMain" hidden>
-    <header class="hub-header">
-      <div class="hub-header-brand">
-        <img src="assets/images/farmhouse-logo.png" alt="Farmhouse" onerror="this.style.display='none'">
-        <div class="hub-header-titles">
-          <p class="hub-title">Farmhouse Link</p>
-          <span class="hub-subtitle">Grupo Col Rizado</span>
-        </div>
+  <!-- ======================================================================
+       Panel general. Dos estructuras distintas a propósito (no la misma apilada):
+       - Escritorio / tablet: sidebar + header + dashboard (grilla de módulos y actividad).
+       - Celular: header mínimo + accesos rápidos 2x2 + pendientes + navegación inferior.
+       Los datos se cargan una vez y se pintan en las dos; el CSS muestra la que corresponde.
+       ====================================================================== -->
+  <div class="hub-shell" id="hubMain" hidden>
+
+    <!-- ---------- Sidebar (escritorio / tablet) ---------- -->
+    <aside class="hub-sidebar" aria-label="Navegación principal">
+      <a class="hub-sidebar-brand" href="/hub" aria-label="Farmhouse Link, inicio">
+        <img src="assets/images/farmhouse-logo.png" alt="" onerror="this.style.display='none'">
+        <span class="hub-sidebar-brand-text">
+          <strong>Farmhouse Link</strong>
+          <small>Grupo Col Rizado</small>
+        </span>
+      </a>
+      <nav class="hub-sidebar-nav" id="hubSidebarNav"><!-- hub.js --></nav>
+      <div class="hub-sidebar-card" aria-hidden="true">
+        <p>Conectando<br>personas, procesos<br>y productos</p>
+        <span class="hub-sidebar-card-bar"></span>
+        <div class="hub-sidebar-card-art" id="hubSidebarArt"></div>
       </div>
-      <div class="hub-header-actions">
-        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
-          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
-          <span class="theme-label">Oscuro</span>
-        </button>
-        <div class="user-profile">
-          <div class="profile-avatar" id="hubAgentAvatar">AD</div>
+    </aside>
+
+    <div class="hub-main-col">
+      <!-- ---------- Header superior (escritorio / tablet) ---------- -->
+      <header class="hub-topbar">
+        <form class="hub-search" id="hubSearchForm" role="search">
+          <i data-lucide="search" aria-hidden="true"></i>
+          <label class="sr-only" for="hubSearchInput">Buscar módulos o clientes</label>
+          <input type="search" id="hubSearchInput" placeholder="Buscar módulos o clientes…" autocomplete="off" aria-describedby="hubSearchHint">
+          <kbd class="hub-search-kbd" id="hubSearchKbd" aria-hidden="true">Ctrl K</kbd>
+          <span class="sr-only" id="hubSearchHint">Escribí para filtrar los módulos. Enter busca clientes en Centro WhatsApp.</span>
+        </form>
+        <div class="hub-topbar-actions">
+          <button type="button" class="hub-icon-btn" id="btnThemeToggle" aria-label="Cambiar tema claro u oscuro" title="Cambiar tema">
+            <span id="themeIconSlot"><i data-lucide="moon"></i></span>
+            <span class="theme-label sr-only">Oscuro</span>
+          </button>
+          <div class="hub-user">
+            <span class="hub-avatar" id="hubAgentAvatar">··</span>
+            <span class="hub-user-text">
+              <strong id="hubAgentName">…</strong>
+              <small id="hubAgentRole"></small>
+            </span>
+          </div>
+          <button type="button" class="hub-logout-btn" id="btnLogout">
+            <i data-lucide="log-out" aria-hidden="true"></i>
+            <span>Salir</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- ---------- Header móvil ---------- -->
+      <header class="hub-m-header">
+        <a class="hub-m-brand" href="/hub" aria-label="Farmhouse Link, inicio">
+          <img src="assets/images/farmhouse-logo.png" alt="" onerror="this.style.display='none'">
+          <span>
+            <strong>Farmhouse Link</strong>
+            <small>Grupo Col Rizado</small>
+          </span>
+        </a>
+        <div class="hub-m-header-actions">
+          <button type="button" class="hub-icon-btn hub-bell" id="btnMobileBell" aria-label="Ver pendientes de hoy">
+            <i data-lucide="bell"></i>
+            <span class="hub-bell-dot" id="hubBellDot" hidden></span>
+          </button>
+          <button type="button" class="hub-avatar hub-avatar-btn" id="hubMobileAvatar" aria-label="Abrir perfil">··</button>
+        </div>
+      </header>
+
+      <main class="hub-content" id="hubContent">
+        <!-- ===== Escritorio / tablet ===== -->
+        <section class="hub-desktop" aria-label="Panel principal">
+          <div class="hub-hero">
+            <div class="hub-hero-text">
+              <span class="hub-eyebrow">Bienvenido al sistema</span>
+              <h1>¿Qué quieres gestionar hoy?</h1>
+              <p>Accedé rápidamente a los principales módulos del sistema.</p>
+            </div>
+            <div class="hub-hero-art" id="hubHeroArt" aria-hidden="true"></div>
+          </div>
+
+          <div class="hub-module-grid" id="hubModuleGrid"><!-- hub.js --></div>
+          <p class="hub-search-empty" id="hubSearchEmpty" hidden>
+            Ningún módulo coincide. Presioná <strong>Enter</strong> para buscar ese cliente en Centro WhatsApp.
+          </p>
+
+          <section class="hub-activity" aria-labelledby="hubActivityTitle">
+            <div class="hub-block-head">
+              <h2 id="hubActivityTitle"><i data-lucide="clock" aria-hidden="true"></i> Actividad reciente</h2>
+              <button type="button" class="hub-link-btn" id="btnActivityAll" hidden>Ver todo <i data-lucide="arrow-right" aria-hidden="true"></i></button>
+            </div>
+            <div class="hub-activity-list" id="hubActivityList"><!-- hub.js --></div>
+          </section>
+        </section>
+
+        <!-- ===== Celular ===== -->
+        <section class="hub-mobile" aria-label="Accesos rápidos">
+          <div class="hub-m-welcome">
+            <p class="hub-m-greeting" id="hubGreeting">Hola</p>
+            <h1>¿Qué quieres hacer?</h1>
+            <p class="hub-m-sub">Accedé rápidamente a los principales módulos del sistema.</p>
+          </div>
+
+          <div class="hub-m-grid" id="hubMobileGrid"><!-- hub.js --></div>
+
+          <section class="hub-pending" id="hubPending" aria-labelledby="hubPendingTitle">
+            <div class="hub-block-head">
+              <h2 id="hubPendingTitle"><i data-lucide="calendar-check" aria-hidden="true"></i> Pendiente hoy</h2>
+              <a class="hub-link-btn" href="/operacion">Ver todo <i data-lucide="arrow-right" aria-hidden="true"></i></a>
+            </div>
+            <div class="hub-pending-list" id="hubPendingList"><!-- hub.js --></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <!-- ---------- Navegación inferior (celular) ---------- -->
+    <nav class="hub-bottom-nav" aria-label="Navegación">
+      <button type="button" class="hub-bottom-item active" data-bottom="inicio" aria-current="page">
+        <i data-lucide="house" aria-hidden="true"></i><span>Inicio</span>
+      </button>
+      <a class="hub-bottom-item" href="/operacion" data-bottom="tareas">
+        <i data-lucide="clipboard-list" aria-hidden="true"></i><span>Tareas</span>
+      </a>
+      <button type="button" class="hub-bottom-item" data-bottom="avisos">
+        <i data-lucide="bell" aria-hidden="true"></i><span>Avisos</span>
+        <span class="hub-bell-dot" id="hubBottomBellDot" hidden></span>
+      </button>
+      <button type="button" class="hub-bottom-item" data-bottom="perfil">
+        <i data-lucide="user" aria-hidden="true"></i><span>Perfil</span>
+      </button>
+    </nav>
+
+    <!-- ---------- Perfil (celular): acá vive "Salir", no en el header ---------- -->
+    <div class="hub-sheet-backdrop" id="hubProfileSheet" hidden>
+      <div class="hub-sheet" role="dialog" aria-modal="true" aria-labelledby="hubProfileName">
+        <div class="hub-sheet-handle" aria-hidden="true"></div>
+        <div class="hub-sheet-user">
+          <span class="hub-avatar hub-avatar-lg" id="hubProfileAvatar">··</span>
           <div>
-            <strong id="hubAgentName">Administrador</strong>
-            <small id="hubAgentRole">ADMIN</small>
+            <strong id="hubProfileName">…</strong>
+            <small id="hubProfileRole"></small>
           </div>
         </div>
-        <button class="hub-logout-btn" id="btnLogout">
-          <i data-lucide="log-out"></i>
-          <span>Salir</span>
+        <div class="hub-sheet-links" id="hubProfileLinks"><!-- hub.js: módulos que no están en los accesos rápidos --></div>
+        <button type="button" class="hub-sheet-row" id="btnMobileTheme">
+          <span id="mobileThemeIconSlot"><i data-lucide="moon"></i></span>
+          <span id="mobileThemeLabel">Modo oscuro</span>
         </button>
+        <button type="button" class="hub-sheet-row hub-sheet-danger" id="btnLogoutMobile">
+          <i data-lucide="log-out" aria-hidden="true"></i><span>Salir</span>
+        </button>
+        <button type="button" class="hub-sheet-close" id="btnCloseProfile">Cerrar</button>
       </div>
-    </header>
-
-    <main class="hub-launcher">
-      <div class="hub-intro">
-        <span class="hub-eyebrow">Bienvenido al sistema</span>
-        <h1>¿A qué sistema querés entrar?</h1>
-        <p>Tocá un sistema para entrar.</p>
-      </div>
-
-      <div class="hub-nav-groups" id="systemList"><!-- Renderizado por hub.js desde NAV_GROUPS --></div>
-
-      <div class="hub-institutional-card">
-        <svg class="hub-institutional-swoosh" viewBox="0 0 220 40" preserveAspectRatio="none" aria-hidden="true">
-          <path d="M0 30 C 40 5, 80 35, 120 15 S 200 5, 220 20" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        </svg>
-        <p class="hub-institutional-title">Gestión integrada<br>para un mejor negocio.</p>
-        <p class="hub-institutional-sub">Farmhouse Link: un mismo lugar para todo.</p>
-      </div>
-
-      <p class="hub-signature">Tu crecimiento, nuestro compromiso.</p>
-    </main>
+    </div>
   </div>
 
   <script src="js/utils.js?v=3.5.0"></script>
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.0.0"></script>
-  <script src="js/modules/hub.js?v=3.6.2"></script>
+  <script src="js/modules/hub_components.js?v=1.0.1"></script>
+  <script src="js/modules/hub.js?v=4.1.2"></script>
 </body>
 </html>
