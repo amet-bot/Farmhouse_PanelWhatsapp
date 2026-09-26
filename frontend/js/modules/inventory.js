@@ -1808,6 +1808,180 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadWaste({ reset: true });
   });
 
+  // ==========================================================================
+  // Merma → Análisis (los números salen de GET /inventory/waste/analytics)
+  // ==========================================================================
+  const wasteAnalysis = { tab: 'registros', period: '30', branch: '', metric: 'cost', data: null, seq: 0 };
+
+  /** Hoy en Panamá (YYYY-MM-DD): los días de la merma y de las ventas se cuentan en esa hora. */
+  function hoyPanama() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+  }
+  function isoMasDias(iso, dias) {
+    const d = new Date(`${iso}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + dias);
+    return d.toISOString().slice(0, 10);
+  }
+  function periodoMerma(p) {
+    const hoy = hoyPanama();
+    if (p === '7') return { from: isoMasDias(hoy, -6), to: hoy };
+    if (p === 'mes') return { from: `${hoy.slice(0, 7)}-01`, to: hoy };
+    if (p === 'mes-anterior') {
+      const finAnterior = isoMasDias(`${hoy.slice(0, 7)}-01`, -1);
+      return { from: `${finAnterior.slice(0, 7)}-01`, to: finAnterior };
+    }
+    return { from: isoMasDias(hoy, -29), to: hoy };
+  }
+  const fechaCorta = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-PA', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const kgTxt = (n) => `${qty(n)} kg`;
+
+  function setWasteTab(tab) {
+    wasteAnalysis.tab = tab;
+    document.querySelectorAll('#wasteTabs [data-waste-tab]').forEach((b) => {
+      const on = b.dataset.wasteTab === tab;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    $('wasteAnalysis').hidden = tab !== 'analisis';
+    $('wasteRecordsPane').hidden = tab !== 'registros';
+    if (tab === 'analisis') loadWasteAnalysis();
+  }
+  document.querySelectorAll('#wasteTabs [data-waste-tab]').forEach((b) => b.addEventListener('click', () => setWasteTab(b.dataset.wasteTab)));
+
+  function segmentado(id, attr, onPick) {
+    document.querySelectorAll(`#${id} [data-${attr}]`).forEach((b) => b.addEventListener('click', () => {
+      document.querySelectorAll(`#${id} [data-${attr}]`).forEach((x) => x.classList.toggle('active', x === b));
+      onPick(b.dataset[attr]);
+    }));
+  }
+  segmentado('wastePeriod', 'period', (p) => { wasteAnalysis.period = p; loadWasteAnalysis(); });
+  segmentado('wasteMetric', 'metric', (m) => { wasteAnalysis.metric = m; renderWasteAnalysis(); });
+  $('wasteAnalysisBranch')?.addEventListener('change', (e) => { wasteAnalysis.branch = e.target.value; loadWasteAnalysis(); });
+
+  async function loadWasteAnalysis() {
+    const sel = $('wasteAnalysisBranch');
+    if (state.isGlobalScope && sel && !sel.options.length) {
+      sel.innerHTML = '<option value="">Todas las sucursales</option>' +
+        state.branches.map((b) => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
+    }
+    if (sel) sel.hidden = !state.isGlobalScope;
+
+    const { from, to } = periodoMerma(wasteAnalysis.period);
+    const params = new URLSearchParams({ date_from: from, date_to: to });
+    if (wasteAnalysis.branch) params.set('branch_id', wasteAnalysis.branch);
+    const seq = ++wasteAnalysis.seq;
+    $('wasteKpis').innerHTML = '<div class="inv-kpi inv-kpi-skeleton"></div>'.repeat(4);
+    try {
+      const data = await api.get(`/inventory/waste/analytics?${params}`);
+      if (seq !== wasteAnalysis.seq) return;   // llegó otra más nueva (se cambió el período)
+      wasteAnalysis.data = data;
+      renderWasteAnalysis();
+    } catch (err) {
+      if (seq !== wasteAnalysis.seq) return;
+      $('wasteKpis').innerHTML = '';
+      utils.showToast(err.message || 'No se pudo calcular la merma.', 'error');
+    }
+  }
+
+  function barsHtml(filas, { valor, etiqueta, extra }) {
+    const tope = Math.max(...filas.map(valor), 0);
+    return filas.map((f) => `
+      <div class="inv-bar-row inv-bar-row-waste">
+        <span class="inv-bar-name">${etiqueta(f)}</span>
+        <span class="inv-bar-value">${extra(f)}</span>
+        <span class="inv-bar-track"><span class="inv-bar-fill inv-bar-fill-waste" style="width:${tope > 0 && valor(f) > 0 ? Math.max(3, (valor(f) / tope) * 100) : 0}%"></span></span>
+      </div>`).join('');
+  }
+
+  function renderWasteAnalysis() {
+    const a = wasteAnalysis.data;
+    if (!a) return;
+    const t = a.totals;
+    const porKg = wasteAnalysis.metric === 'kg';
+    const val = (x) => Number(porKg ? (x.kg || 0) : x.cost);
+    const fmt = (x) => (porKg ? (x.kg != null ? kgTxt(x.kg) : '—') : money(x.cost));
+    const sucursal = a.branch_id ? (state.branches.find((b) => b.id === a.branch_id)?.name || '') : 'todas las sucursales';
+
+    $('wasteAnalysisRange').textContent = `Del ${fechaCorta(a.date_from)} al ${fechaCorta(a.date_to)} · ${sucursal}`;
+
+    const subCosto = [];
+    if (Number(t.cost_estimated) > 0) subCosto.push(`${money(t.cost_estimated)} estimado con costo de Invu`);
+    if (t.lines_without_cost) subCosto.push(`${pluralize(t.lines_without_cost, 'línea', 'líneas')} sin costo`);
+    const kpis = [
+      { icon: 'dollar-sign', label: 'Pérdida', value: money(t.cost_total), sub: subCosto.join(' · ') || 'Al costo de los cargamentos' },
+      { icon: 'scale', label: 'Kilos descartados', value: kgTxt(t.kg_total),
+        sub: t.lines_without_kg ? `${pluralize(t.lines_without_kg, 'línea', 'líneas')} por unidad sin peso` : 'Todo lo registrado' },
+      { icon: 'trending-down', label: 'Mermas', value: String(t.records),
+        sub: t.records ? `${t.records_with_photo} con foto · ${t.records_with_weight} con peso` : 'Ninguna en el período' },
+      { icon: 'percent', label: 'Merma sobre ventas', value: t.waste_pct_of_sales != null ? `${Number(t.waste_pct_of_sales).toLocaleString('es-PA', { maximumFractionDigits: 2 })}%` : '—',
+        sub: t.sales_net != null ? `de ${money(t.sales_net)} vendidos (Invu)` : 'Sin ventas de Invu en el período' },
+    ];
+    $('wasteKpis').innerHTML = kpis.map((k) => `
+      <div class="inv-kpi">
+        <span class="inv-kpi-label"><i data-lucide="${k.icon}"></i> ${esc(k.label)}</span>
+        <span class="inv-kpi-value">${esc(k.value)}</span>
+        <span class="inv-kpi-sub">${esc(k.sub)}</span>
+      </div>`).join('');
+
+    // ---- Pérdida por día: barras hechas con CSS (se adaptan al ancho, en el celular también) ----
+    const dias = a.by_day;
+    const topeDia = Math.max(...dias.map(val), 0);
+    const cadaCuanto = dias.length > 16 ? Math.ceil(dias.length / 8) : 1;
+    $('wasteDayNote').textContent = porKg ? 'En kilos' : 'En dólares';
+    $('wasteDayChart').innerHTML = t.records ? `
+      <div class="inv-daychart-top">${topeDia > 0 ? (porKg ? kgTxt(topeDia) : money(topeDia)) : ''}</div>
+      <div class="inv-daychart-bars">
+        ${dias.map((d, i) => {
+          const alto = topeDia > 0 ? (val(d) / topeDia) * 100 : 0;
+          const detalle = `${fechaCorta(d.date)}: ${money(d.cost)} · ${kgTxt(d.kg)} · ${pluralize(d.records, 'merma', 'mermas')}`;
+          return `
+            <div class="inv-daybar" title="${esc(detalle)}" aria-label="${esc(detalle)}" tabindex="0">
+              <span class="inv-daybar-fill${val(d) > 0 ? '' : ' is-zero'}" style="height:${val(d) > 0 ? Math.max(4, alto) : 0}%"></span>
+              <span class="inv-daybar-label">${i % cadaCuanto === 0 ? esc(fechaCorta(d.date)) : ''}</span>
+            </div>`;
+        }).join('')}
+      </div>` : emptyStateHtml('bar-chart-3', 'Sin mermas en el período', 'Cuando se registren, acá se ve cuánto se perdió cada día.');
+
+    // ---- Insumos ----
+    // Los que no suman en la medida elegida (sin costo, o sin kilos) van al final: en "$" un
+    // insumo sin costo no es "el que menos se pierde", es uno que todavía no se sabe cuánto vale.
+    const items = [...a.by_item].sort((x, y) => val(y) - val(x)).slice(0, 10);
+    $('wasteItemsNote').textContent = porKg ? 'Por kilos' : 'Por pérdida';
+    $('wasteItemsBars').innerHTML = items.length ? barsHtml(items, {
+      valor: val,
+      etiqueta: (i) => `${esc(i.name)} ${i.kind === 'casa' ? '<span class="inv-badge kind-house">Casa</span>' : ''}`,
+      extra: (i) => `${fmt(i)}${!porKg && i.estimated ? ' <small title="Parte del costo es el de referencia de Invu">≈</small>' : ''}
+        <small>${esc(qty(i.quantity))} ${esc(i.unit)}</small>`,
+    }) : emptyStateHtml('package', 'Nada para mostrar', porKg ? 'Ningún insumo con kilos en el período.' : 'Ninguna merma en el período.');
+
+    // ---- Motivo ----
+    $('wasteReasonAnalysisBars').innerHTML = a.by_reason.length ? barsHtml(a.by_reason, {
+      valor: val,
+      etiqueta: (g) => esc(g.label),
+      extra: (g) => `${fmt(g)} <small>${pluralize(g.records, 'vez', 'veces')}</small>`,
+    }) : emptyStateHtml('help-circle', 'Sin motivos', 'Ninguna merma en el período.');
+
+    // ---- Sucursal (solo quien ve más de una) ----
+    const verSucursales = state.isGlobalScope && !a.branch_id;
+    $('wasteBranchPanel').hidden = !verSucursales;
+    if (verSucursales) {
+      $('wasteBranchBars').innerHTML = a.by_branch.length ? barsHtml(a.by_branch, {
+        valor: val,
+        etiqueta: (g) => esc(g.label),
+        extra: (g) => `${fmt(g)} <small>${g.waste_pct_of_sales != null ? `${Number(g.waste_pct_of_sales).toLocaleString('es-PA', { maximumFractionDigits: 2 })}% de su venta` : 'sin venta de Invu'}</small>`,
+      }) : emptyStateHtml('building-2', 'Sin mermas', 'Ninguna sucursal registró merma en el período.');
+    }
+
+    // ---- Tipo ----
+    $('wasteKindBars').innerHTML = a.by_kind.length ? barsHtml(a.by_kind, {
+      valor: val,
+      etiqueta: (g) => esc(g.label),
+      extra: (g) => fmt(g),
+    }) : emptyStateHtml('layers', 'Sin datos', 'Ninguna merma en el período.');
+
+    utils.renderIcons();
+  }
+
   $('wasteBranchFilter')?.addEventListener('change', (e) => {
     state.wasteBranchFilter = e.target.value;
     state.selected.waste = null;
@@ -2352,6 +2526,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.selected.waste = null;
       await Promise.all([loadWaste({ reset: true }), loadWasteAnalytics(), loadStock()]);
       renderResumen();
+      if (wasteAnalysis.tab === 'analisis') loadWasteAnalysis();
     } catch (err) {
       showModalError('wasteError', err.message || 'No se pudo registrar la merma.');
     } finally {

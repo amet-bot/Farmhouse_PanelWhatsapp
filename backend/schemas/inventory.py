@@ -161,6 +161,62 @@ class WasteResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class WasteAnalyticsTotals(BaseModel):
+    records: int = 0
+    cost_total: Decimal = Decimal("0")        # real + estimado
+    cost_estimated: Decimal = Decimal("0")    # la parte valuada con el costo de referencia de Invu
+    lines: int = 0
+    lines_without_cost: int = 0               # sin cargamento ni costo de Invu: no suman
+    kg_total: Decimal = Decimal("0")
+    lines_without_kg: int = 0                 # por unidad y sin peso de balanza atribuible
+    records_with_weight: int = 0
+    records_with_photo: int = 0
+    sales_net: Optional[Decimal] = None       # venta neta de Invu en el mismo período y sucursales
+    waste_pct_of_sales: Optional[Decimal] = None
+
+
+class WasteAnalyticsDay(BaseModel):
+    date: str                                 # YYYY-MM-DD, día de Panamá
+    cost: Decimal = Decimal("0")
+    kg: Decimal = Decimal("0")
+    records: int = 0
+
+
+class WasteAnalyticsItem(BaseModel):
+    inventory_item_id: int
+    name: str
+    unit: str
+    kind: Optional[str] = None
+    quantity: Decimal = Decimal("0")          # en la unidad del insumo
+    kg: Optional[Decimal] = None
+    cost: Decimal = Decimal("0")
+    estimated: bool = False                   # algo de su costo salió de Invu
+    records: int = 0
+
+
+class WasteAnalyticsGroup(BaseModel):
+    key: str
+    label: str
+    cost: Decimal = Decimal("0")
+    kg: Decimal = Decimal("0")
+    records: int = 0
+    sales_net: Optional[Decimal] = None       # solo por sucursal
+    waste_pct_of_sales: Optional[Decimal] = None
+
+
+class WasteAnalyticsResponse(BaseModel):
+    """Merma de un período, ya calculada: totales, por día, por insumo, por motivo, sucursal y tipo."""
+    date_from: str
+    date_to: str
+    branch_id: Optional[int] = None
+    totals: WasteAnalyticsTotals
+    by_day: List[WasteAnalyticsDay]
+    by_item: List[WasteAnalyticsItem]
+    by_reason: List[WasteAnalyticsGroup]
+    by_branch: List[WasteAnalyticsGroup]
+    by_kind: List[WasteAnalyticsGroup]
+
+
 class WasteReasonResponse(BaseModel):
     code: str
     label: str

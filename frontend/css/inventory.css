@@ -2424,3 +2424,135 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 @media (prefers-reduced-motion: reduce) {
   .inv-photo-thumb.is-loading { animation: none; }
 }
+
+/* ============================================================================
+   MERMA → ANÁLISIS
+   ============================================================================ */
+/* Selector de opciones en fila (Registros/Análisis, período, $/kg). */
+.inv-segmented {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--inv-panel);
+  border: 1px solid var(--inv-border);
+}
+
+.inv-segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--inv-text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.inv-segmented button i, .inv-segmented button svg { width: 14px; height: 14px; }
+.inv-segmented button:hover { background: var(--inv-panel-2); color: var(--inv-text); }
+.inv-segmented button.active { background: var(--inv-green-soft); color: var(--inv-green-soft-text); }
+.inv-segmented-sm button { padding: 7px 10px; min-width: 36px; justify-content: center; }
+
+.inv-subtabs { margin-bottom: 16px; }
+
+.inv-waste-analysis { display: flex; flex-direction: column; gap: 16px; }
+.inv-analysis-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.inv-analysis-filters .inv-segmented-sm { margin-left: auto; }
+.inv-analysis-range { margin: -6px 0 0; font-size: 12.5px; color: var(--inv-text-muted); }
+
+.inv-chart-help {
+  margin: -8px 0 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--inv-text-muted);
+}
+
+.inv-bar-value small { font-weight: 500; color: var(--inv-text-muted); margin-left: 4px; }
+.inv-bar-name .inv-badge { margin-left: 6px; font-size: 10px; padding: 1px 6px; vertical-align: 1px; }
+
+.inv-kpi-skeleton {
+  min-height: 104px;
+  background: linear-gradient(90deg, var(--inv-panel-2), var(--inv-panel), var(--inv-panel-2));
+  background-size: 200% 100%;
+  animation: invPhotoShimmer 1.2s ease-in-out infinite;
+}
+
+/* ---- Pérdida por día: barras verticales con CSS, se adaptan a cualquier ancho ---- */
+.inv-daychart { position: relative; }
+.inv-daychart-top { font-size: 11px; color: var(--inv-text-muted); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+
+.inv-daychart-bars {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  height: 190px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--inv-border-light);
+  background: repeating-linear-gradient(to top, transparent 0, transparent 41px, var(--inv-border-light) 41px, var(--inv-border-light) 42px);
+  background-size: 100% calc(100% - 22px);
+  background-repeat: no-repeat;
+}
+
+.inv-daybar {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  border-radius: 4px 4px 0 0;
+  outline: none;
+}
+
+.inv-daybar-fill {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: var(--inv-loss);
+  opacity: .85;
+  transition: opacity .15s ease;
+}
+
+.inv-daybar:hover .inv-daybar-fill,
+.inv-daybar:focus-visible .inv-daybar-fill { opacity: 1; }
+.inv-daybar:focus-visible { box-shadow: 0 0 0 2px var(--inv-green); }
+
+.inv-daybar-label {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--inv-text-muted);
+  white-space: nowrap;
+}
+
+.inv-analysis-method {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--inv-panel-2);
+  border: 1px solid var(--inv-border-light);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--inv-text-secondary);
+}
+
+.inv-analysis-method i, .inv-analysis-method svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; }
+
+@media (max-width: 640px) {
+  .inv-analysis-filters .inv-segmented:not(.inv-segmented-sm) { width: 100%; }
+  .inv-analysis-filters .inv-segmented:not(.inv-segmented-sm) button { flex: 1; justify-content: center; padding: 7px 4px; }
+  .inv-analysis-filters .inv-segmented-sm { margin-left: 0; }
+  .inv-daychart-bars { height: 150px; gap: 2px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inv-kpi-skeleton { animation: none; }
+}

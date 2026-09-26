@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Optional
 
@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 
 from database import get_db
 from models.branch import Branch
-from models.inventory_item import InventoryItem
+from models.inventory_item import InventoryItem, KIND_HOUSE, KIND_RAW
+from models.invu_sales import InvuSyncDay
 from models.supplier import Supplier
 from models.shipment import Shipment, ShipmentItem
 from models.user import User
@@ -25,9 +26,10 @@ from schemas.inventory import (
     ShipmentCreate, ShipmentResponse, ShipmentItemResponse,
     StockCountCreate, StockCountItemResponse, StockCountResponse,
     StockRowResponse, WasteCreate, WasteItemResponse, WastePhotoResponse, WasteReasonResponse, WasteResponse,
+    WasteAnalyticsGroup, WasteAnalyticsItem, WasteAnalyticsDay, WasteAnalyticsResponse, WasteAnalyticsTotals,
     MovementComparisonResponse,
 )
-from services import invu_client, invu_items_sync, invu_sync
+from services import invu_client, invu_items_sync, invu_sales_sync, invu_sync
 from services.audit import log_audit_event
 from security.auth import get_current_authorized_user
 from security.access_control import check_target_branch_valid
@@ -604,7 +606,210 @@ def list_waste(
     return [_serialize_waste(r) for r in records]
 
 
-# ---- Fotos de respaldo de la merma (el peso en la balanza) ----
+# ---- Análisis de merma ----
+# Cuántos kg es una unidad de cada nombre de unidad que usan los insumos (los de Invu vienen como
+# "gramos" / "kilogramo"; los cargados a mano, como "kg"). Lo que no está acá no es un peso.
+_KG_POR_UNIDAD = {
+    "kg": Decimal("1"), "kilo": Decimal("1"), "kilos": Decimal("1"), "kilogramo": Decimal("1"), "kilogramos": Decimal("1"),
+    "g": Decimal("0.001"), "gr": Decimal("0.001"), "gramo": Decimal("0.001"), "gramos": Decimal("0.001"),
+    "lb": Decimal("0.45359237"), "libra": Decimal("0.45359237"), "libras": Decimal("0.45359237"),
+    "oz": Decimal("0.028349523"), "onza": Decimal("0.028349523"), "onzas": Decimal("0.028349523"),
+}
+WASTE_ANALYTICS_MAX_DAYS = 366
+
+
+def _kg_factor(unit: Optional[str]) -> Optional[Decimal]:
+    return _KG_POR_UNIDAD.get((unit or "").strip().lower())
+
+
+@router.get("/waste/analytics", response_model=WasteAnalyticsResponse)
+def waste_analytics(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    La merma de un período, calculada: cuánto se perdió en plata y en kilos, por día, por
+    insumo, por motivo, por sucursal y por tipo (materia prima / de la casa), y cuánto es eso de
+    la venta neta de la caja (Invu) en esos mismos días.
+
+    Cómo se calcula, para que los números se puedan defender:
+      - Costo de cada línea: el que quedó guardado con la merma (el del último cargamento de ese
+        insumo en esa sucursal). Si no hay, el costo de referencia de Invu, y esa parte se
+        informa aparte como "estimada". Si tampoco hay, la línea no suma y se cuenta.
+      - Kilos: si el insumo se cuenta en una unidad de peso (g, kg, lb...), su cantidad
+        convertida. Si va por unidad (la piña), el peso de balanza de la merma cuando esa merma
+        tiene un solo insumo; si tiene varios, no se puede repartir y no suma.
+      - Días en hora de Panamá, igual que las ventas.
+    """
+    hasta = date_to or invu_sales_sync.hoy_panama()
+    desde = date_from or (hasta - timedelta(days=29))
+    if desde > hasta:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La fecha inicial es posterior a la final.")
+    if (hasta - desde).days + 1 > WASTE_ANALYTICS_MAX_DAYS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El período no puede pasar de un año.")
+
+    efectiva = _visible_branch_filter(current_user, branch_id)
+    tz = invu_sales_sync.PANAMA_TZ
+    # occurred_at se guarda en UTC sin huso: los bordes del período son medianoche de Panamá.
+    inicio_utc = datetime.combine(desde, datetime.min.time(), tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None)
+    fin_utc = datetime.combine(hasta + timedelta(days=1), datetime.min.time(), tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None)
+
+    query = db.query(WasteRecord).options(
+        joinedload(WasteRecord.items).joinedload(WasteItem.inventory_item),
+        joinedload(WasteRecord.branch),
+        selectinload(WasteRecord.photos),
+    ).filter(WasteRecord.occurred_at >= inicio_utc, WasteRecord.occurred_at < fin_utc)
+    if efectiva is not None:
+        query = query.filter(WasteRecord.branch_id == efectiva)
+    records = query.all()
+
+    totales = WasteAnalyticsTotals()
+    dias = {}
+    d = desde
+    while d <= hasta:
+        dias[d.isoformat()] = WasteAnalyticsDay(date=d.isoformat())
+        d += timedelta(days=1)
+    por_item: dict = {}
+    por_motivo: dict = {}
+    por_sucursal: dict = {}
+    por_tipo: dict = {}
+
+    def _sumar(grupos: dict, key: str, label: str, costo: Decimal, kg: Decimal, nuevo_registro: bool):
+        g = grupos.setdefault(key, WasteAnalyticsGroup(key=key, label=label))
+        g.cost += costo
+        g.kg += kg
+        if nuevo_registro:
+            g.records += 1
+
+    for rec in records:
+        totales.records += 1
+        if rec.photos:
+            totales.records_with_photo += 1
+        peso_rec_kg = None
+        if rec.weight_value is not None:
+            totales.records_with_weight += 1
+            factor = _kg_factor(rec.weight_unit or "kg")
+            if factor is not None:
+                peso_rec_kg = Decimal(rec.weight_value) * factor
+
+        ocurrio = rec.occurred_at if rec.occurred_at.tzinfo else rec.occurred_at.replace(tzinfo=timezone.utc)
+        dia = dias.get(ocurrio.astimezone(tz).date().isoformat())
+        costo_rec = Decimal("0")
+        kg_rec = Decimal("0")
+        tipos_vistos = set()
+
+        for line in rec.items:
+            item = line.inventory_item
+            cantidad = Decimal(line.quantity)
+            totales.lines += 1
+
+            estimado = False
+            if line.unit_cost is not None:
+                costo = cantidad * Decimal(line.unit_cost)
+            elif item.reference_cost is not None:
+                costo = cantidad * Decimal(item.reference_cost)
+                estimado = True
+                totales.cost_estimated += costo
+            else:
+                costo = Decimal("0")
+                totales.lines_without_cost += 1
+
+            factor = _kg_factor(item.unit)
+            if factor is not None:
+                kg = cantidad * factor
+            elif peso_rec_kg is not None and len(rec.items) == 1:
+                kg = peso_rec_kg
+            else:
+                kg = None
+                totales.lines_without_kg += 1
+
+            costo_rec += costo
+            kg_rec += kg or Decimal("0")
+
+            fila = por_item.get(item.id)
+            if not fila:
+                fila = por_item[item.id] = WasteAnalyticsItem(
+                    inventory_item_id=item.id, name=item.name, unit=item.unit, kind=item.kind,
+                )
+            fila.quantity += cantidad
+            fila.cost += costo
+            if kg is not None:
+                fila.kg = (fila.kg or Decimal("0")) + kg
+            fila.estimated = fila.estimated or estimado
+            fila.records += 1
+
+            tipo = item.kind or "sin_tipo"
+            _sumar(por_tipo, tipo, {KIND_HOUSE: "De la casa", KIND_RAW: "Materia prima"}.get(tipo, "Sin clasificar"),
+                   costo, kg or Decimal("0"), tipo not in tipos_vistos)
+            tipos_vistos.add(tipo)
+
+        totales.cost_total += costo_rec
+        totales.kg_total += kg_rec
+        if dia is not None:
+            dia.cost += costo_rec
+            dia.kg += kg_rec
+            dia.records += 1
+        _sumar(por_motivo, rec.reason, WASTE_REASON_LABELS.get(rec.reason, rec.reason), costo_rec, kg_rec, True)
+        _sumar(por_sucursal, str(rec.branch_id), rec.branch.name, costo_rec, kg_rec, True)
+
+    # Venta neta de la caja en el mismo período y sucursales (días ya traídos de Invu).
+    ventas_q = db.query(InvuSyncDay.branch_id, func.sum(InvuSyncDay.net_total)).filter(
+        InvuSyncDay.business_date >= desde,
+        InvuSyncDay.business_date <= hasta,
+        InvuSyncDay.net_total.isnot(None),
+    )
+    if efectiva is not None:
+        ventas_q = ventas_q.filter(InvuSyncDay.branch_id == efectiva)
+    ventas = {str(b): Decimal(v) for b, v in ventas_q.group_by(InvuSyncDay.branch_id).all() if v is not None}
+    if ventas:
+        totales.sales_net = sum(ventas.values(), Decimal("0"))
+
+    def _pct(merma: Decimal, venta: Optional[Decimal]) -> Optional[Decimal]:
+        if not venta:
+            return None
+        return (merma / venta * 100).quantize(Decimal("0.01"))
+
+    totales.waste_pct_of_sales = _pct(totales.cost_total, totales.sales_net)
+    for key, g in por_sucursal.items():
+        g.sales_net = ventas.get(key)
+        g.waste_pct_of_sales = _pct(g.cost, g.sales_net)
+
+    def _q(valor: Decimal, lugares: str) -> Decimal:
+        return Decimal(valor).quantize(Decimal(lugares))
+
+    totales.cost_total = _q(totales.cost_total, "0.01")
+    totales.cost_estimated = _q(totales.cost_estimated, "0.01")
+    totales.kg_total = _q(totales.kg_total, "0.001")
+    for dia in dias.values():
+        dia.cost, dia.kg = _q(dia.cost, "0.01"), _q(dia.kg, "0.001")
+    for fila in por_item.values():
+        fila.cost = _q(fila.cost, "0.01")
+        fila.quantity = _q(fila.quantity, "0.001")
+        if fila.kg is not None:
+            fila.kg = _q(fila.kg, "0.001")
+    for grupos in (por_motivo, por_sucursal, por_tipo):
+        for g in grupos.values():
+            g.cost, g.kg = _q(g.cost, "0.01"), _q(g.kg, "0.001")
+
+    # Ordenados por plata perdida y, a igual plata (p. ej. sin costos todavía), por kilos.
+    orden = lambda x: (x.cost, x.kg or Decimal("0"), x.records)  # noqa: E731
+    return WasteAnalyticsResponse(
+        date_from=desde.isoformat(),
+        date_to=hasta.isoformat(),
+        branch_id=efectiva,
+        totals=totales,
+        by_day=list(dias.values()),
+        by_item=sorted(por_item.values(), key=orden, reverse=True),
+        by_reason=sorted(por_motivo.values(), key=orden, reverse=True),
+        by_branch=sorted(por_sucursal.values(), key=orden, reverse=True),
+        by_kind=sorted(por_tipo.values(), key=orden, reverse=True),
+    )
+
+
+# ---- Evidencia de la merma: fotos de lo que se descartó ----
 # El navegador las achica a ~300 KB antes de subirlas; el tope es para una que llegue entera.
 WASTE_PHOTO_MAX_BYTES = 8 * 1024 * 1024
 WASTE_PHOTOS_PER_RECORD = 6

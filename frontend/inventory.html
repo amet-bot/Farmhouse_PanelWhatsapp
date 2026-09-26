@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.5.0">
-  <link rel="stylesheet" href="css/inventory.css?v=4.7.1">
+  <link rel="stylesheet" href="css/inventory.css?v=4.8.1">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -274,7 +274,85 @@
             </button>
           </div>
 
-          <div class="inv-workspace">
+          <div class="inv-segmented inv-subtabs" id="wasteTabs" role="tablist" aria-label="Merma">
+            <button type="button" class="active" data-waste-tab="registros" role="tab" aria-selected="true">
+              <i data-lucide="list"></i> Registros
+            </button>
+            <button type="button" data-waste-tab="analisis" role="tab" aria-selected="false">
+              <i data-lucide="bar-chart-3"></i> Análisis
+            </button>
+          </div>
+
+          <!-- ---- Análisis: se calcula en el servidor (GET /inventory/waste/analytics) ---- -->
+          <div class="inv-waste-analysis" id="wasteAnalysis" hidden>
+            <div class="inv-analysis-filters">
+              <div class="inv-segmented" id="wastePeriod" aria-label="Período">
+                <button type="button" data-period="7">7 días</button>
+                <button type="button" class="active" data-period="30">30 días</button>
+                <button type="button" data-period="mes">Este mes</button>
+                <button type="button" data-period="mes-anterior">Mes anterior</button>
+              </div>
+              <select id="wasteAnalysisBranch" class="inv-filter-select" hidden aria-label="Sucursal"></select>
+              <div class="inv-segmented inv-segmented-sm" id="wasteMetric" aria-label="Medir en">
+                <button type="button" class="active" data-metric="cost">$</button>
+                <button type="button" data-metric="kg">kg</button>
+              </div>
+            </div>
+            <p class="inv-analysis-range" id="wasteAnalysisRange"></p>
+
+            <div class="inv-kpi-row" id="wasteKpis"></div>
+
+            <div class="inv-panel inv-panel-wide">
+              <div class="inv-panel-head">
+                <h2>Pérdida por día</h2>
+                <span class="inv-panel-note" id="wasteDayNote"></span>
+              </div>
+              <p class="inv-chart-help">Cada barra es un día: más alta, más se perdió. Tocá o pasá el mouse por una barra para ver el detalle. Un día que sobresale del resto es el que conviene revisar (un pedido que llegó mal, una nevera, un feriado).</p>
+              <div class="inv-daychart" id="wasteDayChart"></div>
+            </div>
+
+            <div class="inv-panel-grid">
+              <div class="inv-panel">
+                <div class="inv-panel-head">
+                  <h2>Insumos que más se pierden</h2>
+                  <span class="inv-panel-note" id="wasteItemsNote"></span>
+                </div>
+                <p class="inv-chart-help">Los 10 de mayor pérdida. Es la lista para atacar primero: pedir menos, rotar mejor o revisar cómo se guarda.</p>
+                <div class="inv-bars" id="wasteItemsBars"></div>
+              </div>
+              <div class="inv-panel">
+                <div class="inv-panel-head">
+                  <h2>Por motivo</h2>
+                  <span class="inv-panel-note">Por qué se perdió</span>
+                </div>
+                <p class="inv-chart-help">Vencido apunta a compras o rotación; dañado, a manejo o almacenaje; error de preparación, a cocina.</p>
+                <div class="inv-bars" id="wasteReasonAnalysisBars"></div>
+              </div>
+              <div class="inv-panel" id="wasteBranchPanel" hidden>
+                <div class="inv-panel-head">
+                  <h2>Por sucursal</h2>
+                  <span class="inv-panel-note">% sobre su venta</span>
+                </div>
+                <p class="inv-chart-help">El porcentaje es la merma dividida por lo que vendió esa sucursal en la caja (Invu) en el mismo período: compara sucursales grandes y chicas en la misma escala.</p>
+                <div class="inv-bars" id="wasteBranchBars"></div>
+              </div>
+              <div class="inv-panel">
+                <div class="inv-panel-head">
+                  <h2>Materia prima o de la casa</h2>
+                  <span class="inv-panel-note">Qué se pierde</span>
+                </div>
+                <p class="inv-chart-help">Materia prima es lo que se compra; de la casa, lo que se prepara (salsas, arroces...). Mucha merma de la casa suele ser producción de más.</p>
+                <div class="inv-bars" id="wasteKindBars"></div>
+              </div>
+            </div>
+
+            <p class="inv-analysis-method">
+              <i data-lucide="info"></i>
+              <span><strong>Cómo se calcula.</strong> El costo es el del último cargamento de ese insumo en esa sucursal; si todavía no hay, se usa el costo de referencia de Invu y se marca como estimado. Los kilos salen de la cantidad cuando el insumo se cuenta en peso (g, kg, lb), o del peso de la balanza cuando la merma es de un solo insumo que se cuenta por unidad. Los días van en hora de Panamá, igual que las ventas.</span>
+            </p>
+          </div>
+
+          <div class="inv-workspace" id="wasteRecordsPane">
             <div class="inv-list-col">
               <div class="inv-toolbar">
                 <div class="inv-search">
@@ -760,6 +838,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.7.1"></script>
+  <script src="js/modules/inventory.js?v=4.8.1"></script>
 </body>
 </html>
