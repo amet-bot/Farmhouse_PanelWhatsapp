@@ -16,10 +16,10 @@
   --line: #e1ebe8;
   --line-light: #ecf3f1;
 
-  /* Textos */
-  --text-primary: #14212b;
-  --text-secondary: #3d4e56;
-  --text-muted: #667985;
+  /* Textos (grises con un toque verde, los mismos del Panel General: hub.css --fh-*) */
+  --text-primary: #0f201b;
+  --text-secondary: #3a4c46;
+  --text-muted: #63736d;
   --text-inverse: #ffffff;
 
   /* Marca Farmhouse */
@@ -29,13 +29,15 @@
   --green-soft-text: #00834d;
   --green-border: #b9ebd2;
 
-  /* Sidebar */
-  --nav-bg: #123c46;
+  /* Sidebar: el verde bosque del Panel General (antes #123c46, un azul petróleo que al quedar
+     al lado del sidebar del hub se veía de otra marca). */
+  --nav-bg: #073d31;
+  --nav-bg-embedded: #0b4a3b;
   --nav-border: rgba(255, 255, 255, 0.08);
   --nav-hover: rgba(255, 255, 255, 0.08);
   --nav-active: linear-gradient(90deg, #00a85a, #00b96b);
   --nav-text: #e2ece9;
-  --nav-text-muted: #93b0b6;
+  --nav-text-muted: #9dbdb1;
 
   /* Acentos y Semántica */
   --blue: #2563eb;
@@ -82,13 +84,13 @@
   /* Form / Inputs */
   --input-bg: #ffffff;
   --input-border: #d7e4e0;
-  --input-text: #14212b;
+  --input-text: #0f201b;
   --input-focus: #00b96b;
 
   /* Chat y Burbujas */
   --chat-bg: radial-gradient(circle at 10px 10px, rgba(0, 185, 107, 0.035) 1px, transparent 1px) 0 0 / 20px 20px, #fbfdfc;
   --msg-in-bg: #ffffff;
-  --msg-in-text: #14212b;
+  --msg-in-text: #0f201b;
   --msg-in-border: #e1ebe8;
   --msg-out-bg: #dff6ea;
   --msg-out-text: #0f3d26;
@@ -117,41 +119,44 @@
   --primary-light: var(--green-soft);
 
   /* Toast */
-  --toast-bg: #1e293b;
+  --toast-bg: #10261f;
   --toast-text: #ffffff;
 }
 
+/* Oscuro: negro verdoso, el mismo del Panel General (hub.css --fh-*). Antes era azul marino
+   (#090e17 / #111a26): con los sistemas abiertos dentro del hub, cada uno se veía de otra app. */
 [data-theme="dark"] {
   /* Fondos y Superficies */
-  --bg-primary: #090e17;
-  --bg-secondary: #0d1522;
-  --panel-bg: #111a26;
-  --panel-elevated: #182536;
-  --panel-subtle: #0d1622;
-  --panel-footer: #0c1420;
-  --line: #1e2e42;
-  --line-light: #162232;
+  --bg-primary: #0a1411;
+  --bg-secondary: #0d1814;
+  --panel-bg: #101c18;
+  --panel-elevated: #16241f;
+  --panel-subtle: #0d1814;
+  --panel-footer: #0c1713;
+  --line: #1f302a;
+  --line-light: #17241f;
 
   /* Textos */
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #8e9fb5;
-  --text-inverse: #090e17;
+  --text-primary: #eef5f1;
+  --text-secondary: #c3d2cb;
+  --text-muted: #93a79f;
+  --text-inverse: #0a1411;
 
   /* Marca Farmhouse */
-  --green: #22c55e;
-  --green-dark: #16a34a;
-  --green-soft: rgba(34, 197, 94, 0.15);
-  --green-soft-text: #4ade80;
-  --green-border: rgba(34, 197, 94, 0.3);
+  --green: #22c983;
+  --green-dark: #1aa86c;
+  --green-soft: rgba(34, 201, 131, 0.14);
+  --green-soft-text: #3ddc97;
+  --green-border: rgba(34, 201, 131, 0.32);
 
-  /* Sidebar en Dark Mode - Tono Slate Navy distintivo con contraste claro */
-  --nav-bg: #0c1626;
-  --nav-border: #1b2c45;
-  --nav-hover: rgba(255, 255, 255, 0.08);
-  --nav-active: linear-gradient(90deg, #159447, #22c55e);
-  --nav-text: #e2e8f0;
-  --nav-text-muted: #7e95ad;
+  /* Sidebar: el verde bosque oscuro del sidebar del hub */
+  --nav-bg: #052a21;
+  --nav-bg-embedded: #0a3a2e;
+  --nav-border: rgba(255, 255, 255, 0.07);
+  --nav-hover: rgba(255, 255, 255, 0.07);
+  --nav-active: linear-gradient(90deg, #1aa86c, #22c983);
+  --nav-text: #e3eee8;
+  --nav-text-muted: #8fb0a3;
 
   /* Acentos y Semántica */
   --blue: #3b82f6;
@@ -196,37 +201,37 @@
   --badge-agent-text: #86efac;
 
   /* Form / Inputs */
-  --input-bg: #0b121c;
-  --input-border: #24354c;
-  --input-text: #f8fafc;
-  --input-focus: #22c55e;
+  --input-bg: #0b1512;
+  --input-border: #25392f;
+  --input-text: #eef5f1;
+  --input-focus: #22c983;
 
   /* Chat y Burbujas */
-  --chat-bg: radial-gradient(circle at 10px 10px, rgba(34, 197, 94, 0.04) 1px, transparent 1px) 0 0 / 20px 20px, #080d14;
-  --msg-in-bg: #162334;
-  --msg-in-text: #f8fafc;
-  --msg-in-border: #22354c;
-  --msg-out-bg: #143d28;
+  --chat-bg: radial-gradient(circle at 10px 10px, rgba(34, 201, 131, 0.04) 1px, transparent 1px) 0 0 / 20px 20px, #08110e;
+  --msg-in-bg: #15241f;
+  --msg-in-text: #eef5f1;
+  --msg-in-border: #21352d;
+  --msg-out-bg: #12402c;
   --msg-out-text: #dcfce7;
-  --msg-out-border: #1e563b;
+  --msg-out-border: #1d5a3e;
   --msg-note-bg: #2d2612;
   --msg-note-border: #a16207;
   --msg-note-text: #fef08a;
 
   /* Tablas y Modales */
-  --table-header-bg: #0d1622;
-  --table-row-hover: #152233;
+  --table-header-bg: #0d1814;
+  --table-row-hover: #15231e;
   --modal-backdrop: rgba(0, 0, 0, 0.78);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 10px 24px -6px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 16px 24px -8px rgba(0, 0, 0, 0.5), 0 28px 56px -12px rgba(0, 0, 0, 0.6);
-  --shadow-glow-green: 0 4px 18px rgba(34, 197, 94, 0.25);
+  --shadow-glow-green: 0 4px 18px rgba(34, 201, 131, 0.25);
   --radius: 16px;
   --radius-sm: 10px;
 
   /* Toast */
-  --toast-bg: #1e2b3d;
-  --toast-text: #f8fafc;
+  --toast-bg: #1b2d27;
+  --toast-text: #eef5f1;
 }
 
 /* ----------------------------------------------------------------------------

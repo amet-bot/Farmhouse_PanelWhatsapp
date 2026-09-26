@@ -2,7 +2,9 @@
    El armazón (gate, header) viene de inventory.css. Acá el contenido propio: pestañas,
    checkpoints tipo chip, secciones de ítems y el editor de plantilla. */
 
+/* width: 100% por lo mismo que .tablet-body: hijo de un flex en columna con margin auto. */
 .prep-body {
+  width: 100%;
   max-width: 720px;
   margin: 0 auto;
   padding: 24px 20px 60px;

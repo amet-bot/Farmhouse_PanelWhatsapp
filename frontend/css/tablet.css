@@ -2,7 +2,11 @@
    El armazón (gate, header) viene de inventory.css. Acá solo la grilla de botones grandes,
    pensada para un dedo en una tablet: mucho aire, texto grande, un toque y listo. */
 
+/* `width: 100%`: .inv-app es flex en columna, y un hijo con `margin: 0 auto` se encoge al ancho
+   de su contenido — la grilla auto-fit quedaba en una sola columna de 220px con 7 botones
+   apilados, aunque hubiera espacio para tres por fila. */
 .tablet-body {
+  width: 100%;
   max-width: 900px;
   margin: 0 auto;
   padding: 32px 20px 60px;
@@ -49,7 +53,7 @@
 .tablet-tile:focus-visible {
   transform: translateY(-2px);
   border-color: var(--green-border);
-  box-shadow: 0 8px 20px rgba(0, 185, 107, 0.14);
+  box-shadow: var(--shadow-glow-green);
 }
 
 .tablet-tile:active {

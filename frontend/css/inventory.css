@@ -26,6 +26,7 @@
   --inv-green-soft-text: var(--green-soft-text);
   --inv-green-dark: var(--green-dark);
   --inv-green-border: var(--green-border);
+  --inv-green-deep: #00a85a;        /* segundo tono del degradé de los botones principales */
   --inv-cyan: #0891b2;
   --inv-cyan-soft: rgba(8, 145, 178, .1);
   --inv-amber: #b45309;
@@ -41,26 +42,30 @@
   --inv-loss-text: #9a3412;
 }
 
+/* Oscuro: mismas superficies y verde que style.css / el Panel General. Antes tenía su propio azul
+   marino (#07111F) y un verde menta neón (#16E6A1): abiertas dentro del hub, Inventario, Reportes,
+   Operación y Administración se veían de otra app al lado del sidebar verde. */
 [data-theme="dark"] {
-  --inv-bg: #07111F;
-  --inv-panel: #0C1728;
-  --inv-panel-2: #101D30;
-  --inv-border: rgba(100, 140, 190, .18);
-  --inv-border-light: rgba(100, 140, 190, .12);
-  --inv-text: #F5F7FB;
-  --inv-text-secondary: #8FA4C6;
-  --inv-text-muted: #6B84AC;
-  --inv-green: #16E6A1;
-  --inv-green-soft: rgba(22, 230, 161, .12);
-  --inv-green-soft-text: #16E6A1;
-  --inv-green-dark: #16E6A1;
-  --inv-green-border: rgba(22, 230, 161, .4);
+  --inv-bg: var(--bg-primary);
+  --inv-panel: var(--panel-bg);
+  --inv-panel-2: #132420;
+  --inv-border: rgba(158, 214, 188, .12);
+  --inv-border-light: rgba(158, 214, 188, .08);
+  --inv-text: var(--text-primary);
+  --inv-text-secondary: #a9bcb3;
+  --inv-text-muted: #869a91;
+  --inv-green: #2fd48d;
+  --inv-green-soft: rgba(47, 212, 141, .13);
+  --inv-green-soft-text: #3ddc97;
+  --inv-green-dark: #3ddc97;
+  --inv-green-border: rgba(47, 212, 141, .38);
+  --inv-green-deep: #1fb877;
   --inv-cyan: #24C7FF;
   --inv-cyan-soft: rgba(36, 199, 255, .12);
   --inv-amber: #F0B23C;
   --inv-amber-soft: rgba(245, 158, 11, .16);
-  --inv-bar-track: rgba(22, 230, 161, .13);
-  --inv-bar-fill: #16E6A1;
+  --inv-bar-track: rgba(47, 212, 141, .13);
+  --inv-bar-fill: #2fd48d;
   --inv-loss: #FF8A5B;
   --inv-loss-soft: rgba(255, 138, 91, .14);
   --inv-loss-text: #FFA97E;
@@ -432,20 +437,20 @@ body {
   padding: 10px 18px;
   border-radius: 999px;
   border: none;
-  background: linear-gradient(135deg, var(--inv-green), #0FBE85);
+  background: linear-gradient(135deg, var(--inv-green), var(--inv-green-deep));
   color: #06281d;
   font-family: inherit;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 10px 24px -12px rgba(22, 230, 161, .6);
+  box-shadow: 0 10px 24px -12px rgba(0, 185, 107, .55);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .inv-primary-btn:hover,
 .inv-primary-btn:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 14px 28px -12px rgba(22, 230, 161, .7);
+  box-shadow: 0 14px 28px -12px rgba(0, 185, 107, .65);
   outline: none;
 }
 
@@ -1388,7 +1393,7 @@ body {
 .inv-submit-btn {
   border-radius: 999px;
   min-width: 190px;
-  background: linear-gradient(135deg, var(--inv-green), #0FBE85);
+  background: linear-gradient(135deg, var(--inv-green), var(--inv-green-deep));
   color: #06281d;
   border: none;
   font-weight: 700;

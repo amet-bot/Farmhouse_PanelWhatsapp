@@ -89,9 +89,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Colores por sucursal
   // ==========================================================================
-  // El orden de config.py. Se busca por código y no por posición en la lista que llegó: un
-  // supervisor local recibe una sola sucursal, y igual tiene que verla con su color de siempre.
-  const BRANCH_ORDER = ['CLY', 'CDE', 'VP', 'SF', 'OBR'];
+  // Se busca por código y no por posición en la lista que llegó: un supervisor local recibe una
+  // sola sucursal, y igual tiene que verla con su color de siempre. Cada código usa la familia de
+  // color que la sucursal tiene en el resto de la suite (ver link.css).
+  const BRANCH_ORDER = ['CLY', 'CDE', 'VP', 'SF', 'OBR', 'CAT'];
   const branchCodes = new Map();   // branch_id → código, llenado con lo que manda el servidor
 
   function branchIndex(branchId) {
@@ -99,7 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return i < 0 ? BRANCH_ORDER.length : i;
   }
   function branchColorVar(branchId) {
-    return `var(--link-series-${(branchIndex(branchId) % 5) + 1})`;
+    return `var(--link-series-${(branchIndex(branchId) % BRANCH_ORDER.length) + 1})`;
   }
 
   // ==========================================================================

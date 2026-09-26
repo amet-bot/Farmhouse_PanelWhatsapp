@@ -3,7 +3,10 @@
    Dispositivos son las mismas clases globales de style.css que ya usa Centro WhatsApp. Acá solo
    las pestañas y algún detalle chico propio de este panel. */
 
+/* width: 100% por lo mismo que .tablet-body: hijo de un flex en columna con margin auto, el
+   ancho lo decidía la tabla y cada pestaña medía distinto. */
 .admin-body {
+  width: 100%;
   max-width: 1000px;
   margin: 0 auto;
   padding: 24px 20px 60px;

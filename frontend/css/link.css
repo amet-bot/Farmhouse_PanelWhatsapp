@@ -4,19 +4,21 @@
    líneas, la leyenda, el globo del hover, el selector de período y las tablas. El armazón
    (cabecera, rail, fichas, paneles, barras) es el de Inventario, sin tocar.
 
-   Colores de sucursal: la paleta categórica de referencia de la skill de dataviz, primeros cinco
-   tonos, validada en claro (contra blanco) y en oscuro (contra #0C1728). En claro, aqua, amarillo
-   y magenta quedan bajo 3:1 contra el fondo: por eso el gráfico tiene leyenda siempre y la vista
-   de tabla. El texto nunca va en el color de la serie.
+   Colores de sucursal: la misma familia de color que cada sucursal tiene en el resto de la suite
+   (el `color` de la sucursal en Administración, que usan Centro WhatsApp y el listado de
+   conversaciones). Antes Reportes tenía su propia paleta y la misma sucursal salía naranja en
+   WhatsApp y azul acá. Cada tono está ajustado por tema para que la línea se lea sobre el panel;
+   el gráfico igual lleva leyenda siempre y vista de tabla, y el texto nunca va en el color de la serie.
    ============================================================================ */
 
 :root, [data-theme="light"] {
   /* En :root y no en .inv-app: el globo del hover vive fuera del armazón y usa los mismos. */
-  --link-series-1: #2a78d6;   /* Clayton        · azul     */
-  --link-series-2: #eb6834;   /* Costa del Este · naranja  */
-  --link-series-3: #1baf7a;   /* Vía Porras     · aqua     */
-  --link-series-4: #eda100;   /* San Francisco  · amarillo */
-  --link-series-5: #e87ba4;   /* Obarrio        · magenta  */
+  --link-series-1: #d97706;   /* Clayton        · ámbar    */
+  --link-series-2: #16a34a;   /* Costa del Este · verde    */
+  --link-series-3: #9333ea;   /* Vía Porras     · violeta  */
+  --link-series-4: #0d9488;   /* San Francisco  · turquesa */
+  --link-series-5: #2563eb;   /* Obarrio        · azul     */
+  --link-series-6: #e11d48;   /* Catering       · rosa     */
   --link-up: #15803d;
   --link-down: #b91c1c;
 }
@@ -25,11 +27,12 @@
    nunca coincide (:root no tiene ancestro) y la segunda pisaba la paleta clara con esta, así
    que el modo claro usaba los tonos del oscuro (verde #4ade80 ilegible sobre blanco) y viceversa. */
 [data-theme="dark"] {
-  --link-series-1: #3987e5;
-  --link-series-2: #d95926;
-  --link-series-3: #199e70;
-  --link-series-4: #c98500;
-  --link-series-5: #d55181;
+  --link-series-1: #f0a13a;
+  --link-series-2: #3ccf78;
+  --link-series-3: #b584f5;
+  --link-series-4: #2ab7c4;
+  --link-series-5: #6b9bff;
+  --link-series-6: #f5678a;
   --link-up: #4ade80;
   --link-down: #f87171;
 }
