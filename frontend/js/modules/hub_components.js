@@ -46,7 +46,7 @@
   function brandCard(span) {
     return `
       <div class="hub-brand-card" style="--span:${Number(span) || 1}" data-span="${Number(span) || 1}" aria-hidden="true">
-        <p>Un sistema<br>para hacer crecer<br>tu operación</p>
+        <p>Un sistema<br>para hacer crecer<br> tu operación</p>
         <span class="hub-brand-bar"></span>
         <div class="hub-brand-art">${leafArt()}</div>
       </div>`;
