@@ -28,6 +28,9 @@
   text-align: center;
 }
 
+/* Dentro del Panel General las pestañas van en el sidebar del hub (hub.js las lee de acá). */
+.fh-embedded .prep-tabs { display: none; }
+
 .prep-tabs {
   display: flex;
   gap: 8px;

@@ -12,6 +12,9 @@
   padding: 24px 20px 60px;
 }
 
+/* Dentro del Panel General las pestañas van en el sidebar del hub (hub.js las lee de acá). */
+.fh-embedded .admin-tabs { display: none; }
+
 .admin-tabs {
   display: flex;
   gap: 8px;

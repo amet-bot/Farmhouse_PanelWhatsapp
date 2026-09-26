@@ -64,16 +64,45 @@ const HUB_MODULES = [
   },
 ];
 
+// `title`: el nombre que encabeza el menú del sistema cuando está abierto (ver APP_NAV_SOURCES).
 const HUB_SIDEBAR = [
   { id: 'inicio', label: 'Inicio', icon: 'house', route: '/hub' },
-  { id: 'whatsapp', label: 'WhatsApp', icon: 'message-square', route: '/app' },
-  { id: 'operacion', label: 'Operación', icon: 'clipboard-list', route: '/operacion' },
-  { id: 'inventario', label: 'Inventario', icon: 'package', route: '/inventario' },
-  { id: 'reportes', label: 'Reportes', icon: 'line-chart', route: '/link', requiredPermission: 'reports.view' },
-  { id: 'equipo', label: 'Equipo', icon: 'users', route: '/interno' },
-  { id: 'ajustes', label: 'Ajustes', icon: 'settings', route: '/administracion', requiredPermission: 'users.manage' },
-  { id: 'integraciones', label: 'Integraciones', icon: 'plug-zap', route: '/link?view=sincronizacion', requiredPermission: 'integrations.manage' },
+  { id: 'whatsapp', label: 'WhatsApp', title: 'Centro WhatsApp', icon: 'message-square', route: '/app' },
+  { id: 'operacion', label: 'Operación', title: 'Operación de Sucursal', icon: 'clipboard-list', route: '/operacion' },
+  { id: 'inventario', label: 'Inventario', title: 'Inventario', icon: 'package', route: '/inventario' },
+  { id: 'reportes', label: 'Reportes', title: 'Reportes de ventas', icon: 'line-chart', route: '/link', requiredPermission: 'reports.view' },
+  { id: 'equipo', label: 'Equipo', title: 'Comunicación Interna', icon: 'users', route: '/interno' },
+  { id: 'ajustes', label: 'Ajustes', title: 'Administración', icon: 'settings', route: '/administracion', requiredPermission: 'users.manage' },
+  { id: 'integraciones', label: 'Integraciones', title: 'Integraciones', icon: 'plug-zap', route: '/link?view=sincronizacion', requiredPermission: 'integrations.manage' },
 ];
+
+/**
+ * De dónde sale el menú de cada sistema abierto, por ruta de la página (no por id del sidebar:
+ * Operación puede estar mostrando /prep). El hub lee esos botones de la página del sistema (mismo
+ * origen) y los muestra en su propio sidebar; al hacer clic, le reenvía el clic al botón
+ * original, así que cada sistema sigue haciendo exactamente lo que ya hacía. En modo embebido
+ * cada página esconde su menú propio (reglas .fh-embedded de su CSS) para no tener dos.
+ *   roots:   contenedores a leer (y a observar: badges, sucursales y permisos cambian solos)
+ *   item:    botones del menú, en el orden del documento
+ *   section: títulos de sección intercalados
+ *   label / badge / dot: dónde está cada dato dentro del botón
+ *   soon:    marca de "próximamente"
+ *   icons:   ícono por data-tab / data-view, para menús que no traen ícono
+ *   foot:    bloque de pie (p. ej. "Alcance: Todas las sucursales")
+ */
+const INV_RAIL = { roots: ['.inv-sidebar'], item: '.inv-nav-item', section: '.inv-nav-sep', label: 'span', soon: '.soon', foot: '.inv-sidebar-foot' };
+const APP_NAV_SOURCES = {
+  '/app': {
+    roots: ['.sidebar'], item: '.nav-btn:not(#btnLogout)', section: '.nav-section-title',
+    label: '.nav-label', badge: '.nav-badge', dot: '.branch-dot', soon: '.tool-upcoming',
+  },
+  '/inventario': INV_RAIL,
+  '/link': INV_RAIL,
+  '/administracion': { roots: ['#adminTabs'], item: '.admin-tab', icons: { usuarios: 'users', dispositivos: 'laptop', sucursales: 'store' } },
+  '/operacion': { roots: ['.tablet-grid'], item: '.tablet-tile', label: '.tablet-tile-label' },
+  '/prep': { roots: ['#prepTabs'], item: '.prep-tab', icons: { llenar: 'list-checks', plantilla: 'file-pen-line' } },
+  '/interno': { roots: ['.int-tabs'], item: '.int-tab', label: 'span:not([class])', badge: '.int-tab-count' },
+};
 
 // Los cuatro accesos del celular (en ese orden); el resto va dentro de "Perfil".
 const HUB_MOBILE_QUICK = ['whatsapp', 'operacion', 'inventario', 'equipo'];
@@ -108,6 +137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // de sistema (conserva la conversación abierta, los filtros, el WebSocket y sus avisos).
   const appFrames = {};
   let activeAppId = null;
+  let allowedSidebar = [];
   const mobileQuery = window.matchMedia('(max-width: 767px)');
 
   FarmhouseShell.initTheme({
@@ -152,7 +182,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const allowed = (entry) => !entry.requiredPermission || (user.permissions || []).includes(entry.requiredPermission);
     const modules = HUB_MODULES.filter(allowed);
-    renderSidebar(HUB_SIDEBAR.filter(allowed));
+    allowedSidebar = HUB_SIDEBAR.filter(allowed);
+    renderSidebar(allowedSidebar);
     renderModuleGrid(modules);
     renderMobile(modules);
     utils.renderIcons();
@@ -246,6 +277,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('hubApps').hidden = true;
     $('hubContent').hidden = false;
     screenMain.classList.remove('hub-app-mode');
+    renderAppNav();
     Object.values(appFrames).forEach((f) => { f.hidden = true; });
     setActiveNav('inicio');
     document.title = 'Farmhouse Link';
@@ -283,6 +315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('hubApps').hidden = false;
     screenMain.classList.add('hub-app-mode');
     setActiveNav(id);
+    renderAppNav();
     document.title = `${item.label} — Farmhouse Link`;
     if (push) {
       const url = `/hub?app=${encodeURIComponent(id)}`;
@@ -315,6 +348,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) {
       return;
     }
+    attachAppNav(frame);
     const newId = appIdForRoute(path);
     const oldId = frame.dataset.appId;
     if (!newId || newId === oldId) return;
@@ -328,9 +362,156 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (activeAppId === oldId) {
       activeAppId = newId;
       setActiveNav(newId);
+      renderAppNav();
       history.replaceState({ app: newId }, '', `/hub?app=${encodeURIComponent(newId)}`);
     }
   }
+
+  // ==========================================================================
+  // Menú del sistema abierto en el sidebar del hub (ver APP_NAV_SOURCES)
+  // ==========================================================================
+  // Por iframe: qué botones originales corresponden a cada ítem mostrado y el observador que
+  // mantiene el menú al día (contadores, sucursales que llegan después, cambios de permisos).
+  const navStates = new WeakMap();
+
+  function activeFrame() { return activeAppId ? appFrames[activeAppId] : null; }
+
+  function iconName(el) {
+    const node = el.querySelector('[data-lucide]');
+    if (node) return node.getAttribute('data-lucide');
+    const svg = el.querySelector('svg[class*="lucide-"]');
+    const cls = svg && [...svg.classList].find((c) => c.startsWith('lucide-'));
+    return cls ? cls.slice('lucide-'.length) : '';
+  }
+
+  /** Un botón escondido a propósito por su página (permisos, pestaña sin plantilla) no se muestra. */
+  function isHiddenIn(el, root) {
+    for (let n = el; n && n !== root.parentElement; n = n.parentElement) {
+      if (n.hidden || (n.style && n.style.display === 'none')) return true;
+    }
+    return false;
+  }
+
+  function readAppNav(doc, cfg) {
+    const els = [];
+    const entries = [];
+    const selector = cfg.section ? `${cfg.item}, ${cfg.section}` : cfg.item;
+    let sectionLabel = '';
+    cfg.roots.forEach((rootSel) => doc.querySelectorAll(rootSel).forEach((root) => {
+      root.querySelectorAll(selector).forEach((el) => {
+        if (isHiddenIn(el, root)) return;
+        if (cfg.section && el.matches(cfg.section)) {
+          // Un título de sección sin ítems debajo se descarta al final.
+          sectionLabel = el.textContent.trim();
+          entries.push({ type: 'section', label: sectionLabel });
+          return;
+        }
+        const labelEl = cfg.label ? el.querySelector(cfg.label) : null;
+        const badgeEl = cfg.badge ? el.querySelector(cfg.badge) : null;
+        const dotEl = cfg.dot ? el.querySelector(cfg.dot) : null;
+        const key = el.dataset.tab || el.dataset.view || '';
+        entries.push({
+          type: 'item',
+          idx: els.length,
+          label: (labelEl || el).textContent.replace(/\s+/g, ' ').trim(),
+          icon: iconName(el) || (cfg.icons && cfg.icons[key]) || (dotEl ? '' : 'circle'),
+          dot: dotEl ? dotEl.style.backgroundColor : '',
+          badge: badgeEl && !badgeEl.hidden ? badgeEl.textContent.trim() : '',
+          active: el.classList.contains('active'),
+          disabled: !!el.disabled,
+          soon: !!(cfg.soon && el.matches(cfg.soon)),
+          // Bajo un título "Próximamente" la etiqueta "Pronto" en cada ítem sobra (y cortaba el nombre).
+          soonTag: !/pr[oó]ximamente/i.test(sectionLabel),
+        });
+        els.push(el);
+      });
+    }));
+    const clean = entries.filter((e, i) => e.type === 'item' || (entries[i + 1] && entries[i + 1].type === 'item'));
+    let foot = null;
+    const footEl = cfg.foot && doc.querySelector(cfg.foot);
+    if (footEl && !footEl.hidden) {
+      const [label, value] = [...footEl.children].map((c) => c.textContent.trim());
+      if (value) foot = { label, value };
+    }
+    return { els, entries: clean, foot };
+  }
+
+  function attachAppNav(frame) {
+    navStates.get(frame)?.observer?.disconnect();
+    const state = { observer: null, els: [], entries: null, foot: null, sig: '' };
+    navStates.set(frame, state);
+    let doc;
+    let cfg;
+    try {
+      doc = frame.contentDocument;
+      cfg = APP_NAV_SOURCES[frame.contentWindow.location.pathname];
+    } catch (e) { /* sin acceso: queda sin menú propio */ }
+    if (!doc || !cfg) {
+      state.entries = [];
+      if (frame === activeFrame()) renderAppNav();
+      return;
+    }
+    const refresh = () => {
+      const model = readAppNav(doc, cfg);
+      state.els = model.els;
+      const sig = JSON.stringify([model.entries, model.foot]);
+      if (sig === state.sig) return;
+      state.sig = sig;
+      state.entries = model.entries;
+      state.foot = model.foot;
+      if (frame === activeFrame()) renderAppNav();
+    };
+    let queued = false;
+    state.observer = new MutationObserver(() => {
+      if (queued) return;
+      queued = true;
+      setTimeout(() => { queued = false; refresh(); }, 50);
+    });
+    cfg.roots.forEach((sel) => doc.querySelectorAll(sel).forEach((root) => {
+      state.observer.observe(root, {
+        subtree: true, childList: true, characterData: true, attributes: true,
+        attributeFilter: ['class', 'style', 'hidden', 'disabled'],
+      });
+    }));
+    refresh();
+  }
+
+  function renderAppNav() {
+    const frame = activeFrame();
+    if (!frame) return;
+    const item = sidebarItem(activeAppId);
+    $('hubSwitcher').innerHTML = C.appSwitcher(allowedSidebar.filter((s) => s.id !== 'inicio'), activeAppId);
+    $('hubSwitcher').style.setProperty('--n', String(Math.max(1, allowedSidebar.length - 1)));
+    $('hubAppNavIcon').innerHTML = `<i data-lucide="${utils.escapeHtml(item?.icon || 'layout-grid')}"></i>`;
+    $('hubAppNavTitle').textContent = item?.title || item?.label || '';
+
+    const state = navStates.get(frame);
+    const list = $('hubAppNavList');
+    // Mantener el foco de teclado en el mismo ítem cuando el menú se repinta por un contador.
+    const focusedIdx = list.contains(document.activeElement) ? document.activeElement.dataset.idx : null;
+    list.innerHTML = !state || state.entries === null ? C.appNavLoading() : C.appNavList(state.entries);
+    if (focusedIdx != null) list.querySelector(`[data-idx="${focusedIdx}"]`)?.focus();
+
+    const foot = $('hubAppNavFoot');
+    const f = state && state.foot;
+    foot.hidden = !f;
+    foot.innerHTML = f ? `<small>${utils.escapeHtml(f.label)}</small><strong>${utils.escapeHtml(f.value)}</strong>` : '';
+    utils.renderIcons();
+  }
+
+  $('hubAppNavList').addEventListener('click', (e) => {
+    const btn = e.target.closest('.hub-appnav-item');
+    const frame = activeFrame();
+    if (!btn || !frame) return;
+    const target = navStates.get(frame)?.els[Number(btn.dataset.idx)];
+    if (!target || !target.isConnected) return;
+    target.click();
+    // El sistema no se entera de que el clic vino de afuera: el foco pasa a su contenido para
+    // que el teclado siga ahí (p. ej. la bandeja después de elegir "No asignadas").
+    if (e.detail > 0) frame.focus();
+  });
+
+  $('btnAppBack').addEventListener('click', () => showHome());
 
   function closeAllApps() {
     Object.values(appFrames).forEach((f) => f.remove());

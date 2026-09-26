@@ -14,8 +14,8 @@
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=4.3.0">
-  <link rel="stylesheet" href="css/hub.css?v=4.2.0">
+  <link rel="stylesheet" href="css/style.css?v=4.4.3">
+  <link rel="stylesheet" href="css/hub.css?v=4.4.3">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -88,6 +88,26 @@
         </span>
       </a>
       <nav class="hub-sidebar-nav" id="hubSidebarNav"><!-- hub.js --></nav>
+
+      <!-- Con un sistema abierto, el sidebar muestra SU menú (el que ese sistema tenía adentro, que
+           queda oculto) en lugar del menú principal. "Panel General" lo cierra y vuelve al menú
+           normal; la fila de íconos cambia de sistema sin pasar por el inicio. -->
+      <div class="hub-appnav" id="hubAppNav">
+        <button type="button" class="hub-appnav-back" id="btnAppBack" title="Cerrar el sistema y volver al menú principal">
+          <i data-lucide="arrow-left" aria-hidden="true"></i><span>Panel General</span>
+        </button>
+        <div class="hub-switcher" id="hubSwitcher" role="toolbar" aria-label="Cambiar de sistema"><!-- hub.js --></div>
+        <div class="hub-appnav-head">
+          <span class="hub-appnav-icon" id="hubAppNavIcon" aria-hidden="true"></span>
+          <span class="hub-appnav-titles">
+            <small>Sistema</small>
+            <strong id="hubAppNavTitle"></strong>
+          </span>
+        </div>
+        <nav class="hub-appnav-list" id="hubAppNavList" aria-labelledby="hubAppNavTitle"><!-- hub.js --></nav>
+        <div class="hub-appnav-foot" id="hubAppNavFoot" hidden></div>
+      </div>
+
       <div class="hub-sidebar-card" aria-hidden="true">
         <p>Conectando<br>personas, procesos<br>y productos</p>
         <span class="hub-sidebar-card-bar"></span>
@@ -238,7 +258,7 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/hub_components.js?v=4.2.1"></script>
-  <script src="js/modules/hub.js?v=4.2.0"></script>
+  <script src="js/modules/hub_components.js?v=4.4.3"></script>
+  <script src="js/modules/hub.js?v=4.4.3"></script>
 </body>
 </html>

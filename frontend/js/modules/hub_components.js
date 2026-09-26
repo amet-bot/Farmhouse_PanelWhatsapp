@@ -11,6 +11,8 @@
  *   MobileModuleCard → mobileModuleCard(module)      (accesos rápidos 2x2)
  *   RecentActivity   → activityRow(entry) / activityEmpty()
  *   MobilePendingList→ pendingRow(entry) / pendingEmpty()
+ *   AppSwitcher      → appSwitcher(items, activeId)  (sistema abierto: cambiar a otro)
+ *   AppNav           → appNavList(entries) / appNavLoading()  (menú del sistema abierto)
  *   Ilustraciones    → heroArt(), leafArt()
  */
 (function () {
@@ -96,6 +98,46 @@
       </a>`;
   }
 
+  /** Fila de íconos para saltar de un sistema a otro con uno ya abierto (sin pasar por Inicio). */
+  function appSwitcher(items, activeId) {
+    return items.map((item) => {
+      const active = item.id === activeId;
+      return `
+        <a class="hub-switch-item${active ? ' active' : ''}" href="${esc(item.route)}" data-nav-id="${esc(item.id)}"
+           ${active ? 'aria-current="page"' : ''} title="${esc(item.label)}" aria-label="${esc(item.label)}">
+          ${icon(item.icon)}
+        </a>`;
+    }).join('');
+  }
+
+  /**
+   * Menú del sistema abierto, leído de la página de ese sistema (hub.js). entries:
+   *   { type: 'section', label }
+   *   { type: 'item', idx, label, icon, dot, badge, active, disabled, soon, soonTag }
+   * `idx` es la posición del botón original: el clic se le reenvía a ese botón.
+   */
+  function appNavList(entries) {
+    if (!entries.length) return '';
+    return entries.map((e) => {
+      if (e.type === 'section') return `<p class="hub-appnav-section">${esc(e.label)}</p>`;
+      const lead = e.icon
+        ? icon(e.icon)
+        : `<span class="hub-appnav-dot" style="background:${esc(e.dot || 'currentColor')}" aria-hidden="true"></span>`;
+      const tail = e.soon
+        ? (e.soonTag ? '<span class="hub-appnav-soon">Pronto</span>' : '')
+        : (e.badge !== '' && e.badge != null ? `<span class="hub-appnav-badge">${esc(e.badge)}</span>` : '');
+      return `
+        <button type="button" class="hub-appnav-item${e.active ? ' active' : ''}${e.soon || e.disabled ? ' soon' : ''}" data-idx="${Number(e.idx)}"
+                title="${esc(e.label)}"${e.active ? ' aria-current="true"' : ''}${e.disabled ? ' disabled' : ''}>
+          ${lead}<span class="hub-appnav-label">${esc(e.label)}</span>${tail}
+        </button>`;
+    }).join('');
+  }
+
+  function appNavLoading() {
+    return '<span class="hub-appnav-skel"></span><span class="hub-appnav-skel"></span><span class="hub-appnav-skel"></span>';
+  }
+
   // ---- Ilustraciones: SVG en línea, en los tonos del tema (currentColor/variables) ----
   function heroArt() {
     return `
@@ -137,5 +179,6 @@
   window.HubComponents = {
     sidebarNav, moduleCard, brandCard, mobileModuleCard,
     activityRow, activityEmpty, pendingRow, heroArt, leafArt,
+    appSwitcher, appNavList, appNavLoading,
   };
 })();

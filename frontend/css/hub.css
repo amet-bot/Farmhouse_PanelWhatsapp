@@ -153,6 +153,10 @@ body {
   background: var(--fh-dark);
   color: #e6f2ec;
   overflow-y: auto;
+  /* Con el menú de un sistema largo (WhatsApp) el sidebar scrollea: barra fina y del tono del
+     sidebar, no la gris del navegador que además le comía 15px al menú. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, .16) transparent;
 }
 
 .hub-sidebar-brand {
@@ -241,6 +245,191 @@ body {
 .hub-sidebar-card-art .art-leaf-2 { fill: #3aa57b; }
 .hub-sidebar-card-art .art-leaf-3 { fill: #26785a; }
 .hub-sidebar-card-art .art-stem { stroke: #2f8f6a; }
+
+/* ---- Menú del sistema abierto ----
+   Con un sistema abierto el sidebar deja de mostrar el menú principal y muestra el de ese
+   sistema (hub.js lo lee de su página). "Panel General" vuelve al menú normal. */
+.hub-appnav { display: none; flex-direction: column; gap: 14px; }
+.hub-app-mode .hub-sidebar-nav,
+.hub-app-mode .hub-sidebar-card { display: none; }
+.hub-app-mode .hub-appnav { display: flex; }
+.hub-app-mode .hub-sidebar { gap: 16px; }
+
+.hub-appnav-back {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .1);
+  background: rgba(255, 255, 255, .04);
+  color: rgba(230, 242, 236, .9);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease, border-color .2s ease;
+}
+
+.hub-appnav-back svg, .hub-appnav-back i { width: 16px; height: 16px; flex-shrink: 0; }
+.hub-appnav-back:hover { background: rgba(255, 255, 255, .09); border-color: rgba(255, 255, 255, .16); color: #fff; }
+
+/* Una fila con un ícono por sistema: cambiar de sistema sin pasar por el inicio. */
+.hub-switcher {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 7), minmax(0, 1fr));
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, .16);
+}
+
+.hub-switch-item {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: rgba(230, 242, 236, .6);
+  transition: background .2s ease, color .2s ease;
+}
+
+.hub-switch-item svg, .hub-switch-item i { width: 16px; height: 16px; }
+.hub-switch-item:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+.hub-switch-item.active { background: #6ee7b7; color: #073d31; }
+.hub-switch-item:focus-visible { outline-color: #6ee7b7; }
+
+.hub-appnav-head { display: flex; align-items: center; gap: 11px; padding: 4px 6px 0; }
+
+.hub-appnav-icon {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(110, 231, 183, .14);
+  color: #6ee7b7;
+}
+
+.hub-appnav-icon svg, .hub-appnav-icon i { width: 18px; height: 18px; }
+.hub-appnav-titles { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.hub-appnav-titles small { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(230, 242, 236, .55); }
+/* Hasta dos líneas: "Operación de Sucursal" o "Comunicación Interna" no entran en una. */
+.hub-appnav-titles strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #fff;
+}
+
+.hub-appnav-list { display: flex; flex-direction: column; gap: 2px; }
+
+.hub-appnav-section {
+  margin: 12px 12px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: rgba(230, 242, 236, .5);
+}
+
+.hub-appnav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 8px 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(230, 242, 236, .82);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease;
+}
+
+.hub-appnav-item svg, .hub-appnav-item i { width: 17px; height: 17px; flex-shrink: 0; }
+.hub-appnav-item:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+.hub-appnav-item.active { background: rgba(255, 255, 255, .10); color: #fff; font-weight: 600; }
+.hub-appnav-item.active svg { color: #6ee7b7; }
+.hub-appnav-item.soon { color: rgba(230, 242, 236, .45); }
+.hub-appnav-item:disabled { cursor: not-allowed; background: transparent; }
+.hub-appnav-item:focus-visible { outline-color: #6ee7b7; }
+
+.hub-appnav-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Sucursales: el punto de su color, en el lugar del ícono (mismo ancho para que alinee). */
+.hub-appnav-dot {
+  width: 9px;
+  height: 9px;
+  margin: 0 4px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .08);
+}
+
+.hub-appnav-badge {
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .1);
+  color: #e6f2ec;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hub-appnav-item.active .hub-appnav-badge { background: #6ee7b7; color: #073d31; }
+
+.hub-appnav-soon {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: rgba(230, 242, 236, .5);
+}
+
+.hub-appnav-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .08);
+}
+
+.hub-appnav-foot small { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(230, 242, 236, .55); }
+.hub-appnav-foot strong { font-size: 13px; font-weight: 600; color: #fff; }
+
+.hub-appnav-skel {
+  display: block;
+  height: 34px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .06);
+  animation: hubAppNavPulse 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes hubAppNavPulse { from { opacity: .45; } to { opacity: 1; } }
 
 /* ---- Columna principal ---- */
 .hub-main-col { min-width: 0; display: flex; flex-direction: column; }
@@ -906,6 +1095,22 @@ body {
   .hub-sidebar-card { display: none; }
   .hub-sidebar-nav { width: 100%; }
   .hub-nav-item { justify-content: center; padding: 0; height: 44px; }
+
+  /* Menú del sistema en la franja de íconos: sin textos, las secciones pasan a ser una línea y
+     los contadores un globito sobre el ícono. Para cambiar de sistema: "Panel General". */
+  .hub-appnav { align-items: center; width: 100%; }
+  .hub-appnav-back { width: 44px; height: 40px; padding: 0; justify-content: center; }
+  .hub-appnav-back span,
+  .hub-switcher,
+  .hub-appnav-titles,
+  .hub-appnav-label,
+  .hub-appnav-soon,
+  .hub-appnav-foot { display: none !important; }
+  .hub-appnav-head { padding: 0; justify-content: center; }
+  .hub-appnav-list { width: 100%; }
+  .hub-appnav-section { height: 1px; margin: 8px 10px; font-size: 0; background: rgba(255, 255, 255, .1); }
+  .hub-appnav-item { position: relative; justify-content: center; padding: 0; min-height: 42px; }
+  .hub-appnav-badge { position: absolute; top: 3px; right: 3px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 9.5px; }
 
   .hub-topbar { padding: 0 24px; }
   .hub-user-text { display: none; }

@@ -396,6 +396,12 @@ body {
   min-width: 0;
 }
 
+/* Dentro del Panel General el rail (Resumen, Cargamentos... / Ventas, Sincronización) lo muestra
+   el sidebar del hub, que lo lee de acá y le reenvía los clics (hub.js). Se esconde el propio,
+   también la barra inferior en que se convierte bajo 900px. */
+.fh-embedded .inv-shell { grid-template-columns: minmax(0, 1fr); }
+.fh-embedded .inv-sidebar { display: none !important; }
+
 .inv-view {
   display: flex;
   flex-direction: column;
@@ -1474,8 +1480,9 @@ body {
     white-space: nowrap;
   }
 
-  /* El contenido deja lugar para la barra de pestañas. */
+  /* El contenido deja lugar para la barra de pestañas (embebido no hay barra). */
   .inv-content { padding: 18px 14px calc(92px + env(safe-area-inset-bottom, 0px)); }
+  .fh-embedded .inv-content { padding-bottom: 32px; }
 
   .inv-header { padding: 12px 16px; }
   .inv-view-head h1 { font-size: 20px; }
