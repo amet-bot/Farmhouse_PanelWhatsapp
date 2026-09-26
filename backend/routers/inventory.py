@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -934,14 +934,23 @@ def list_stock(
         )
         .join(Shipment, Shipment.id == ShipmentItem.shipment_id)
     )
+    # Pérdida en $: el costo guardado con la merma y, si no hay, el de referencia de Invu (mismo
+    # criterio que el Análisis de merma; `costo_estimado` dice cuánto salió de Invu). Antes solo
+    # contaba el guardado y, sin cargamentos registrados, la columna quedaba toda en "—".
     salidas_q = (
         db.query(
             WasteItem.inventory_item_id.label("item_id"),
             func.coalesce(func.sum(WasteItem.quantity), 0).label("cantidad"),
-            func.coalesce(func.sum(WasteItem.quantity * func.coalesce(WasteItem.unit_cost, 0)), 0).label("costo"),
+            func.coalesce(func.sum(
+                WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.reference_cost, 0)
+            ), 0).label("costo"),
+            func.coalesce(func.sum(
+                case((WasteItem.unit_cost.is_(None), WasteItem.quantity * func.coalesce(InventoryItem.reference_cost, 0)), else_=0)
+            ), 0).label("costo_estimado"),
             func.max(WasteRecord.occurred_at).label("ultimo"),
         )
         .join(WasteRecord, WasteRecord.id == WasteItem.waste_record_id)
+        .join(InventoryItem, InventoryItem.id == WasteItem.inventory_item_id)
     )
     ajustes_q = (
         db.query(
@@ -1006,6 +1015,7 @@ def list_stock(
             transferred=trasladado,
             on_hand=entro - salio + ajustado + trasladado,
             wasted_cost=(Decimal(salida.costo).quantize(Decimal("0.01")) if salida and salida.costo else None),
+            wasted_cost_estimated=bool(salida and salida.costo_estimado and Decimal(salida.costo_estimado) > 0),
             last_movement_at=(max(fechas) if fechas else None),
             last_unit_cost=ultimos_costos.get(item.id),
             last_counted_at=(ajuste.ultimo if ajuste else None),

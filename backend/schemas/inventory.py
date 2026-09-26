@@ -236,6 +236,7 @@ class StockRowResponse(BaseModel):
     transferred: Decimal = Decimal("0")  # neto de traslados: recibido - despachado
     on_hand: Decimal                     # entered - wasted + adjusted + transferred; puede ser negativo, a propósito
     wasted_cost: Optional[Decimal] = None
+    wasted_cost_estimated: bool = False   # parte de la pérdida se valuó con el costo de Invu
     last_movement_at: Optional[datetime] = None
     last_counted_at: Optional[datetime] = None
     # Costo unitario del último cargamento de ese insumo en esa sucursal. Solo viaja cuando la

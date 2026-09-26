@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.5.0">
-  <link rel="stylesheet" href="css/inventory.css?v=4.8.4">
+  <link rel="stylesheet" href="css/inventory.css?v=4.9.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -379,7 +379,7 @@
           <div class="inv-view-head">
             <div>
               <h1>Existencias</h1>
-              <p>Lo que entró, menos lo que se perdió, corregido por el último conteo. Se calcula cada vez, no se guarda.</p>
+              <p>Cuánto debería haber de cada insumo, según lo que se registró.</p>
             </div>
             <div class="inv-view-head-actions">
               <button type="button" class="inv-secondary-btn" data-open-waste title="Registrar merma" aria-label="Registrar merma">
@@ -389,6 +389,18 @@
                 <i data-lucide="clipboard-check"></i> Nuevo conteo
               </button>
             </div>
+          </div>
+
+          <!-- Cómo se lee la tabla: la cuenta en una línea, con las mismas palabras que las columnas. -->
+          <div class="inv-stock-formula" aria-label="Cómo se calcula lo que queda">
+            <span class="inv-formula-term">Entró<small>cargamentos</small></span>
+            <span class="inv-formula-op">−</span>
+            <span class="inv-formula-term">Salió<small>por merma</small></span>
+            <span class="inv-formula-op">±</span>
+            <span class="inv-formula-term">Ajuste<small>por conteo</small></span>
+            <span class="inv-formula-op">=</span>
+            <span class="inv-formula-term is-result">Queda<small>hoy</small></span>
+            <p>Cada número va en la unidad del insumo (g, kg, u. = unidades), la misma que se usa al contar. Pérdida en $ es lo que costó lo que salió por merma; con ≈, estimado con el costo de Invu.</p>
           </div>
 
           <div class="inv-stock-note" id="stockNote" hidden>
@@ -839,6 +851,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.8.4"></script>
+  <script src="js/modules/inventory.js?v=4.9.0"></script>
 </body>
 </html>

@@ -123,3 +123,16 @@ def test_periodo_invalido(client, admin_user):
     h = _h(admin_user)
     assert client.get("/api/inventory/waste/analytics", params={"date_from": "2026-03-10", "date_to": "2026-03-01"}, headers=h).status_code == 400
     assert client.get("/api/inventory/waste/analytics", params={"date_from": "2024-01-01", "date_to": "2026-03-01"}, headers=h).status_code == 400
+
+
+def test_existencias_valuan_la_merma_con_invu_si_no_hay_cargamento(client, db_session, clayton_branch, admin_user):
+    h = _h(admin_user)
+    pina = _item(client, h, "Piña", "unidad")
+    db_session.get(InventoryItem, pina["id"]).reference_cost = Decimal("1.25")
+    db_session.commit()
+    _merma(client, h, clayton_branch.id, [{"inventory_item_id": pina["id"], "quantity": "2"}])
+
+    filas = client.get("/api/inventory/stock", params={"branch_id": clayton_branch.id, "only_stocked": True}, headers=h).json()
+    fila = next(f for f in filas if f["inventory_item_id"] == pina["id"])
+    assert Decimal(fila["wasted_cost"]) == Decimal("2.50") and fila["wasted_cost_estimated"] is True
+    assert Decimal(fila["on_hand"]) == Decimal("-2")

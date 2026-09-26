@@ -113,6 +113,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     return qty(num);
   };
 
+  // La unidad corta que va al lado de cada número ("692 g", "1.65 kg", "3 u."). Las de Invu
+  // vienen escritas enteras ("gramos", "kilogramo"); las cargadas a mano, como sea.
+  const UNIT_SHORT = {
+    gramo: 'g', gramos: 'g', gr: 'g', g: 'g',
+    kilogramo: 'kg', kilogramos: 'kg', kilo: 'kg', kilos: 'kg', kg: 'kg',
+    mililitro: 'ml', mililitros: 'ml', ml: 'ml',
+    litro: 'L', litros: 'L', l: 'L',
+    libra: 'lb', libras: 'lb', lb: 'lb',
+    onza: 'oz', onzas: 'oz', oz: 'oz',
+    unidad: 'u.', unidades: 'u.', und: 'u.', u: 'u.',
+  };
+  const unitShort = (u) => UNIT_SHORT[String(u || '').trim().toLowerCase()] || String(u || '');
+
   const pluralize = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
   // Invu guarda el día de entrega como número. Su documentación no dice desde qué día cuenta,
@@ -2127,11 +2140,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const negativos = rows.filter((r) => Number(r.on_hand) < 0);
     const note = $('stockNote');
     if (negativos.length) {
+      const sinEntradas = negativos.filter((r) => !Number(r.entered)).length;
       note.hidden = false;
       note.querySelector('span').textContent =
-        `${pluralize(negativos.length, 'insumo aparece', 'insumos aparecen')} en negativo. ` +
-        'Pasa cuando se mermó algo que entró antes de que el sistema llevara la cuenta: ' +
-        'se arregla contando lo que hay en el estante.';
+        `${pluralize(negativos.length, 'insumo da', 'insumos dan')} negativo. No es que falte mercadería: ` +
+        (sinEntradas
+          ? `se registró merma${sinEntradas === negativos.length ? '' : ' en varios'}, pero nunca lo que entró (no hay cargamentos), así que el sistema resta de cero. `
+          : 'salió más de lo que el sistema tiene registrado como entrada. ') +
+        'Se arregla registrando los cargamentos que llegan, o con un conteo de lo que hay hoy: el conteo fija el punto de partida.';
     } else {
       note.hidden = true;
     }
@@ -2148,17 +2164,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // La columna de traslados solo aparece cuando hubo alguno: la mayoría de las sucursales
     // todavía no los usa y una columna llena de "—" solo le quita lugar al resto en celular.
     const hayTraslados = rows.some((r) => Number(r.transferred));
+    // Cada número con su unidad al lado: un "692" solo no dice si son gramos, kilos o unidades.
+    const cant = (n, unit, conSigno = false) =>
+      `${esc(conSigno ? signedQty(n) : qty(n))} <small>${esc(unitShort(unit))}</small>`;
     table.innerHTML = `
       <table class="inv-detail-table inv-stock-grid">
         <thead>
           <tr>
             <th>Insumo</th>
-            <th class="num">Entró</th>
-            <th class="num">Merma</th>
-            <th class="num">Conteo</th>
-            ${hayTraslados ? '<th class="num">Traslados</th>' : ''}
-            <th class="num">Queda</th>
-            <th class="num">Perdido</th>
+            <th class="num" title="Lo que llegó por cargamentos">Entró<small>cargamentos</small></th>
+            <th class="num" title="Lo que se registró como merma">Salió<small>por merma</small></th>
+            <th class="num" title="Lo que corrigió el último conteo: + sobraba, − faltaba">Ajuste<small>por conteo</small></th>
+            ${hayTraslados ? '<th class="num" title="Recibido de otras sucursales menos lo enviado">Traslados<small>entre sucursales</small></th>' : ''}
+            <th class="num" title="Entró − salió ± ajuste ± traslados">Queda<small>hoy</small></th>
+            <th class="num" title="Lo que costó lo que salió por merma">Pérdida<small>en $</small></th>
           </tr>
         </thead>
         <tbody>
@@ -2171,12 +2190,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                   ${esc(r.item_name)}
                   <small>${esc(r.category || 'Sin categoría')} · se cuenta en ${esc(r.unit)}</small>
                 </td>
-                <td class="num" data-label="Entró">${esc(qty(r.entered))}</td>
-                <td class="num" data-label="Merma">${Number(r.wasted) ? esc(qty(r.wasted)) : '—'}</td>
-                <td class="num" data-label="Conteo" title="${r.last_counted_at ? `Último conteo: ${esc(utils.formatDateTime(r.last_counted_at))}` : 'Nunca se contó'}">${Number(r.adjusted) ? esc(signedQty(r.adjusted)) : '—'}</td>
-                ${hayTraslados ? `<td class="num" data-label="Traslados">${Number(r.transferred) ? esc(signedQty(r.transferred)) : '—'}</td>` : ''}
-                <td class="num inv-stock-onhand" data-label="Queda"><span class="inv-stock-pill${clase}">${esc(qty(r.on_hand))} <small>${esc(r.unit)}</small></span></td>
-                <td class="num" data-label="Perdido">${r.wasted_cost != null ? money(r.wasted_cost) : '—'}</td>
+                <td class="num" data-label="Entró (cargamentos)">${Number(r.entered) ? cant(r.entered, r.unit) : '<span class="inv-stock-none">nada</span>'}</td>
+                <td class="num" data-label="Salió por merma">${Number(r.wasted) ? cant(r.wasted, r.unit) : '—'}</td>
+                <td class="num" data-label="Ajuste por conteo" title="${r.last_counted_at ? `Último conteo: ${esc(utils.formatDateTime(r.last_counted_at))}` : 'Nunca se contó'}">${Number(r.adjusted) ? cant(r.adjusted, r.unit, true) : '—'}</td>
+                ${hayTraslados ? `<td class="num" data-label="Traslados">${Number(r.transferred) ? cant(r.transferred, r.unit, true) : '—'}</td>` : ''}
+                <td class="num inv-stock-onhand" data-label="Queda hoy"><span class="inv-stock-pill${clase}">${cant(r.on_hand, r.unit)}</span></td>
+                <td class="num" data-label="Pérdida en $">${r.wasted_cost != null
+                  ? `${money(r.wasted_cost)}${r.wasted_cost_estimated ? ' <small title="Valuado con el costo de referencia de Invu: todavía no hay cargamento con costo">≈</small>' : ''}`
+                  : '—'}</td>
               </tr>`;
           }).join('')}
         </tbody>

@@ -2550,3 +2550,56 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 }
 .inv-trend-avg-label.is-value { font-weight: 700; fill: var(--inv-text); }
 .inv-trend-foot { margin: 4px 0 0; font-size: 11px; color: var(--inv-text-muted); }
+
+/* ============================================================================
+   EXISTENCIAS: cómo se lee
+   ============================================================================ */
+.inv-stock-formula {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--inv-panel);
+  border: 1px solid var(--inv-border-light);
+}
+
+.inv-formula-term {
+  display: inline-flex;
+  flex-direction: column;
+  padding: 5px 10px;
+  border-radius: 9px;
+  background: var(--inv-panel-2);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--inv-text);
+  line-height: 1.15;
+}
+
+.inv-formula-term small { font-size: 10.5px; font-weight: 500; color: var(--inv-text-muted); }
+.inv-formula-term.is-result { background: var(--inv-green-soft); color: var(--inv-green-soft-text); }
+.inv-formula-op { font-size: 16px; font-weight: 700; color: var(--inv-text-muted); }
+
+.inv-stock-formula p {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--inv-text-muted);
+}
+
+/* Encabezados de dos líneas: qué es y de dónde sale ("Entró / cargamentos"). */
+.inv-stock-grid th small {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--inv-text-muted);
+}
+
+.inv-stock-grid td small { color: var(--inv-text-muted); font-weight: 500; }
+.inv-stock-none { color: var(--inv-text-muted); font-style: italic; font-size: 12px; }
