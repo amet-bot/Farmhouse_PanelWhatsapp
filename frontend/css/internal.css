@@ -28,20 +28,22 @@
   --int-online: #16a34a;
 }
 
+/* Oscuro: las superficies y textos del Panel General (style.css), no el azul marino propio
+   que tenía: abierta dentro del hub, Equipo era la única pantalla azul. */
 [data-theme="dark"] {
-  --int-bg: #070D18;
-  --int-panel: #0B1421;
-  --int-panel-2: #101B2C;
-  --int-border: rgba(110, 145, 195, .18);
-  --int-border-light: rgba(110, 145, 195, .11);
-  --int-text: #F2F5FA;
-  --int-text-secondary: #93A6C4;
-  --int-text-muted: #6E84A6;
-  --int-accent: #4C8DFF;
-  --int-accent-soft: rgba(76, 141, 255, .14);
-  --int-accent-text: #7FB0FF;
-  --int-accent-border: rgba(76, 141, 255, .38);
-  --int-mine-bg: #2C63C4;
+  --int-bg: var(--bg-primary);
+  --int-panel: var(--panel-bg);
+  --int-panel-2: #132420;
+  --int-border: rgba(158, 214, 188, .12);
+  --int-border-light: rgba(158, 214, 188, .08);
+  --int-text: var(--text-primary);
+  --int-text-secondary: #a9bcb3;
+  --int-text-muted: #869a91;
+  --int-accent: var(--green, #22c55e);
+  --int-accent-soft: var(--green-soft, rgba(34, 197, 94, 0.15));
+  --int-accent-text: var(--green-soft-text, #4ade80);
+  --int-accent-border: var(--green-border, rgba(34, 197, 94, 0.3));
+  --int-mine-bg: var(--green-dark, #16a34a);
   --int-mine-text: #F2F7FF;
   --int-online: #2ED47A;
 }
@@ -916,7 +918,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  background: rgba(4, 9, 18, .88);
+  background: rgba(4, 12, 9, .88);
   backdrop-filter: blur(3px);
 }
 
@@ -940,7 +942,7 @@ body {
   /* Base oscura propia, no solo blanco translúcido: el fondo del visor lleva backdrop-filter y
      no todos los navegadores lo aplican igual; con una base propia el texto blanco se lee
      siempre, se desenfoque o no lo de atrás. */
-  background: rgba(16, 24, 38, .78);
+  background: rgba(12, 26, 21, .78);
   color: #fff;
   font-family: inherit;
   font-size: 12.5px;
