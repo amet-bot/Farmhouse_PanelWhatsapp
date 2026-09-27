@@ -34,7 +34,7 @@ from config import settings
 from services import invu_client, invu_items_sync, invu_recipes_sync, invu_sales_sync, invu_sync
 from services.audit import log_audit_event
 from security.auth import get_current_authorized_user
-from security.permissions import require_permission
+from security.permissions import has_permission, require_permission
 from security.access_control import check_target_branch_valid
 
 logger = logging.getLogger("farmhouse.inventory")
@@ -1166,6 +1166,75 @@ def get_waste_photo(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+# Quien registró una merma puede borrarla solo, sin pedírselo a nadie, mientras sea un error
+# reciente (se equivocó de insumo, de cantidad o la cargó dos veces). Pasado ese plazo la merma ya
+# entró en los reportes y borrarla es corregir historia: eso queda para supervisor o admin.
+WASTE_SELF_DELETE_WINDOW = timedelta(hours=24)
+
+
+@router.delete("/waste/{waste_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_waste(
+    waste_id: int,
+    motivo: Optional[str] = Query(None, max_length=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Borra una merma cargada por error, con sus líneas, sus fotos y sus movimientos del libro, así
+    la existencia y el análisis vuelven a quedar como si nunca se hubiera cargado.
+
+    - Supervisor y admin (permiso `inventory.adjust`): cualquier merma de las sucursales que ven.
+    - Quien la registró: la suya, dentro de las primeras 24 horas.
+
+    No queda un hueco sin rastro: la auditoría guarda una copia de lo que se borró (motivo,
+    insumos, cantidades, costo, quién la había cargado) y el motivo del borrado si se dio.
+    """
+    record = _waste_for_user(db, waste_id, current_user)
+
+    if not has_permission(current_user, "inventory.adjust"):
+        if record.recorded_by_user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo quien registró la merma, o un supervisor, puede borrarla.",
+            )
+        cargada = record.created_at
+        if cargada.tzinfo is None:
+            cargada = cargada.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - cargada > WASTE_SELF_DELETE_WINDOW:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Pasaron más de 24 horas desde que se cargó: pedile a un supervisor que la borre.",
+            )
+
+    snapshot = {
+        "reason": record.reason,
+        "occurred_at": record.occurred_at.isoformat() if record.occurred_at else None,
+        "recorded_by_user_id": record.recorded_by_user_id,
+        "notes": record.notes,
+        "weight_value": str(record.weight_value) if record.weight_value is not None else None,
+        "photos": len(record.photos),
+        "items": [
+            {
+                "inventory_item_id": l.inventory_item_id,
+                "quantity": str(l.quantity),
+                "unit_cost": str(l.unit_cost) if l.unit_cost is not None else None,
+            }
+            for l in record.items
+        ],
+        "delete_reason": (motivo or "").strip() or None,
+    }
+
+    db.query(InventoryMovement).filter(
+        InventoryMovement.source_type == "waste",
+        InventoryMovement.source_id == record.id,
+    ).delete(synchronize_session=False)
+    log_audit_event(db, current_user.id, record.branch_id, "waste.delete", "waste_record", record.id, snapshot)
+    db.delete(record)  # líneas y fotos se van con ella (cascade)
+    db.commit()
+    logger.info(f"Merma #{waste_id} borrada por {current_user.name}" + (f" — {snapshot['delete_reason']}" if snapshot["delete_reason"] else ""))
+    return None
 
 
 # ==========================================================================

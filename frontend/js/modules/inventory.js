@@ -99,6 +99,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Fotos de evidencia de la merma (ver "Evidencia de la merma" más abajo). Arriba y no allá: el detalle de una
   // merma se puede pintar antes de que el módulo llegue a esa parte.
   const WASTE_PHOTOS_MAX = 6;           // mismo tope que el servidor
+  const WASTE_SELF_DELETE_MS = 24 * 60 * 60 * 1000;   // quien la cargó puede borrarla (igual que el servidor)
   const PHOTO_MAX_SIDE = 1600;          // px del lado largo: se ve bien el detalle y pesa ~300 KB
   let pendingWastePhotos = [];          // [{ blob, url }] elegidas en el modal; se suben al guardar
   const wastePhotoUrls = new Map();     // id de foto → URL ya descargada (no se vuelve a pedir)
@@ -1808,9 +1809,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="inv-photo-grid" id="wasteDetailPhotos">
         ${fotos.map((p) => `<button type="button" class="inv-photo-thumb is-loading" data-photo-id="${p.id}" aria-label="Ver foto (subida por ${esc(p.uploaded_by_name || 'alguien')})"></button>`).join('')}
         ${fotos.length < WASTE_PHOTOS_MAX ? `
-          <button type="button" class="inv-photo-add" id="btnAddWastePhoto">
-            <i data-lucide="camera"></i><span>${fotos.length ? 'Agregar' : 'Agregar foto'}</span>
-          </button>` : ''}
+          <div class="inv-photo-add-group">
+            <button type="button" class="inv-photo-add" data-photo-camera="detail">
+              <i data-lucide="camera"></i><span>Tomar foto</span>
+            </button>
+            <button type="button" class="inv-photo-add inv-photo-add-secondary" id="btnAddWastePhoto">
+              <i data-lucide="image"></i><span>Galería</span>
+            </button>
+          </div>` : ''}
       </div>
       ${fotos.length ? '' : '<p class="inv-photo-empty">Esta merma no tiene foto de evidencia.</p>'}
       <div class="inv-detail-section-header"><span>Detalles</span></div>
@@ -1819,10 +1825,69 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><span>Registrado por</span><strong>${esc(w.recorded_by_name)}</strong></div>
         <div><span>Ocurrió el</span><strong>${esc(utils.formatDateTime(w.occurred_at))}</strong></div>
         <div><span>Cargado al sistema</span><strong>${esc(utils.formatDateTime(w.created_at))}</strong></div>
-      </div>`;
+      </div>
+      ${canDeleteWaste(w) ? `
+        <div class="inv-detail-danger">
+          <button type="button" class="inv-danger-outline" id="btnDeleteWaste">
+            <i data-lucide="trash-2"></i><span>Eliminar merma</span>
+          </button>
+          <small>${hasPerm('inventory.adjust') ? 'Si se cargó por error.' : 'Si te equivocaste: podés borrarla hasta 24 horas después de cargarla.'}</small>
+        </div>` : ''}`;
     utils.renderIcons();
     wirePhotoGallery(w);
+    $('btnDeleteWaste')?.addEventListener('click', () => openWasteDelete(w));
   }
+
+  // ---- Eliminar merma (cargada por error) ----
+  // Mismas reglas que el servidor, solo para no mostrar un botón que va a dar 403: supervisor y
+  // admin cualquiera que vean; quien la cargó, la suya durante las primeras 24 horas.
+  function hasPerm(code) {
+    return (state.user?.permissions || []).includes(code);
+  }
+
+  function canDeleteWaste(w) {
+    if (hasPerm('inventory.adjust')) return true;
+    if (!state.user || w.recorded_by_user_id !== state.user.id) return false;
+    return Date.now() - (utils._parseServerDate(w.created_at) || new Date(0)).getTime() <= WASTE_SELF_DELETE_MS;
+  }
+
+  let wasteToDelete = null;
+
+  function openWasteDelete(w) {
+    wasteToDelete = w;
+    $('wasteDeleteError').style.display = 'none';
+    $('wasteDeleteReason').value = '';
+    $('wasteDeleteTitle').textContent = `Eliminar merma #${w.id}`;
+    const insumos = w.items.map((l) => `${qty(l.quantity)} ${unitShort(l.unit)} de ${l.item_name}`).join(', ');
+    $('wasteDeleteSummary').textContent =
+      `${w.reason_label} · ${insumos}${wasteCostValue(w) != null ? ` · ${wasteCostTxt(w)}` : ''}`;
+    openModal('modalWasteDelete');
+    $('wasteDeleteReason').focus();
+  }
+
+  $('btnConfirmWasteDelete')?.addEventListener('click', async () => {
+    if (!wasteToDelete) return;
+    const btn = $('btnConfirmWasteDelete');
+    btn.disabled = true;
+    btn.textContent = 'Eliminando...';
+    try {
+      const motivo = $('wasteDeleteReason').value.trim();
+      await api.delete(`/inventory/waste/${wasteToDelete.id}${motivo ? `?motivo=${encodeURIComponent(motivo)}` : ''}`);
+      closeModal('modalWasteDelete');
+      utils.showToast(`Merma #${wasteToDelete.id} eliminada.`, 'success');
+      wasteToDelete = null;
+      state.selected.waste = null;
+      closeAllMobileDetails();
+      await Promise.all([loadWaste({ reset: true }), loadWasteAnalytics(), loadStock()]);
+      renderResumen();
+      if (wasteAnalysis.tab === 'analisis') loadWasteAnalysis();
+    } catch (err) {
+      showModalError('wasteDeleteError', err.message || 'No se pudo eliminar la merma.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Eliminar merma';
+    }
+  });
 
   $('wasteSearch')?.addEventListener('input', (e) => {
     state.search.waste = e.target.value;
@@ -2711,7 +2776,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderPendingPhotos() {
     const grid = $('wastePhotoPreviews');
     if (!grid) return;
-    const add = grid.querySelector('.inv-photo-add');
+    const add = grid.querySelector('.inv-photo-add-group');
     grid.querySelectorAll('.inv-photo-thumb').forEach((n) => n.remove());
     pendingWastePhotos.forEach((p, i) => {
       const el = document.createElement('div');
@@ -2729,15 +2794,109 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderPendingPhotos();
   }
 
-  $('wastePhotoInput')?.addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';   // elegir la misma foto otra vez tiene que volver a disparar el cambio
+  /** Fotos elegidas o sacadas en el formulario: quedan en espera hasta guardar la merma. */
+  async function addPendingPhotos(files) {
     for (const f of files) {
       if (pendingWastePhotos.length >= WASTE_PHOTOS_MAX) break;
       const blob = await compressPhoto(f);
       pendingWastePhotos.push({ blob, url: URL.createObjectURL(blob) });
     }
     renderPendingPhotos();
+  }
+
+  $('wastePhotoInput')?.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';   // elegir la misma foto otra vez tiene que volver a disparar el cambio
+    await addPendingPhotos(files);
+  });
+
+  // ---- Tomar foto con la cámara ----
+  // Celular/tablet: el input con `capture` abre la cámara del teléfono (la app nativa, que enfoca
+  // y maneja la luz mejor que cualquier cosa hecha acá). Computadora: ahí `capture` se ignora y
+  // abriría el explorador de archivos, así que se usa la webcam en vivo. Sin webcam o sin
+  // permiso, cae a elegir un archivo.
+  let cameraTarget = 'form';   // para quién se abrió la cámara: el formulario o el detalle
+  let cameraStream = null;
+
+  async function deliverCameraPhotos(files) {
+    if (!files.length) return;
+    if (cameraTarget === 'detail') await uploadDetailPhotos(files);
+    else await addPendingPhotos(files);
+  }
+
+  function openCamera(target) {
+    cameraTarget = target;
+    const tactil = window.matchMedia('(pointer: coarse)').matches;
+    if (tactil || !navigator.mediaDevices?.getUserMedia) {
+      $('wasteCameraInput').click();
+      return;
+    }
+    openWebcam();
+  }
+
+  async function openWebcam() {
+    const msg = $('wasteCameraMsg');
+    const shoot = $('btnCameraShoot');
+    msg.hidden = true;
+    shoot.disabled = true;
+    $('wasteCamera').hidden = false;
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      $('wasteCameraVideo').srcObject = cameraStream;
+      shoot.disabled = false;
+    } catch (err) {
+      closeWebcam();
+      const sinPermiso = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+      utils.showToast(
+        sinPermiso
+          ? 'No hay permiso para usar la cámara. Podés elegir la foto con «Galería».'
+          : 'No se encontró una cámara. Podés elegir la foto con «Galería».',
+        'warning'
+      );
+      // Si todavía vale el clic del usuario, abre el selector directo; si el navegador ya no lo
+      // deja (pasó mucho rato en el aviso de permiso), queda el botón «Galería».
+      $(cameraTarget === 'detail' ? 'wasteDetailPhotoInput' : 'wastePhotoInput').click();
+    }
+  }
+
+  function closeWebcam() {
+    if (cameraStream) cameraStream.getTracks().forEach((t) => t.stop());
+    cameraStream = null;
+    $('wasteCameraVideo').srcObject = null;
+    $('wasteCamera').hidden = true;
+  }
+
+  $('btnCameraCancel')?.addEventListener('click', closeWebcam);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('wasteCamera').hidden) closeWebcam();
+  });
+
+  $('btnCameraShoot')?.addEventListener('click', async () => {
+    const video = $('wasteCameraVideo');
+    if (!video.videoWidth) return;
+    const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(video.videoWidth, video.videoHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+    closeWebcam();
+    if (blob) await deliverCameraPhotos([blob]);
+  });
+
+  $('wasteCameraInput')?.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    await deliverCameraPhotos(files);
+  });
+
+  // Los botones "Tomar foto" del formulario y del detalle (este último se redibuja).
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-photo-camera]');
+    if (btn) openCamera(btn.dataset.photoCamera);
   });
 
   $('wastePhotoPreviews')?.addEventListener('click', (e) => {
@@ -2819,6 +2978,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('wasteDetailPhotoInput')?.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
+    await uploadDetailPhotos(files);
+  });
+
+  /** Fotos agregadas desde el detalle de una merma ya registrada: se suben en el momento. */
+  async function uploadDetailPhotos(files) {
     const w = state.waste.find((x) => x.id === state.selected.waste);
     if (!w || !files.length) return;
     const libres = WASTE_PHOTOS_MAX - (w.photos || []).length;
@@ -2831,7 +2995,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (fallidas) utils.showToast(`${pluralize(fallidas, 'foto no se pudo', 'fotos no se pudieron')} subir.`, 'error');
     else utils.showToast(blobs.length === 1 ? 'Foto agregada.' : 'Fotos agregadas.', 'success');
     renderWasteList();
-  });
+  }
 
   function openWasteModal() {
     $('wasteError').style.display = 'none';

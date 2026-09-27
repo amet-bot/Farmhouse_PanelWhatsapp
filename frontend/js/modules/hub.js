@@ -302,6 +302,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       frame.className = 'hub-app-frame';
       frame.title = item.label;
       frame.dataset.appId = id;
+      frame.allow = 'camera';   // "Tomar foto" de la merma (Inventario) dentro del hub
       frame.src = target;
       frame.addEventListener('load', () => onFrameLoaded(frame));
       appFrames[id] = frame;

@@ -146,7 +146,9 @@ async def security_and_csrf_middleware(request: Request, call_next):
     # (clickjacking).
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=()"
+    # camera=(self): la foto de evidencia de la merma se saca con la webcam en computadora. Solo
+    # el propio sitio (y sus iframes del mismo origen, el hub) puede pedirla; nadie de afuera.
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=()"
     if settings.ENVIRONMENT == "production":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 

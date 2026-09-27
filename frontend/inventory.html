@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.11.4">
-  <link rel="stylesheet" href="css/inventory.css?v=4.11.4">
+  <link rel="stylesheet" href="css/inventory.css?v=4.12.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -504,6 +504,49 @@
 
   <!-- Para agregar fotos a una merma ya registrada, desde su detalle. -->
   <input type="file" id="wasteDetailPhotoInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*" multiple hidden>
+  <!-- "Tomar foto" en celular/tablet: `capture` abre la cámara trasera directo. Lo comparten el
+       formulario y el detalle; el JS recuerda para cuál de los dos se abrió. -->
+  <input type="file" id="wasteCameraInput" accept="image/*" capture="environment" hidden>
+
+  <!-- Cámara en computadora (sin `capture`, que ahí se ignora): la webcam en vivo. -->
+  <div class="inv-camera" id="wasteCamera" hidden role="dialog" aria-modal="true" aria-label="Tomar foto">
+    <div class="inv-camera-frame">
+      <video id="wasteCameraVideo" autoplay playsinline muted></video>
+      <p class="inv-camera-msg" id="wasteCameraMsg" hidden></p>
+    </div>
+    <div class="inv-camera-bar">
+      <button type="button" class="btn-secondary" id="btnCameraCancel">Cancelar</button>
+      <button type="button" class="inv-camera-shutter" id="btnCameraShoot" aria-label="Tomar la foto"></button>
+      <span class="inv-camera-spacer"></span>
+    </div>
+  </div>
+
+  <!-- ================= Modal: eliminar merma ================= -->
+  <div class="modal-backdrop" id="modalWasteDelete">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="inv-modal-title">
+          <span class="inv-card-icon inv-card-icon-danger"><i data-lucide="trash-2"></i></span>
+          <div>
+            <h3 id="wasteDeleteTitle">Eliminar merma</h3>
+            <span class="modal-subtitle">Para cuando se cargó por error.</span>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="modalWasteDelete" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="wasteDeleteError" class="login-error-box" style="display:none"></div>
+        <p class="inv-delete-summary" id="wasteDeleteSummary"></p>
+        <p class="inv-delete-note">Se borra con sus fotos, y la existencia y el análisis vuelven a quedar como si nunca se hubiera cargado. Queda registrado quién la borró.</p>
+        <label class="modal-label" for="wasteDeleteReason">Motivo <small>(opcional)</small></label>
+        <input type="text" id="wasteDeleteReason" class="modal-input" maxlength="200" placeholder="Ej.: la cargué dos veces, era otro insumo">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-close-modal="modalWasteDelete">Cancelar</button>
+        <button type="button" class="inv-danger-btn" id="btnConfirmWasteDelete">Eliminar merma</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Visor de fotos de merma -->
   <div class="inv-photo-viewer" id="wastePhotoViewer" hidden role="dialog" aria-modal="true" aria-label="Foto de la merma">
@@ -602,16 +645,22 @@
         </div>
 
         <!-- Evidencia: fotos de lo que se descartó. Se guardan en la base junto con la merma.
-             Sin `capture`: en el celular deja elegir entre sacar la foto o tomarla de la galería. -->
+             Dos botones y no uno: con `multiple` varios Android abren directo el selector de
+             archivos sin ofrecer la cámara, así que "Tomar foto" va aparte y abre la cámara. -->
         <div class="inv-evidence-field">
           <div class="inv-photo-field-head">
             <span class="modal-label">Evidencia (foto)</span>
             <small>Una foto de lo que se descartó, como respaldo. Hasta 6.</small>
           </div>
           <div class="inv-photo-grid" id="wastePhotoPreviews">
-            <label class="inv-photo-add" for="wastePhotoInput">
-              <i data-lucide="camera"></i><span>Agregar foto</span>
-            </label>
+            <div class="inv-photo-add-group">
+              <button type="button" class="inv-photo-add" data-photo-camera="form">
+                <i data-lucide="camera"></i><span>Tomar foto</span>
+              </button>
+              <label class="inv-photo-add inv-photo-add-secondary" for="wastePhotoInput">
+                <i data-lucide="image"></i><span>Galería</span>
+              </label>
+            </div>
           </div>
           <input type="file" id="wastePhotoInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*" multiple hidden>
         </div>
@@ -908,6 +957,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.11.4"></script>
+  <script src="js/modules/inventory.js?v=4.12.0"></script>
 </body>
 </html>
