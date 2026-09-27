@@ -36,5 +36,9 @@ class InventoryItem(Base):
     # de cada compra es el que se anota en el cargamento.
     reference_cost = Column(Numeric(12, 4), nullable=True)
     synced_at = Column(DateTime, nullable=True)
+    # Cuánto es UNA pieza entera de este insumo: en gramos, o en ml si se mide en volumen
+    # (migración 047). No viene de Invu: se carga desde el panel o se aprende la primera vez que
+    # alguien registra una merma de "pieza entera" ("1 baguette = 80 g").
+    piece_size = Column(Numeric(12, 3), nullable=True)
 
     shipment_items = relationship("ShipmentItem", back_populates="inventory_item")

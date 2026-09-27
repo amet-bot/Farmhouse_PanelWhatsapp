@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.11.4">
-  <link rel="stylesheet" href="css/inventory.css?v=4.12.0">
+  <link rel="stylesheet" href="css/inventory.css?v=4.13.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -936,7 +936,7 @@
       </div>
       <div class="inv-line-cell">
         <span class="inv-line-label inv-line-qty-label">Cantidad</span>
-        <input type="number" class="modal-input inv-line-qty" placeholder="0" min="0" step="0.001" inputmode="decimal">
+        <input type="number" class="modal-input inv-line-qty" placeholder="0" min="0" step="0.001" inputmode="decimal" disabled>
       </div>
       <div class="inv-line-cell inv-line-stock-cell">
         <span class="inv-line-label">En existencia</span>
@@ -945,6 +945,24 @@
       <button type="button" class="inv-line-remove" title="Quitar" aria-label="Quitar insumo">
         <i data-lucide="x"></i>
       </button>
+      <!-- Qué se botó: la pieza completa o un pedazo/residuo. Se elige siempre, a propósito: sin
+           esa distinción "1" de un insumo en gramos se leía como 1 gramo y no como 1 pan. -->
+      <div class="inv-line-mode" role="radiogroup" aria-label="Qué se botó" hidden>
+        <span class="inv-line-mode-label">¿Qué se botó?</span>
+        <button type="button" class="inv-mode-btn" data-mode="entera" role="radio" aria-checked="false">
+          <i data-lucide="circle"></i><span>Pieza entera</span>
+        </button>
+        <button type="button" class="inv-mode-btn" data-mode="parte" role="radio" aria-checked="false">
+          <i data-lucide="pie-chart"></i><span>Una parte o residuo</span>
+        </button>
+      </div>
+      <div class="inv-line-extra" hidden>
+        <label class="inv-line-piece" hidden>
+          <span class="inv-line-piece-label">Peso de 1 pieza (g)</span>
+          <input type="number" class="modal-input inv-line-piece-input" min="0" step="0.1" inputmode="decimal" placeholder="Ej. 80">
+        </label>
+        <small class="inv-line-calc" hidden></small>
+      </div>
     </div>
   </template>
 
@@ -957,6 +975,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.12.0"></script>
+  <script src="js/modules/inventory.js?v=4.13.0"></script>
 </body>
 </html>

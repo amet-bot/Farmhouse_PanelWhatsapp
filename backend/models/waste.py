@@ -89,6 +89,11 @@ class WasteItem(Base):
     # cambia con cada compra, y una merma de marzo tiene que seguir valiendo lo que valía en
     # marzo aunque el proveedor haya aumentado en abril.
     unit_cost = Column(Numeric(10, 2), nullable=True)
+    # Qué se botó (migración 047): "entera" = piezas completas (`pieces` de ellas) o "parte" = un
+    # pedazo o residuo pesado en balanza. NULL en las mermas anteriores. `quantity` sigue siendo
+    # siempre la cantidad en la unidad del insumo: la existencia y el costo no cambian de fórmula.
+    mode = Column(String(10), nullable=True)
+    pieces = Column(Numeric(10, 3), nullable=True)
 
     waste_record = relationship("WasteRecord", back_populates="items")
     inventory_item = relationship("InventoryItem")

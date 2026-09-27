@@ -22,8 +22,14 @@ class InventoryItemResponse(BaseModel):
     kind: Optional[str] = None                 # "materia_prima" | "casa"
     reference_cost: Optional[Decimal] = None   # costo de Invu, solo referencia
     synced_at: Optional[datetime] = None
+    piece_size: Optional[Decimal] = None       # una pieza entera: gramos (o ml si es de volumen)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class InventoryItemPieceSize(BaseModel):
+    """Cuánto es una pieza entera del insumo (g, o ml si se mide en volumen). None la borra."""
+    piece_size: Optional[Decimal] = Field(None, gt=0, max_digits=12, decimal_places=3)
 
 
 class SupplierCreate(BaseModel):
@@ -95,11 +101,25 @@ class ShipmentResponse(BaseModel):
 # Merma y existencias
 # ==========================================================================
 class WasteItemCreate(BaseModel):
+    """
+    Una línea de la merma. Dos formas de decir cuánto se botó:
+      - Sin `mode` (como siempre): `quantity`, en la unidad del insumo.
+      - Con `mode` (el formulario): el servidor calcula `quantity` —
+          "entera": `pieces` piezas completas. Si el insumo va en peso o volumen hace falta el
+                    tamaño de una pieza (`piece_size`, o el que ya tiene guardado el insumo).
+          "parte":  un pedazo o residuo. Insumo en peso/volumen: `quantity` en su unidad (lo que
+                    marca la balanza). Insumo por unidad: `part_amount` en gramos, y se convierte
+                    a fracción de pieza con el tamaño de una pieza.
+    """
     inventory_item_id: int
-    quantity: Decimal = Field(..., gt=0)
+    quantity: Optional[Decimal] = Field(None, gt=0)
     # Normalmente no se manda: el backend lo copia del último cargamento de ese insumo en esa
     # sucursal. Se acepta por si quien carga sabe que ese lote costó otra cosa.
     unit_cost: Optional[Decimal] = Field(None, ge=0)
+    mode: Optional[str] = Field(None, pattern="^(entera|parte)$")
+    pieces: Optional[Decimal] = Field(None, gt=0, max_digits=10, decimal_places=3)
+    piece_size: Optional[Decimal] = Field(None, gt=0, max_digits=12, decimal_places=3)
+    part_amount: Optional[Decimal] = Field(None, gt=0, max_digits=12, decimal_places=3)
 
 
 class WasteItemResponse(BaseModel):
@@ -110,6 +130,9 @@ class WasteItemResponse(BaseModel):
     quantity: Decimal
     unit_cost: Optional[Decimal] = None
     reference_cost: Optional[Decimal] = None   # costo de Invu del insumo, si no hay unit_cost
+    mode: Optional[str] = None                 # "entera" | "parte" | None (mermas anteriores)
+    pieces: Optional[Decimal] = None
+    piece_size: Optional[Decimal] = None       # tamaño de una pieza del insumo (g o ml), hoy
     # Existencia que quedaba de ese insumo en esa sucursal justo antes de este registro. Se
     # calcula al responder, no se guarda: sirve para avisar "esto deja el stock en negativo".
     stock_before: Optional[Decimal] = None

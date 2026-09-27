@@ -2772,6 +2772,71 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 .inv-item-suggestion.is-active { background: var(--inv-green-soft); }
 .inv-line-row-waste .inv-item-suggestions { max-height: 280px; }
 
+/* ---- Merma: pieza entera o parte ---- */
+.inv-line-extra {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 14px;
+  margin-top: -2px;
+}
+.inv-line-extra[hidden] { display: none; }
+.inv-line-mode { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.inv-line-mode[hidden] { display: none; }
+.inv-line-mode-label { font-size: 12px; font-weight: 600; color: var(--inv-text-secondary); margin-right: 2px; }
+.inv-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--inv-border);
+  border-radius: 999px;
+  background: var(--inv-panel);
+  color: var(--inv-text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.inv-mode-btn i, .inv-mode-btn svg { width: 15px; height: 15px; }
+.inv-mode-btn:hover { border-color: var(--inv-green-border); }
+.inv-mode-btn.is-active {
+  background: var(--inv-green-soft);
+  border-color: var(--inv-green-border);
+  color: var(--inv-green-dark);
+}
+.inv-line-piece { display: flex; flex-direction: column; gap: 4px; }
+.inv-line-piece[hidden] { display: none; }
+.inv-line-piece-label { font-size: 11px; font-weight: 600; color: var(--inv-text-muted); }
+.inv-line-piece .modal-input { width: 150px; }
+.inv-line-piece .modal-input.is-auto,
+.inv-line-qty:disabled { opacity: .7; }
+.inv-line-calc { flex-basis: 100%; font-size: 12px; color: var(--inv-text-secondary); line-height: 1.45; }
+.inv-line-calc[hidden] { display: none; }
+.inv-line-warn { color: var(--warning-text, #b45309); font-weight: 600; }
+
+@media (max-width: 900px) {
+  /* En celular todo va en columna: insumo → qué se botó → cuánto → peso de la pieza → quitar. */
+  .inv-line-row-waste .inv-line-item { order: 1; }
+  .inv-line-row-waste .inv-line-mode { order: 2; }
+  .inv-line-row-waste .inv-line-cell { order: 3; }
+  .inv-line-row-waste .inv-line-extra { order: 4; }
+  .inv-line-row-waste .inv-line-remove { order: 5; }
+  .inv-line-mode-label { width: 100%; }
+  .inv-mode-btn { flex: 1 1 0; justify-content: center; }
+  .inv-line-piece, .inv-line-piece .modal-input { width: 100%; }
+}
+
+/* Detalle del insumo: el tamaño de una pieza */
+.inv-piece-size { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.inv-piece-size-value { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.inv-piece-size-value small { font-size: 12px; color: var(--inv-text-muted); }
+.inv-piece-size-edit { display: flex; align-items: center; gap: 8px; }
+.inv-piece-size-edit .modal-input { width: 110px; }
+.inv-piece-size-edit span { font-size: 13px; color: var(--inv-text-muted); }
+
 /* Celular: el aviso (toast) va arriba de la barra de pestañas de abajo, no encima de ella. */
 @media (max-width: 900px) {
   .toast-banner {

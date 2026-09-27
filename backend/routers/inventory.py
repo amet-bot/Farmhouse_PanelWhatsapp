@@ -20,7 +20,7 @@ from models.stock_count import StockCount, StockCountItem
 from models.inventory_movement import InventoryMovement
 from models.transfer import Transfer, TransferItem
 from schemas.inventory import (
-    InventoryItemCreate, InventoryItemResponse,
+    InventoryItemCreate, InventoryItemPieceSize, InventoryItemResponse,
     InvuStatusResponse, InvuSyncResult,
     SupplierCreate, SupplierResponse,
     ShipmentCreate, ShipmentResponse, ShipmentItemResponse,
@@ -465,6 +465,9 @@ def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -
             quantity=line.quantity,
             unit_cost=line.unit_cost,
             reference_cost=(line.inventory_item.reference_cost if line.unit_cost is None else None),
+            mode=line.mode,
+            pieces=line.pieces,
+            piece_size=line.inventory_item.piece_size,
             stock_before=previo,
         ))
 
@@ -508,6 +511,83 @@ def list_waste_reasons(current_user: User = Depends(get_current_authorized_user)
     uno, se agrega en un solo lugar y las pantallas y los reportes ya hablan el mismo idioma.
     """
     return [WasteReasonResponse(code=code, label=label) for code, label in WASTE_REASONS]
+
+
+def _familia_de_unidad(unit: Optional[str]) -> tuple:
+    """
+    ("peso", gramos por unidad) | ("volumen", ml por unidad) | ("unidad", 1).
+    Lo que no es peso ni volumen ("unidad", "caja", "bolsa"...) se cuenta por pieza.
+    """
+    fam = _UNIT_FAMILY.get((unit or "").strip().lower())
+    if fam and fam[0] in ("peso", "volumen"):
+        return fam[0], fam[1] * 1000
+    return "unidad", Decimal("1")
+
+
+def _cantidad_de_linea(item: InventoryItem, line, piece_size: Optional[Decimal]) -> Decimal:
+    """
+    La cantidad en la unidad del insumo de una línea de merma (ver WasteItemCreate). Falla con
+    400 y un mensaje que dice qué falta, con el nombre del insumo, en vez de guardar un número
+    inventado.
+    """
+    def falta(msg: str):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{item.name}: {msg}")
+
+    if line.mode is None:
+        if line.quantity is None:
+            falta("falta la cantidad.")
+        return Decimal(line.quantity)
+
+    familia, base = _familia_de_unidad(item.unit)
+    medida = "cuánto trae (ml)" if familia == "volumen" else "cuánto pesa (g)"
+    if line.mode == "entera":
+        if line.pieces is None:
+            falta("falta cuántas piezas enteras se botaron.")
+        if familia == "unidad":
+            cantidad = Decimal(line.pieces)
+        else:
+            if not piece_size:
+                falta(f"falta {medida} una pieza entera.")
+            cantidad = Decimal(line.pieces) * Decimal(piece_size) / base
+    else:  # parte
+        if familia == "unidad":
+            if line.part_amount is None:
+                falta("falta cuánto pesa (g) lo que se botó.")
+            if not piece_size:
+                falta("falta cuánto pesa (g) una pieza entera, para saber qué parte es.")
+            cantidad = Decimal(line.part_amount) / Decimal(piece_size)
+        elif line.part_amount is not None:
+            cantidad = Decimal(line.part_amount) / base
+        elif line.quantity is not None:
+            cantidad = Decimal(line.quantity)
+        else:
+            falta("falta cuánto pesa lo que se botó.")
+
+    cantidad = cantidad.quantize(Decimal("0.001"))
+    if cantidad <= 0:
+        falta("la cantidad da cero; revisá el peso.")
+    return cantidad
+
+
+@router.patch("/items/{item_id}/piece-size", response_model=InventoryItemResponse)
+def set_item_piece_size(
+    item_id: int,
+    body: InventoryItemPieceSize,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("inventory.adjust")),
+):
+    """Cuánto es una pieza entera de un insumo (g, o ml si es de volumen). Supervisor o admin."""
+    item = db.query(InventoryItem).filter(InventoryItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Insumo no encontrado.")
+    antes = item.piece_size
+    item.piece_size = body.piece_size
+    log_audit_event(db, current_user.id, None, "item.piece_size", "inventory_item", item.id,
+                    {"before": str(antes) if antes is not None else None,
+                     "after": str(body.piece_size) if body.piece_size is not None else None})
+    db.commit()
+    db.refresh(item)
+    return item
 
 
 @router.post("/waste", response_model=WasteResponse, status_code=status.HTTP_201_CREATED)
@@ -555,6 +635,23 @@ def create_waste(
             detail=f"Ítem(s) de inventario no encontrados: {sorted(missing)}"
         )
 
+    # Cuánto es cada línea en la unidad del insumo. El tamaño de una pieza que se escribe en el
+    # formulario se aprende para el insumo si todavía no tenía; cambiar uno ya guardado es de
+    # supervisor o admin (si no, vale el guardado, que es lo que la pantalla le mostró fijo).
+    por_id = {i.id: i for i in found_items}
+    puede_ajustar = has_permission(current_user, "inventory.adjust")
+    cantidades = []
+    for line in waste_in.items:
+        item = por_id[line.inventory_item_id]
+        tamano = item.piece_size
+        if line.piece_size is not None and (tamano is None or puede_ajustar):
+            if tamano != line.piece_size:
+                log_audit_event(db, current_user.id, waste_in.branch_id, "item.piece_size", "inventory_item", item.id,
+                                {"before": str(tamano) if tamano is not None else None,
+                                 "after": str(line.piece_size), "via": "waste"})
+            item.piece_size = tamano = line.piece_size
+        cantidades.append(_cantidad_de_linea(item, line, tamano))
+
     # La existencia se mira ANTES de grabar: después este mismo registro ya estaría restando.
     stock_before = _on_hand_map(db, waste_in.branch_id, item_ids)
 
@@ -570,14 +667,16 @@ def create_waste(
     if waste_in.reason in PROCESS_WASTE_REASONS and waste_in.processed_value is not None:
         record.processed_value = waste_in.processed_value
         record.processed_unit = waste_in.processed_unit or "kg"
-    for line in waste_in.items:
+    for line, cantidad in zip(waste_in.items, cantidades):
         costo = line.unit_cost
         if costo is None:
             costo = _last_known_cost(db, waste_in.branch_id, line.inventory_item_id)
         record.items.append(WasteItem(
             inventory_item_id=line.inventory_item_id,
-            quantity=line.quantity,
+            quantity=cantidad,
             unit_cost=costo,
+            mode=line.mode,
+            pieces=(line.pieces if line.mode == "entera" else None),
         ))
 
     db.add(record)
@@ -780,6 +879,8 @@ def waste_analytics(
                 kg = cantidad * factor
             elif peso_rec_kg is not None and len(rec.items) == 1:
                 kg = peso_rec_kg
+            elif item.piece_size and _familia_de_unidad(item.unit)[0] == "unidad":
+                kg = cantidad * Decimal(item.piece_size) / 1000   # piezas × gramos de una pieza
             else:
                 kg = None
                 totales.lines_without_kg += 1

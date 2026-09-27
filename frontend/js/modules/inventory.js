@@ -133,6 +133,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sinTildes = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   // Kilos por unidad corta, solo de las que son peso (la merma se pesa en balanza).
   const KG_FACTOR = { g: 0.001, kg: 1, lb: 0.45359237, oz: 0.028349523 };
+  const ML_FACTOR = { ml: 1, L: 1000 };
+  /**
+   * Familia de la unidad de un insumo, con `base` = gramos (o ml) que hay en 1 de esa unidad.
+   * Lo que no es peso ni volumen ("unidad", "caja"...) se cuenta por pieza. Igual que el servidor
+   * (_familia_de_unidad).
+   */
+  function unitFamily(unit) {
+    const corta = unitShort(unit);
+    if (KG_FACTOR[corta]) return { fam: 'peso', base: KG_FACTOR[corta] * 1000, short: corta };
+    if (ML_FACTOR[corta]) return { fam: 'volumen', base: ML_FACTOR[corta], short: corta };
+    return { fam: 'unidad', base: 1, short: corta || 'u.' };
+  }
 
   const pluralize = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
@@ -1150,8 +1162,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><span>Última recepción</span><strong>${stats.last ? esc(utils.formatDate(stats.last.toISOString())) : 'Nunca'}</strong></div>
         <div><span>Sucursales que lo reciben</span><strong>${branches.length ? esc(branches.join(', ')) : '—'}</strong></div>
         <div><span>Estado</span><strong>${item.active ? 'Activo' : 'Inactivo'}</strong></div>
-      </div>`;
+      </div>
+      ${pieceSizeHtml(item)}`;
     utils.renderIcons();
+    wirePieceSizeEditor(item);
+  }
+
+  // Cuánto es una pieza entera (para las mermas de "pieza entera"). Lo ve todo el mundo; lo
+  // cambia supervisor o admin. Si nadie lo cargó, se aprende de la primera merma que lo diga.
+  function pieceSizeHtml(item) {
+    const fam = unitFamily(item.unit);
+    const u = fam.fam === 'volumen' ? 'ml' : 'g';
+    const valor = item.piece_size != null ? `${qty(item.piece_size)} ${u}` : 'Sin cargar';
+    const ayuda = fam.fam === 'unidad'
+      ? 'Lo que pesa una. Sirve para pasar a gramos lo que se bota y para mermas de una parte.'
+      : `Con esto, "se botó 1 pieza entera" se convierte solo a ${esc(unitShort(item.unit))}.`;
+    const editable = hasPerm('inventory.adjust');
+    return `
+      <div class="inv-detail-section-header"><span>Una pieza entera</span></div>
+      <div class="inv-piece-size">
+        <div class="inv-piece-size-value"><strong>${esc(valor)}</strong><small>${ayuda}</small></div>
+        ${editable ? `
+          <div class="inv-piece-size-edit">
+            <input type="number" class="modal-input" id="itemPieceSizeInput" min="0" step="0.1" inputmode="decimal"
+                   placeholder="${fam.fam === 'volumen' ? 'Ej. 330' : 'Ej. 80'}" value="${item.piece_size != null ? esc(String(Number(item.piece_size))) : ''}"
+                   aria-label="${fam.fam === 'volumen' ? 'Mililitros' : 'Gramos'} de una pieza">
+            <span>${u}</span>
+            <button type="button" class="btn-secondary" id="btnSavePieceSize">Guardar</button>
+          </div>` : ''}
+      </div>`;
+  }
+
+  function wirePieceSizeEditor(item) {
+    $('btnSavePieceSize')?.addEventListener('click', async () => {
+      const raw = $('itemPieceSizeInput').value.trim();
+      if (raw && !(Number(raw) > 0)) { utils.showToast('Tiene que ser mayor que cero.', 'error'); return; }
+      const btn = $('btnSavePieceSize');
+      btn.disabled = true;
+      try {
+        const actualizado = await api.request(`/inventory/items/${item.id}/piece-size`, {
+          method: 'PATCH',
+          body: JSON.stringify({ piece_size: raw || null }),
+        });
+        item.piece_size = actualizado.piece_size;
+        utils.showToast(raw ? 'Guardado.' : 'Borrado.', 'success');
+        renderItemDetail();
+      } catch (err) {
+        utils.showToast(err.message || 'No se pudo guardar.', 'error');
+        btn.disabled = false;
+      }
+    });
   }
 
   $('itemSearch')?.addEventListener('input', (e) => {
@@ -1686,9 +1746,32 @@ document.addEventListener('DOMContentLoaded', async () => {
   function wasteQuantityLabel(w) {
     if (w.items.length === 1) {
       const line = w.items[0];
-      return `${qty(line.quantity)} ${line.unit}`;
+      if (line.mode === 'entera' && line.pieces != null) {
+        const n = Number(line.pieces);
+        return `${qty(n)} ${n === 1 ? 'entera' : 'enteras'}`;
+      }
+      return `${qty(line.quantity)} ${unitShort(line.unit)}`;
     }
     return pluralize(w.items.length, 'insumo', 'insumos');
+  }
+
+  /** "2 piezas enteras · 160 g", "40 g · una parte", o la cantidad a secas (mermas anteriores). */
+  function wasteLineQtyTxt(l) {
+    const enUnidad = `${qty(l.quantity)} ${unitShort(l.unit)}`;
+    if (l.mode === 'entera' && l.pieces != null) {
+      const n = Number(l.pieces);
+      const piezas = `${qty(n)} ${n === 1 ? 'pieza entera' : 'piezas enteras'}`;
+      return unitFamily(l.unit).fam === 'unidad' ? piezas : `${piezas} · ${enUnidad}`;
+    }
+    if (l.mode === 'parte') {
+      if (unitFamily(l.unit).fam === 'unidad' && l.piece_size) {
+        // 0.333 × 90 g da 29.97: se redondea a gramo entero (a décima si es menos de 10 g).
+        const g = Number(l.quantity) * Number(l.piece_size);
+        return `${Number(g.toFixed(g >= 10 ? 0 : 1))} g · una parte (${enUnidad})`;
+      }
+      return `${enUnidad} · una parte`;
+    }
+    return enUnidad;
   }
 
   function renderWasteList() {
@@ -1764,7 +1847,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `
         <tr>
           <td class="inv-td-name" data-label="Insumo">${esc(l.item_name)}</td>
-          <td class="num" data-label="Cantidad">${esc(qty(l.quantity))} ${esc(unitShort(l.unit))}</td>
+          <td class="num" data-label="Cantidad">${esc(wasteLineQtyTxt(l))}</td>
           <td class="num" data-label="Costo unit.">${costo != null ? `${aprox}${unitCost(costo)}` : '—'}</td>
           <td class="num" data-label="Pérdida">${subtotal}</td>
         </tr>`;
@@ -1858,7 +1941,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('wasteDeleteError').style.display = 'none';
     $('wasteDeleteReason').value = '';
     $('wasteDeleteTitle').textContent = `Eliminar merma #${w.id}`;
-    const insumos = w.items.map((l) => `${qty(l.quantity)} ${unitShort(l.unit)} de ${l.item_name}`).join(', ');
+    const insumos = w.items.map((l) => `${wasteLineQtyTxt(l)} de ${l.item_name}`).join(', ');
     $('wasteDeleteSummary').textContent =
       `${w.reason_label} · ${insumos}${wasteCostValue(w) != null ? ` · ${wasteCostTxt(w)}` : ''}`;
     openModal('modalWasteDelete');
@@ -2474,15 +2557,179 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const disponible = Number(fila.on_hand);
     cell.textContent = `${qty(disponible)} ${fila.unit}`;
-    const pedido = Number(qtyInput.value || 0);
+    const pedido = wasteLineCalc(row).qty || 0;
     if (pedido > disponible) cell.classList.add('is-short');
   }
 
   /** Refresca la existencia de una fila y, con ella, la pérdida estimada y el peso del formulario. */
   function refreshWasteLine(row) {
     refreshWasteLineStock(row);
+    updateWasteLineCalc(row);
     updateWasteTotal();
     syncWasteWeight();
+  }
+
+  // ---- Pieza entera o parte ----
+  // Cada línea dice qué se botó. `quantity` (lo que resta del stock y se multiplica por el costo)
+  // sale de ahí, siempre en la unidad del insumo:
+  //   entera · insumo en g/kg/ml → piezas × lo que pesa (o trae) una pieza
+  //   entera · insumo por unidad → piezas
+  //   parte  · insumo en g/kg/ml → lo que marca la balanza
+  //   parte  · insumo por unidad → gramos del pedazo ÷ gramos de una pieza entera
+  // El servidor hace la misma cuenta (_cantidad_de_linea); esto es para mostrarla antes de guardar.
+
+  /** { itemId, mode, fam, qty, grams, weighable, error } de una fila del formulario. */
+  function wasteLineCalc(row) {
+    const itemInput = row.querySelector('.inv-item-input');
+    const itemId = Number(itemInput.dataset.itemId || 0);
+    const mode = row.dataset.mode || '';
+    const fam = unitFamily(itemInput.dataset.unit);
+    const v = Number(row.querySelector('.inv-line-qty').value || 0);
+    const tam = Number(row.querySelector('.inv-line-piece-input').value || 0);
+    const r = { itemId, mode, fam, qty: null, grams: null, weighable: false, error: null };
+    if (!itemId) return r;
+    if (!mode) { r.error = 'elegí si se botó la pieza entera o una parte.'; return r; }
+    // ¿Se puede saber el peso de esta línea? (para completar solo el bloque "Peso")
+    r.weighable = fam.fam === 'peso' || (fam.fam === 'unidad' && (mode === 'parte' || tam > 0));
+    if (!(v > 0)) {
+      r.error = mode === 'entera' ? 'falta cuántas piezas enteras.' : 'falta cuánto pesa lo que se botó.';
+      return r;
+    }
+    const medida = fam.fam === 'volumen' ? 'cuánto trae (ml)' : 'cuánto pesa (g)';
+    if (mode === 'entera') {
+      if (fam.fam === 'unidad') {
+        r.qty = v;
+        if (tam > 0) r.grams = v * tam;
+      } else {
+        if (!(tam > 0)) { r.error = `falta ${medida} una pieza entera.`; return r; }
+        r.qty = (v * tam) / fam.base;
+        if (fam.fam === 'peso') r.grams = v * tam;
+      }
+    } else if (fam.fam === 'unidad') {
+      if (!(tam > 0)) { r.error = 'falta cuánto pesa (g) una pieza entera, para saber qué parte es.'; return r; }
+      r.qty = v / tam;
+      r.grams = v;
+    } else {
+      r.qty = v;
+      if (fam.fam === 'peso') r.grams = v * fam.base;
+    }
+    r.qty = Number(r.qty.toFixed(3));
+    return r;
+  }
+
+  /** Lo que se manda al servidor por esta fila (él recalcula la cantidad con las mismas reglas). */
+  function wasteLinePayload(row, c) {
+    const v = row.querySelector('.inv-line-qty').value;
+    const pieceInput = row.querySelector('.inv-line-piece-input');
+    const linea = { inventory_item_id: c.itemId, mode: c.mode };
+    if (c.mode === 'entera') linea.pieces = v;
+    else if (c.fam.fam === 'unidad') linea.part_amount = v;
+    else linea.quantity = v;
+    if (!pieceInput.readOnly && Number(pieceInput.value) > 0) linea.piece_size = pieceInput.value;
+    return linea;
+  }
+
+  /** El costo por unidad del insumo que va a usar la estimación: el del último cargamento o el de Invu. */
+  function wasteLineUnitCost(row) {
+    const input = row.querySelector('.inv-item-input');
+    const fila = state.wasteStock.get(Number(input.dataset.itemId || 0));
+    if (fila && fila.last_unit_cost != null) return { cost: Number(fila.last_unit_cost), estimated: false };
+    if (input.dataset.refCost) return { cost: Number(input.dataset.refCost), estimated: true };
+    return null;
+  }
+
+  /** Muestra la cuenta de la línea ("2 × 80 g = 160 g") y avisa si el costo no tiene sentido. */
+  function updateWasteLineCalc(row) {
+    const box = row.querySelector('.inv-line-calc');
+    if (!box) return;
+    const c = wasteLineCalc(row);
+    const partes = [];
+    const v = Number(row.querySelector('.inv-line-qty').value || 0);
+    const tam = Number(row.querySelector('.inv-line-piece-input').value || 0);
+    const u = c.fam.short;
+    if (c.qty != null) {
+      if (c.mode === 'entera' && c.fam.fam !== 'unidad') {
+        partes.push(`${qty(v)} × ${qty(tam)} ${c.fam.fam === 'volumen' ? 'ml' : 'g'} = <strong>${esc(qty(c.qty))} ${esc(u)}</strong>`);
+      } else if (c.mode === 'entera' && c.grams) {
+        partes.push(`≈ ${esc(kgTxt(c.grams / 1000))} en total`);
+      } else if (c.mode === 'parte' && c.fam.fam === 'unidad') {
+        partes.push(`${qty(v)} g de ${qty(tam)} g = <strong>${esc(qty(c.qty))} de una pieza</strong>`);
+      }
+    }
+    // Un costo de Invu cargado "por pieza" en un insumo que se mide en gramos da miles de dólares
+    // el kilo y dispara la pérdida (pasó con un pan: $1.625 el gramo). Se avisa, no se oculta.
+    const costo = wasteLineUnitCost(row);
+    if (costo && c.fam.fam !== 'unidad') {
+      const porMil = (costo.cost / c.fam.base) * 1000;   // $ por kg o por litro
+      if (porMil > 100) {
+        partes.push(`<span class="inv-line-warn">Ojo: el costo de este insumo da ${esc(money(porMil))} el ${c.fam.fam === 'volumen' ? 'litro' : 'kilo'}. Parece cargado por pieza en Invu, así que la pérdida puede salir inflada: avisá para corregirlo.</span>`);
+      }
+    }
+    box.innerHTML = partes.join(' · ');
+    box.hidden = !partes.length;
+  }
+
+  /** Ajusta la fila al modo elegido: qué se pregunta, en qué unidad y si pide el peso de una pieza. */
+  function applyWasteLineMode(row) {
+    const itemInput = row.querySelector('.inv-item-input');
+    const extra = row.querySelector('.inv-line-extra');
+    const qtyInput = row.querySelector('.inv-line-qty');
+    const qtyLabel = row.querySelector('.inv-line-qty-label');
+    const pieceBox = row.querySelector('.inv-line-piece');
+    const pieceLabel = row.querySelector('.inv-line-piece-label');
+    const pieceInput = row.querySelector('.inv-line-piece-input');
+    const tieneItem = Boolean(itemInput.dataset.itemId);
+    const mode = row.dataset.mode || '';
+    const fam = unitFamily(itemInput.dataset.unit);
+
+    row.querySelector('.inv-line-mode').hidden = !tieneItem;
+    extra.hidden = !tieneItem || !mode;
+    row.querySelectorAll('.inv-mode-btn').forEach((b) => {
+      const on = b.dataset.mode === mode;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+
+    qtyInput.disabled = !tieneItem || !mode;
+    if (!tieneItem || !mode) {
+      qtyLabel.textContent = 'Cantidad';
+      qtyInput.placeholder = tieneItem ? 'Elegí qué se botó' : '0';
+      pieceBox.hidden = true;
+      return;
+    }
+
+    if (mode === 'entera') {
+      qtyLabel.textContent = 'Piezas';
+      qtyInput.placeholder = 'Ej. 1';
+      qtyInput.step = '1';
+    } else if (fam.fam === 'unidad') {
+      qtyLabel.textContent = 'Peso (g)';
+      qtyInput.placeholder = 'Ej. 40';
+      qtyInput.step = '0.1';
+    } else {
+      qtyLabel.textContent = fam.fam === 'volumen' ? `Cantidad (${fam.short})` : `Peso (${fam.short})`;
+      qtyInput.placeholder = fam.short === 'g' || fam.short === 'ml' ? 'Ej. 270' : 'Ej. 0.270';
+      qtyInput.step = '0.001';
+    }
+
+    // El tamaño de una pieza: obligatorio para "entera" en insumos de peso/volumen y para "parte"
+    // en insumos por unidad; opcional (solo para el peso) en "entera" por unidad.
+    const pide = (mode === 'entera') || fam.fam === 'unidad';
+    pieceBox.hidden = !pide;
+    if (pide) {
+      const opcional = mode === 'entera' && fam.fam === 'unidad';
+      pieceLabel.textContent = fam.fam === 'volumen'
+        ? '1 pieza trae (ml)'
+        : `Peso de 1 pieza${mode === 'parte' ? ' entera' : ''} (g)${opcional ? ' · opcional' : ''}`;
+      const guardado = itemInput.dataset.pieceSize;
+      if (guardado && !pieceInput.value) pieceInput.value = String(Number(guardado));
+      // Uno ya guardado lo cambia supervisor o admin; para el resto queda fijo (el servidor
+      // también lo ignora), así la cuenta que ve es la que se guarda.
+      const fijo = Boolean(guardado) && !hasPerm('inventory.adjust');
+      pieceInput.readOnly = fijo;
+      pieceInput.classList.toggle('is-auto', fijo);
+      pieceInput.title = fijo ? 'Guardado para este insumo. Si está mal, un supervisor lo corrige.' : '';
+    }
   }
 
   /**
@@ -2495,17 +2742,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const input = $('wasteWeightValue');
     const hint = $('wasteWeightHint');
     if (!input) return;
+    // Cada línea sabe su peso si el insumo va en peso, o si va por unidad y se sabe cuánto pesa
+    // una pieza (o lo que se pesó fue el pedazo).
     const filas = Array.from(wasteLinesContainer.querySelectorAll('.inv-line-row'))
-      .map((row) => ({ unit: row.querySelector('.inv-item-input').dataset.unit, id: row.querySelector('.inv-item-input').dataset.itemId, q: Number(row.querySelector('.inv-line-qty').value || 0) }))
-      .filter((f) => f.id);
-    const todoEnPeso = filas.length > 0 && filas.every((f) => KG_FACTOR[unitShort(f.unit)]);
+      .map(wasteLineCalc)
+      .filter((f) => f.itemId);
+    const todoEnPeso = filas.length > 0 && filas.every((f) => f.weighable);
     if (todoEnPeso) {
-      const kg = filas.reduce((s, f) => s + f.q * KG_FACTOR[unitShort(f.unit)], 0);
+      const kg = filas.reduce((s, f) => s + (f.grams || 0), 0) / 1000;
       const unidad = $('wasteWeightUnit').value;
       input.value = kg > 0 ? String(Number((kg / KG_FACTOR[unidad]).toFixed(3))) : '';
       input.readOnly = true;
       input.classList.add('is-auto');
-      hint.textContent = 'Se toma de lo que escribiste arriba: el insumo se cuenta en peso.';
+      hint.textContent = 'Se calcula de lo que escribiste arriba.';
       wasteWeightAuto = true;
     } else {
       if (wasteWeightAuto) input.value = '';   // venía calculado: ahora lo escribe la persona
@@ -2560,19 +2809,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sinCosto = 0;
     let estimados = 0;
     wasteLinesContainer.querySelectorAll('.inv-line-row').forEach((row) => {
-      const input = row.querySelector('.inv-item-input');
-      const itemId = Number(input.dataset.itemId || 0);
-      const cantidad = Number(row.querySelector('.inv-line-qty').value || 0);
-      if (!itemId || cantidad <= 0) return;
-      const fila = state.wasteStock.get(itemId);
-      if (fila && fila.last_unit_cost != null) {
-        total += cantidad * Number(fila.last_unit_cost);
+      const c = wasteLineCalc(row);
+      const cantidad = c.qty || 0;
+      if (!c.itemId || cantidad <= 0) return;
+      // Sin cargamento con costo: el de referencia de Invu (el mismo que usa el servidor).
+      const costo = wasteLineUnitCost(row);
+      if (costo) {
+        total += cantidad * costo.cost;
         conCosto += 1;
-      } else if (input.dataset.refCost) {
-        // Sin cargamento con costo: el de referencia de Invu (el mismo que usa el servidor).
-        total += cantidad * Number(input.dataset.refCost);
-        conCosto += 1;
-        estimados += 1;
+        if (costo.estimated) estimados += 1;
       } else {
         sinCosto += 1;
       }
@@ -2596,29 +2841,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     const unitLabel = row.querySelector('.inv-line-unit');
     const removeBtn = row.querySelector('.inv-line-remove');
     const qtyInput = row.querySelector('.inv-line-qty');
-    const qtyLabel = row.querySelector('.inv-line-qty-label');
-
     itemInput.dataset.itemId = '';
     itemInput._reqId = 0;
 
+    const pieceInput = row.querySelector('.inv-line-piece-input');
+
     const hideSuggestions = () => { suggestBox.hidden = true; suggestBox.innerHTML = ''; };
-    const resetQtyLabel = () => { qtyLabel.textContent = 'Cantidad'; qtyInput.placeholder = '0'; };
+    /** Vuelve la fila a "sin insumo": sin modo, sin cantidad pedida y sin tamaño de pieza. */
+    const resetLine = () => {
+      itemInput.dataset.itemId = '';
+      itemInput.dataset.unit = '';
+      itemInput.dataset.refCost = '';
+      itemInput.dataset.pieceSize = '';
+      unitLabel.textContent = '';
+      row.dataset.mode = '';
+      pieceInput.value = '';
+      applyWasteLineMode(row);
+    };
 
     function selectItem(item) {
       itemInput.value = item.name;
       itemInput.dataset.itemId = String(item.id);
       itemInput.dataset.unit = item.unit || '';
       itemInput.dataset.refCost = item.reference_cost != null ? String(item.reference_cost) : '';
+      itemInput.dataset.pieceSize = item.piece_size != null ? String(item.piece_size) : '';
       unitLabel.textContent = item.unit ? `Se cuenta en ${item.unit}` : '';
-      // Si el insumo se cuenta en peso, lo que se escribe acá ES el peso de la balanza: se pide
-      // una sola vez (el bloque "Peso" de abajo se completa solo).
-      const corta = unitShort(item.unit);
-      qtyLabel.textContent = KG_FACTOR[corta] ? `Peso (${corta})` : `Cantidad (${corta || 'unidad'})`;
-      qtyInput.placeholder = KG_FACTOR[corta] ? (corta === 'g' ? 'Ej. 270' : 'Ej. 0.270') : '0';
+      row.dataset.mode = '';
+      pieceInput.value = '';
+      qtyInput.value = '';
+      applyWasteLineMode(row);
       hideSuggestions();
       refreshWasteLine(row);
-      qtyInput.focus();
+      row.querySelector('.inv-mode-btn')?.focus();
     }
+
+    row.querySelectorAll('.inv-mode-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (row.dataset.mode !== btn.dataset.mode) qtyInput.value = '';   // piezas ≠ gramos
+        row.dataset.mode = btn.dataset.mode;
+        applyWasteLineMode(row);
+        refreshWasteLine(row);
+        qtyInput.focus();
+      });
+    });
+    pieceInput.addEventListener('input', () => refreshWasteLine(row));
 
     // La lista sale del catálogo ya cargado en la pantalla (los insumos de Invu y los cargados a
     // mano): aparece entera al tocar el campo y se filtra con cada letra, al instante, sin
@@ -2698,11 +2964,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     itemInput.addEventListener('input', () => {
-      itemInput.dataset.itemId = '';
-      itemInput.dataset.unit = '';
-      itemInput.dataset.refCost = '';
-      unitLabel.textContent = '';
-      resetQtyLabel();
+      resetLine();
       refreshWasteLine(row);
       mostrarSugerencias();
     });
@@ -2714,16 +2976,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         row.remove();
       } else {
         itemInput.value = '';
-        itemInput.dataset.itemId = '';
-        itemInput.dataset.unit = '';
-        itemInput.dataset.refCost = '';
-        unitLabel.textContent = '';
-        resetQtyLabel();
         qtyInput.value = '';
+        resetLine();
       }
       refreshWasteLine(row);
     });
 
+    applyWasteLineMode(row);
     wasteLinesContainer.appendChild(row);
     utils.renderIcons();
   }
@@ -3031,11 +3290,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       const itemInput = row.querySelector('.inv-item-input');
       const qtyInput = row.querySelector('.inv-line-qty');
       const itemId = itemInput.dataset.itemId;
-      const qtyValue = qtyInput.value;
-      if (!itemId && !qtyValue) continue;
-      if (!itemId) { showModalError('wasteError', 'Elegí un insumo de la lista en cada fila con cantidad.'); itemInput.focus(); return; }
-      if (!qtyValue || Number(qtyValue) <= 0) { showModalError('wasteError', `Falta la cantidad de "${itemInput.value}".`); qtyInput.focus(); return; }
-      items.push({ inventory_item_id: Number(itemId), quantity: qtyValue });
+      if (!itemId && !itemInput.value.trim() && !qtyInput.value) continue;
+      if (!itemId) { showModalError('wasteError', 'Elegí un insumo de la lista en cada fila.'); itemInput.focus(); return; }
+      const c = wasteLineCalc(row);
+      if (c.error) {
+        showModalError('wasteError', `${itemInput.value}: ${c.error}`);
+        if (!c.mode) row.querySelector('.inv-mode-btn')?.focus();
+        else if (!(Number(qtyInput.value) > 0)) qtyInput.focus();
+        else row.querySelector('.inv-line-piece-input')?.focus();
+        return;
+      }
+      items.push(wasteLinePayload(row, c));
     }
     if (!items.length) { showModalError('wasteError', 'Agregá al menos un insumo.'); return; }
 
@@ -3074,6 +3339,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         weight_unit: weightRaw ? $('wasteWeightUnit').value : null,
         processed_value: (reason === 'recorte' && processedRaw) ? processedRaw : null,
         processed_unit: (reason === 'recorte' && processedRaw) ? $('wasteProcessedUnit').value : null,
+      });
+
+      // Lo aprendido (cuánto pesa una pieza) queda en el catálogo de la pantalla para la próxima.
+      (creada.items || []).forEach((l) => {
+        const it = state.items.find((i) => i.id === l.inventory_item_id);
+        if (it && l.piece_size != null) it.piece_size = l.piece_size;
       });
 
       // Las fotos van después, una por una, contra la merma ya creada: si una falla, la merma
