@@ -106,6 +106,38 @@ def test_marking_read_clears_the_counter(client, clayton_agent, clayton_device, 
     assert next(t for t in inbox if t["id"] == thread["id"])["unread_count"] == 0
 
 
+def test_clearing_a_chat_hides_history_only_for_who_cleared_it(client, clayton_agent, clayton_device,
+                                                              obarrio_agent, obarrio_device):
+    thread = client.post("/api/internal/threads/direct", json={"user_id": obarrio_agent.id},
+                         headers=_headers(clayton_agent, clayton_device)).json()
+    client.post(f"/api/internal/threads/{thread['id']}/messages", json={"body": "viejo"},
+                headers=_headers(clayton_agent, clayton_device))
+
+    cleared = client.post(f"/api/internal/threads/{thread['id']}/clear",
+                          headers=_headers(obarrio_agent, obarrio_device))
+    assert cleared.status_code == 204
+
+    # Para quien vació: sin historial, sin vista previa y sin no leídos.
+    msgs = client.get(f"/api/internal/threads/{thread['id']}/messages",
+                      headers=_headers(obarrio_agent, obarrio_device)).json()
+    assert msgs == []
+    inbox = client.get("/api/internal/threads", headers=_headers(obarrio_agent, obarrio_device)).json()
+    mine = next(t for t in inbox if t["id"] == thread["id"])
+    assert mine["last_message_preview"] is None and mine["unread_count"] == 0
+
+    # La otra parte sigue viendo todo.
+    theirs = client.get(f"/api/internal/threads/{thread['id']}/messages",
+                        headers=_headers(clayton_agent, clayton_device)).json()
+    assert [m["body"] for m in theirs] == ["viejo"]
+
+    # Lo que llega después del vaciado sí aparece.
+    client.post(f"/api/internal/threads/{thread['id']}/messages", json={"body": "nuevo"},
+                headers=_headers(clayton_agent, clayton_device))
+    msgs = client.get(f"/api/internal/threads/{thread['id']}/messages",
+                      headers=_headers(obarrio_agent, obarrio_device)).json()
+    assert [m["body"] for m in msgs] == ["nuevo"]
+
+
 def test_outsider_cannot_read_or_write_a_thread(client, clayton_agent, clayton_device, obarrio_agent,
                                                 obarrio_device, supervisor_user):
     """Un tercero no entra a un hilo ajeno aunque sea supervisor de una de las dos sucursales."""

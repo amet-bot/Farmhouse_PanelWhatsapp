@@ -136,24 +136,36 @@ def _participant_or_403(db: Session, thread_id: int, user: User) -> InternalPart
 
 
 def _serialize_thread(db: Session, thread: InternalThread, me: User, online_ids: set) -> InternalThreadResponse:
-    last = db.query(InternalMessage).filter(
-        InternalMessage.thread_id == thread.id
-    ).order_by(InternalMessage.created_at.desc(), InternalMessage.id.desc()).first()
-
     participant = next((p for p in thread.participants if p.user_id == me.id), None)
+
+    last_q = db.query(InternalMessage).filter(InternalMessage.thread_id == thread.id)
     unread_q = db.query(func.count(InternalMessage.id)).filter(
         InternalMessage.thread_id == thread.id,
         InternalMessage.sender_user_id != me.id,
     )
+    # Quien vació su chat no debería ver reaparecer en la bandeja el último mensaje de antes
+    # de vaciarlo, ni que cuente como no leído: para esta persona el hilo empieza después de
+    # cleared_up_to_id.
+    if participant and participant.cleared_up_to_id:
+        last_q = last_q.filter(InternalMessage.id > participant.cleared_up_to_id)
+        unread_q = unread_q.filter(InternalMessage.id > participant.cleared_up_to_id)
+    last = last_q.order_by(InternalMessage.created_at.desc(), InternalMessage.id.desc()).first()
+
     if participant and participant.last_read_at:
         unread_q = unread_q.filter(InternalMessage.created_at > participant.last_read_at)
     unread = unread_q.scalar() or 0
 
     preview = None
     sender_name = None
+    last_message_at = None
     if last:
         preview = _preview(last)
         sender_name = "Vos" if last.sender_user_id == me.id else last.sender.name.split(" ")[0]
+        last_message_at = last.created_at
+    elif not (participant and participant.cleared_up_to_id):
+        # Sin mensajes visibles y sin haber vaciado el hilo: comportamiento de siempre, la fecha
+        # del hilo (por si en algún momento hubo mensajes que se borraron por otra vía).
+        last_message_at = thread.last_message_at
 
     if thread.kind == "branch":
         members = [p for p in thread.participants]
@@ -164,7 +176,7 @@ def _serialize_thread(db: Session, thread: InternalThread, me: User, online_ids:
             subtitle=f"{len(members)} integrantes",
             branch_id=thread.branch_id,
             member_count=len(members),
-            last_message_at=thread.last_message_at,
+            last_message_at=last_message_at,
             last_message_preview=preview,
             last_message_sender=sender_name,
             unread_count=unread,
@@ -184,7 +196,7 @@ def _serialize_thread(db: Session, thread: InternalThread, me: User, online_ids:
         subtitle=subtitle,
         branch_id=(other.branch_id if other else None),
         counterpart=(_brief(other, online_ids) if other else None),
-        last_message_at=thread.last_message_at,
+        last_message_at=last_message_at,
         last_message_preview=preview,
         last_message_sender=sender_name,
         unread_count=unread,
@@ -308,11 +320,13 @@ def list_messages(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_authorized_user),
 ):
-    _participant_or_403(db, thread_id, current_user)
+    participant = _participant_or_403(db, thread_id, current_user)
 
     query = db.query(InternalMessage).options(joinedload(InternalMessage.sender)).filter(
         InternalMessage.thread_id == thread_id
     )
+    if participant.cleared_up_to_id:
+        query = query.filter(InternalMessage.id > participant.cleared_up_to_id)
     if before_id:
         query = query.filter(InternalMessage.id < before_id)
 
@@ -483,6 +497,28 @@ def mark_read(
     current_user: User = Depends(get_current_authorized_user),
 ):
     participant = _participant_or_403(db, thread_id, current_user)
+    participant.last_read_at = datetime.now(timezone.utc)
+    db.commit()
+    return None
+
+
+@router.post("/threads/{thread_id}/clear", status_code=status.HTTP_204_NO_CONTENT)
+def clear_thread(
+    thread_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Vacía la conversación para quien la pide, nada más: no borra ningún internal_message ni
+    afecta lo que ve la otra persona del hilo. Guarda el id del último mensaje del hilo en ese
+    momento (no una fecha: ver el comentario de cleared_up_to_id en el modelo) y de ahí en más
+    el historial y la bandeja se filtran por esa marca.
+    """
+    participant = _participant_or_403(db, thread_id, current_user)
+    last_id = db.query(func.max(InternalMessage.id)).filter(
+        InternalMessage.thread_id == thread_id
+    ).scalar() or 0
+    participant.cleared_up_to_id = last_id
     participant.last_read_at = datetime.now(timezone.utc)
     db.commit()
     return None

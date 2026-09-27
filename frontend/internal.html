@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=4.11.4">
-  <link rel="stylesheet" href="css/internal.css?v=1.4.0">
+  <link rel="stylesheet" href="css/internal.css?v=1.5.0">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -114,6 +114,9 @@
               <small id="chatSubtitle"></small>
             </div>
             <span class="int-chat-kind" id="chatKind" hidden></span>
+            <button type="button" class="int-chat-action" id="btnClearChat" aria-label="Vaciar chat" title="Vaciar chat">
+              <i data-lucide="trash-2"></i>
+            </button>
           </header>
 
           <div class="int-messages" id="messageList"></div>
@@ -167,6 +170,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/modules/push.js?v=4.0.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/internal.js?v=1.2.0"></script>
+  <script src="js/modules/internal.js?v=1.3.0"></script>
 </body>
 </html>

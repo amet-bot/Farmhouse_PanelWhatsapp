@@ -421,6 +421,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.key === 'Escape' && !$('lightbox').hidden) closeLightbox();
   });
 
+  // Vacía la conversación solo para quien la mira: el backend guarda desde cuándo la ve esta
+  // persona (cleared_up_to_id) y de ahí en más filtra por esa marca, sin borrar nada ni afectar a la
+  // otra parte del hilo.
+  $('btnClearChat')?.addEventListener('click', async () => {
+    if (!state.activeThreadId) return;
+    if (!confirm('¿Vaciar esta conversación? Solo la vas a vaciar para vos, la otra persona sigue viendo los mensajes.')) return;
+
+    try {
+      await api.post(`/internal/threads/${state.activeThreadId}/clear`, {});
+    } catch (err) {
+      utils.showToast(err.message || 'No se pudo vaciar la conversación.', 'error');
+      return;
+    }
+    state.messages = [];
+    state.renderedIds = new Set();
+    renderMessages();
+    const thread = state.threads.find((t) => t.id === state.activeThreadId);
+    if (thread) {
+      thread.last_message_at = null;
+      thread.last_message_preview = null;
+      thread.last_message_sender = null;
+      thread.unread_count = 0;
+      renderThreads();
+    }
+    utils.showToast('Conversación vaciada.', 'success');
+  });
+
   async function markRead(threadId) {
     try {
       await api.post(`/internal/threads/${threadId}/read`, {});

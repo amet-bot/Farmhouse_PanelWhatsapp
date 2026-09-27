@@ -50,6 +50,13 @@ class InternalParticipant(Base):
     thread_id = Column(Integer, ForeignKey("internal_threads.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     last_read_at = Column(DateTime, nullable=True)
+    # Marca de "vaciar chat": oculta para esta persona los mensajes con id <= este valor, sin
+    # tocar la fila de internal_messages ni lo que ve la otra parte del hilo. Es el id del último
+    # mensaje del hilo al momento de vaciar, no una fecha: created_at en MySQL solo guarda hasta
+    # el segundo acá (datetime sin fsp), y un mensaje nuevo que llega en el mismo segundo del
+    # vaciado quedaría empatado con la marca y se ocultaría para siempre con un ">" estricto por
+    # fecha. El id autoincremental no tiene ese empate posible.
+    cleared_up_to_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     thread = relationship("InternalThread", back_populates="participants")
