@@ -120,6 +120,9 @@ class WasteItemCreate(BaseModel):
     pieces: Optional[Decimal] = Field(None, gt=0, max_digits=10, decimal_places=3)
     piece_size: Optional[Decimal] = Field(None, gt=0, max_digits=12, decimal_places=3)
     part_amount: Optional[Decimal] = Field(None, gt=0, max_digits=12, decimal_places=3)
+    # "entera" que además se pesó: el peso real (g, o ml si es de volumen). Manda sobre el peso
+    # promedio de la pieza; sin esto, el peso de una "entera" es una estimación.
+    measured_amount: Optional[Decimal] = Field(None, gt=0, max_digits=12, decimal_places=3)
 
 
 class WasteItemResponse(BaseModel):
@@ -133,6 +136,8 @@ class WasteItemResponse(BaseModel):
     mode: Optional[str] = None                 # "entera" | "parte" | None (mermas anteriores)
     pieces: Optional[Decimal] = None
     piece_size: Optional[Decimal] = None       # tamaño de una pieza del insumo (g o ml), hoy
+    measured_amount: Optional[Decimal] = None  # lo que se pesó para esta línea (g o ml)
+    weight_estimated: bool = False             # "entera" sin pesar: el peso es el promedio
     # Existencia que quedaba de ese insumo en esa sucursal justo antes de este registro. Se
     # calcula al responder, no se guarda: sirve para avisar "esto deja el stock en negativo".
     stock_before: Optional[Decimal] = None
@@ -158,6 +163,7 @@ class WasteCreate(BaseModel):
     # El peso leído en la balanza (opcional). Va con su unidad; sin unidad se toma kg.
     weight_value: Optional[Decimal] = Field(None, gt=0, max_digits=10, decimal_places=3)
     weight_unit: Optional[str] = Field(None, pattern="^(kg|g|lb)$")
+    weight_estimated: Optional[bool] = None   # el peso salió del promedio de una pieza, no de la balanza
     # Solo para "Recorte o limpieza": cuánto se limpió en total (para el rendimiento). En otros
     # motivos se ignora.
     processed_value: Optional[Decimal] = Field(None, gt=0, max_digits=10, decimal_places=3)
@@ -188,6 +194,7 @@ class WasteResponse(BaseModel):
     # Evidencia: el peso leído en la balanza y las fotos (estas se suben después de crear la merma).
     weight_value: Optional[Decimal] = None
     weight_unit: Optional[str] = None
+    weight_estimated: bool = False
     # Recorte o limpieza: merma de proceso, con lo que se limpió y el rendimiento (% aprovechado).
     is_process: bool = False
     processed_value: Optional[Decimal] = None
@@ -205,6 +212,7 @@ class WasteAnalyticsTotals(BaseModel):
     lines: int = 0
     lines_without_cost: int = 0               # sin cargamento ni costo de Invu: no suman
     kg_total: Decimal = Decimal("0")
+    kg_estimated: Decimal = Decimal("0")      # parte de kg_total que salió del peso promedio de una pieza
     lines_without_kg: int = 0                 # por unidad y sin peso de balanza atribuible
     records_with_weight: int = 0
     records_with_photo: int = 0

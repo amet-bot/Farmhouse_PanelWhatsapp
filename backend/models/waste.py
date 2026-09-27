@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Text, Index, LargeBinary
+from sqlalchemy import Boolean, Column, Integer, String, Numeric, DateTime, ForeignKey, Text, Index, LargeBinary
 from sqlalchemy.dialects.mysql import MEDIUMBLOB
 from sqlalchemy.orm import deferred, relationship
 from datetime import datetime, timezone
@@ -37,6 +37,8 @@ class WasteRecord(Base):
     # el peso es lo que respalda la merma, junto con la foto de evidencia.
     weight_value = Column(Numeric(10, 3), nullable=True)
     weight_unit = Column(String(5), nullable=True)   # "kg" | "g" | "lb"
+    # True si ese peso se calculó con el peso promedio de una pieza y no con la balanza (048).
+    weight_estimated = Column(Boolean, nullable=True)
     # Solo en recortes (merma de proceso): cuánto se limpió en total, para el rendimiento
     # ("de 5 kg de pollo quedaron 0.270 kg de recorte" → rinde 94.6 %). Migración 046.
     processed_value = Column(Numeric(10, 3), nullable=True)
@@ -94,6 +96,9 @@ class WasteItem(Base):
     # siempre la cantidad en la unidad del insumo: la existencia y el costo no cambian de fórmula.
     mode = Column(String(10), nullable=True)
     pieces = Column(Numeric(10, 3), nullable=True)
+    # Lo que marcó la balanza para esta línea (g, o ml si es de volumen), si se pesó (migración
+    # 048). En una "pieza entera" sin esto, el peso sale del promedio de la pieza: es estimado.
+    measured_amount = Column(Numeric(12, 3), nullable=True)
 
     waste_record = relationship("WasteRecord", back_populates="items")
     inventory_item = relationship("InventoryItem")

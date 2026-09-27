@@ -102,6 +102,49 @@ def test_un_agente_no_pisa_el_peso_ya_guardado_pero_un_supervisor_si(
     assert db_session.get(InventoryItem, pan["id"]).piece_size == Decimal("90")
 
 
+def test_pieza_entera_pesada_manda_la_balanza_y_no_es_estimada(client, clayton_branch, clayton_agent, clayton_device):
+    h = _h(clayton_agent, clayton_device)
+    tomate = _item(client, h, "Tomate Cherry", "gramos")
+
+    # Sin peso de pieza guardado, pero pesados: 20 tomates, 236 g en la balanza.
+    res = _merma(client, h, clayton_branch.id,
+                 {"inventory_item_id": tomate["id"], "mode": "entera", "pieces": "20", "measured_amount": "236"})
+    assert res.status_code == 201, res.text
+    linea = res.json()["items"][0]
+    assert Decimal(linea["quantity"]) == Decimal("236")
+    assert linea["weight_estimated"] is False and Decimal(linea["measured_amount"]) == 236
+    assert Decimal(linea["piece_size"]) == Decimal("11.8")     # aprendido: 236 / 20
+
+    # La próxima, sin pesar: sale del promedio y queda marcada como estimada.
+    res = _merma(client, h, clayton_branch.id, {"inventory_item_id": tomate["id"], "mode": "entera", "pieces": "10"})
+    linea = res.json()["items"][0]
+    assert Decimal(linea["quantity"]) == Decimal("118") and linea["weight_estimated"] is True
+
+
+def test_el_analisis_separa_los_kilos_estimados(client, clayton_branch, clayton_agent, clayton_device, admin_user):
+    h = _h(clayton_agent, clayton_device)
+    pan = _item(client, h, "Pan Pita", "gramos")
+    _merma(client, h, clayton_branch.id,
+           {"inventory_item_id": pan["id"], "mode": "entera", "pieces": "2", "piece_size": "100"})   # 200 g estimados
+    _merma(client, h, clayton_branch.id, {"inventory_item_id": pan["id"], "mode": "parte", "quantity": "50"})  # 50 g pesados
+
+    t = client.get("/api/inventory/waste/analytics", headers=_h(admin_user)).json()["totals"]
+    assert Decimal(t["kg_total"]) == Decimal("0.250")
+    assert Decimal(t["kg_estimated"]) == Decimal("0.200")
+
+
+def test_el_peso_del_registro_puede_venir_marcado_como_estimado(client, clayton_branch, clayton_agent, clayton_device):
+    h = _h(clayton_agent, clayton_device)
+    pina = _item(client, h, "Piña Golden", "unidad")
+    res = client.post("/api/inventory/waste", json={
+        "branch_id": clayton_branch.id, "reason": "vencido", "weight_value": "1.6", "weight_unit": "kg",
+        "weight_estimated": True,
+        "items": [{"inventory_item_id": pina["id"], "mode": "entera", "pieces": "1", "piece_size": "1600"}],
+    }, headers=h)
+    assert res.status_code == 201, res.text
+    assert res.json()["weight_estimated"] is True
+
+
 def test_editar_el_peso_de_una_pieza_es_de_supervisor(client, clayton_agent, clayton_device, supervisor_user):
     h = _h(clayton_agent, clayton_device)
     pan = _item(client, h, "Pan Brioche", "gramos")

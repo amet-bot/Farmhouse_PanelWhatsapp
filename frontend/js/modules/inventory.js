@@ -1758,15 +1758,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   /** "2 piezas enteras · 160 g", "40 g · una parte", o la cantidad a secas (mermas anteriores). */
   function wasteLineQtyTxt(l) {
     const enUnidad = `${qty(l.quantity)} ${unitShort(l.unit)}`;
+    const fam = unitFamily(l.unit);
+    const mu = fam.fam === 'volumen' ? 'ml' : 'g';
     if (l.mode === 'entera' && l.pieces != null) {
       const n = Number(l.pieces);
       const piezas = `${qty(n)} ${n === 1 ? 'pieza entera' : 'piezas enteras'}`;
-      return unitFamily(l.unit).fam === 'unidad' ? piezas : `${piezas} · ${enUnidad}`;
+      if (l.measured_amount != null) {
+        return `${piezas} · ${fam.fam === 'unidad' ? `${qty(l.measured_amount)} ${mu}` : enUnidad} pesado`;
+      }
+      // Sin pesar: el peso es el promedio de la pieza (≈). Por unidad la cantidad es exacta.
+      return fam.fam === 'unidad' ? piezas : `${piezas} · ≈ ${enUnidad} (peso promedio)`;
     }
     if (l.mode === 'parte') {
-      if (unitFamily(l.unit).fam === 'unidad' && l.piece_size) {
+      if (fam.fam === 'unidad' && (l.measured_amount != null || l.piece_size)) {
         // 0.333 × 90 g da 29.97: se redondea a gramo entero (a décima si es menos de 10 g).
-        const g = Number(l.quantity) * Number(l.piece_size);
+        const g = l.measured_amount != null ? Number(l.measured_amount) : Number(l.quantity) * Number(l.piece_size);
         return `${Number(g.toFixed(g >= 10 ? 0 : 1))} g · una parte (${enUnidad})`;
       }
       return `${enUnidad} · una parte`;
@@ -1873,7 +1879,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="inv-metrics">
         <div><span>Ítems</span><strong>${w.items.length} <small>${w.items.length === 1 ? 'línea' : 'líneas'}</small></strong></div>
         <div><span>Pérdida</span><strong>${esc(wasteCostTxt(w))}${w.cost_estimated ? ' <small>costo de Invu</small>' : ''}</strong></div>
-        <div><span>Peso</span><strong>${w.weight_value != null ? `${esc(qty(w.weight_value))} <small>${esc(w.weight_unit || 'kg')}</small>` : '—'}</strong></div>
+        <div><span>Peso</span><strong>${w.weight_value != null ? `${w.weight_estimated ? '≈ ' : ''}${esc(qty(w.weight_value))} <small>${esc(w.weight_unit || 'kg')}${w.weight_estimated ? ' · estimado' : ''}</small>` : '—'}</strong></div>
         <div><span>Evidencia</span><strong>${fotos.length ? `${fotos.length} <small>${fotos.length === 1 ? 'foto' : 'fotos'}</small>` : '—'}</strong></div>
         ${w.is_process && w.processed_value != null ? `
           <div><span>Se limpió</span><strong>${esc(qty(w.processed_value))} <small>${esc(w.processed_unit || 'kg')}</small></strong></div>
@@ -2317,7 +2323,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const kpis = [
       { icon: 'dollar-sign', label: 'Pérdida', value: money(t.cost_total), sub: subCosto.join(' · ') || 'Al costo de los cargamentos' },
       { icon: 'scale', label: 'Kilos descartados', value: kgTxt(t.kg_total),
-        sub: t.lines_without_kg ? `${pluralize(t.lines_without_kg, 'línea', 'líneas')} por unidad sin peso` : 'Todo lo registrado' },
+        sub: [
+          Number(t.kg_estimated) > 0 ? `≈ ${kgTxt(t.kg_estimated)} estimado por peso promedio de pieza` : null,
+          t.lines_without_kg ? `${pluralize(t.lines_without_kg, 'línea', 'líneas')} por unidad sin peso` : null,
+        ].filter(Boolean).join(' · ') || 'Todo pesado en balanza' },
       { icon: 'trending-down', label: 'Mermas', value: String(t.records),
         sub: t.records ? `${t.records_with_photo} con foto · ${t.records_with_weight} con peso` : 'Ninguna en el período' },
       { icon: 'percent', label: 'Merma sobre ventas', value: t.waste_pct_of_sales != null ? `${Number(t.waste_pct_of_sales).toLocaleString('es-PA', { maximumFractionDigits: 2 })}%` : '—',
@@ -2578,7 +2587,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   //   parte  · insumo por unidad → gramos del pedazo ÷ gramos de una pieza entera
   // El servidor hace la misma cuenta (_cantidad_de_linea); esto es para mostrarla antes de guardar.
 
-  /** { itemId, mode, fam, qty, grams, weighable, error } de una fila del formulario. */
+  /**
+   * { itemId, mode, fam, qty, grams, measured, estimated, weighable, error } de una fila.
+   * `estimated`: "pieza entera" sin pesar, así que el peso sale del promedio de la pieza.
+   */
   function wasteLineCalc(row) {
     const itemInput = row.querySelector('.inv-item-input');
     const itemId = Number(itemInput.dataset.itemId || 0);
@@ -2586,11 +2598,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fam = unitFamily(itemInput.dataset.unit);
     const v = Number(row.querySelector('.inv-line-qty').value || 0);
     const tam = Number(row.querySelector('.inv-line-piece-input').value || 0);
-    const r = { itemId, mode, fam, qty: null, grams: null, weighable: false, error: null };
+    const pesado = mode === 'entera' ? Number(row.querySelector('.inv-line-measured-input').value || 0) : 0;
+    const r = { itemId, mode, fam, qty: null, grams: null, measured: pesado > 0 ? pesado : null,
+                estimated: false, weighable: false, error: null };
     if (!itemId) return r;
     if (!mode) { r.error = 'elegí si se botó la pieza entera o una parte.'; return r; }
     // ¿Se puede saber el peso de esta línea? (para completar solo el bloque "Peso")
-    r.weighable = fam.fam === 'peso' || (fam.fam === 'unidad' && (mode === 'parte' || tam > 0));
+    r.weighable = fam.fam === 'peso' || (fam.fam === 'unidad' && (mode === 'parte' || tam > 0 || pesado > 0));
     if (!(v > 0)) {
       r.error = mode === 'entera' ? 'falta cuántas piezas enteras.' : 'falta cuánto pesa lo que se botó.';
       return r;
@@ -2599,10 +2613,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (mode === 'entera') {
       if (fam.fam === 'unidad') {
         r.qty = v;
-        if (tam > 0) r.grams = v * tam;
+        if (pesado > 0) r.grams = pesado;
+        else if (tam > 0) { r.grams = v * tam; r.estimated = true; }
+      } else if (pesado > 0) {
+        // Se pesó: manda la balanza, no el promedio.
+        r.qty = pesado / fam.base;
+        if (fam.fam === 'peso') r.grams = pesado;
       } else {
-        if (!(tam > 0)) { r.error = `falta ${medida} una pieza entera.`; return r; }
+        if (!(tam > 0)) { r.error = `falta ${medida} una pieza entera (o el peso real, si lo pesaste).`; return r; }
         r.qty = (v * tam) / fam.base;
+        r.estimated = true;
         if (fam.fam === 'peso') r.grams = v * tam;
       }
     } else if (fam.fam === 'unidad') {
@@ -2622,8 +2642,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const v = row.querySelector('.inv-line-qty').value;
     const pieceInput = row.querySelector('.inv-line-piece-input');
     const linea = { inventory_item_id: c.itemId, mode: c.mode };
-    if (c.mode === 'entera') linea.pieces = v;
-    else if (c.fam.fam === 'unidad') linea.part_amount = v;
+    if (c.mode === 'entera') {
+      linea.pieces = v;
+      if (c.measured) linea.measured_amount = String(c.measured);
+    } else if (c.fam.fam === 'unidad') linea.part_amount = v;
     else linea.quantity = v;
     if (!pieceInput.readOnly && Number(pieceInput.value) > 0) linea.piece_size = pieceInput.value;
     return linea;
@@ -2647,18 +2669,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     const v = Number(row.querySelector('.inv-line-qty').value || 0);
     const tam = Number(row.querySelector('.inv-line-piece-input').value || 0);
     const u = c.fam.short;
+    const mu = c.fam.fam === 'volumen' ? 'ml' : 'g';
+    const costo = wasteLineUnitCost(row);
     if (c.qty != null) {
-      if (c.mode === 'entera' && c.fam.fam !== 'unidad') {
-        partes.push(`${qty(v)} × ${qty(tam)} ${c.fam.fam === 'volumen' ? 'ml' : 'g'} = <strong>${esc(qty(c.qty))} ${esc(u)}</strong>`);
+      if (c.mode === 'entera' && c.measured) {
+        partes.push(`<strong>Pesado: ${esc(qty(c.measured))} ${mu}</strong>${v > 1 ? ` (≈ ${esc(qty(c.measured / v))} ${mu} c/u)` : ''}`);
+      } else if (c.mode === 'entera' && c.fam.fam !== 'unidad') {
+        partes.push(`${qty(v)} × ${qty(tam)} ${mu} = <strong>≈ ${esc(qty(c.qty))} ${esc(u)}</strong> <span class="inv-line-est">peso promedio, estimado</span>`);
       } else if (c.mode === 'entera' && c.grams) {
-        partes.push(`≈ ${esc(kgTxt(c.grams / 1000))} en total`);
+        partes.push(`≈ ${esc(kgTxt(c.grams / 1000))} en total <span class="inv-line-est">peso promedio, estimado</span>`);
       } else if (c.mode === 'parte' && c.fam.fam === 'unidad') {
         partes.push(`${qty(v)} g de ${qty(tam)} g = <strong>${esc(qty(c.qty))} de una pieza</strong>`);
+      }
+      // Lo que cuesta UNA pieza, cuando se sabe: por unidad es el costo mismo; en peso, el
+      // promedio de la pieza por el costo del gramo.
+      if (c.mode === 'entera' && costo) {
+        const unaPieza = c.fam.fam === 'unidad' ? costo.cost : (tam > 0 ? (tam / c.fam.base) * costo.cost : null);
+        if (unaPieza != null) partes.push(`1 pieza ${costo.estimated ? '≈ ' : ''}${esc(money(unaPieza))}`);
       }
     }
     // Un costo de Invu cargado "por pieza" en un insumo que se mide en gramos da miles de dólares
     // el kilo y dispara la pérdida (pasó con un pan: $1.625 el gramo). Se avisa, no se oculta.
-    const costo = wasteLineUnitCost(row);
     if (costo && c.fam.fam !== 'unidad') {
       const porMil = (costo.cost / c.fam.base) * 1000;   // $ por kg o por litro
       if (porMil > 100) {
@@ -2690,6 +2721,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       b.setAttribute('aria-checked', on ? 'true' : 'false');
     });
 
+    const measuredBox = row.querySelector('.inv-line-measured');
+    measuredBox.hidden = mode !== 'entera' || !tieneItem;
+    row.querySelector('.inv-line-measured-label').textContent = fam.fam === 'volumen'
+      ? '¿Lo mediste? Cantidad real (ml) · opcional'
+      : '¿Lo pesaste? Peso real (g) · opcional';
+
     qtyInput.disabled = !tieneItem || !mode;
     if (!tieneItem || !mode) {
       qtyLabel.textContent = 'Cantidad';
@@ -2712,9 +2749,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       qtyInput.step = '0.001';
     }
 
-    // El tamaño de una pieza: obligatorio para "entera" en insumos de peso/volumen y para "parte"
-    // en insumos por unidad; opcional (solo para el peso) en "entera" por unidad.
-    const pide = (mode === 'entera') || fam.fam === 'unidad';
+    // El tamaño de una pieza: obligatorio para "entera" en insumos de peso/volumen (salvo que se
+    // haya pesado) y para "parte" en insumos por unidad; opcional en "entera" por unidad.
+    const pesado = Number(row.querySelector('.inv-line-measured-input').value || 0) > 0;
+    const pide = (mode === 'entera' && !pesado) || (mode === 'parte' && fam.fam === 'unidad');
     pieceBox.hidden = !pide;
     if (pide) {
       const opcional = mode === 'entera' && fam.fam === 'unidad';
@@ -2738,6 +2776,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    * suma y queda de solo lectura. Si alguno va por unidad (la piña), ahí sí se escribe el peso.
    */
   let wasteWeightAuto = false;
+  let wasteWeightEstimated = false;   // el peso automático usa algún peso promedio de pieza
   function syncWasteWeight() {
     const input = $('wasteWeightValue');
     const hint = $('wasteWeightHint');
@@ -2754,10 +2793,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       input.value = kg > 0 ? String(Number((kg / KG_FACTOR[unidad]).toFixed(3))) : '';
       input.readOnly = true;
       input.classList.add('is-auto');
-      hint.textContent = 'Se calcula de lo que escribiste arriba.';
+      wasteWeightEstimated = filas.some((f) => f.estimated);
+      hint.textContent = wasteWeightEstimated
+        ? '≈ Estimado: sale del peso promedio de la pieza. Si lo pesaste, poné el peso real arriba.'
+        : 'Se calcula de lo que escribiste arriba.';
       wasteWeightAuto = true;
     } else {
       if (wasteWeightAuto) input.value = '';   // venía calculado: ahora lo escribe la persona
+      wasteWeightEstimated = false;            // escrito a mano = leído en la balanza
       input.readOnly = false;
       input.classList.remove('is-auto');
       hint.textContent = filas.length ? 'Lo que marcó la balanza (el insumo se cuenta por unidad).' : 'Lo que marcó la balanza.';
@@ -2845,6 +2888,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     itemInput._reqId = 0;
 
     const pieceInput = row.querySelector('.inv-line-piece-input');
+    const measuredInput = row.querySelector('.inv-line-measured-input');
 
     const hideSuggestions = () => { suggestBox.hidden = true; suggestBox.innerHTML = ''; };
     /** Vuelve la fila a "sin insumo": sin modo, sin cantidad pedida y sin tamaño de pieza. */
@@ -2856,6 +2900,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       unitLabel.textContent = '';
       row.dataset.mode = '';
       pieceInput.value = '';
+      measuredInput.value = '';
       applyWasteLineMode(row);
     };
 
@@ -2868,6 +2913,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       unitLabel.textContent = item.unit ? `Se cuenta en ${item.unit}` : '';
       row.dataset.mode = '';
       pieceInput.value = '';
+      measuredInput.value = '';
       qtyInput.value = '';
       applyWasteLineMode(row);
       hideSuggestions();
@@ -2877,14 +2923,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     row.querySelectorAll('.inv-mode-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (row.dataset.mode !== btn.dataset.mode) qtyInput.value = '';   // piezas ≠ gramos
+        if (row.dataset.mode !== btn.dataset.mode) {
+          // Piezas ≠ gramos: al cambiar de modo la cantidad se vacía. En "entera" arranca en 1
+          // (lo más común: se botó un pan, una piña), y se cambia si fueron más.
+          qtyInput.value = btn.dataset.mode === 'entera' ? '1' : '';
+          measuredInput.value = '';
+        }
         row.dataset.mode = btn.dataset.mode;
         applyWasteLineMode(row);
         refreshWasteLine(row);
         qtyInput.focus();
+        qtyInput.select?.();
       });
     });
     pieceInput.addEventListener('input', () => refreshWasteLine(row));
+    measuredInput.addEventListener('input', () => { applyWasteLineMode(row); refreshWasteLine(row); });
 
     // La lista sale del catálogo ya cargado en la pantalla (los insumos de Invu y los cargados a
     // mano): aparece entera al tocar el campo y se filtra con cada letra, al instante, sin
@@ -3337,6 +3390,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         items,
         weight_value: weightRaw || null,
         weight_unit: weightRaw ? $('wasteWeightUnit').value : null,
+        weight_estimated: weightRaw ? (wasteWeightAuto && wasteWeightEstimated) : null,
         processed_value: (reason === 'recorte' && processedRaw) ? processedRaw : null,
         processed_unit: (reason === 'recorte' && processedRaw) ? $('wasteProcessedUnit').value : null,
       });

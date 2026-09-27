@@ -2816,6 +2816,14 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 .inv-line-calc { flex-basis: 100%; font-size: 12px; color: var(--inv-text-secondary); line-height: 1.45; }
 .inv-line-calc[hidden] { display: none; }
 .inv-line-warn { color: var(--warning-text, #b45309); font-weight: 600; }
+.inv-line-est { font-size: 11px; color: var(--inv-text-muted); font-style: italic; }
+.inv-line-measured { display: flex; flex-direction: column; gap: 4px; }
+.inv-line-measured[hidden] { display: none; }
+.inv-line-measured-label { font-size: 11px; font-weight: 600; color: var(--inv-text-muted); }
+.inv-line-measured .modal-input { width: 190px; }
+@media (max-width: 900px) {
+  .inv-line-measured, .inv-line-measured .modal-input { width: 100%; }
+}
 
 @media (max-width: 900px) {
   /* En celular todo va en columna: insumo → qué se botó → cuánto → peso de la pieza → quitar. */

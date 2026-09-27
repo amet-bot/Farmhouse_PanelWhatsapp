@@ -468,6 +468,8 @@ def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -
             mode=line.mode,
             pieces=line.pieces,
             piece_size=line.inventory_item.piece_size,
+            measured_amount=line.measured_amount,
+            weight_estimated=(line.mode == "entera" and line.measured_amount is None),
             stock_before=previo,
         ))
 
@@ -489,6 +491,7 @@ def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -
         negative_items=negativos,
         weight_value=record.weight_value,
         weight_unit=record.weight_unit,
+        weight_estimated=bool(record.weight_estimated),
         is_process=record.reason in PROCESS_WASTE_REASONS,
         processed_value=record.processed_value,
         processed_unit=record.processed_unit,
@@ -545,9 +548,12 @@ def _cantidad_de_linea(item: InventoryItem, line, piece_size: Optional[Decimal])
             falta("falta cuántas piezas enteras se botaron.")
         if familia == "unidad":
             cantidad = Decimal(line.pieces)
+        elif line.measured_amount is not None:
+            # Se pesó: manda la balanza, no el promedio de la pieza.
+            cantidad = Decimal(line.measured_amount) / base
         else:
             if not piece_size:
-                falta(f"falta {medida} una pieza entera.")
+                falta(f"falta {medida} una pieza entera (o el peso real, si se pesó).")
             cantidad = Decimal(line.pieces) * Decimal(piece_size) / base
     else:  # parte
         if familia == "unidad":
@@ -644,6 +650,13 @@ def create_waste(
     for line in waste_in.items:
         item = por_id[line.inventory_item_id]
         tamano = item.piece_size
+        if (tamano is None and line.piece_size is None and line.mode == "entera"
+                and line.measured_amount is not None and line.pieces):
+            # Nadie había dicho cuánto pesa una pieza, pero esta vez se pesaron: el promedio de
+            # lo pesado queda como peso de la pieza para la próxima (se corrige desde Insumos).
+            item.piece_size = tamano = (Decimal(line.measured_amount) / Decimal(line.pieces)).quantize(Decimal("0.001"))
+            log_audit_event(db, current_user.id, waste_in.branch_id, "item.piece_size", "inventory_item", item.id,
+                            {"before": None, "after": str(tamano), "via": "waste_measured"})
         if line.piece_size is not None and (tamano is None or puede_ajustar):
             if tamano != line.piece_size:
                 log_audit_event(db, current_user.id, waste_in.branch_id, "item.piece_size", "inventory_item", item.id,
@@ -663,6 +676,7 @@ def create_waste(
         notes=(waste_in.notes or None),
         weight_value=waste_in.weight_value,
         weight_unit=((waste_in.weight_unit or "kg") if waste_in.weight_value is not None else None),
+        weight_estimated=(bool(waste_in.weight_estimated) if waste_in.weight_value is not None else None),
     )
     if waste_in.reason in PROCESS_WASTE_REASONS and waste_in.processed_value is not None:
         record.processed_value = waste_in.processed_value
@@ -677,6 +691,10 @@ def create_waste(
             unit_cost=costo,
             mode=line.mode,
             pieces=(line.pieces if line.mode == "entera" else None),
+            # Lo pesado de la línea: el peso real de una "entera" o el pedazo de un insumo por
+            # unidad (en uno de peso, la cantidad ya es lo que marcó la balanza).
+            measured_amount=(line.measured_amount if line.mode == "entera"
+                             else line.part_amount if line.mode == "parte" else None),
         ))
 
     db.add(record)
@@ -874,16 +892,26 @@ def waste_analytics(
                 costo = Decimal("0")
                 totales.lines_without_cost += 1
 
+            # Kilos de la línea y si son estimados (una "pieza entera" sin pesar vale el promedio).
             factor = _kg_factor(item.unit)
+            por_unidad = _familia_de_unidad(item.unit)[0] == "unidad"
+            kg_estimado = False
             if factor is not None:
                 kg = cantidad * factor
+                kg_estimado = line.mode == "entera" and line.measured_amount is None
+            elif por_unidad and line.measured_amount is not None:
+                kg = Decimal(line.measured_amount) / 1000         # se pesó: gramos reales
             elif peso_rec_kg is not None and len(rec.items) == 1:
                 kg = peso_rec_kg
-            elif item.piece_size and _familia_de_unidad(item.unit)[0] == "unidad":
+                kg_estimado = bool(rec.weight_estimated)
+            elif por_unidad and item.piece_size:
                 kg = cantidad * Decimal(item.piece_size) / 1000   # piezas × gramos de una pieza
+                kg_estimado = True
             else:
                 kg = None
                 totales.lines_without_kg += 1
+            if kg is not None and kg_estimado:
+                totales.kg_estimated += kg
 
             costo_rec += costo
             kg_rec += kg or Decimal("0")
@@ -960,6 +988,7 @@ def waste_analytics(
     totales.cost_total = _q(totales.cost_total, "0.01")
     totales.cost_estimated = _q(totales.cost_estimated, "0.01")
     totales.kg_total = _q(totales.kg_total, "0.001")
+    totales.kg_estimated = _q(totales.kg_estimated, "0.001")
     for dia in dias.values():
         dia.cost, dia.kg = _q(dia.cost, "0.01"), _q(dia.kg, "0.001")
     for fila in por_item.values():
