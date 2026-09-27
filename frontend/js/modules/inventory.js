@@ -419,8 +419,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     // negocio y no pueden vivir duplicados en el frontend.
     const options = state.wasteReasons.map((r) => `<option value="${esc(r.code)}">${esc(r.label)}</option>`).join('');
     $('wasteReasonFilter').innerHTML = `<option value="">Todos los motivos</option>${options}`;
-    $('wasteReasonSelect').innerHTML = options;
+    $('wasteReasonSelect').innerHTML = `<option value=""></option>${options}`;
+    renderWasteReasonChips();
   }
+
+  // Los motivos del formulario van como botones grandes con ícono y en palabras de cocina. El
+  // código (y la etiqueta del filtro y los reportes) sigue siendo el del servidor; esto solo
+  // cambia cómo se le pregunta a quien está botando algo.
+  const REASON_UI = {
+    vencido: { icon: 'calendar-x', label: 'Se venció' },
+    danado: { icon: 'package-x', label: 'Se dañó o golpeó' },
+    derrame: { icon: 'glass-water', label: 'Se cayó o se rompió' },
+    error_preparacion: { icon: 'chef-hat', label: 'Salió mal al prepararlo' },
+    recorte: { icon: 'scissors', label: 'Recorte al limpiar' },
+    devolucion: { icon: 'undo-2', label: 'Lo devolvió un cliente' },
+    consumo_interno: { icon: 'utensils', label: 'Lo comió el personal' },
+    faltante: { icon: 'search-x', label: 'Falta o se perdió' },
+    otro: { icon: 'more-horizontal', label: 'Otro motivo' },
+  };
+  // Orden de los botones: lo que más pasa primero.
+  const REASON_ORDER = ['vencido', 'danado', 'derrame', 'error_preparacion', 'recorte', 'devolucion', 'consumo_interno', 'faltante', 'otro'];
+
+  function renderWasteReasonChips() {
+    const box = $('wasteReasonChips');
+    if (!box) return;
+    const actual = $('wasteReasonSelect').value;
+    const motivos = [...state.wasteReasons].sort((a, b) => {
+      const ia = REASON_ORDER.indexOf(a.code);
+      const ib = REASON_ORDER.indexOf(b.code);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    box.innerHTML = motivos.map((r) => {
+      const ui = REASON_UI[r.code] || { icon: 'circle-help', label: r.label };
+      const on = r.code === actual;
+      return `<button type="button" class="inv-reason-chip${on ? ' is-active' : ''}" data-reason="${esc(r.code)}" role="radio" aria-checked="${on}">
+          <i data-lucide="${ui.icon}"></i><span>${esc(ui.label)}</span>
+        </button>`;
+    }).join('');
+    utils.renderIcons();
+  }
+
+  $('wasteReasonChips')?.addEventListener('click', (e) => {
+    const chip = e.target.closest('.inv-reason-chip');
+    if (!chip) return;
+    const select = $('wasteReasonSelect');
+    select.value = chip.dataset.reason;
+    select.dispatchEvent(new Event('change'));
+    $('wasteReasonChips').querySelectorAll('.inv-reason-chip').forEach((c) => {
+      const on = c === chip;
+      c.classList.toggle('is-active', on);
+      c.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  });
 
   async function loadWaste({ reset = false } = {}) {
     const seq = ++loadSeq.waste;
@@ -2602,14 +2652,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const r = { itemId, mode, fam, qty: null, grams: null, measured: pesado > 0 ? pesado : null,
                 estimated: false, weighable: false, error: null };
     if (!itemId) return r;
-    if (!mode) { r.error = 'elegí si se botó la pieza entera o una parte.'; return r; }
+    if (!mode) { r.error = 'tocá si se botó entero o un pedazo.'; return r; }
     // ¿Se puede saber el peso de esta línea? (para completar solo el bloque "Peso")
     r.weighable = fam.fam === 'peso' || (fam.fam === 'unidad' && (mode === 'parte' || tam > 0 || pesado > 0));
     if (!(v > 0)) {
-      r.error = mode === 'entera' ? 'falta cuántas piezas enteras.' : 'falta cuánto pesa lo que se botó.';
+      r.error = mode === 'entera' ? 'falta cuántos se botaron.' : 'falta cuánto pesó.';
       return r;
     }
-    const medida = fam.fam === 'volumen' ? 'cuánto trae (ml)' : 'cuánto pesa (g)';
+    const medida = fam.fam === 'volumen' ? 'cuánto trae' : 'cuánto pesa';
     if (mode === 'entera') {
       if (fam.fam === 'unidad') {
         r.qty = v;
@@ -2620,13 +2670,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         r.qty = pesado / fam.base;
         if (fam.fam === 'peso') r.grams = pesado;
       } else {
-        if (!(tam > 0)) { r.error = `falta ${medida} una pieza entera (o el peso real, si lo pesaste).`; return r; }
+        if (!(tam > 0)) { r.error = `falta ${medida} uno, más o menos (o tocá "Lo pesé en la balanza").`; return r; }
         r.qty = (v * tam) / fam.base;
         r.estimated = true;
         if (fam.fam === 'peso') r.grams = v * tam;
       }
     } else if (fam.fam === 'unidad') {
-      if (!(tam > 0)) { r.error = 'falta cuánto pesa (g) una pieza entera, para saber qué parte es.'; return r; }
+      if (!(tam > 0)) { r.error = 'falta cuánto pesa uno entero, más o menos.'; return r; }
       r.qty = v / tam;
       r.grams = v;
     } else {
@@ -2660,7 +2710,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return null;
   }
 
-  /** Muestra la cuenta de la línea ("2 × 80 g = 160 g") y avisa si el costo no tiene sentido. */
+  /** Debajo de cada insumo, en una línea: cuánto es y cuánto se pierde. */
   function updateWasteLineCalc(row) {
     const box = row.querySelector('.inv-line-calc');
     if (!box) return;
@@ -2673,45 +2723,48 @@ document.addEventListener('DOMContentLoaded', async () => {
     const costo = wasteLineUnitCost(row);
     if (c.qty != null) {
       if (c.mode === 'entera' && c.measured) {
-        partes.push(`<strong>Pesado: ${esc(qty(c.measured))} ${mu}</strong>${v > 1 ? ` (≈ ${esc(qty(c.measured / v))} ${mu} c/u)` : ''}`);
+        partes.push(`Pesado: <strong>${esc(qty(c.measured))} ${mu}</strong>`);
       } else if (c.mode === 'entera' && c.fam.fam !== 'unidad') {
-        partes.push(`${qty(v)} × ${qty(tam)} ${mu} = <strong>≈ ${esc(qty(c.qty))} ${esc(u)}</strong> <span class="inv-line-est">peso promedio, estimado</span>`);
-      } else if (c.mode === 'entera' && c.grams) {
-        partes.push(`≈ ${esc(kgTxt(c.grams / 1000))} en total <span class="inv-line-est">peso promedio, estimado</span>`);
+        partes.push(`${esc(qty(v))} × ${esc(qty(tam))} ${mu} = <strong>≈ ${esc(qty(c.qty))} ${esc(u)}</strong> <span class="inv-line-est">(aprox.)</span>`);
       } else if (c.mode === 'parte' && c.fam.fam === 'unidad') {
-        partes.push(`${qty(v)} g de ${qty(tam)} g = <strong>${esc(qty(c.qty))} de una pieza</strong>`);
+        partes.push(`Es <strong>${esc(qty(c.qty))}</strong> de uno entero`);
       }
-      // Lo que cuesta UNA pieza, cuando se sabe: por unidad es el costo mismo; en peso, el
-      // promedio de la pieza por el costo del gramo.
-      if (c.mode === 'entera' && costo) {
-        const unaPieza = c.fam.fam === 'unidad' ? costo.cost : (tam > 0 ? (tam / c.fam.base) * costo.cost : null);
-        if (unaPieza != null) partes.push(`1 pieza ${costo.estimated ? '≈ ' : ''}${esc(money(unaPieza))}`);
+      if (costo) {
+        const aprox = costo.estimated || c.estimated ? '≈ ' : '';
+        partes.push(`Se pierde <strong>${aprox}${esc(money(c.qty * costo.cost))}</strong>`);
       }
     }
     // Un costo de Invu cargado "por pieza" en un insumo que se mide en gramos da miles de dólares
-    // el kilo y dispara la pérdida (pasó con un pan: $1.625 el gramo). Se avisa, no se oculta.
-    if (costo && c.fam.fam !== 'unidad') {
+    // el kilo (pasó con un pan: $1.625 el gramo). Quien carga la merma no puede arreglarlo, así
+    // que el aviso lo ven solo supervisor y admin, que sí pueden pedir que se corrija en Invu.
+    if (costo && c.fam.fam !== 'unidad' && hasPerm('inventory.adjust')) {
       const porMil = (costo.cost / c.fam.base) * 1000;   // $ por kg o por litro
       if (porMil > 100) {
-        partes.push(`<span class="inv-line-warn">Ojo: el costo de este insumo da ${esc(money(porMil))} el ${c.fam.fam === 'volumen' ? 'litro' : 'kilo'}. Parece cargado por pieza en Invu, así que la pérdida puede salir inflada: avisá para corregirlo.</span>`);
+        partes.push(`<span class="inv-line-warn">Revisar en Invu: el costo de este insumo parece mal cargado (da ${esc(money(porMil))} el ${c.fam.fam === 'volumen' ? 'litro' : 'kilo'}).</span>`);
       }
     }
     box.innerHTML = partes.join(' · ');
     box.hidden = !partes.length;
   }
 
-  /** Ajusta la fila al modo elegido: qué se pregunta, en qué unidad y si pide el peso de una pieza. */
+  /** Ajusta la tarjeta del insumo a lo elegido: qué se pregunta y qué se esconde. */
   function applyWasteLineMode(row) {
     const itemInput = row.querySelector('.inv-item-input');
     const extra = row.querySelector('.inv-line-extra');
     const qtyInput = row.querySelector('.inv-line-qty');
     const qtyLabel = row.querySelector('.inv-line-qty-label');
+    const qtyUnit = row.querySelector('.inv-line-amount .inv-qty-unit');
     const pieceBox = row.querySelector('.inv-line-piece');
     const pieceLabel = row.querySelector('.inv-line-piece-label');
     const pieceInput = row.querySelector('.inv-line-piece-input');
+    const measuredBox = row.querySelector('.inv-line-measured');
+    const measuredInput = row.querySelector('.inv-line-measured-input');
+    const toggle = row.querySelector('.inv-line-weighed-toggle');
+    const tip = row.querySelector('.inv-line-tip');
     const tieneItem = Boolean(itemInput.dataset.itemId);
     const mode = row.dataset.mode || '';
     const fam = unitFamily(itemInput.dataset.unit);
+    const mu = fam.fam === 'volumen' ? 'ml' : 'g';
 
     row.querySelector('.inv-line-mode').hidden = !tieneItem;
     extra.hidden = !tieneItem || !mode;
@@ -2720,54 +2773,52 @@ document.addEventListener('DOMContentLoaded', async () => {
       b.classList.toggle('is-active', on);
       b.setAttribute('aria-checked', on ? 'true' : 'false');
     });
-
-    const measuredBox = row.querySelector('.inv-line-measured');
-    measuredBox.hidden = mode !== 'entera' || !tieneItem;
-    row.querySelector('.inv-line-measured-label').textContent = fam.fam === 'volumen'
-      ? '¿Lo mediste? Cantidad real (ml) · opcional'
-      : '¿Lo pesaste? Peso real (g) · opcional';
-
     qtyInput.disabled = !tieneItem || !mode;
-    if (!tieneItem || !mode) {
-      qtyLabel.textContent = 'Cantidad';
-      qtyInput.placeholder = tieneItem ? 'Elegí qué se botó' : '0';
-      pieceBox.hidden = true;
-      return;
-    }
+    if (!tieneItem || !mode) return;
 
-    if (mode === 'entera') {
-      qtyLabel.textContent = 'Piezas';
-      qtyInput.placeholder = 'Ej. 1';
+    const entera = mode === 'entera';
+    row.querySelectorAll('.inv-qty-step').forEach((b) => { b.hidden = !entera; });
+    if (entera) {
+      qtyLabel.textContent = '¿Cuántos se botaron?';
+      qtyInput.placeholder = '1';
       qtyInput.step = '1';
-    } else if (fam.fam === 'unidad') {
-      qtyLabel.textContent = 'Peso (g)';
-      qtyInput.placeholder = 'Ej. 40';
-      qtyInput.step = '0.1';
-    } else {
-      qtyLabel.textContent = fam.fam === 'volumen' ? `Cantidad (${fam.short})` : `Peso (${fam.short})`;
-      qtyInput.placeholder = fam.short === 'g' || fam.short === 'ml' ? 'Ej. 270' : 'Ej. 0.270';
+      qtyUnit.textContent = '';
+    } else if (fam.fam === 'volumen') {
+      qtyLabel.textContent = '¿Cuánto era?';
+      qtyInput.placeholder = fam.short === 'ml' ? 'Ej. 250' : 'Ej. 0.25';
       qtyInput.step = '0.001';
+      qtyUnit.textContent = fam.short;
+    } else {
+      qtyLabel.textContent = '¿Cuánto pesó en la balanza?';
+      const enGramos = fam.fam === 'unidad' || fam.short === 'g';
+      qtyInput.placeholder = enGramos ? 'Ej. 240' : 'Ej. 0.24';
+      qtyInput.step = enGramos ? '0.1' : '0.001';
+      qtyUnit.textContent = fam.fam === 'unidad' ? 'g' : fam.short;
     }
 
-    // El tamaño de una pieza: obligatorio para "entera" en insumos de peso/volumen (salvo que se
-    // haya pesado) y para "parte" en insumos por unidad; opcional en "entera" por unidad.
-    const pesado = Number(row.querySelector('.inv-line-measured-input').value || 0) > 0;
-    const pide = (mode === 'entera' && !pesado) || (mode === 'parte' && fam.fam === 'unidad');
-    pieceBox.hidden = !pide;
-    if (pide) {
-      const opcional = mode === 'entera' && fam.fam === 'unidad';
-      pieceLabel.textContent = fam.fam === 'volumen'
-        ? '1 pieza trae (ml)'
-        : `Peso de 1 pieza${mode === 'parte' ? ' entera' : ''} (g)${opcional ? ' · opcional' : ''}`;
-      const guardado = itemInput.dataset.pieceSize;
-      if (guardado && !pieceInput.value) pieceInput.value = String(Number(guardado));
-      // Uno ya guardado lo cambia supervisor o admin; para el resto queda fijo (el servidor
-      // también lo ignora), así la cuenta que ve es la que se guarda.
-      const fijo = Boolean(guardado) && !hasPerm('inventory.adjust');
-      pieceInput.readOnly = fijo;
-      pieceInput.classList.toggle('is-auto', fijo);
-      pieceInput.title = fijo ? 'Guardado para este insumo. Si está mal, un supervisor lo corrige.' : '';
-    }
+    // "Lo pesé en la balanza": solo en "entero", y se abre a pedido (o si ya tiene un valor).
+    const pesado = Number(measuredInput.value || 0) > 0;
+    const abierto = row.dataset.weighed === '1' || pesado;
+    toggle.hidden = !entera || abierto;
+    measuredBox.hidden = !entera || !abierto;
+    row.querySelector('.inv-line-measured-label').textContent = fam.fam === 'volumen' ? 'Cantidad medida' : 'Peso en la balanza';
+    row.querySelector('.inv-line-measured-unit').textContent = mu;
+    // El recordatorio de la tara, solo cuando de verdad se está por pesar.
+    tip.hidden = fam.fam === 'volumen' || (entera && !abierto);
+
+    // Cuánto pesa uno: hace falta en "entero" de un insumo en gramos/kilos (si no se pesó) y en
+    // "un pedazo" de un insumo que se cuenta por unidad. Si ya está guardado y quien carga no lo
+    // puede cambiar, no se pregunta: se usa y la cuenta de abajo lo muestra.
+    const guardado = itemInput.dataset.pieceSize;
+    if (guardado && !pieceInput.value) pieceInput.value = String(Number(guardado));
+    const fijo = Boolean(guardado) && !hasPerm('inventory.adjust');
+    pieceInput.readOnly = fijo;
+    const necesita = (entera && fam.fam !== 'unidad' && !pesado) || (!entera && fam.fam === 'unidad');
+    pieceBox.hidden = !necesita || fijo;
+    pieceLabel.textContent = entera
+      ? (fam.fam === 'volumen' ? '¿Cuánto trae uno, más o menos?' : '¿Cuánto pesa uno, más o menos?')
+      : '¿Y cuánto pesa uno entero, más o menos?';
+    row.querySelector('.inv-line-piece-unit').textContent = mu;
   }
 
   /**
@@ -2870,9 +2921,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nota = document.querySelector('#modalWaste .inv-total-box small');
     if (nota) {
       const partes = [];
-      if (sinCosto) partes.push(`${pluralize(sinCosto, 'insumo', 'insumos')} sin costo conocido, no suma${sinCosto === 1 ? '' : 'n'}`);
-      if (estimados) partes.push('estimado con el costo de Invu');
-      nota.textContent = partes.length ? partes.join(' · ') : 'Al costo del último cargamento';
+      if (sinCosto) partes.push(`${pluralize(sinCosto, 'insumo', 'insumos')} sin precio, no se cuenta${sinCosto === 1 ? '' : 'n'}`);
+      if (estimados) partes.push('aprox., con el precio de Invu');
+      nota.textContent = partes.length ? partes.join(' · ') : 'Con el precio de la última compra';
     }
   }
 
@@ -2899,6 +2950,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       itemInput.dataset.pieceSize = '';
       unitLabel.textContent = '';
       row.dataset.mode = '';
+      row.dataset.weighed = '';
       pieceInput.value = '';
       measuredInput.value = '';
       applyWasteLineMode(row);
@@ -2912,6 +2964,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       itemInput.dataset.pieceSize = item.piece_size != null ? String(item.piece_size) : '';
       unitLabel.textContent = item.unit ? `Se cuenta en ${item.unit}` : '';
       row.dataset.mode = '';
+      row.dataset.weighed = '';
       pieceInput.value = '';
       measuredInput.value = '';
       qtyInput.value = '';
@@ -2928,13 +2981,27 @@ document.addEventListener('DOMContentLoaded', async () => {
           // (lo más común: se botó un pan, una piña), y se cambia si fueron más.
           qtyInput.value = btn.dataset.mode === 'entera' ? '1' : '';
           measuredInput.value = '';
+          row.dataset.weighed = '';
         }
         row.dataset.mode = btn.dataset.mode;
         applyWasteLineMode(row);
         refreshWasteLine(row);
-        qtyInput.focus();
-        qtyInput.select?.();
+        // En "entero" no se abre el teclado: se usan − y +. En "un pedazo" sí, porque lo que
+        // sigue es escribir lo que marcó la balanza.
+        if (btn.dataset.mode === 'parte') qtyInput.focus();
       });
+    });
+    row.querySelectorAll('.inv-qty-step').forEach((b) => {
+      b.addEventListener('click', () => {
+        const n = Math.max(1, Math.round((Number(qtyInput.value) || 0) + Number(b.dataset.step)));
+        qtyInput.value = String(n);
+        refreshWasteLine(row);
+      });
+    });
+    row.querySelector('.inv-line-weighed-toggle').addEventListener('click', () => {
+      row.dataset.weighed = '1';
+      applyWasteLineMode(row);
+      measuredInput.focus();
     });
     pieceInput.addEventListener('input', () => refreshWasteLine(row));
     measuredInput.addEventListener('input', () => { applyWasteLineMode(row); refreshWasteLine(row); });
@@ -3318,7 +3385,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('wasteProcessedUnit').value = 'kg';
     resetPendingPhotos();
     $('wasteOccurredAt').value = toLocalInputValue(new Date());
-    if (state.wasteReasons.length) $('wasteReasonSelect').value = state.wasteReasons[0].code;
+    // Sin motivo marcado de entrada: uno preseleccionado se quedaba puesto sin que nadie lo eligiera.
+    $('wasteReasonSelect').value = '';
+    renderWasteReasonChips();
+    const mas = document.querySelector('#modalWaste .inv-waste-more');
+    if (mas) mas.open = false;
     wasteLinesContainer.innerHTML = '';
     createWasteLineRow();
     $('wasteTotal').textContent = '—';
@@ -3334,9 +3405,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const branchId = wasteModalBranchId();
     if (!branchId) { showModalError('wasteError', 'Elegí una sucursal.'); return; }
 
-    const reason = $('wasteReasonSelect').value;
-    if (!reason) { showModalError('wasteError', 'Elegí un motivo.'); return; }
-
+    // Se revisa en el mismo orden en que está el formulario: 1) qué, 2) por qué.
     const rows = Array.from(wasteLinesContainer.querySelectorAll('.inv-line-row'));
     const items = [];
     for (const row of rows) {
@@ -3344,7 +3413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const qtyInput = row.querySelector('.inv-line-qty');
       const itemId = itemInput.dataset.itemId;
       if (!itemId && !itemInput.value.trim() && !qtyInput.value) continue;
-      if (!itemId) { showModalError('wasteError', 'Elegí un insumo de la lista en cada fila.'); itemInput.focus(); return; }
+      if (!itemId) { showModalError('wasteError', 'Tocá el insumo en la lista que aparece al escribir.'); itemInput.focus(); return; }
       const c = wasteLineCalc(row);
       if (c.error) {
         showModalError('wasteError', `${itemInput.value}: ${c.error}`);
@@ -3355,7 +3424,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       items.push(wasteLinePayload(row, c));
     }
-    if (!items.length) { showModalError('wasteError', 'Agregá al menos un insumo.'); return; }
+    if (!items.length) { showModalError('wasteError', 'Falta el paso 1: escribí qué se botó.'); return; }
+
+    const reason = $('wasteReasonSelect').value;
+    if (!reason) {
+      showModalError('wasteError', 'Falta el paso 2: tocá por qué se botó.');
+      $('wasteReasonChips')?.querySelector('.inv-reason-chip')?.focus();
+      return;
+    }
 
     const occurredValue = $('wasteOccurredAt').value;
     let occurredAt = null;

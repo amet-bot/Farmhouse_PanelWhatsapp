@@ -2237,15 +2237,45 @@ a:focus-visible {
   background: var(--panel-subtle);
 }
 
-/* iOS hace zoom al enfocar un campo con texto de menos de 16px (y no lo deshace). */
-@media (max-width: 640px) {
-  .modal-input,
-  .modal-select,
-  #messageInput,
-  #searchInput {
-    font-size: 16px;
+/* ============================================================================
+   CELULAR: LA PANTALLA SE QUEDA FIJA
+   iOS hace zoom al enfocar un campo con texto de menos de 16 px, y no lo deshace: la página
+   queda agrandada y corrida hacia un costado, que es el "se desorganiza todo" que se veía al
+   escribir. Antes esto cubría solo .modal-input, #messageInput y #searchInput, y las hojas de
+   cada sistema (inventory.css, internal.css, hub.css...) lo pisaban con sus 12.5–13.5 px, que
+   cargan después. Por eso va con !important y para TODOS los campos: es la única regla que
+   tiene que ganar siempre en un teléfono. Medido en 390 px (iPhone 12/14) y 412 px (Galaxy A17).
+   ============================================================================ */
+@media (max-width: 900px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 }
+
+/* Sin "rebote" ni tirón para recargar al llegar al borde, sin agrandar la letra al girar el
+   teléfono y sin zoom por doble toque (el zoom con dos dedos sigue funcionando en iPhone). */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+body {
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+/* Con un modal abierto, lo de atrás no se mueve: solo se desliza el contenido del modal. */
+body:has(.modal-backdrop.active) { overflow: hidden !important; }
+/* El fondo del modal cubre exactamente lo que se ve. 100vw/100vh en el celular miden más que
+   la pantalla (la barra del navegador), y el botón de guardar quedaba tapado abajo. */
+.modal-backdrop {
+  inset: 0;
+  width: auto;
+  height: auto;
+}
+.modal-card { max-height: 90dvh; }
+.modal-body { overscroll-behavior: contain; }
 
 /* Contadores que se actualizan en vivo: cifras de ancho fijo para que no "bailen". */
 .nav-badge,

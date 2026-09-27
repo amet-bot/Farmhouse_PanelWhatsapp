@@ -2,7 +2,7 @@
 <html lang="es" data-theme="light">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <title>Inventario y Abastecimiento</title>
   <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
   <link rel="manifest" href="/manifest.json">
@@ -14,8 +14,8 @@
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=4.11.4">
-  <link rel="stylesheet" href="css/inventory.css?v=4.14.0">
+  <link rel="stylesheet" href="css/style.css?v=4.12.0">
+  <link rel="stylesheet" href="css/inventory.css?v=4.15.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -562,96 +562,55 @@
           <span class="inv-card-icon inv-card-icon-waste"><i data-lucide="trending-down"></i></span>
           <div>
             <h3>Registrar merma</h3>
-            <span class="modal-subtitle">Lo que se perdió, se usó o se devolvió.</span>
+            <span class="modal-subtitle">Lo que se botó o se perdió.</span>
           </div>
         </div>
         <button type="button" class="modal-close-btn" data-close-modal="modalWaste" aria-label="Cerrar">&times;</button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body inv-waste-form">
         <div id="wasteError" class="login-error-box" style="display:none"></div>
 
-        <div class="inv-field-row">
-          <div class="inv-field">
-            <label class="modal-label" for="wasteBranchSelect">Sucursal</label>
-            <div id="wasteBranchBadge" class="inv-branch-badge" hidden></div>
-            <select id="wasteBranchSelect" class="modal-input" hidden></select>
-          </div>
-          <div class="inv-field">
-            <label class="modal-label" for="wasteOccurredAt">Cuándo pasó</label>
-            <input type="datetime-local" id="wasteOccurredAt" class="modal-input">
-          </div>
+        <!-- Tres preguntas, en el orden en que se piensa al botar algo: qué, por qué, foto. Todo lo
+             demás (fecha, nota, peso total) es opcional y va plegado en "Más detalles". -->
+        <div class="inv-waste-branch">
+          <div id="wasteBranchBadge" class="inv-branch-badge" hidden></div>
+          <select id="wasteBranchSelect" class="modal-input" hidden aria-label="Sucursal"></select>
         </div>
 
-        <div class="inv-field-row">
-          <div class="inv-field">
-            <label class="modal-label" for="wasteReasonSelect">Motivo</label>
-            <select id="wasteReasonSelect" class="modal-input"></select>
-          </div>
-          <div class="inv-field">
-            <label class="modal-label" for="wasteNotes">Notas (opcional)</label>
-            <input type="text" id="wasteNotes" class="modal-input" placeholder="Qué pasó exactamente...">
-          </div>
-        </div>
+        <section class="inv-waste-step">
+          <h4 class="inv-waste-step-title"><span class="inv-step-num">1</span> ¿Qué se botó?</h4>
+          <div class="inv-lines" id="wasteLines"></div>
+          <button type="button" class="inv-add-line-btn" id="btnAddWasteLine">
+            <i data-lucide="plus"></i> Agregar otro insumo
+          </button>
+        </section>
 
-        <div class="inv-lines-head inv-lines-head-waste">
-          <span>Insumos perdidos</span>
-          <span>Cantidad</span>
-          <span>En existencia</span>
-          <span></span>
-        </div>
-        <div class="inv-lines" id="wasteLines"></div>
+        <section class="inv-waste-step">
+          <h4 class="inv-waste-step-title"><span class="inv-step-num">2</span> ¿Por qué se botó?</h4>
+          <div class="inv-reason-grid" id="wasteReasonChips" role="radiogroup" aria-label="Motivo"></div>
+          <select id="wasteReasonSelect" hidden aria-hidden="true" tabindex="-1"></select>
 
-        <button type="button" class="inv-add-line-btn" id="btnAddWasteLine">
-          <i data-lucide="plus"></i> Agregar insumo
-        </button>
-
-        <!-- Peso leído en la balanza: se guarda con la merma, aparte de la cantidad de cada insumo
-             (que va en su unidad: una piña se cuenta por unidad). -->
-        <div class="inv-evidence-field">
-          <div class="inv-photo-field-head">
-            <label class="modal-label" for="wasteWeightValue">Peso</label>
-            <small id="wasteWeightHint">Lo que marcó la balanza.</small>
+          <!-- Solo para "Recorte o limpieza": cuánto se limpió en total → rendimiento. -->
+          <div class="inv-waste-sub" id="wasteProcessedField" hidden>
+            <label class="modal-label" for="wasteProcessedValue">¿Cuánto se limpió en total? <small>(opcional)</small></label>
+            <p class="inv-waste-help">Todo lo que se limpió, antes de sacar el recorte. Sirve para saber cuánto se aprovecha.</p>
+            <div class="inv-weight-row">
+              <input type="number" id="wasteProcessedValue" class="modal-input" min="0" step="0.001" inputmode="decimal" placeholder="Ej. 5">
+              <select id="wasteProcessedUnit" class="modal-input" aria-label="Unidad de lo limpiado">
+                <option value="kg">kg</option>
+                <option value="g">g</option>
+                <option value="lb">lb</option>
+              </select>
+            </div>
+            <p class="inv-yield-preview" id="wasteYieldPreview" hidden></p>
           </div>
-          <div class="inv-weight-row">
-            <input type="number" id="wasteWeightValue" class="modal-input" min="0" step="0.001" inputmode="decimal" placeholder="Ej. 0.270">
-            <select id="wasteWeightUnit" class="modal-input" aria-label="Unidad del peso">
-              <option value="kg">kg</option>
-              <option value="g">g</option>
-              <option value="lb">lb</option>
-            </select>
-          </div>
-          <!-- Sin tara, el peso incluye la bandeja y la merma sale inflada. -->
-          <p class="inv-tare-tip">
-            <i data-lucide="scale"></i>
-            <span><strong>Antes de pesar:</strong> poné la bandeja vacía en la balanza y apretá <strong>TARE</strong> (o ZERO). Después poné lo que se descartó: así el peso no incluye el recipiente.</span>
-          </p>
-        </div>
-
-        <!-- Solo para "Recorte o limpieza": cuánto se limpió en total → rendimiento. -->
-        <div class="inv-evidence-field" id="wasteProcessedField" hidden>
-          <div class="inv-photo-field-head">
-            <label class="modal-label" for="wasteProcessedValue">¿Cuánto se limpió? (opcional)</label>
-            <small>El peso de todo lo que se limpió, antes de sacar el recorte. Con eso se calcula cuánto se aprovecha.</small>
-          </div>
-          <div class="inv-weight-row">
-            <input type="number" id="wasteProcessedValue" class="modal-input" min="0" step="0.001" inputmode="decimal" placeholder="Ej. 5">
-            <select id="wasteProcessedUnit" class="modal-input" aria-label="Unidad de lo limpiado">
-              <option value="kg">kg</option>
-              <option value="g">g</option>
-              <option value="lb">lb</option>
-            </select>
-          </div>
-          <p class="inv-yield-preview" id="wasteYieldPreview" hidden></p>
-        </div>
+        </section>
 
         <!-- Evidencia: fotos de lo que se descartó. Se guardan en la base junto con la merma.
              Dos botones y no uno: con `multiple` varios Android abren directo el selector de
              archivos sin ofrecer la cámara, así que "Tomar foto" va aparte y abre la cámara. -->
-        <div class="inv-evidence-field">
-          <div class="inv-photo-field-head">
-            <span class="modal-label">Evidencia (foto)</span>
-            <small>Una foto de lo que se descartó, como respaldo. Hasta 6.</small>
-          </div>
+        <section class="inv-waste-step">
+          <h4 class="inv-waste-step-title"><span class="inv-step-num">3</span> Foto <small>(opcional)</small></h4>
           <div class="inv-photo-grid" id="wastePhotoPreviews">
             <div class="inv-photo-add-group">
               <button type="button" class="inv-photo-add" data-photo-camera="form">
@@ -663,11 +622,40 @@
             </div>
           </div>
           <input type="file" id="wastePhotoInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*" multiple hidden>
-        </div>
+        </section>
+
+        <details class="inv-waste-more">
+          <summary>Más detalles <small>(opcional): fecha, nota, peso total</small></summary>
+          <div class="inv-waste-more-body">
+            <div class="inv-field-row">
+              <div class="inv-field">
+                <label class="modal-label" for="wasteOccurredAt">¿Cuándo pasó?</label>
+                <input type="datetime-local" id="wasteOccurredAt" class="modal-input">
+              </div>
+              <div class="inv-field">
+                <label class="modal-label" for="wasteNotes">Nota</label>
+                <input type="text" id="wasteNotes" class="modal-input" placeholder="Ej. se cortó la luz">
+              </div>
+            </div>
+            <!-- Peso total de la balanza: casi siempre se calcula solo con lo de arriba. -->
+            <div class="inv-field">
+              <label class="modal-label" for="wasteWeightValue">Peso total en la balanza</label>
+              <p class="inv-waste-help" id="wasteWeightHint">Lo que marcó la balanza.</p>
+              <div class="inv-weight-row">
+                <input type="number" id="wasteWeightValue" class="modal-input" min="0" step="0.001" inputmode="decimal" placeholder="Ej. 0.270">
+                <select id="wasteWeightUnit" class="modal-input" aria-label="Unidad del peso">
+                  <option value="kg">kg</option>
+                  <option value="g">g</option>
+                  <option value="lb">lb</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="modal-footer inv-modal-footer">
         <div class="inv-total-box">
-          <span>Pérdida estimada</span>
+          <span>Se pierde</span>
           <strong id="wasteTotal">&mdash;</strong>
           <small>Al costo del último cargamento</small>
         </div>
@@ -923,52 +911,66 @@
     </div>
   </template>
 
-  <!-- Fila de merma: sin costo ni subtotal (el servidor valúa con el último cargamento), pero
-       con la existencia actual del insumo a la vista, que es el dato que decide si la cantidad
-       que se está por cargar tiene sentido. -->
+  <!-- Fila de merma: una tarjeta por insumo, con preguntas en orden y en lenguaje simple.
+       Primero el insumo; después "¿entero o un pedazo?" (siempre se elige: sin eso, "1" de un
+       insumo en gramos se leía como 1 gramo y no como 1 pan); recién ahí "¿cuántos?" o "¿cuánto
+       pesó?". Lo que no hace falta en cada caso no se muestra. -->
   <template id="wasteLineTemplate">
     <div class="inv-line-row inv-line-row-waste">
-      <div class="inv-line-item">
-        <span class="inv-line-label">Insumo</span>
-        <input type="text" class="modal-input inv-item-input" placeholder="Buscar insumo..." autocomplete="off">
-        <div class="inv-item-suggestions" hidden></div>
-        <small class="inv-line-unit"></small>
+      <div class="inv-waste-line-top">
+        <div class="inv-line-item">
+          <input type="text" class="modal-input inv-item-input" placeholder="Escribí qué fue (ej. tomate)" autocomplete="off" aria-label="Insumo">
+          <div class="inv-item-suggestions" hidden></div>
+          <small class="inv-line-unit" hidden></small>
+        </div>
+        <button type="button" class="inv-line-remove" title="Quitar" aria-label="Quitar insumo">
+          <i data-lucide="x"></i>
+        </button>
       </div>
-      <div class="inv-line-cell">
-        <span class="inv-line-label inv-line-qty-label">Cantidad</span>
-        <input type="number" class="modal-input inv-line-qty" placeholder="0" min="0" step="0.001" inputmode="decimal" disabled>
-      </div>
-      <div class="inv-line-cell inv-line-stock-cell">
-        <span class="inv-line-label">En existencia</span>
-        <span class="inv-line-stock">&mdash;</span>
-      </div>
-      <button type="button" class="inv-line-remove" title="Quitar" aria-label="Quitar insumo">
-        <i data-lucide="x"></i>
-      </button>
-      <!-- Qué se botó: la pieza completa o un pedazo/residuo. Se elige siempre, a propósito: sin
-           esa distinción "1" de un insumo en gramos se leía como 1 gramo y no como 1 pan. -->
-      <div class="inv-line-mode" role="radiogroup" aria-label="Qué se botó" hidden>
-        <span class="inv-line-mode-label">¿Qué se botó?</span>
+
+      <div class="inv-line-mode" role="radiogroup" aria-label="Entero o un pedazo" hidden>
         <button type="button" class="inv-mode-btn" data-mode="entera" role="radio" aria-checked="false">
-          <i data-lucide="circle"></i><span>Pieza entera</span>
+          <i data-lucide="circle"></i><span>Entero</span>
         </button>
         <button type="button" class="inv-mode-btn" data-mode="parte" role="radio" aria-checked="false">
-          <i data-lucide="pie-chart"></i><span>Una parte o residuo</span>
+          <i data-lucide="pie-chart"></i><span>Un pedazo o sobras</span>
         </button>
       </div>
+
       <div class="inv-line-extra" hidden>
-        <!-- Solo en "pieza entera": si igual se pesó, manda la balanza y no el promedio. Va
-             primero: con el peso real ya no hace falta el de una pieza (se aprende de este). -->
-        <label class="inv-line-measured" hidden>
-          <span class="inv-line-measured-label">¿Lo pesaste? Peso real (g) · opcional</span>
-          <input type="number" class="modal-input inv-line-measured-input" min="0" step="0.1" inputmode="decimal" placeholder="Si no, se usa el promedio">
-        </label>
+        <div class="inv-line-cell inv-line-amount">
+          <span class="inv-line-qty-label">¿Cuántos?</span>
+          <div class="inv-qty-control">
+            <button type="button" class="inv-qty-step" data-step="-1" aria-label="Uno menos">&minus;</button>
+            <input type="number" class="modal-input inv-line-qty" placeholder="0" min="0" step="1" inputmode="decimal" disabled>
+            <button type="button" class="inv-qty-step" data-step="1" aria-label="Uno más">+</button>
+            <span class="inv-qty-unit"></span>
+          </div>
+        </div>
         <label class="inv-line-piece" hidden>
-          <span class="inv-line-piece-label">Peso de 1 pieza (g)</span>
-          <input type="number" class="modal-input inv-line-piece-input" min="0" step="0.1" inputmode="decimal" placeholder="Ej. 80">
+          <span class="inv-line-piece-label">¿Cuánto pesa uno, más o menos?</span>
+          <span class="inv-qty-control">
+            <input type="number" class="modal-input inv-line-piece-input" min="0" step="0.1" inputmode="decimal" placeholder="Ej. 80">
+            <span class="inv-qty-unit inv-line-piece-unit">g</span>
+          </span>
         </label>
-        <small class="inv-line-calc" hidden></small>
+        <!-- En "entero": si igual se pesó, manda la balanza y no el promedio. -->
+        <button type="button" class="inv-link-btn inv-line-weighed-toggle" hidden>
+          <i data-lucide="scale"></i> Lo pesé en la balanza
+        </button>
+        <label class="inv-line-measured" hidden>
+          <span class="inv-line-measured-label">Peso en la balanza</span>
+          <span class="inv-qty-control">
+            <input type="number" class="modal-input inv-line-measured-input" min="0" step="0.1" inputmode="decimal" placeholder="Ej. 240">
+            <span class="inv-qty-unit inv-line-measured-unit">g</span>
+          </span>
+        </label>
+        <p class="inv-line-tip" hidden><i data-lucide="info"></i> Antes de pesar, poné la bandeja vacía y apretá <strong>TARA</strong>.</p>
+        <p class="inv-line-calc" hidden></p>
       </div>
+      <!-- La existencia se sigue calculando (aviso de "más de lo que hay"), pero no se muestra:
+           sin inventario de arranque decía "Sin registro" en casi todo y solo confundía. -->
+      <span class="inv-line-stock" hidden></span>
     </div>
   </template>
 
@@ -981,6 +983,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.14.0"></script>
+  <script src="js/modules/inventory.js?v=4.15.0"></script>
 </body>
 </html>

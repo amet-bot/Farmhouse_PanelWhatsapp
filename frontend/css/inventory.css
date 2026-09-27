@@ -1662,6 +1662,12 @@ body {
     border-radius: 0;
     border: none;
   }
+  /* Arriba el título y abajo el botón quedan fijos; solo se desliza el medio. El pie deja lugar
+     para la barra del iPhone. */
+  .modal-card .modal-body { flex: 1 1 auto; min-height: 0; }
+  /* A pantalla completa no hace falta la animación de "crecer": aparece quieta. */
+  .modal-card { animation: none; }
+  .modal-card .modal-footer { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
 
   .inv-lines-head { display: none; }
 
@@ -2826,12 +2832,6 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 }
 
 @media (max-width: 900px) {
-  /* En celular todo va en columna: insumo → qué se botó → cuánto → peso de la pieza → quitar. */
-  .inv-line-row-waste .inv-line-item { order: 1; }
-  .inv-line-row-waste .inv-line-mode { order: 2; }
-  .inv-line-row-waste .inv-line-cell { order: 3; }
-  .inv-line-row-waste .inv-line-extra { order: 4; }
-  .inv-line-row-waste .inv-line-remove { order: 5; }
   .inv-line-mode-label { width: 100%; }
   .inv-mode-btn { flex: 1 1 0; justify-content: center; }
   .inv-line-piece, .inv-line-piece .modal-input { width: 100%; }
@@ -2853,4 +2853,192 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
     bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
   .fh-embedded .toast-banner { bottom: 16px; }
+}
+
+
+/* ============================================================================
+   Formulario de merma simplificado: tres pasos numerados (qué, por qué, foto) y cada insumo
+   en una tarjeta que va preguntando de a una cosa. Igual en celular y en computadora: una
+   columna, botones grandes, nada de tablas.
+   ============================================================================ */
+.inv-waste-form { display: flex; flex-direction: column; gap: 18px; }
+.inv-waste-branch:empty { display: none; }
+.inv-waste-branch .inv-branch-badge { display: inline-flex; }
+.inv-waste-step { display: flex; flex-direction: column; gap: 10px; }
+.inv-waste-step-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--inv-text);
+}
+.inv-waste-step-title small { font-size: 12px; font-weight: 500; color: var(--inv-text-muted); }
+.inv-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 50%;
+  background: var(--inv-green-soft);
+  color: var(--inv-green-dark);
+  font-size: 13px;
+  font-weight: 800;
+}
+.inv-waste-help { margin: 0; font-size: 12.5px; color: var(--inv-text-muted); line-height: 1.4; }
+.inv-waste-sub { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.inv-waste-sub[hidden] { display: none; }
+
+/* La tarjeta de cada insumo */
+.inv-line-row.inv-line-row-waste {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--inv-border);
+  border-radius: 14px;
+  background: var(--inv-panel-2);
+}
+.inv-waste-line-top { display: flex; align-items: flex-start; gap: 8px; }
+.inv-waste-line-top .inv-line-item { flex: 1 1 auto; min-width: 0; }
+.inv-waste-line-top .inv-line-remove { flex: 0 0 auto; width: 44px; height: 44px; }
+.inv-line-row-waste .inv-line-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.inv-line-row-waste .inv-line-mode[hidden] { display: none; }
+.inv-line-row-waste .inv-mode-btn {
+  justify-content: center;
+  min-height: 48px;
+  padding: 10px;
+  border-radius: 12px;
+  font-size: 14.5px;
+  text-align: center;
+  line-height: 1.2;
+}
+/* nowrap y flex-basis auto: la regla vieja (fila con wrap y cálculo a flex-basis 100%) en
+   columna mandaba el cálculo a una segunda columna, fuera de la pantalla. */
+.inv-line-row-waste .inv-line-extra { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 10px; margin: 0; }
+.inv-line-row-waste .inv-line-calc { flex-basis: auto; }
+/* En la tarjeta el botón de quitar es solo la ✕ (en celular llevaba el texto "Quitar" y no cabía). */
+.inv-line-row-waste .inv-line-remove { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.inv-line-row-waste .inv-line-remove::after { content: none; }
+.inv-line-row-waste .inv-line-extra[hidden] { display: none; }
+.inv-line-amount { gap: 6px; }
+.inv-line-qty-label, .inv-line-piece-label, .inv-line-measured-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--inv-text-secondary);
+}
+.inv-line-row-waste .inv-line-piece,
+.inv-line-row-waste .inv-line-measured { width: auto; }
+.inv-line-row-waste .inv-line-piece .modal-input,
+.inv-line-row-waste .inv-line-measured .modal-input { width: auto; }
+
+/* Número grande con − y + (en "entero") o con su unidad al lado (g, kg, ml) */
+.inv-qty-control { display: flex; align-items: center; gap: 8px; }
+.inv-qty-control .modal-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 180px;
+  height: 48px;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+}
+.inv-qty-step {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--inv-border);
+  border-radius: 12px;
+  background: var(--inv-panel);
+  color: var(--inv-text);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.inv-qty-step[hidden] { display: none; }
+.inv-qty-step:active { background: var(--inv-green-soft); }
+.inv-qty-unit { font-size: 15px; font-weight: 600; color: var(--inv-text-secondary); }
+.inv-qty-unit:empty { display: none; }
+
+.inv-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--inv-green-dark);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.inv-link-btn[hidden] { display: none; }
+.inv-link-btn i, .inv-link-btn svg { width: 16px; height: 16px; }
+.inv-line-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--inv-text-muted);
+  line-height: 1.4;
+}
+.inv-line-tip[hidden] { display: none; }
+.inv-line-tip i, .inv-line-tip svg { width: 14px; height: 14px; flex: 0 0 14px; margin-top: 1px; }
+.inv-line-row-waste .inv-line-calc { margin: 0; font-size: 13px; }
+.inv-line-row-waste .inv-line-calc strong { color: var(--inv-text); }
+
+/* Motivos: botones grandes con ícono, dos por fila */
+.inv-reason-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.inv-reason-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--inv-border);
+  border-radius: 12px;
+  background: var(--inv-panel);
+  color: var(--inv-text-secondary);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.inv-reason-chip i, .inv-reason-chip svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.inv-reason-chip.is-active {
+  background: var(--inv-green-soft);
+  border-color: var(--inv-green-border);
+  color: var(--inv-green-dark);
+}
+
+/* "Más detalles": plegado de entrada */
+.inv-waste-more {
+  border: 1px solid var(--inv-border);
+  border-radius: 12px;
+  background: var(--inv-panel-2);
+}
+.inv-waste-more > summary {
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--inv-text-secondary);
+  cursor: pointer;
+  list-style-position: inside;
+}
+.inv-waste-more > summary small { font-weight: 500; color: var(--inv-text-muted); }
+.inv-waste-more-body { display: flex; flex-direction: column; gap: 12px; padding: 0 14px 14px; }
+
+@media (max-width: 640px) {
+  .inv-reason-grid { grid-template-columns: 1fr 1fr; }
+  .inv-qty-control .modal-input { max-width: none; }
 }
