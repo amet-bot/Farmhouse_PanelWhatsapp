@@ -1,0 +1,99 @@
+/* ============================================================================
+   CENTRO WHATSAPP - TIPOGRAFÍA DE MARCA
+   Solo para index.html (Atención al Cliente): el resto de la suite (hub, inventario,
+   administración...) comparte style.css y no pidieron tocarles la tipografía a ellos, así que
+   esto vive aparte y se carga después de style.css en vez de editar la regla compartida.
+   El color ya era el verde de marca acá (--msg-out-bg, --green): esto solo cambia las fuentes.
+   Mismos archivos que Comunicación Interna: ABC Ginto para el texto de trabajo, PP Eiko en los
+   títulos de identidad (el nombre "Farmhouse Link" del costado y el nombre del cliente en la
+   conversación abierta).
+
+   Licencia de prueba (Trial): antes de producción, confirmar que hay licencia comercial vigente
+   para ABC Ginto y PP Eiko — si no, esto vuelve a Inter.
+   ============================================================================ */
+
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Thin-Trial.otf') format('opentype');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Light-Trial.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Regular-Trial.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Medium-Trial.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Bold-Trial.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Black-Trial.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PP Eiko';
+  src: url('../assets/fonts/pp-eiko/PPEiko-LightItalic.otf') format('opentype');
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PP Eiko';
+  src: url('../assets/fonts/pp-eiko/PPEiko-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PP Eiko';
+  src: url('../assets/fonts/pp-eiko/PPEiko-Heavy.otf') format('opentype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PP Eiko';
+  src: url('../assets/fonts/pp-eiko/PPEiko-BlackItalic.otf') format('opentype');
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+body {
+  font-family: 'ABC Ginto', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+.brand-name {
+  font-family: 'PP Eiko', 'ABC Ginto', serif;
+}
+
+.chat-header .meta strong {
+  font-family: 'PP Eiko', 'ABC Ginto', serif;
+  font-size: 15px;
+  font-weight: 800;
+}

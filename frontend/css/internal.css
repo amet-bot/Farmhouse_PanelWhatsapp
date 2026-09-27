@@ -1,14 +1,90 @@
 /* ============================================================================
    FARMHOUSE - COMUNICACIÓN INTERNA
-   Mensajería entre el personal. Comparte las superficies y la tipografía del resto de la suite
-   (hub.css, inventory.css) para que se sienta el mismo producto, pero el acento NO es el verde
-   de marca: es un azul corporativo. El verde en esta casa significa "Farmhouse de cara al
-   cliente"; acá adentro no hay cliente, hay equipo, y el tono más sobrio es lo que pidió el
-   encargo. También va todo un paso más denso y con esquinas menos redondeadas que Inventario.
+   Mensajería entre el personal. Comparte las superficies del resto de la suite (hub.css,
+   inventory.css) para que se sienta el mismo producto. El acento es el verde de marca
+   (--green / --green-dark de style.css) tanto en claro como en oscuro, y la tipografía es la
+   de marca: ABC Ginto para todo el texto de trabajo, PP Eiko solo en los títulos de identidad
+   (el nombre de la sección y el nombre de con quién se habla). También va todo un paso más
+   denso y con esquinas menos redondeadas que Inventario.
 
    Ojo con [hidden]: cualquier selector que defina `display` sobre un elemento que el JS oculta
    con `hidden` le gana al [hidden] nativo por especificidad. De ahí el bloque de guardas.
    ============================================================================ */
+
+/* ---- Tipografía de marca ----
+   Archivos de licencia de prueba (Trial): antes de llevar esto a producción, confirmar que hay
+   licencia comercial vigente para ABC Ginto y PP Eiko — si no, esto vuelve a Inter. */
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Thin-Trial.otf') format('opentype');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Light-Trial.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Regular-Trial.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Medium-Trial.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Bold-Trial.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'ABC Ginto';
+  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Black-Trial.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PP Eiko';
+  src: url('../assets/fonts/pp-eiko/PPEiko-LightItalic.otf') format('opentype');
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PP Eiko';
+  src: url('../assets/fonts/pp-eiko/PPEiko-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PP Eiko';
+  src: url('../assets/fonts/pp-eiko/PPEiko-Heavy.otf') format('opentype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PP Eiko';
+  src: url('../assets/fonts/pp-eiko/PPEiko-BlackItalic.otf') format('opentype');
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}
 
 :root, [data-theme="light"] {
   --int-bg: var(--bg-primary);
@@ -19,11 +95,11 @@
   --int-text: var(--text-primary);
   --int-text-secondary: var(--text-secondary);
   --int-text-muted: var(--text-muted);
-  --int-accent: #2563eb;
-  --int-accent-soft: #eff6ff;
-  --int-accent-text: #1d4ed8;
-  --int-accent-border: #bfdbfe;
-  --int-mine-bg: #2563eb;
+  --int-accent: var(--green, #00b96b);
+  --int-accent-soft: var(--green-soft, #e7f8ef);
+  --int-accent-text: var(--green-soft-text, #00834d);
+  --int-accent-border: var(--green-border, #b9ebd2);
+  --int-mine-bg: var(--green, #00b96b);
   --int-mine-text: #ffffff;
   --int-online: #16a34a;
 }
@@ -66,7 +142,7 @@
 body {
   margin: 0;
   background: var(--int-bg);
-  font-family: 'Inter', sans-serif;
+  font-family: 'ABC Ginto', 'Inter', sans-serif;
   color: var(--int-text);
 }
 
@@ -144,7 +220,8 @@ body {
 
 .int-header-titles .int-title {
   margin: 0;
-  font-size: 15px;
+  font-family: 'PP Eiko', 'ABC Ginto', serif;
+  font-size: 16px;
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--int-text);
@@ -483,6 +560,10 @@ body {
 }
 
 .int-empty strong { font-size: 13px; color: var(--int-text); }
+
+/* Con .int-messages ahora anclado abajo (ver más abajo), el aviso de "conversación nueva" o
+   "no se pudo cargar" se centra en el panel en vez de quedar pegado al pie. */
+.int-messages .int-empty { margin: auto; }
 .int-empty p { margin: 0; line-height: 1.5; }
 
 /* ============================================================================
@@ -559,11 +640,30 @@ body {
 
 .int-chat-back i { width: 17px; height: 17px; }
 
+.int-chat-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--int-border);
+  background: var(--int-panel-2);
+  color: var(--int-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.int-chat-action:hover { color: var(--int-danger, #e5484d); border-color: var(--int-danger, #e5484d); }
+
+.int-chat-action i { width: 16px; height: 16px; }
+
 .int-chat-headings { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
 
 .int-chat-headings strong {
-  font-size: 14px;
-  font-weight: 700;
+  font-family: 'PP Eiko', 'ABC Ginto', serif;
+  font-size: 15px;
+  font-weight: 800;
   color: var(--int-text);
   white-space: nowrap;
   overflow: hidden;
@@ -586,6 +686,9 @@ body {
 }
 
 /* ---- Mensajes ---- */
+/* justify-content: flex-end para que la conversación se llene de abajo hacia arriba: con pocos
+   mensajes, quedan pegados al pie del panel (como cualquier chat) en vez de arrancar arriba
+   con todo el resto del espacio vacío debajo. */
 .int-messages {
   flex: 1;
   min-height: 0;
@@ -593,6 +696,7 @@ body {
   padding: 20px 20px 10px;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 3px;
 }
 
