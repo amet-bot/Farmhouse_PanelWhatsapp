@@ -26,6 +26,7 @@ from schemas.inventory import (
     ShipmentCreate, ShipmentResponse, ShipmentItemResponse, ShipmentInsightItem, ShipmentInsights,
     StockCountCreate, StockCountItemResponse, StockCountResponse,
     StockCountAnalysis, StockCountAnalysisLine, StockCountAnalysisTotals,
+    DashboardBranch, DashboardFigures, DashboardResponse, DashboardTopItem,
     StockRowResponse, WasteCreate, WasteItemResponse, WastePhotoResponse, WasteReasonResponse, WasteResponse,
     WasteInsightItem, WasteInsights,
     WasteAnalyticsGroup, WasteAnalyticsItem, WasteAnalyticsDay, WasteAnalyticsResponse, WasteAnalyticsTotals, WasteAnalyticsYield,
@@ -2025,6 +2026,181 @@ def _analizar_conteo(db: Session, record: StockCount) -> StockCountAnalysis:
         counted_at=record.counted_at, tolerance_pct=COUNT_TOLERANCE_PCT,
         recipes_available=bool(con_receta), sales_synced_at=(hoy[0] if hoy else None),
         totals=totales, lines=lineas,
+    )
+
+
+# ==========================================================================
+# Tablero del Resumen: ventas, compras, merma, faltantes y costo de lo vendido
+# ==========================================================================
+def _pct_de(parte: Decimal, total: Optional[Decimal]) -> Optional[Decimal]:
+    return (parte / total * 100).quantize(Decimal("0.1")) if total else None
+
+
+def _cobertura_recetas(db: Session, branch_id: int, desde: date, hasta: date) -> Optional[Decimal]:
+    """Qué parte de los platos vendidos (unidades) tiene receta en Invu en esa sucursal."""
+    vendidos = db.query(InvuSaleLine.invu_item_id, func.sum(InvuSaleLine.quantity)).filter(
+        InvuSaleLine.branch_id == branch_id, InvuSaleLine.counted == True,  # noqa: E712
+        InvuSaleLine.business_date >= desde, InvuSaleLine.business_date <= hasta,
+        InvuSaleLine.invu_item_id.isnot(None),
+    ).group_by(InvuSaleLine.invu_item_id).all()
+    total = sum((Decimal(q or 0) for _, q in vendidos), Decimal("0"))
+    if not total:
+        return None
+    con_receta = {r[0] for r in db.query(InvuRecipeLine.source_invu_id).filter(
+        InvuRecipeLine.branch_id == branch_id, InvuRecipeLine.source_type == "item").distinct()}
+    cubiertos = sum((Decimal(q or 0) for i, q in vendidos if i in con_receta), Decimal("0"))
+    return (cubiertos / total * 100).quantize(Decimal("0.1"))
+
+
+def _cifras_sucursal(db: Session, branch: Branch, desde: date, hasta: date, tops: Optional[dict] = None) -> DashboardFigures:
+    """Las cifras de una sucursal en [desde, hasta] (días de Panamá). `tops` junta merma y faltantes por insumo."""
+    ini, fin = _dias_utc(desde, hasta)
+    f = DashboardFigures()
+
+    venta = db.query(func.sum(InvuSyncDay.net_total)).filter(
+        InvuSyncDay.branch_id == branch.id, InvuSyncDay.business_date >= desde,
+        InvuSyncDay.business_date <= hasta, InvuSyncDay.net_total.isnot(None),
+    ).scalar()
+    f.sales_net = Decimal(venta).quantize(Decimal("0.01")) if venta is not None else None
+
+    compras = db.query(
+        func.coalesce(func.sum(ShipmentItem.quantity * ShipmentItem.unit_cost), 0),
+        func.sum(case((ShipmentItem.unit_cost.is_(None), 1), else_=0)),
+    ).join(Shipment, Shipment.id == ShipmentItem.shipment_id).filter(
+        Shipment.branch_id == branch.id, Shipment.received_at >= ini, Shipment.received_at < fin,
+    ).one()
+    f.purchases = Decimal(compras[0] or 0).quantize(Decimal("0.01"))
+    f.purchase_lines_without_cost = int(compras[1] or 0)
+
+    mermas = db.query(
+        WasteItem.inventory_item_id, InventoryItem.name, InventoryItem.unit,
+        func.sum(WasteItem.quantity),
+        func.sum(WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.reference_cost, 0)),
+        func.sum(case((WasteItem.unit_cost.is_(None), 1), else_=0)),
+    ).join(WasteRecord, WasteRecord.id == WasteItem.waste_record_id).join(
+        InventoryItem, InventoryItem.id == WasteItem.inventory_item_id
+    ).filter(
+        WasteRecord.branch_id == branch.id, WasteRecord.occurred_at >= ini, WasteRecord.occurred_at < fin,
+    ).group_by(WasteItem.inventory_item_id, InventoryItem.name, InventoryItem.unit).all()
+    for iid, nombre, unidad, cant, costo, sin_costo in mermas:
+        f.waste += Decimal(costo or 0)
+        f.waste_estimated = f.waste_estimated or bool(sin_costo)
+        if tops is not None:
+            t = tops["waste"].setdefault(iid, DashboardTopItem(inventory_item_id=iid, name=nombre, unit=unidad,
+                                                               quantity=Decimal("0"), cost=Decimal("0")))
+            t.quantity += Decimal(cant or 0)
+            t.cost += Decimal(costo or 0)
+            t.estimated = t.estimated or bool(sin_costo)
+    f.waste = f.waste.quantize(Decimal("0.01"))
+
+    conteos = db.query(StockCount).options(
+        joinedload(StockCount.items).joinedload(StockCountItem.inventory_item), joinedload(StockCount.branch),
+    ).filter(StockCount.branch_id == branch.id, StockCount.counted_at >= ini, StockCount.counted_at < fin).all()
+    f.counts = len(conteos)
+    for c in conteos:
+        a = _analizar_conteo(db, c)
+        f.count_missing += a.totals.missing_cost
+        f.count_no_recipe += a.totals.no_recipe_cost
+        f.count_surplus += a.totals.surplus_cost
+        if tops is not None:
+            for l in a.lines:
+                if l.status not in ("falta", "sin_receta") or l.unexplained is None:
+                    continue
+                t = tops["missing"].setdefault(l.inventory_item_id, DashboardTopItem(
+                    inventory_item_id=l.inventory_item_id, name=l.name, unit=l.unit,
+                    quantity=Decimal("0"), cost=Decimal("0")))
+                t.quantity += abs(l.unexplained)
+                t.cost += abs(l.cost or Decimal("0"))
+                t.estimated = t.estimated or l.cost_estimated
+
+    uso = _uso_por_ventas(db, branch.id, ini, fin)
+    if uso:
+        costos = _last_costs_map(db, branch.id)
+        referencia = dict(db.query(InventoryItem.id, InventoryItem.reference_cost).filter(InventoryItem.id.in_(list(uso))))
+        for iid, cantidad in uso.items():
+            costo = costos.get(iid)
+            if costo is None or Decimal(costo) <= 0:
+                costo = referencia.get(iid)
+            if costo is not None:
+                f.theoretical_cost += cantidad * Decimal(costo)
+    f.theoretical_cost = f.theoretical_cost.quantize(Decimal("0.01"))
+    f.recipe_coverage_pct = _cobertura_recetas(db, branch.id, desde, hasta)
+    return f
+
+
+def _sumar_cifras(filas: List[DashboardFigures]) -> DashboardFigures:
+    t = DashboardFigures()
+    ventas = [f.sales_net for f in filas if f.sales_net is not None]
+    t.sales_net = sum(ventas, Decimal("0")) if ventas else None
+    for campo in ("purchases", "waste", "count_missing", "count_no_recipe", "count_surplus", "theoretical_cost"):
+        setattr(t, campo, sum((getattr(f, campo) for f in filas), Decimal("0")))
+    t.purchase_lines_without_cost = sum(f.purchase_lines_without_cost for f in filas)
+    t.counts = sum(f.counts for f in filas)
+    t.waste_estimated = any(f.waste_estimated for f in filas)
+    coberturas = [f.recipe_coverage_pct for f in filas if f.recipe_coverage_pct is not None]
+    # Promedio simple entre sucursales: alcanza para decir "las recetas cubren ~30 % de lo vendido".
+    t.recipe_coverage_pct = (sum(coberturas, Decimal("0")) / len(coberturas)).quantize(Decimal("0.1")) if coberturas else None
+    return t
+
+
+def _porcentajes(f: DashboardFigures) -> DashboardFigures:
+    f.waste_pct_sales = _pct_de(f.waste, f.sales_net)
+    f.food_cost_pct = _pct_de(f.theoretical_cost, f.sales_net)
+    f.purchases_pct_sales = _pct_de(f.purchases, f.sales_net)
+    return f
+
+
+@router.get("/dashboard", response_model=DashboardResponse)
+def inventory_dashboard(
+    days: int = Query(7, ge=1, le=90),
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    El tablero del Resumen: por sucursal y en total, en los últimos `days` días (Panamá) contra
+    los `days` anteriores. Ventas (Invu), compras (cargamentos), merma, lo que faltó en los
+    conteos (descontando lo vendido) y el costo de los ingredientes de lo vendido según las
+    recetas de Invu, con qué parte de lo vendido tiene receta.
+    """
+    hasta = invu_sales_sync.hoy_panama()
+    desde = hasta - timedelta(days=days - 1)
+    prev_hasta = desde - timedelta(days=1)
+    prev_desde = prev_hasta - timedelta(days=days - 1)
+
+    efectiva = _visible_branch_filter(current_user, branch_id)
+    consulta = db.query(Branch).filter(Branch.active == True)  # noqa: E712
+    if efectiva is not None:
+        consulta = consulta.filter(Branch.id == efectiva)
+
+    tops = {"waste": {}, "missing": {}}
+    filas: List[DashboardBranch] = []
+    previas: List[DashboardFigures] = []
+    for branch in consulta.order_by(Branch.id).all():
+        actual = _cifras_sucursal(db, branch, desde, hasta, tops)
+        anterior = _cifras_sucursal(db, branch, prev_desde, prev_hasta)
+        # Una sucursal sin nada (Catering, una recién creada) no suma una fila vacía al tablero.
+        if efectiva is None and actual.sales_net is None and not any(
+            (actual.purchases, actual.waste, actual.counts, anterior.sales_net)
+        ):
+            continue
+        filas.append(DashboardBranch(branch_id=branch.id, branch_code=branch.code, branch_name=branch.name,
+                                     **_porcentajes(actual).model_dump()))
+        previas.append(anterior)
+
+    def top(d: dict) -> List[DashboardTopItem]:
+        lista = sorted(d.values(), key=lambda t: t.cost, reverse=True)[:5]
+        for t in lista:
+            t.cost = t.cost.quantize(Decimal("0.01"))
+            t.quantity = t.quantity.quantize(Decimal("0.001"))
+        return [t for t in lista if t.cost > 0]
+
+    return DashboardResponse(
+        date_from=desde, date_to=hasta, prev_from=prev_desde, prev_to=prev_hasta, branch_id=efectiva,
+        totals=_porcentajes(_sumar_cifras(filas)),
+        prev_totals=_porcentajes(_sumar_cifras(previas)),
+        branches=filas,
+        top_waste=top(tops["waste"]), top_missing=top(tops["missing"]),
     )
 
 

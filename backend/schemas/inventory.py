@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict
 from decimal import Decimal
 from typing import Optional, List
-from datetime import datetime
+from datetime import date, datetime
 
 
 class InventoryItemCreate(BaseModel):
@@ -520,6 +520,55 @@ class StockCountAnalysis(BaseModel):
     sales_synced_at: Optional[datetime] = None  # hasta cuándo llegaron las ventas de hoy
     totals: StockCountAnalysisTotals
     lines: List[StockCountAnalysisLine]
+
+
+# ==========================================================================
+# Tablero (Resumen de Inventario)
+# ==========================================================================
+class DashboardFigures(BaseModel):
+    """Las cifras de un período, para una sucursal o para todas juntas."""
+    sales_net: Optional[Decimal] = None          # venta neta de Invu (None: sin ventas sincronizadas)
+    purchases: Decimal = Decimal("0")            # cargamentos con costo
+    purchase_lines_without_cost: int = 0
+    waste: Decimal = Decimal("0")                # merma, con el costo de Invu donde falta el de compra
+    waste_estimated: bool = False
+    count_missing: Decimal = Decimal("0")        # faltó en conteos (insumos con receta)
+    count_no_recipe: Decimal = Decimal("0")      # faltó en insumos sin receta (puede ser consumo)
+    count_surplus: Decimal = Decimal("0")
+    counts: int = 0
+    theoretical_cost: Decimal = Decimal("0")     # costo de los ingredientes de lo vendido (recetas)
+    recipe_coverage_pct: Optional[Decimal] = None  # % de platos vendidos que tienen receta en Invu
+    waste_pct_sales: Optional[Decimal] = None
+    food_cost_pct: Optional[Decimal] = None      # costo teórico / venta
+    purchases_pct_sales: Optional[Decimal] = None
+
+
+class DashboardBranch(DashboardFigures):
+    branch_id: int
+    branch_code: Optional[str] = None
+    branch_name: str
+
+
+class DashboardTopItem(BaseModel):
+    inventory_item_id: int
+    name: str
+    unit: str
+    quantity: Decimal
+    cost: Decimal
+    estimated: bool = False
+
+
+class DashboardResponse(BaseModel):
+    date_from: date
+    date_to: date
+    prev_from: date
+    prev_to: date
+    branch_id: Optional[int] = None
+    totals: DashboardFigures
+    prev_totals: DashboardFigures
+    branches: List[DashboardBranch]
+    top_waste: List[DashboardTopItem]
+    top_missing: List[DashboardTopItem]
 
 
 StockCountResponse.model_rebuild()   # `analysis` se declara antes que StockCountAnalysis

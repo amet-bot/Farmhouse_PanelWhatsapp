@@ -746,6 +746,149 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  // ==========================================================================
+  // Tablero del Resumen: ventas, compras, merma, faltantes y costo de lo vendido
+  // ==========================================================================
+  const dashboard = { days: 7, branch: '', data: null, seq: 0 };
+
+  const pctTxt = (v) => (v == null ? '—' : `${Number(v).toLocaleString('es-PA', { maximumFractionDigits: 1 })}%`);
+
+  /** "+12% vs. semana anterior" (sube bien o mal según la cifra: más venta es bueno, más merma no). */
+  function dashDelta(ahora, antes, subirEsBueno) {
+    const a = Number(ahora || 0);
+    const b = Number(antes || 0);
+    if (!b) return '';
+    const pct = Math.round(((a - b) / b) * 100);
+    if (Math.abs(pct) < 1) return '<span class="inv-dash-delta">igual que el período anterior</span>';
+    const bueno = subirEsBueno ? pct > 0 : pct < 0;
+    const texto = Math.abs(pct) > 300 ? 'mucho' : `${Math.abs(pct)}%`;
+    return `<span class="inv-dash-delta ${bueno ? 'is-good' : 'is-bad'}">${pct > 0 ? '▲' : '▼'} ${texto} ${pct > 0 ? 'más' : 'menos'}</span>`;
+  }
+
+  function dashboardInsights(d) {
+    const t = d.totals;
+    const frases = [];
+    const filas = d.branches;
+    if (t.sales_net == null) frases.push('Todavía no hay ventas de Invu sincronizadas en este período.');
+    if (filas.length > 1) {
+      const conVenta = filas.filter((b) => b.waste_pct_sales != null);
+      const peor = conVenta.sort((a, b) => Number(b.waste_pct_sales) - Number(a.waste_pct_sales))[0];
+      if (peor && Number(peor.waste_pct_sales) > 1) {
+        frases.push(`<strong>${esc(peor.branch_name)}</strong> es la que más pierde en merma: ${pctTxt(peor.waste_pct_sales)} de lo que vende.`);
+      }
+    }
+    if (t.waste_pct_sales != null && Number(t.waste_pct_sales) > 3) {
+      frases.push(`La merma es el ${pctTxt(t.waste_pct_sales)} de la venta: arriba de 3% suele valer una revisión.`);
+    }
+    if (Number(t.count_missing) > 0) {
+      frases.push(`En los conteos faltaron <strong>${esc(money(t.count_missing))}</strong> que nadie registró (ya descontado lo vendido).`);
+    } else if (!t.counts) {
+      frases.push('No hubo conteos en este período: sin conteo no se sabe si falta mercadería. Uno por semana alcanza.');
+    }
+    if (t.recipe_coverage_pct != null && Number(t.recipe_coverage_pct) < 60) {
+      frases.push(`Solo el ${pctTxt(t.recipe_coverage_pct)} de los platos vendidos tiene receta en Invu: el costo de lo vendido y los conteos son parciales hasta que se carguen más recetas.`);
+    }
+    if (t.purchase_lines_without_cost) {
+      frases.push(`${pluralize(t.purchase_lines_without_cost, 'línea de cargamento quedó', 'líneas de cargamento quedaron')} sin costo: las compras salen más bajas de lo real.`);
+    }
+    return frases;
+  }
+
+  function renderDashboard() {
+    const box = $('dashboardBox');
+    const d = dashboard.data;
+    if (!box || !d) return;
+    const t = d.totals;
+    const p = d.prev_totals;
+    const periodo = dashboard.days === 7 ? 'la semana anterior' : 'el mes anterior';
+    const tiles = [
+      { label: 'Ventas', value: t.sales_net != null ? money(t.sales_net) : '—', sub: 'Caja de Invu', delta: dashDelta(t.sales_net, p.sales_net, true) },
+      { label: 'Compras', value: money(t.purchases), sub: t.purchases_pct_sales != null ? `${pctTxt(t.purchases_pct_sales)} de la venta` : 'Cargamentos con costo', delta: dashDelta(t.purchases, p.purchases, false) },
+      { label: 'Merma', value: `${t.waste_estimated ? '≈ ' : ''}${money(t.waste)}`, sub: t.waste_pct_sales != null ? `${pctTxt(t.waste_pct_sales)} de la venta` : 'Lo que se botó', delta: dashDelta(t.waste, p.waste, false), bad: true },
+      { label: 'Faltó en conteos', value: t.counts ? money(t.count_missing) : '—', sub: t.counts ? pluralize(t.counts, 'conteo', 'conteos') : 'Sin conteos en el período', delta: t.counts ? dashDelta(t.count_missing, p.count_missing, false) : '', bad: true },
+      {
+        label: 'Costo de lo vendido',
+        value: money(t.theoretical_cost),
+        // Con pocas recetas cargadas la cifra sale chica por falta de datos, no porque la comida
+        // cueste poco: se dice que es parcial en vez de mostrar un "0.7% de la venta" engañoso.
+        sub: t.recipe_coverage_pct != null && Number(t.recipe_coverage_pct) < 60
+          ? `Parcial: solo ${pctTxt(t.recipe_coverage_pct)} de lo vendido tiene receta en Invu`
+          : (t.food_cost_pct != null ? `${pctTxt(t.food_cost_pct)} de la venta · recetas de Invu` : 'Según recetas de Invu'),
+        delta: '',
+      },
+    ];
+
+    const tabla = d.branches.length > 1 ? `
+      <div class="inv-dash-table-wrap">
+        <table class="inv-dash-table">
+          <thead><tr><th>Sucursal</th><th class="num">Ventas</th><th class="num">Compras</th><th class="num">Merma</th><th class="num">% merma</th><th class="num">Faltó</th><th class="num">Costo vendido</th></tr></thead>
+          <tbody>${d.branches.map((b) => `
+            <tr>
+              <td data-label="Sucursal"><strong>${esc(b.branch_name)}</strong></td>
+              <td class="num" data-label="Ventas">${b.sales_net != null ? esc(money(b.sales_net)) : '—'}</td>
+              <td class="num" data-label="Compras">${esc(money(b.purchases))}</td>
+              <td class="num" data-label="Merma">${esc(money(b.waste))}</td>
+              <td class="num" data-label="% merma">${esc(pctTxt(b.waste_pct_sales))}</td>
+              <td class="num" data-label="Faltó">${b.counts ? esc(money(b.count_missing)) : '—'}</td>
+              <td class="num" data-label="Costo vendido">${esc(money(b.theoretical_cost))}${b.food_cost_pct != null ? ` <small>(${esc(pctTxt(b.food_cost_pct))})</small>` : ''}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : '';
+
+    const topHtml = (titulo, lista, vacio) => `
+      <div class="inv-dash-top">
+        <h3>${esc(titulo)}</h3>
+        ${lista.length ? `<ol>${lista.map((i) => `<li><span>${esc(i.name)} <small>${esc(qty(i.quantity))} ${esc(unitShort(i.unit))}</small></span><strong>${i.estimated ? '≈ ' : ''}${esc(money(i.cost))}</strong></li>`).join('')}</ol>` : `<p class="inv-ca-foot">${esc(vacio)}</p>`}
+      </div>`;
+
+    const hallazgos = dashboardInsights(d);
+    box.innerHTML = `
+      <div class="inv-dash-tiles">${tiles.map((k) => `
+        <div class="inv-dash-tile${k.bad ? ' is-loss' : ''}">
+          <span class="inv-dash-label">${esc(k.label)}</span>
+          <strong>${esc(k.value)}</strong>
+          <small>${esc(k.sub)}</small>
+          ${k.delta ? `<small>${k.delta} que ${esc(periodo)}</small>` : ''}
+        </div>`).join('')}
+      </div>
+      ${hallazgos.length ? `<ul class="inv-ca-findings inv-dash-findings">${hallazgos.map((h) => `<li>${h}</li>`).join('')}</ul>` : ''}
+      ${tabla}
+      <div class="inv-dash-tops">
+        ${topHtml('Lo que más se bota', d.top_waste, 'Sin merma en el período.')}
+        ${topHtml('Lo que más falta en los conteos', d.top_missing, d.totals.counts ? 'Nada faltó en los conteos.' : 'Sin conteos en el período.')}
+      </div>`;
+    utils.renderIcons();
+  }
+
+  async function loadDashboard() {
+    const box = $('dashboardBox');
+    if (!box) return;
+    const seq = ++dashboard.seq;
+    box.innerHTML = '<div class="inv-ca-loading">Calculando el tablero…</div>';
+    const params = new URLSearchParams({ days: String(dashboard.days) });
+    if (dashboard.branch) params.set('branch_id', dashboard.branch);
+    try {
+      const d = await api.get(`/inventory/dashboard?${params}`);
+      if (seq !== dashboard.seq) return;
+      dashboard.data = d;
+      renderDashboard();
+    } catch (err) {
+      if (seq !== dashboard.seq) return;
+      box.innerHTML = '<p class="inv-ca-foot">No se pudo calcular el tablero. Probá de nuevo en un rato.</p>';
+    }
+  }
+
+  document.querySelectorAll('#dashboardPeriod button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('#dashboardPeriod button').forEach((x) => x.classList.toggle('active', x === b));
+    dashboard.days = Number(b.dataset.days);
+    loadDashboard();
+  }));
+  $('dashboardBranch')?.addEventListener('change', (e) => {
+    dashboard.branch = e.target.value;
+    loadDashboard();
+  });
+
   function renderResumen() {
     const recent = recentShipments();
     const recentWaste = recentWasteStats();
@@ -758,9 +901,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (s.supplier_id) supplierIds.add(s.supplier_id);
     });
 
-    $('resumenSubtitle').textContent = state.analyticsTruncated
-      ? `Lo que entró a tus sucursales, sobre los últimos ${ANALYTICS_SIZE} cargamentos.`
-      : 'Lo que entró a tus sucursales.';
 
     const kpis = [
       {
@@ -804,6 +944,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <span class="inv-kpi-sub">${esc(k.sub)}</span>
       </div>`).join('');
 
+    loadDashboard();
     renderTopItemsBars(recent);
     renderRecentShipments();
     renderBranchBars(recent);
@@ -4261,6 +4402,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const wasteSelect = $('wasteBranchSelect');
     const wasteFilter = $('wasteBranchFilter');
     const stockFilter = $('stockBranchFilter');
+    const dashFilter = $('dashboardBranch');
 
     const countBadge = $('countBranchBadge');
     const countSelect = $('countBranchSelect');
@@ -4279,6 +4421,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       wasteSelect.hidden = true;
       wasteFilter.hidden = true;
       stockFilter.hidden = true;
+      if (dashFilter) dashFilter.hidden = true;
       countBadge.hidden = false;
       countBadge.textContent = branchName;
       countSelect.hidden = true;
@@ -4309,6 +4452,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       wasteFilter.hidden = false;
       stockFilter.innerHTML = `<option value="">Todas las sucursales</option>${options}`;
       stockFilter.hidden = false;
+      if (dashFilter) {
+        dashFilter.innerHTML = `<option value="">Todas las sucursales</option>${options}`;
+        dashFilter.hidden = false;
+      }
       countSelect.innerHTML = options;
       countFilter.innerHTML = `<option value="">Todas las sucursales</option>${options}`;
       countFilter.hidden = false;
