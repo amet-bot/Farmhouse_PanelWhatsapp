@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // pisara los KPIs y gráficos del filtro ya elegido.
   let loadSeq = 0;
 
-  async function loadSales() {
+  async function loadSales({ silent = false } = {}) {
     const seq = ++loadSeq;
     const [from, to] = rangeDates(state.range);
     const len = daysBetween(from, to).length;
@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const prevFrom = addDays(prevTo, -(len - 1));
     state.prevFrom = prevFrom;
 
-    setLoading();
+    if (!silent) setLoading();
     try {
       const [daily, prevDaily, items, channels] = await Promise.all([
         api.get(`/link/sales/daily?${query(from, to)}`),
@@ -151,6 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderChannelBars(channels);
       renderItems(items);
       utils.renderIcons();
+      maybeRefreshToday();
     } catch (err) {
       if (seq !== loadSeq) return;
       utils.showToast(err.message || 'No se pudieron cargar las ventas.', 'error');
@@ -252,6 +253,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('cuadreDetails').open = true;
     }
   }
+
+  // ---- Hoy al día sin tocar nada ----
+  // Si el período incluye hoy, se le pide al servidor que traiga lo de hoy de Invu (él solo lo
+  // hace si lo guardado tiene más de 5 minutos) y se vuelve a pintar a los pocos segundos, sin
+  // esqueletos de carga. Con la pantalla abierta en un período que incluye hoy, cada 5 minutos.
+  let ultimoPedidoHoy = 0;
+  let recargasHoy = [];
+  async function maybeRefreshToday() {
+    if (!state.to || iso(state.to) !== iso(new Date())) return;
+    if (Date.now() - ultimoPedidoHoy < 60 * 1000) return;   // a lo sumo un pedido por minuto desde acá
+    ultimoPedidoHoy = Date.now();
+    try {
+      const r = await api.post('/link/sales/refresh-today', {});
+      if (!r.started && !r.running) return;
+      $('cuadreNote').textContent = 'Actualizando hoy con Invu…';
+      recargasHoy.forEach(clearTimeout);
+      // Una tanda son unos segundos por sucursal: se repinta dos veces para agarrar el final.
+      recargasHoy = [15000, 35000].map((ms) => setTimeout(() => loadSales({ silent: true }), ms));
+    } catch (err) {
+      /* sin permiso o sin conexión: queda lo que había */
+    }
+  }
+  setInterval(() => {
+    if (!document.hidden && !$('viewVentas').hidden && state.to && iso(state.to) === iso(new Date())) {
+      loadSales({ silent: true });
+    }
+  }, 5 * 60 * 1000);
 
   function setLoading() {
     ['dailyChart', 'branchBars', 'channelBars', 'itemsTable'].forEach((id) => {

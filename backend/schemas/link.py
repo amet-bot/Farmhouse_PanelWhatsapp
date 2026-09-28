@@ -20,6 +20,13 @@ class LinkBranchSyncStatus(BaseModel):
     menu_items: int = 0                     # platos activos copiados de su menú
 
 
+class LinkRefreshTodayResponse(BaseModel):
+    """Resultado de pedir que se actualice HOY con Invu (se hace en segundo plano)."""
+    started: bool                  # se lanzó una actualización ahora
+    running: bool                  # hay una en curso (esta u otra)
+    last_synced_at: Optional[datetime] = None   # la actualización más vieja de hoy entre las sucursales
+
+
 class LinkSyncStatusResponse(BaseModel):
     configured: bool                        # al menos una sucursal con credenciales
     branches: List[LinkBranchSyncStatus]

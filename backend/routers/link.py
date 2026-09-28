@@ -9,7 +9,8 @@ Es información de gerencia: solo admin y supervisores. Un supervisor atado a un
 la suya; el admin y el supervisor global ven todas o eligen una.
 """
 import logging
-from datetime import date, timedelta
+import threading
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Optional
 
@@ -18,13 +19,13 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from config import settings
-from database import get_db
+from database import SessionLocal, get_db
 from models.branch import Branch
 from models.invu_sales import InvuMenuItem, InvuSale, InvuSaleLine, InvuSyncDay
 from models.user import User
 from schemas.link import (
     LinkBranchSyncStatus, LinkChannelSalesRow, LinkDailySalesRow, LinkItemSalesRow,
-    LinkSyncBranchResult, LinkSyncDayResult, LinkSyncRequest, LinkSyncStatusResponse,
+    LinkRefreshTodayResponse, LinkSyncBranchResult, LinkSyncDayResult, LinkSyncRequest, LinkSyncStatusResponse,
 )
 from services import invu_client, invu_sales_sync
 from security.auth import get_current_authorized_user
@@ -189,6 +190,69 @@ def sync_now(
 
     logger.info(f"Sincronización de ventas pedida por {current_user.name}: {desde} a {hasta}")
     return resultados
+
+
+# ---- Hoy al día cuando alguien lo mira ----
+# La pasada automática trae hoy cada 30 minutos; con eso "Hoy" podía ir media hora atrás de la
+# caja. Cuando alguien abre Ventas y lo de hoy tiene más de REFRESH_HOY_CADA, se vuelve a pedir
+# a Invu en ese momento (en segundo plano: la pantalla no espera). El mínimo entre pedidos cuida
+# la cuota diaria de Invu: son 2 llamadas por sucursal y a lo sumo una tanda cada 5 minutos.
+REFRESH_HOY_CADA = timedelta(minutes=5)
+_refresco_hoy = {"running": False}
+_refresco_lock = threading.Lock()
+
+
+def _hoy_mas_viejo(db: Session) -> Optional[datetime]:
+    """La actualización más vieja de hoy entre las sucursales configuradas (None: alguna no tiene hoy)."""
+    sucursales = invu_sales_sync.sucursales_configuradas(db)
+    if not sucursales:
+        return None
+    hoy = invu_sales_sync.hoy_panama()
+    fechas = dict(db.query(InvuSyncDay.branch_id, InvuSyncDay.synced_at).filter(
+        InvuSyncDay.business_date == hoy, InvuSyncDay.branch_id.in_([b.id for b, _ in sucursales]),
+    ).all())
+    if len(fechas) < len(sucursales):
+        return None
+    return min(fechas.values())
+
+
+def _refrescar_hoy() -> None:
+    """Trae el día de hoy de cada sucursal configurada, con su propia sesión (corre en un hilo)."""
+    db = SessionLocal()
+    try:
+        invu_sales_sync.run_pass(db, solo_hoy=True)
+    except Exception:
+        logger.exception("[Link] Falló la actualización de hoy pedida desde Ventas.")
+    finally:
+        db.close()
+        with _refresco_lock:
+            _refresco_hoy["running"] = False
+
+
+def _lanzar_refresco() -> None:
+    threading.Thread(target=_refrescar_hoy, name="link-refresco-hoy", daemon=True).start()
+
+
+@router.post("/sales/refresh-today", response_model=LinkRefreshTodayResponse)
+def refresh_today(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_gerencia),
+):
+    """
+    Pide a Invu las ventas de hoy si lo guardado tiene más de 5 minutos. No espera la respuesta
+    de Invu: la pantalla vuelve a consultar /sales/daily unos segundos después.
+    """
+    if not invu_sales_sync.sucursales_configuradas(db):
+        return LinkRefreshTodayResponse(started=False, running=False)
+    mas_viejo = _hoy_mas_viejo(db)
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    fresco = mas_viejo is not None and ahora - (mas_viejo.replace(tzinfo=None) if mas_viejo.tzinfo else mas_viejo) < REFRESH_HOY_CADA
+    with _refresco_lock:
+        if fresco or _refresco_hoy["running"]:
+            return LinkRefreshTodayResponse(started=False, running=_refresco_hoy["running"], last_synced_at=mas_viejo)
+        _refresco_hoy["running"] = True
+    _lanzar_refresco()
+    return LinkRefreshTodayResponse(started=True, running=True, last_synced_at=mas_viejo)
 
 
 # ==========================================================================

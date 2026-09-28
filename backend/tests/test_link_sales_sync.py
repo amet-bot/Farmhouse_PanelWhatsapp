@@ -338,6 +338,34 @@ def test_un_dia_que_fallo_al_actualizar_queda_marcado(client, admin_user, invu_v
     assert Decimal(fila["net_total"]) == TOTAL_NETO      # se siguen mostrando los totales de antes
 
 
+def test_mirar_ventas_actualiza_hoy_si_esta_viejo(client, admin_user, invu_ventas, db_session, clayton_branch,
+                                                 obarrio_branch, monkeypatch):
+    from routers import link as link_router
+    lanzados = []
+    monkeypatch.setattr(link_router, "_lanzar_refresco", lambda: lanzados.append(1))
+    link_router._refresco_hoy["running"] = False
+
+    # Sin nada de hoy: se lanza.
+    res = client.post("/api/link/sales/refresh-today", headers=_headers(admin_user)).json()
+    assert res["started"] is True and lanzados == [1]
+    # Mientras corre, un segundo pedido no lanza otro.
+    res = client.post("/api/link/sales/refresh-today", headers=_headers(admin_user)).json()
+    assert res["started"] is False and res["running"] is True and lanzados == [1]
+    link_router._refresco_hoy["running"] = False
+
+    # Recién actualizado (menos de 5 minutos): no se vuelve a pedir a Invu.
+    hoy = invu_sales_sync.hoy_panama()
+    for b in (clayton_branch, obarrio_branch):
+        db_session.add(InvuSyncDay(branch_id=b.id, business_date=hoy, net_total=Decimal("10")))
+    db_session.commit()
+    res = client.post("/api/link/sales/refresh-today", headers=_headers(admin_user)).json()
+    assert res["started"] is False and lanzados == [1]
+
+
+def test_actualizar_hoy_no_es_para_agentes(client, clayton_agent, clayton_device, invu_ventas):
+    assert client.post("/api/link/sales/refresh-today", headers=_headers(clayton_agent, clayton_device)).status_code == 403
+
+
 def test_el_supervisor_de_una_sucursal_solo_ve_la_suya(client, supervisor_user, clayton_device, invu_ventas,
                                                        db_session, obarrio_branch):
     invu_ventas["ordenes"]["api_obr"] = [_orden(500, [_linea(1, "MF364", "BOWL", 3, 56.85)])]
