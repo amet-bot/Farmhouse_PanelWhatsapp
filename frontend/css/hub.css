@@ -36,13 +36,13 @@
   --fh-dark-2: #0a3a2e;
   /* Verde apagado a propósito: el menta saturado (#3ddc97) encandilaba sobre el fondo oscuro.
      Este sigue leyéndose bien (≈ 8:1 sobre el panel) pero no brilla. */
-  --fh-green: #4fa882;
-  --fh-green-strong: #86c7a6;
-  --fh-green-soft: rgba(134, 199, 166, .10);
+  --fh-green: #66bc95;
+  --fh-green-strong: #a3d9bd;
+  --fh-green-soft: rgba(163, 217, 189, .12);
   --fh-bg: #0a1411;
   --fh-panel: #101c18;
   --fh-border: rgba(255, 255, 255, .08);
-  --fh-border-hover: rgba(134, 199, 166, .28);
+  --fh-border-hover: rgba(163, 217, 189, .30);
   --fh-text: #eef5f1;
   --fh-muted: #93a79f;
   --fh-shadow: 0 2px 10px rgba(0, 0, 0, .25);
