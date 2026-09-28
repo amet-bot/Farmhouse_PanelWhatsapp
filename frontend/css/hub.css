@@ -166,7 +166,37 @@ body {
   align-items: center;
   gap: 12px;
   padding: 4px 8px;
+  min-width: 0;
 }
+
+/* Arriba del sidebar: la marca y, a su derecha, el botón chico para ocultar la barra. */
+.hub-sidebar-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.hub-sidebar-top .hub-sidebar-brand { gap: 10px; padding: 4px 2px 4px 4px; }
+.hub-sidebar-top .hub-sidebar-brand-text strong { white-space: nowrap; }
+.hub-sidebar-toggle {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(230, 242, 236, .6);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.hub-sidebar-toggle:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+.hub-sidebar-toggle svg, .hub-sidebar-toggle i { width: 17px; height: 17px; }
+
+/* Barra oculta: la columna desaparece y el contenido usa todo el ancho. El botón para volver a
+   mostrarla aparece en el header. */
+.hub-shell.hub-sidebar-hidden { grid-template-columns: minmax(0, 1fr); }
+.hub-shell.hub-sidebar-hidden .hub-sidebar { display: none; }
+.hub-topbar .hub-search { margin-right: auto; }
+.hub-sidebar-open { flex: 0 0 auto; border-radius: 10px; }
+.hub-sidebar-open[hidden] { display: none; }
 
 .hub-sidebar-brand img {
   width: 40px;
@@ -1092,6 +1122,8 @@ body {
   .hub-shell { grid-template-columns: 76px minmax(0, 1fr); }
   .hub-sidebar { padding: 18px 10px; align-items: center; }
   .hub-sidebar-brand { padding: 0; }
+  /* En la franja de íconos el botón de ocultar va debajo del logo. */
+  .hub-sidebar-top { flex-direction: column; gap: 8px; }
   .hub-sidebar-brand-text,
   .hub-nav-item span,
   .hub-sidebar-card { display: none; }
@@ -1131,6 +1163,7 @@ body {
 @media (max-width: 767px) {
   .hub-shell { display: block; }
   .hub-sidebar,
+  .hub-sidebar-open,
   .hub-topbar,
   .hub-desktop,
   .hub-apps { display: none; }

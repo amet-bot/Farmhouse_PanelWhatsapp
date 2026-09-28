@@ -154,6 +154,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('hubHeroArt').innerHTML = C.heroArt();
   $('hubSidebarArt').innerHTML = C.leafArt();
 
+  // ---- Ocultar / mostrar la barra lateral ----
+  // Gana ancho para el sistema abierto. Se recuerda en este navegador (solo una preferencia:
+  // si el almacenamiento no está disponible, la barra arranca visible como siempre).
+  const SIDEBAR_KEY = 'fh_sidebar_hidden';
+  function setSidebarHidden(hidden, { focus = false } = {}) {
+    screenMain.classList.toggle('hub-sidebar-hidden', hidden);
+    $('btnSidebarShow').hidden = !hidden;
+    $('btnSidebarHide').setAttribute('aria-expanded', hidden ? 'false' : 'true');
+    try { localStorage.setItem(SIDEBAR_KEY, hidden ? '1' : '0'); } catch (e) { /* sin almacenamiento */ }
+    if (focus) (hidden ? $('btnSidebarShow') : $('btnSidebarHide')).focus();
+  }
+  let sidebarHidden = false;
+  try { sidebarHidden = localStorage.getItem(SIDEBAR_KEY) === '1'; } catch (e) { /* sin almacenamiento */ }
+  setSidebarHidden(sidebarHidden);
+  $('btnSidebarHide').addEventListener('click', () => setSidebarHidden(true, { focus: true }));
+  $('btnSidebarShow').addEventListener('click', () => setSidebarHidden(false, { focus: true }));
+
   // ==========================================================================
   // Sesión
   // ==========================================================================
