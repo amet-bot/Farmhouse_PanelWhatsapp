@@ -1885,6 +1885,95 @@ document.addEventListener('DOMContentLoaded', async () => {
     utils.renderIcons();
   }
 
+  // ---- Contexto de una merma ----
+  // Al guardar (y en el detalle): cuánto va de ese insumo en la semana y el mes, si el motivo se
+  // repite, en qué puesto está y qué parte de lo usado se botó. Sale de GET /waste/{id}/insights.
+  const wasteInsightsCache = new Map();
+
+  // Qué hacer, según el motivo. Corto: es para leerlo parado en la cocina.
+  const REASON_TIPS = {
+    vencido: 'Revisá la rotación (lo primero que entra, primero sale) y si conviene pedir menos.',
+    danado: 'Revisá cómo llega y cómo se guarda: los golpes suelen ser de la recepción o del almacenamiento.',
+    derrame: 'Mirá dónde y cómo se manipula: recipientes, estantes, traslados.',
+    error_preparacion: 'Si se repite, conviene repasar la receta o el procedimiento con el equipo.',
+    recorte: 'Es merma de proceso: lo importante es cuánto se aprovecha de lo que se limpia.',
+    devolucion: 'Anotá qué reclamó el cliente: así se puede corregir.',
+    consumo_interno: 'Si es comida del personal, conviene tener una regla clara de qué y cuánto.',
+    faltante: 'Hacé un conteo de ese insumo para ver si falta más.',
+  };
+
+  const ordinal = (n) => `${n}.ª`;   // «la 3.ª vez»
+  const puesto = (n) => (n === 1 ? 'el insumo que más plata se pierde' : `el ${n}.º insumo que más plata se pierde`);
+
+  function trendTxt(ahora, antes) {
+    const a = Number(ahora);
+    const b = Number(antes);
+    if (!b) return '';
+    const pct = Math.round(((a - b) / b) * 100);
+    if (Math.abs(pct) < 5) return ', parecido a la semana anterior';
+    return pct > 0 ? `, <strong>${pct}% más</strong> que la semana anterior (${esc(money(b))})` : `, ${Math.abs(pct)}% menos que la semana anterior`;
+  }
+
+  function wasteInsightItemHtml(it, ins) {
+    const aprox = it.cost_estimated ? '≈ ' : '';
+    const u = unitShort(it.unit);
+    const motivo = (REASON_UI[ins.reason] || { label: ins.reason_label }).label;
+    const frases = [];
+    frases.push(`Esta semana van <strong>${esc(qty(it.week_quantity))} ${esc(u)}</strong> botados (${aprox}${esc(money(it.week_cost))}) en ${pluralize(it.week_records, 'merma', 'mermas')}${trendTxt(it.week_cost, it.prev_week_cost)}.`);
+    if (it.same_reason_month >= 2) {
+      frases.push(`Es la <strong>${ordinal(it.same_reason_month)} vez</strong> este mes por «${esc(motivo)}».`);
+    }
+    if (it.rank_month && it.items_ranked > 1 && it.rank_month <= 3) {
+      frases.push(`Es ${puesto(it.rank_month)} este mes en ${esc(ins.branch_name)} (${aprox}${esc(money(it.month_cost))}).`);
+    }
+    if (it.waste_pct_month != null) {
+      const pct = Number(it.waste_pct_month);
+      frases.push(`De todo lo que se usó este mes, se botó el <strong>${pct.toLocaleString('es-PA', { maximumFractionDigits: 1 })}%</strong>${pct > 5 ? ': arriba de 5% vale revisarlo' : ''}.`);
+    }
+    return `
+      <div class="inv-ca-line">
+        <div class="inv-ca-line-head">
+          <strong>${esc(it.name)}</strong>
+          ${it.this_cost != null ? `<span class="inv-ca-chip inv-ca-chip-short">${aprox}${esc(money(it.this_cost))}</span>` : ''}
+        </div>
+        <ul class="inv-wi-list">${frases.map((f) => `<li>${f}</li>`).join('')}</ul>
+      </div>`;
+  }
+
+  function wasteInsightsHtml(ins) {
+    const tip = REASON_TIPS[ins.reason];
+    return `
+      ${ins.items.map((it) => wasteInsightItemHtml(it, ins)).join('')}
+      <p class="inv-wi-branch">En ${esc(ins.branch_name)} van <strong>${esc(money(ins.branch_week_cost))}</strong> de merma en los últimos 7 días (${pluralize(ins.branch_week_records, 'merma', 'mermas')})${trendTxt(ins.branch_week_cost, ins.branch_prev_week_cost)}.</p>
+      ${tip ? `<p class="inv-wi-tip"><i data-lucide="lightbulb"></i><span>${esc(tip)}</span></p>` : ''}`;
+  }
+
+  async function wasteInsightsFor(id) {
+    if (wasteInsightsCache.has(id)) return wasteInsightsCache.get(id);
+    const ins = await api.get(`/inventory/waste/${id}/insights`);
+    wasteInsightsCache.set(id, ins);
+    return ins;
+  }
+
+  /** Lo que se ve al guardar una merma, en vez de solo "Merma registrada". */
+  function showWasteResult(merma, { fotosFallidas = 0 } = {}) {
+    wasteInsightsCache.clear();
+    if (merma.insights) wasteInsightsCache.set(merma.id, merma.insights);
+    const avisos = [];
+    if (fotosFallidas) {
+      avisos.push(`${pluralize(fotosFallidas, 'foto no se subió', 'fotos no se subieron')}: se ${fotosFallidas === 1 ? 'puede' : 'pueden'} agregar desde el detalle de la merma.`);
+    }
+    if (merma.negative_items && merma.negative_items.length) {
+      avisos.push(`${esc(merma.negative_items.join(', '))} ${merma.negative_items.length === 1 ? 'queda' : 'quedan'} en negativo: falta el conteo de arranque de la sucursal.`);
+    }
+    $('wasteResultTitle').textContent = `Merma #${merma.id} registrada`;
+    $('wasteResultSubtitle').textContent = `${merma.branch_name} · se pierde ${wasteCostTxt(merma)}`;
+    $('wasteResultBody').innerHTML = `
+      ${avisos.map((a) => `<p class="inv-wi-warn">${a}</p>`).join('')}
+      ${merma.insights ? wasteInsightsHtml(merma.insights) : ''}`;
+    openModal('modalWasteResult');
+  }
+
   function renderWasteDetail() {
     const detail = $('wasteDetail');
     const w = state.waste.find((x) => x.id === state.selected.waste);
@@ -1944,6 +2033,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         <tbody>${rowsHtml}</tbody>
         ${footHtml}
       </table>
+      <div class="inv-detail-section-header"><span>En contexto</span></div>
+      <div class="inv-waste-insights" id="wasteInsightsBox"><div class="inv-ca-loading">Calculando…</div></div>
       <div class="inv-detail-section-header"><span>Evidencia</span></div>
       <div class="inv-photo-grid" id="wasteDetailPhotos">
         ${fotos.map((p) => `<button type="button" class="inv-photo-thumb is-loading" data-photo-id="${p.id}" aria-label="Ver foto (subida por ${esc(p.uploaded_by_name || 'alguien')})"></button>`).join('')}
@@ -1975,6 +2066,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     utils.renderIcons();
     wirePhotoGallery(w);
     $('btnDeleteWaste')?.addEventListener('click', () => openWasteDelete(w));
+    wasteInsightsFor(w.id)
+      .then((ins) => {
+        const box = $('wasteInsightsBox');
+        if (!box || state.selected.waste !== w.id) return;
+        box.innerHTML = wasteInsightsHtml(ins);
+        utils.renderIcons();
+      })
+      .catch(() => {
+        const box = $('wasteInsightsBox');
+        if (box) box.innerHTML = '<p class="inv-ca-foot">No se pudo calcular el contexto.</p>';
+      });
   }
 
   // ---- Eliminar merma (cargada por error) ----
@@ -2013,6 +2115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const motivo = $('wasteDeleteReason').value.trim();
       await api.delete(`/inventory/waste/${wasteToDelete.id}${motivo ? `?motivo=${encodeURIComponent(motivo)}` : ''}`);
       closeModal('modalWasteDelete');
+      wasteInsightsCache.clear();
       utils.showToast(`Merma #${wasteToDelete.id} eliminada.`, 'success');
       wasteToDelete = null;
       state.selected.waste = null;
@@ -3486,22 +3589,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       closeModal('modalWaste');
       resetPendingPhotos();
-
-      if (fotosFallidas) {
-        utils.showToast(
-          `Merma registrada, pero ${pluralize(fotosFallidas, 'foto no se subió', 'fotos no se subieron')}. Agregala${fotosFallidas === 1 ? '' : 's'} desde el detalle de la merma.`,
-          'warning'
-        );
-      } else if (creada.negative_items && creada.negative_items.length) {
-        // El servidor avisa qué quedó en negativo. No es un error: es que falta cargar el
-        // inventario de arranque, y conviene decirlo con esas palabras.
-        utils.showToast(
-          `Merma registrada. ${creada.negative_items.join(', ')} ${creada.negative_items.length === 1 ? 'queda' : 'quedan'} en negativo: hacé un conteo para cargar lo que hay.`,
-          'warning'
-        );
-      } else {
-        utils.showToast('Merma registrada.', 'success');
-      }
+      showWasteResult(creada, { fotosFallidas });
 
       state.selected.waste = null;
       await Promise.all([loadWaste({ reset: true }), loadWasteAnalytics(), loadStock()]);

@@ -27,6 +27,7 @@ from schemas.inventory import (
     StockCountCreate, StockCountItemResponse, StockCountResponse,
     StockCountAnalysis, StockCountAnalysisLine, StockCountAnalysisTotals,
     StockRowResponse, WasteCreate, WasteItemResponse, WastePhotoResponse, WasteReasonResponse, WasteResponse,
+    WasteInsightItem, WasteInsights,
     WasteAnalyticsGroup, WasteAnalyticsItem, WasteAnalyticsDay, WasteAnalyticsResponse, WasteAnalyticsTotals, WasteAnalyticsYield,
     WasteRecipeDish, WasteRecipeDishShare, WasteRecipeUsageItem, WasteRecipeUsageResponse,
     MovementComparisonResponse,
@@ -720,11 +721,111 @@ def create_waste(
     db.refresh(record)
 
     respuesta = _serialize_waste(record, stock_before=stock_before)
+    respuesta.insights = _waste_insights(db, record)
     logger.info(
         f"Merma #{record.id} ({record.reason}) en sucursal {record.branch_id} por {current_user.name}"
         + (f" — deja en negativo: {', '.join(respuesta.negative_items)}" if respuesta.negative_items else "")
     )
     return respuesta
+
+
+def _dias_utc(desde: date, hasta: date) -> tuple:
+    """[desde 00:00, hasta+1 00:00) de Panamá, en UTC sin zona (como se guarda todo)."""
+    tz = invu_sales_sync.PANAMA_TZ
+    ini = datetime.combine(desde, datetime.min.time(), tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None)
+    fin = datetime.combine(hasta + timedelta(days=1), datetime.min.time(), tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None)
+    return ini, fin
+
+
+def _waste_insights(db: Session, record: WasteRecord) -> WasteInsights:
+    """
+    Pone la merma en contexto, en su sucursal y tomando como "hoy" el día en que ocurrió (así el
+    detalle de una merma vieja dice lo mismo que dijo al cargarla): semana contra la anterior, el
+    mes, si el mismo motivo se repite, en qué puesto está el insumo y, con recetas de Invu, qué
+    parte de lo que se usó terminó en la basura.
+    """
+    tz = invu_sales_sync.PANAMA_TZ
+    ocurrio = record.occurred_at if record.occurred_at.tzinfo else record.occurred_at.replace(tzinfo=timezone.utc)
+    dia = ocurrio.astimezone(tz).date()
+    semana = _dias_utc(dia - timedelta(days=6), dia)
+    previa = _dias_utc(dia - timedelta(days=13), dia - timedelta(days=7))
+    mes = _dias_utc(dia - timedelta(days=29), dia)
+
+    costo_linea = WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.reference_cost, 0)
+
+    def por_insumo(rango, extra=()):
+        filas = db.query(
+            WasteItem.inventory_item_id,
+            func.coalesce(func.sum(WasteItem.quantity), 0),
+            func.coalesce(func.sum(costo_linea), 0),
+            func.count(func.distinct(WasteRecord.id)),
+        ).join(WasteRecord, WasteRecord.id == WasteItem.waste_record_id).join(
+            InventoryItem, InventoryItem.id == WasteItem.inventory_item_id
+        ).filter(
+            WasteRecord.branch_id == record.branch_id,
+            WasteRecord.occurred_at >= rango[0], WasteRecord.occurred_at < rango[1],
+            *extra,
+        ).group_by(WasteItem.inventory_item_id).all()
+        return {r[0]: (Decimal(r[1]), Decimal(r[2]), r[3]) for r in filas}
+
+    sem = por_insumo(semana)
+    prev = por_insumo(previa)
+    mensual = por_insumo(mes)
+    mismo_motivo = por_insumo(mes, (WasteRecord.reason == record.reason,))
+    ranking = [iid for iid, _ in sorted(mensual.items(), key=lambda kv: kv[1][1], reverse=True) if mensual[iid][1] > 0]
+    uso = _uso_por_ventas(db, record.branch_id, mes[0], mes[1])
+    con_receta = _insumos_con_receta(db, record.branch_id)
+
+    def total_sucursal(rango):
+        fila = db.query(func.coalesce(func.sum(costo_linea), 0), func.count(func.distinct(WasteRecord.id))).select_from(WasteItem).join(
+            WasteRecord, WasteRecord.id == WasteItem.waste_record_id
+        ).join(InventoryItem, InventoryItem.id == WasteItem.inventory_item_id).filter(
+            WasteRecord.branch_id == record.branch_id,
+            WasteRecord.occurred_at >= rango[0], WasteRecord.occurred_at < rango[1],
+        ).one()
+        return Decimal(fila[0]), fila[1]
+
+    sem_total, sem_registros = total_sucursal(semana)
+    prev_total, _ = total_sucursal(previa)
+
+    q2 = lambda v: Decimal(v).quantize(Decimal("0.01"))  # noqa: E731
+    items: List[WasteInsightItem] = []
+    for line in record.items:
+        item = line.inventory_item
+        costo = line.unit_cost if line.unit_cost is not None else item.reference_cost
+        s = sem.get(item.id, (Decimal("0"), Decimal("0"), 0))
+        m = mensual.get(item.id, (Decimal("0"), Decimal("0"), 0))
+        usado = uso.get(item.id) if item.id in con_receta else None
+        items.append(WasteInsightItem(
+            inventory_item_id=item.id, name=item.name, unit=item.unit,
+            this_quantity=line.quantity,
+            this_cost=(q2(Decimal(line.quantity) * Decimal(costo)) if costo is not None else None),
+            week_quantity=s[0].quantize(Decimal("0.001")), week_cost=q2(s[1]), week_records=s[2],
+            prev_week_cost=q2(prev.get(item.id, (0, Decimal("0"), 0))[1]),
+            month_cost=q2(m[1]), month_records=m[2],
+            same_reason_month=mismo_motivo.get(item.id, (0, 0, 0))[2],
+            rank_month=(ranking.index(item.id) + 1 if item.id in ranking else None),
+            items_ranked=len(ranking),
+            used_month=(usado.quantize(Decimal("0.001")) if usado is not None else None),
+            waste_pct_month=((m[0] / (usado + m[0]) * 100).quantize(Decimal("0.1")) if usado else None),
+            cost_estimated=line.unit_cost is None and item.reference_cost is not None,
+        ))
+
+    return WasteInsights(
+        waste_id=record.id, branch_id=record.branch_id, branch_name=record.branch.name,
+        reason=record.reason, reason_label=WASTE_REASON_LABELS.get(record.reason, record.reason),
+        branch_week_cost=q2(sem_total), branch_prev_week_cost=q2(prev_total), branch_week_records=sem_registros,
+        items=items,
+    )
+
+
+@router.get("/waste/{waste_id}/insights", response_model=WasteInsights)
+def waste_insights(
+    waste_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    return _waste_insights(db, _waste_for_user(db, waste_id, current_user))
 
 
 @router.get("/waste", response_model=List[WasteResponse])

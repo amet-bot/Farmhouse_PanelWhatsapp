@@ -201,8 +201,43 @@ class WasteResponse(BaseModel):
     processed_unit: Optional[str] = None
     yield_pct: Optional[Decimal] = None
     photos: List[WastePhotoResponse] = []
+    # Solo en la respuesta de crear: el contexto de esta merma (ver GET /waste/{id}/insights).
+    insights: Optional["WasteInsights"] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class WasteInsightItem(BaseModel):
+    """Un insumo de la merma, puesto en contexto en su sucursal (días en hora de Panamá)."""
+    inventory_item_id: int
+    name: str
+    unit: str
+    this_quantity: Decimal
+    this_cost: Optional[Decimal] = None
+    week_quantity: Decimal                      # últimos 7 días, incluida esta
+    week_cost: Decimal
+    week_records: int
+    prev_week_cost: Decimal                     # los 7 días anteriores
+    month_cost: Decimal                         # últimos 30 días
+    month_records: int
+    same_reason_month: int                      # mermas de este insumo con el mismo motivo en 30 días
+    rank_month: Optional[int] = None            # puesto entre los insumos que más se pierden ($, 30 días)
+    items_ranked: int = 0
+    used_month: Optional[Decimal] = None        # usado en platos vendidos en 30 días (recetas de Invu)
+    waste_pct_month: Optional[Decimal] = None   # merma / (usado + merma)
+    cost_estimated: bool = False
+
+
+class WasteInsights(BaseModel):
+    waste_id: int
+    branch_id: int
+    branch_name: str
+    reason: str
+    reason_label: str
+    branch_week_cost: Decimal                   # toda la merma de la sucursal, últimos 7 días
+    branch_prev_week_cost: Decimal
+    branch_week_records: int
+    items: List[WasteInsightItem]
 
 
 class WasteAnalyticsTotals(BaseModel):
@@ -450,6 +485,7 @@ class StockCountAnalysis(BaseModel):
 
 
 StockCountResponse.model_rebuild()   # `analysis` se declara antes que StockCountAnalysis
+WasteResponse.model_rebuild()        # `insights` se declara antes que WasteInsights
 
 
 # ==========================================================================

@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.12.0">
-  <link rel="stylesheet" href="css/inventory.css?v=4.16.0">
+  <link rel="stylesheet" href="css/inventory.css?v=4.17.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -509,6 +509,28 @@
   <input type="file" id="wasteCameraInput" accept="image/*" capture="environment" hidden>
 
   <!-- Cámara en computadora (sin `capture`, que ahí se ignora): la webcam en vivo. -->
+  <!-- ================= Modal: merma registrada =================
+       Al guardar una merma: cuánto va de ese insumo en la semana y el mes, si se repite, en qué
+       puesto está y qué hacer, en vez de solo "Merma registrada". -->
+  <div class="modal-backdrop" id="modalWasteResult">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div class="inv-modal-title">
+          <span class="inv-card-icon inv-card-icon-waste"><i data-lucide="trending-down"></i></span>
+          <div>
+            <h3 id="wasteResultTitle">Merma registrada</h3>
+            <span class="modal-subtitle" id="wasteResultSubtitle"></span>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="modalWasteResult" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body" id="wasteResultBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn-primary" data-close-modal="modalWasteResult">Listo</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= Modal: resultado del conteo =================
        Aparece al guardar un conteo: en vez de "guardado", qué faltó, qué sobró y qué cuadró,
        descontando lo que se usó en los platos vendidos. -->
@@ -1005,6 +1027,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.16.0"></script>
+  <script src="js/modules/inventory.js?v=4.17.0"></script>
 </body>
 </html>
