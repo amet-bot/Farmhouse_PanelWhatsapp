@@ -52,7 +52,7 @@ WASTE_REASONS = (
     # Primero porque es lo más común en cocina: lo que se saca al limpiar (piel y grasa del pollo,
     # cáscaras). Es merma de PROCESO, esperada; el resto de la lista es merma evitable, y el
     # análisis las separa (ver PROCESS_WASTE_REASONS).
-    ("recorte", "Recorte o limpieza"),
+    ("recorte", "Residuo o recorte al limpiar"),
     ("vencido", "Vencido"),
     ("danado", "Dañado o golpeado"),
     ("error_preparacion", "Error de preparación"),

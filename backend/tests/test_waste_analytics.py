@@ -147,7 +147,7 @@ def test_recorte_es_merma_de_proceso_con_rendimiento(client, db_session, clayton
     # De 5 kg de pollo limpiado quedaron 0.270 kg de recorte (el ejemplo de la balanza).
     rec = _merma(client, h, clayton_branch.id, [{"inventory_item_id": pollo["id"], "quantity": "0.270"}],
                  reason="recorte", weight_value="0.270", weight_unit="kg", processed_value="5", processed_unit="kg")
-    assert rec["is_process"] is True and rec["reason_label"] == "Recorte o limpieza"
+    assert rec["is_process"] is True and rec["reason_label"] == "Residuo o recorte al limpiar"
     assert Decimal(rec["processed_value"]) == Decimal("5") and Decimal(rec["yield_pct"]) == Decimal("94.6")
 
     # Un vencido es evitable; lo limpiado se ignora fuera de los recortes.

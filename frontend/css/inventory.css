@@ -2997,6 +2997,8 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 
 /* Motivos: botones grandes con ícono, dos por fila */
 .inv-reason-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.inv-reason-chip small { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; opacity: .75; }
+
 .inv-reason-chip {
   display: flex;
   align-items: center;

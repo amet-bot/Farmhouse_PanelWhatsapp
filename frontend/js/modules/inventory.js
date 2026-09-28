@@ -431,14 +431,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     danado: { icon: 'package-x', label: 'Se dañó o golpeó' },
     derrame: { icon: 'glass-water', label: 'Se cayó o se rompió' },
     error_preparacion: { icon: 'chef-hat', label: 'Salió mal al prepararlo' },
-    recorte: { icon: 'scissors', label: 'Recorte al limpiar' },
+    recorte: { icon: 'scissors', label: 'Residuo del insumo', hint: 'Cáscara, piel, recorte' },
     devolucion: { icon: 'undo-2', label: 'Lo devolvió un cliente' },
     consumo_interno: { icon: 'utensils', label: 'Lo comió el personal' },
     faltante: { icon: 'search-x', label: 'Falta o se perdió' },
     otro: { icon: 'more-horizontal', label: 'Otro motivo' },
   };
-  // Orden de los botones: lo que más pasa primero.
-  const REASON_ORDER = ['vencido', 'danado', 'derrame', 'error_preparacion', 'recorte', 'devolucion', 'consumo_interno', 'faltante', 'otro'];
+  // Orden de los botones: lo que más pasa primero. El residuo va arriba: es lo más común en
+  // cocina y es merma esperada, no un error.
+  const REASON_ORDER = ['recorte', 'vencido', 'danado', 'derrame', 'error_preparacion', 'devolucion', 'consumo_interno', 'faltante', 'otro'];
 
   function renderWasteReasonChips() {
     const box = $('wasteReasonChips');
@@ -453,7 +454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const ui = REASON_UI[r.code] || { icon: 'circle-help', label: r.label };
       const on = r.code === actual;
       return `<button type="button" class="inv-reason-chip${on ? ' is-active' : ''}" data-reason="${esc(r.code)}" role="radio" aria-checked="${on}">
-          <i data-lucide="${ui.icon}"></i><span>${esc(ui.label)}</span>
+          <i data-lucide="${ui.icon}"></i><span>${esc(ui.label)}${ui.hint ? `<small>${esc(ui.hint)}</small>` : ''}</span>
         </button>`;
     }).join('');
     utils.renderIcons();
