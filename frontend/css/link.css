@@ -304,7 +304,9 @@
 @keyframes linkSpin { to { transform: rotate(360deg); } }
 
 @media (max-width: 720px) {
-  .link-segmented { width: 100%; }
+  /* Seis períodos (Hoy, Ayer, 7 días, 30 días, Este mes, Mes anterior): en fila no entraban en
+     390 px y "Mes anterior" se partía. Dos filas de tres. */
+  .link-segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; width: 100%; }
   .link-segmented button { flex: 1; padding: 7px 6px; }
   .link-table .hide-sm { display: none; }
   /* Menos aire entre columnas: la de Sincronización se pasaba 12px del ancho (el Menú quedaba

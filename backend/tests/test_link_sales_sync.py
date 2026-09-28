@@ -231,6 +231,22 @@ def test_una_pasada_recorre_cada_sucursal_con_su_usuario(db_session, invu_ventas
     assert db_session.query(InvuSale).filter(InvuSale.branch_id == 1).count() > 0
 
 
+def test_la_pasada_corta_trae_solo_hoy(db_session, invu_ventas):
+    # La de cada media hora: un pedido por sucursal y siempre el día en curso (sin menú ni historial).
+    resumen = invu_sales_sync.run_pass(db_session, hoy=DIA, solo_hoy=True)
+    assert set(resumen) == {"CLY", "OBR"}
+    assert all(r["dias"] == 1 and r["menu"] is None for r in resumen.values())
+    desde, hasta = invu_sales_sync.ventana_del_dia(DIA)
+    assert sorted(invu_ventas["llamadas"]) == sorted([("api_cly", desde, hasta), ("api_obr", desde, hasta)])
+
+
+def test_ventas_por_dia_dicen_cuando_se_trajeron(client, admin_user, invu_ventas, db_session, clayton_branch):
+    invu_ventas["ordenes"]["api_cly"] = _dia_con_devolucion()
+    invu_sales_sync.sync_day(db_session, clayton_branch, invu_sales_sync.sucursales_configuradas(db_session)[0][1], DIA)
+    filas = client.get(f"/api/link/sales/daily?date_from={DIA}&date_to={DIA}", headers=_headers(admin_user)).json()
+    assert filas and filas[0]["synced_at"]
+
+
 def test_un_error_de_invu_queda_anotado_y_no_frena_la_pasada(db_session, invu_ventas, monkeypatch):
     def falla(cred, desde, hasta):
         raise invu_client.InvuError("Invu respondió HTTP 500 en 'citas/ordenesAllAdv'.")

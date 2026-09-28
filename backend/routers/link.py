@@ -256,6 +256,7 @@ def daily_sales(
             invu_total=dia.invu_total,
             matches=dia.matches,
             items_sold=platos.get((branch.id, dia.business_date), Decimal("0")),
+            synced_at=dia.synced_at,
         )
         for dia, branch in dias_q.order_by(InvuSyncDay.business_date.desc(), Branch.name.asc()).all()
     ]

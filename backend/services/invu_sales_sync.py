@@ -42,9 +42,12 @@ logger = logging.getLogger("farmhouse.invu.ventas")
 # instalado (en Windows no viene).
 PANAMA_TZ = timezone(timedelta(hours=-5))
 
-# Cada cuánto corre una pasada. Link no es un tablero en vivo: con ver lo de hace un par de
-# horas alcanza para decidir qué pedir.
+# Cada cuánto corre una pasada completa (hoy, ayer, la semana y el historial).
 SYNC_INTERVAL_SECONDS = 3 * 60 * 60
+# Entre pasadas completas, solo HOY cada media hora: la pantalla de ventas tiene "Hoy" y con
+# tres horas de atraso decía, a la 1:40 p. m., $180 del día. Son dos llamadas por sucursal
+# (órdenes + totales), ~100 por día por usuario de API: muy lejos de la cuota de Invu.
+TODAY_INTERVAL_SECONDS = 30 * 60
 STARTUP_DELAY_SECONDS = 60
 
 # Hasta dónde se trae el historial, y cuántos días viejos por pasada: la primera carga se reparte
@@ -416,26 +419,33 @@ def dias_pendientes(db, branch_id: int, hoy: date, ahora: Optional[datetime] = N
 # ==========================================================================
 # Pasada completa y loop
 # ==========================================================================
-def run_pass(db, hoy: Optional[date] = None) -> Dict[str, Any]:
-    """Una pasada por todas las sucursales configuradas. Un día que falla no frena a los demás."""
+def run_pass(db, hoy: Optional[date] = None, solo_hoy: bool = False) -> Dict[str, Any]:
+    """
+    Una pasada por todas las sucursales configuradas. Un día que falla no frena a los demás.
+    `solo_hoy`: la pasada corta de cada media hora, que trae nada más el día en curso (sin menú
+    ni historial).
+    """
     hoy = hoy or hoy_panama()
     resumen: Dict[str, Any] = {}
 
     for branch, credenciales in sucursales_configuradas(db):
         detalle = {"dias": 0, "errores": 0, "menu": None}
-        try:
-            if not _menu_al_dia(db, branch.id, datetime.now(timezone.utc)):
-                detalle["menu"] = sync_menu(db, branch, credenciales)
-        except Exception as e:
-            db.rollback()
-            logger.warning(f"[Invu] {branch.code}: no se pudo traer el menú: {e}")
+        if solo_hoy:
+            pendientes = [hoy]
+        else:
+            try:
+                if not _menu_al_dia(db, branch.id, datetime.now(timezone.utc)):
+                    detalle["menu"] = sync_menu(db, branch, credenciales)
+            except Exception as e:
+                db.rollback()
+                logger.warning(f"[Invu] {branch.code}: no se pudo traer el menú: {e}")
 
-        try:
-            pendientes = dias_pendientes(db, branch.id, hoy)
-        except Exception:
-            db.rollback()
-            logger.exception(f"[Invu] {branch.code}: no se pudo calcular qué días faltan.")
-            continue
+            try:
+                pendientes = dias_pendientes(db, branch.id, hoy)
+            except Exception:
+                db.rollback()
+                logger.exception(f"[Invu] {branch.code}: no se pudo calcular qué días faltan.")
+                continue
 
         for dia in pendientes:
             try:
@@ -455,14 +465,14 @@ def run_pass(db, hoy: Optional[date] = None) -> Dict[str, Any]:
 
         resumen[branch.code] = detalle
 
-    logger.info(f"[Invu] Pasada de ventas terminada: {resumen}")
+    logger.info(f"[Invu] Pasada de ventas{' (solo hoy)' if solo_hoy else ''} terminada: {resumen}")
     return resumen
 
 
-def _pasada_en_segundo_plano() -> None:
+def _pasada_en_segundo_plano(solo_hoy: bool = False) -> None:
     db = SessionLocal()
     try:
-        run_pass(db)
+        run_pass(db, solo_hoy=solo_hoy)
     except Exception:
         logger.exception("[Invu] Falló una pasada de la sincronización de ventas.")
     finally:
@@ -474,14 +484,22 @@ async def run_sales_sync_loop() -> None:
     Tercer loop en segundo plano del proyecto, con las mismas reglas que los otros dos (ver
     services/invu_sync.py): nunca bajo pytest, una pasada que falla no tumba el loop, y la parte
     bloqueante va a un hilo aparte.
+
+    Cada media hora despierta: si pasaron tres horas desde la última pasada completa, corre una
+    completa; si no, una corta que trae solo el día de hoy.
     """
     await asyncio.sleep(STARTUP_DELAY_SECONDS)
+    ultima_completa = None
     while True:
+        ahora = time.monotonic()
+        completa = ultima_completa is None or ahora - ultima_completa >= SYNC_INTERVAL_SECONDS
         try:
-            await asyncio.to_thread(_pasada_en_segundo_plano)
+            await asyncio.to_thread(_pasada_en_segundo_plano, not completa)
         except Exception:
             logger.exception("[Invu] Error en el loop de ventas.")
-        await asyncio.sleep(SYNC_INTERVAL_SECONDS)
+        if completa:
+            ultima_completa = ahora
+        await asyncio.sleep(TODAY_INTERVAL_SECONDS)
 
 
 def debe_arrancar_loop() -> bool:

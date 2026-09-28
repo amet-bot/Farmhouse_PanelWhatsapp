@@ -49,6 +49,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function rangeDates(range) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    if (range === 'today') return [today, today];
+    if (range === 'yesterday') { const y = addDays(today, -1); return [y, y]; }
     if (range === 'month') return [new Date(today.getFullYear(), today.getMonth(), 1), today];
     if (range === 'prev-month') {
       return [new Date(today.getFullYear(), today.getMonth() - 1, 1), new Date(today.getFullYear(), today.getMonth(), 0)];
@@ -120,8 +122,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const seq = ++loadSeq;
     const [from, to] = rangeDates(state.range);
     const len = daysBetween(from, to).length;
-    const prevTo = addDays(from, -1);
+    // Un solo día se compara con el mismo día de la semana pasada (un lunes con otro lunes:
+    // contra el día anterior, un domingo siempre parecía "peor" que el sábado).
+    const prevTo = len === 1 ? addDays(from, -7) : addDays(from, -1);
     const prevFrom = addDays(prevTo, -(len - 1));
+    state.prevFrom = prevFrom;
 
     setLoading();
     try {
@@ -137,7 +142,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.days = daysBetween(from, to);
       state.from = from; state.to = to;
 
-      $('ventasSubtitle').textContent = `Del ${dayLabel(iso(from))} al ${dayLabel(iso(to))}${iso(to) === iso(new Date()) ? ' · hoy va parcial' : ''}.`;
+      $('ventasSubtitle').textContent = subtitleFor(from, to, daily);
       renderKpis(daily, prevDaily);
       renderDailyChart();
       renderDailyTable();
@@ -154,6 +159,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       utils.renderIcons();
     }
+  }
+
+  /** "Del 22 sept al 28 sept · hoy va parcial" o, para Hoy, "Hoy, lun. 28 sept · actualizado a las 1:40 p. m.". */
+  function subtitleFor(from, to, daily) {
+    const hoy = iso(new Date());
+    if (iso(from) === iso(to)) {
+      const dia = dayLabelLong(iso(from));
+      if (iso(to) !== hoy) return `${state.range === 'yesterday' ? 'Ayer, ' : ''}${dia}.`;
+      // La hora de la sucursal que se actualizó hace más: "al menos hasta esta hora, todas".
+      const horas = daily.filter((r) => r.synced_at).map((r) => utils._parseServerDate(r.synced_at)).filter(Boolean);
+      // En hora de Panamá aunque el navegador esté en otra zona.
+      const hora = horas.length
+        ? new Date(Math.min(...horas.map((d) => d.getTime())))
+          .toLocaleTimeString('es-PA', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Panama' })
+        : null;
+      return `Hoy, ${dia} · va parcial${hora ? ` · actualizado a las ${hora}` : ''} · se actualiza cada media hora`;
+    }
+    return `Del ${dayLabel(iso(from))} al ${dayLabel(iso(to))}${iso(to) === hoy ? ' · hoy va parcial' : ''}.`;
   }
 
   function setLoading() {
@@ -186,10 +209,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderKpis(daily, prevDaily) {
     const t = totals(daily);
-    const p = totals(prevDaily);
-    const vs = 'vs. período anterior';
+    // Hoy va a medio día: compararlo con un día entero siempre daría "−70%". Se muestra sin
+    // comparación y la comparación aparece en "Ayer".
+    const p = state.range === 'today' ? totals([]) : totals(prevDaily);
+    const vs = state.days && state.days.length === 1 && state.prevFrom
+      ? `vs. el ${dayLabelLong(iso(state.prevFrom))}`
+      : 'vs. período anterior';
     const kpis = [
-      { icon: 'dollar-sign', label: 'Venta neta', value: money(t.net), sub: p.net ? `${delta(t.net, p.net)} ${vs}` : 'Sin período anterior para comparar' },
+      { icon: 'dollar-sign', label: 'Venta neta', value: money(t.net),
+        sub: p.net ? `${delta(t.net, p.net)} ${vs}` : (state.range === 'today' ? 'Va parcial: la comparación sale en "Ayer"' : 'Sin período anterior para comparar') },
       { icon: 'receipt', label: 'Órdenes', value: num(t.orders), sub: p.orders ? `${delta(t.orders, p.orders)} ${vs}` : '&nbsp;' },
       { icon: 'wallet', label: 'Ticket promedio', value: money(t.ticket), sub: p.ticket ? `${delta(t.ticket, p.ticket)} ${vs}` : '&nbsp;' },
       { icon: 'utensils', label: 'Platos vendidos', value: num(t.items), sub: p.items ? `${delta(t.items, p.items)} ${vs}` : '&nbsp;' },
@@ -228,6 +256,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const series = seriesFromDaily();
     const days = state.days || [];
     const single = series.length === 1;
+    // Un solo día (Hoy, Ayer) no dibuja línea: el panel se esconde y queda "por sucursal".
+    const panel = box.closest('.inv-panel');
+    if (panel) panel.hidden = days.length === 1;
+    if (days.length === 1) return;
 
     $('dailyTitle').textContent = single ? `Venta diaria · ${series[0].name}` : 'Venta diaria por sucursal';
     $('dailyLegend').innerHTML = single ? '' : series.map((s) => `
