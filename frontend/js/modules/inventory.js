@@ -1343,6 +1343,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><span>Recibido el</span><strong>${esc(utils.formatDateTime(s.received_at))}</strong></div>
         <div><span>Cargado al sistema</span><strong>${esc(utils.formatDateTime(s.created_at))}</strong></div>
       </div>`;
+    if (canDeleteShipment(s)) {
+      detail.insertAdjacentHTML('beforeend', `
+        <div class="inv-detail-danger">
+          <button type="button" class="inv-danger-outline" id="btnDeleteShipment">
+            <i data-lucide="trash-2"></i><span>Eliminar cargamento</span>
+          </button>
+          <small>${hasPerm('inventory.adjust') ? 'Si se cargó por error.' : 'Si te equivocaste: podés borrarlo hasta 24 horas después de cargarlo.'}</small>
+        </div>`);
+      $('btnDeleteShipment').addEventListener('click', () => openShipmentDelete(s));
+    }
     utils.renderIcons();
     shipmentInsightsFor(s.id)
       .then((ins) => {
@@ -1356,6 +1366,55 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (box) box.innerHTML = '<p class="inv-ca-foot">No se pudo calcular el contexto.</p>';
       });
   }
+
+  // ---- Eliminar cargamento (cargado por error) ----
+  // Mismas reglas que el servidor, solo para no mostrar un botón que va a dar 403. Si después se
+  // contaron esos insumos el servidor igual lo rechaza (409) y el motivo se muestra en el modal.
+  function canDeleteShipment(s) {
+    if (hasPerm('inventory.adjust')) return true;
+    if (!state.user || s.received_by_user_id !== state.user.id) return false;
+    return Date.now() - (utils._parseServerDate(s.created_at) || new Date(0)).getTime() <= WASTE_SELF_DELETE_MS;
+  }
+
+  let shipmentToDelete = null;
+
+  function openShipmentDelete(s) {
+    shipmentToDelete = s;
+    $('shipmentDeleteError').style.display = 'none';
+    $('shipmentDeleteReason').value = '';
+    $('shipmentDeleteTitle').textContent = `Eliminar cargamento #${s.id}`;
+    const insumos = s.items.map((l) => `${qty(l.quantity)} ${unitShort(l.unit)} de ${l.item_name}`).join(', ');
+    $('shipmentDeleteSummary').textContent =
+      `${s.supplier_name || 'Sin proveedor'} · ${insumos}${s.total_cost != null ? ` · ${money(s.total_cost)}` : ''}`;
+    openModal('modalShipmentDelete');
+    $('shipmentDeleteReason').focus();
+  }
+
+  $('btnConfirmShipmentDelete')?.addEventListener('click', async () => {
+    if (!shipmentToDelete) return;
+    const btn = $('btnConfirmShipmentDelete');
+    btn.disabled = true;
+    btn.textContent = 'Eliminando...';
+    try {
+      const motivo = $('shipmentDeleteReason').value.trim();
+      await api.delete(`/inventory/shipments/${shipmentToDelete.id}${motivo ? `?motivo=${encodeURIComponent(motivo)}` : ''}`);
+      closeModal('modalShipmentDelete');
+      shipmentInsightsCache.clear();
+      utils.showToast(`Cargamento #${shipmentToDelete.id} eliminado.`, 'success');
+      shipmentToDelete = null;
+      state.selected.shipment = null;
+      closeAllMobileDetails();
+      await Promise.all([loadShipments({ reset: true }), loadAnalytics(), loadStock()]);
+      renderResumen();
+      renderItemList();
+      renderSupplierList();
+    } catch (err) {
+      showModalError('shipmentDeleteError', err.message || 'No se pudo eliminar el cargamento.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Eliminar cargamento';
+    }
+  });
 
   $('shipmentSearch')?.addEventListener('input', (e) => {
     state.search.shipment = e.target.value;

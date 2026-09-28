@@ -378,6 +378,52 @@ def _shipment_insights(db: Session, shipment: Shipment) -> ShipmentInsights:
     )
 
 
+@router.delete("/shipments/{shipment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_shipment(
+    shipment_id: int,
+    motivo: Optional[str] = Query(None, max_length=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Borra un cargamento cargado por error (mal la cantidad, el costo o repetido), con sus líneas y
+    sus movimientos del libro: la existencia y las compras vuelven a quedar como si no se hubiera
+    cargado. Mismas reglas que la merma: supervisor y admin cualquiera de sus sucursales, quien lo
+    registró el suyo durante 24 horas. No se borra si después se contaron esos insumos (ver
+    _chequear_sin_conteo_posterior). La auditoría guarda una copia de lo borrado y el motivo.
+    """
+    shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+    if not shipment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cargamento no encontrado.")
+    efectiva = _visible_branch_filter(current_user, shipment.branch_id)
+    if efectiva is not None and efectiva != shipment.branch_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a los cargamentos de otra sucursal.")
+    _chequear_quien_borra(current_user, shipment.received_by_user_id, shipment.created_at, "el cargamento")
+    _chequear_sin_conteo_posterior(db, shipment.branch_id, [l.inventory_item_id for l in shipment.items],
+                                   shipment.created_at, "este cargamento")
+
+    snapshot = {
+        "received_at": shipment.received_at.isoformat() if shipment.received_at else None,
+        "received_by_user_id": shipment.received_by_user_id,
+        "supplier_id": shipment.supplier_id,
+        "notes": shipment.notes,
+        "items": [
+            {"inventory_item_id": l.inventory_item_id, "quantity": str(l.quantity),
+             "unit_cost": str(l.unit_cost) if l.unit_cost is not None else None}
+            for l in shipment.items
+        ],
+        "delete_reason": (motivo or "").strip() or None,
+    }
+    db.query(InventoryMovement).filter(
+        InventoryMovement.source_type == "shipment", InventoryMovement.source_id == shipment.id,
+    ).delete(synchronize_session=False)
+    log_audit_event(db, current_user.id, shipment.branch_id, "shipment.delete", "shipment", shipment.id, snapshot)
+    db.delete(shipment)   # las líneas se van con él (cascade)
+    db.commit()
+    logger.info(f"Cargamento #{shipment_id} borrado por {current_user.name}" + (f" — {snapshot['delete_reason']}" if snapshot["delete_reason"] else ""))
+    return None
+
+
 @router.get("/shipments/{shipment_id}/insights", response_model=ShipmentInsights)
 def shipment_insights(
     shipment_id: int,
@@ -1519,6 +1565,47 @@ def get_waste_photo(
 WASTE_SELF_DELETE_WINDOW = timedelta(hours=24)
 
 
+def _chequear_quien_borra(current_user: User, dueno_id: int, creado: datetime, que: str) -> None:
+    """Supervisor/admin borran cualquiera; el resto, solo lo suyo y dentro de las 24 horas."""
+    if has_permission(current_user, "inventory.adjust"):
+        return
+    if dueno_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Solo quien registró {que}, o un supervisor, puede borrarlo.",
+        )
+    cargado = creado if creado.tzinfo else creado.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) - cargado > WASTE_SELF_DELETE_WINDOW:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pasaron más de 24 horas desde que se cargó: pedile a un supervisor que lo borre.",
+        )
+
+
+def _chequear_sin_conteo_posterior(db: Session, branch_id: int, item_ids: List[int], creado: datetime, que: str) -> None:
+    """
+    Un conteo posterior de esos insumos ya dejó la existencia en lo contado, y su "lo que decía
+    el sistema" incluía este registro. Borrarlo ahora dejaría la existencia corrida (por debajo de
+    lo real si era un cargamento, por encima si era una merma). En ese caso no se borra: se
+    corrige con un conteo nuevo, que es lo que refleja lo que de verdad hay.
+    """
+    creado_utc = creado.astimezone(timezone.utc).replace(tzinfo=None) if creado.tzinfo else creado
+    contados = db.query(InventoryItem.name, func.max(StockCount.counted_at)).select_from(StockCountItem).join(
+        StockCount, StockCount.id == StockCountItem.stock_count_id
+    ).join(InventoryItem, InventoryItem.id == StockCountItem.inventory_item_id).filter(
+        StockCount.branch_id == branch_id,
+        StockCount.counted_at > creado_utc,
+        StockCountItem.inventory_item_id.in_(item_ids or [0]),
+    ).group_by(InventoryItem.name).all()
+    if contados:
+        nombres = ", ".join(sorted(n for n, _ in contados))
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(f"No se puede borrar {que}: después se contó {nombres} y ese conteo ya dejó la "
+                    "existencia en lo que había. Si estaba mal, se corrige con un conteo nuevo."),
+        )
+
+
 @router.delete("/waste/{waste_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_waste(
     waste_id: int,
@@ -1537,21 +1624,9 @@ def delete_waste(
     insumos, cantidades, costo, quién la había cargado) y el motivo del borrado si se dio.
     """
     record = _waste_for_user(db, waste_id, current_user)
-
-    if not has_permission(current_user, "inventory.adjust"):
-        if record.recorded_by_user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Solo quien registró la merma, o un supervisor, puede borrarla.",
-            )
-        cargada = record.created_at
-        if cargada.tzinfo is None:
-            cargada = cargada.replace(tzinfo=timezone.utc)
-        if datetime.now(timezone.utc) - cargada > WASTE_SELF_DELETE_WINDOW:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Pasaron más de 24 horas desde que se cargó: pedile a un supervisor que la borre.",
-            )
+    _chequear_quien_borra(current_user, record.recorded_by_user_id, record.created_at, "la merma")
+    _chequear_sin_conteo_posterior(db, record.branch_id, [l.inventory_item_id for l in record.items],
+                                   record.created_at, "esta merma")
 
     snapshot = {
         "reason": record.reason,
