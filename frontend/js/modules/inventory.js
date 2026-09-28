@@ -3535,19 +3535,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  /**
-   * Cómo se muestra la diferencia valuada de un conteo. En el de arranque va neutra: ahí la
-   * diferencia no es un faltante ni un sobrante, es lo que ya había, y pintarla de rojo o de
-   * verde contaría una historia que no pasó.
-   */
-  function countAmountHtml(c) {
-    if (c.difference_cost == null) return '<span class="inv-row-amount">—</span>';
-    const valor = Number(c.difference_cost);
-    if (c.is_first_count) return `<span class="inv-row-amount inv-row-amount-count">${money(Math.abs(valor))}</span>`;
-    const clase = valor < 0 ? ' inv-row-amount-waste' : '';
-    return `<span class="inv-row-amount${clase}">${valor < 0 ? '-' : '+'}${money(Math.abs(valor))}</span>`;
-  }
-
   function renderCountList() {
     const rows = filteredCounts();
     const list = $('countList');
@@ -3577,11 +3564,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const active = c.id === state.selected.count ? ' active' : '';
       const sub = [utils.formatDateTime(c.counted_at), state.isGlobalScope ? c.branch_name : null]
         .filter(Boolean).join(' · ');
-      const badge = c.is_first_count
-        ? `<span class="inv-badge muted">${pluralize(c.items.length, 'insumo', 'insumos')}</span>`
-        : (c.mismatched_count
-            ? `<span class="inv-badge warn">${pluralize(c.mismatched_count, 'diferencia', 'diferencias')}</span>`
-            : '<span class="inv-badge ok">Todo cuadra</span>');
+      const badge = `<span class="inv-badge muted">${pluralize(c.items.length, 'insumo', 'insumos')}</span>`;
       return `
         <button type="button" class="inv-row${active}" data-count-id="${c.id}">
           <span class="inv-row-thumb inv-row-thumb-count"><i data-lucide="${c.is_first_count ? 'flag' : 'clipboard-check'}"></i></span>
@@ -3590,7 +3573,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             <small>${esc(sub)}</small>
           </span>
           ${badge}
-          ${countAmountHtml(c)}
         </button>`;
     }).join('');
 
@@ -3607,6 +3589,128 @@ document.addEventListener('DOMContentLoaded', async () => {
     utils.renderIcons();
   }
 
+  // ---- Análisis del conteo ----
+  // Qué faltó, qué sobró y qué cuadró, descontando lo que se cocinó (ventas de Invu × recetas).
+  // Sale de GET /counts/{id}/analysis y se arma en palabras simples.
+  const countAnalyses = new Map();   // id de conteo → análisis ya pedido
+
+  const COUNT_STATUS = {
+    falta: { label: 'Faltó', cls: 'short', icon: 'trending-down' },
+    sin_receta: { label: 'Faltó · sin receta', cls: 'norecipe', icon: 'help-circle' },
+    sobra: { label: 'Sobró', cls: 'over', icon: 'trending-up' },
+    cuadra: { label: 'Cuadra', cls: 'ok', icon: 'check' },
+    arranque: { label: 'Punto de partida', cls: 'base', icon: 'flag' },
+  };
+
+  const conUnidad = (n, unit) => `${qty(n)} ${unitShort(unit)}`;
+
+  /** Una línea, en una frase: de dónde sale lo que tenía que haber y qué pasó. */
+  function countLineText(l) {
+    const u = l.unit;
+    if (l.status === 'arranque') {
+      return `Primer conteo: ${esc(conUnidad(l.counted, u))}${l.cost != null ? ` ≈ ${esc(money(l.cost))}` : ''} · desde el próximo se compara`;
+    }
+    const partes = [`El sistema decía ${esc(conUnidad(l.expected_records, u))}`];
+    if (l.used_by_sales != null && Number(l.used_by_sales) > 0) {
+      partes.push(`se usaron ${esc(conUnidad(l.used_by_sales, u))} en platos vendidos`);
+    }
+    const tenia = `tenía que haber <strong>${esc(conUnidad(l.expected, u))}</strong>`;
+    const contaste = `contaste <strong>${esc(conUnidad(l.counted, u))}</strong>`;
+    const dif = Math.abs(Number(l.unexplained || 0));
+    const valor = l.cost != null && Number(l.cost) !== 0 ? ` (${l.cost_estimated ? '≈ ' : ''}${esc(money(Math.abs(Number(l.cost))))})` : '';
+    let final = '';
+    if (l.status === 'cuadra') final = 'cuadra';
+    else if (l.status === 'sobra') final = `hay <strong>${esc(conUnidad(dif, u))} de más</strong>${valor}`;
+    else final = `faltan <strong>${esc(conUnidad(dif, u))}</strong>${valor}`;
+    return `${partes.join(', ')}: ${tenia}; ${contaste} → ${final}`;
+  }
+
+  function countLineHtml(l) {
+    const st = COUNT_STATUS[l.status] || COUNT_STATUS.cuadra;
+    return `
+      <div class="inv-ca-line">
+        <div class="inv-ca-line-head">
+          <strong>${esc(l.name)}</strong>
+          <span class="inv-ca-chip inv-ca-chip-${st.cls}"><i data-lucide="${st.icon}"></i>${esc(st.label)}</span>
+        </div>
+        <p>${countLineText(l)}</p>
+      </div>`;
+  }
+
+  /** Lo que se muestra al guardar un conteo y en su detalle. */
+  function countAnalysisHtml(a) {
+    const t = a.totals;
+    const aprox = t.cost_estimated ? '≈ ' : '';
+    const hallazgos = [];
+
+    if (t.baseline === t.items) {
+      hallazgos.push(`Es el <strong>punto de partida</strong>: contaste ${pluralize(t.items, 'insumo', 'insumos')}${Number(t.baseline_value) ? ` por ${aprox}${esc(money(t.baseline_value))}` : ''}. Desde el próximo conteo vas a ver qué falta y qué sobra.`);
+    } else {
+      const falta = a.lines.find((l) => l.status === 'falta');
+      if (falta) {
+        hallazgos.push(`Lo que más faltó: <strong>${esc(falta.name)}</strong>, ${esc(conUnidad(Math.abs(Number(falta.unexplained)), falta.unit))}${falta.cost != null ? ` (${falta.cost_estimated ? '≈ ' : ''}${esc(money(Math.abs(Number(falta.cost))))})` : ''}. Puede ser merma que no se anotó, porciones más grandes que la receta o un error al recibir.`);
+      }
+      if (t.no_recipe) {
+        hallazgos.push(`En ${pluralize(t.no_recipe, 'insumo', 'insumos')} faltó más de lo esperado, pero no ${t.no_recipe === 1 ? 'está' : 'están'} en ninguna receta de Invu: puede ser lo que se usó. Si se les carga la receta en Invu, el conteo lo descuenta solo.`);
+      }
+      if (t.surplus) {
+        hallazgos.push(`${t.surplus === 1 ? 'Sobró 1 insumo' : `Sobraron ${t.surplus} insumos`}: casi siempre es una compra que no se registró en Cargamentos.`);
+      }
+      if (!t.missing && !t.no_recipe && !t.surplus && t.ok) {
+        hallazgos.push('<strong>Todo cuadró</strong> con lo que tenía que haber.');
+      }
+      if (t.baseline) {
+        hallazgos.push(`${pluralize(t.baseline, 'insumo se contó', 'insumos se contaron')} por primera vez: ${t.baseline === 1 ? 'queda' : 'quedan'} como punto de partida.`);
+      }
+    }
+    if (!a.recipes_available) {
+      hallazgos.push('Esta sucursal todavía no tiene recetas de Invu: el conteo no puede descontar lo que se usó en los platos.');
+    }
+    const hora = a.sales_synced_at
+      ? utils._parseServerDate(a.sales_synced_at)?.toLocaleTimeString('es-PA', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Panama' })
+      : null;
+
+    const tiles = t.baseline === t.items ? '' : `
+      <div class="inv-ca-tiles">
+        <div class="inv-ca-tile inv-ca-tile-short"><span>Faltó</span><strong>${Number(t.missing_cost) ? `${aprox}${esc(money(t.missing_cost))}` : '$0'}</strong><small>${pluralize(t.missing, 'insumo', 'insumos')}</small></div>
+        <div class="inv-ca-tile inv-ca-tile-over"><span>Sobró</span><strong>${Number(t.surplus_cost) ? `${aprox}${esc(money(t.surplus_cost))}` : '$0'}</strong><small>${pluralize(t.surplus, 'insumo', 'insumos')}</small></div>
+        <div class="inv-ca-tile inv-ca-tile-ok"><span>Cuadró</span><strong>${t.ok}</strong><small>de ${t.items - t.baseline} comparados</small></div>
+      </div>`;
+
+    const revisar = a.lines.filter((l) => ['falta', 'sin_receta', 'sobra'].includes(l.status));
+    const cuadran = a.lines.filter((l) => l.status === 'cuadra');
+    const arranque = a.lines.filter((l) => l.status === 'arranque');
+    const grupo = (titulo, lineas, abierto) => (lineas.length ? `
+      <details class="inv-ca-group"${abierto ? ' open' : ''}>
+        <summary>${esc(titulo)} <small>(${lineas.length})</small></summary>
+        ${lineas.map(countLineHtml).join('')}
+      </details>` : '');
+
+    return `
+      ${tiles}
+      <ul class="inv-ca-findings">${hallazgos.map((h) => `<li>${h}</li>`).join('')}</ul>
+      ${grupo('Para revisar', revisar, true)}
+      ${grupo('Cuadraron', cuadran, !revisar.length && cuadran.length <= 8)}
+      ${grupo('Punto de partida', arranque, t.baseline === t.items && arranque.length <= 8)}
+      <p class="inv-ca-foot">Cuadra si la diferencia es de hasta ${esc(String(Number(a.tolerance_pct)))} % (balanza, redondeos).${hora ? ` Ventas de Invu de hoy hasta las ${esc(hora)}.` : ''}</p>`;
+  }
+
+  async function countAnalysisFor(countId) {
+    if (countAnalyses.has(countId)) return countAnalyses.get(countId);
+    const a = await api.get(`/inventory/counts/${countId}/analysis`);
+    countAnalyses.set(countId, a);
+    return a;
+  }
+
+  function showCountResult(conteo) {
+    const a = conteo.analysis;
+    if (a) countAnalyses.set(conteo.id, a);
+    $('countResultTitle').textContent = conteo.is_first_count ? 'Inventario de arranque cargado' : 'Resultado del conteo';
+    $('countResultSubtitle').textContent = `${conteo.branch_name} · ${pluralize(conteo.items.length, 'insumo contado', 'insumos contados')}`;
+    $('countResultBody').innerHTML = a ? countAnalysisHtml(a) : '<p class="inv-ca-foot">Conteo guardado.</p>';
+    openModal('modalCountResult');
+  }
+
   function renderCountDetail() {
     const detail = $('countDetail');
     const c = state.counts.find((x) => x.id === state.selected.count);
@@ -3616,29 +3720,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Primero lo que no cuadró, de la diferencia más grande a la más chica: es lo que alguien
-    // tiene que ir a mirar. Lo que cuadró queda abajo, en orden alfabético.
-    const lineas = c.items.slice().sort((a, b) => {
-      const da = Math.abs(Number(a.difference));
-      const db = Math.abs(Number(b.difference));
-      if (da !== db) return db - da;
-      return a.item_name.localeCompare(b.item_name, 'es');
-    });
-
-    const rowsHtml = lineas.map((l) => {
-      const dif = Number(l.difference);
-      const clase = c.is_first_count || dif === 0 ? '' : (dif < 0 ? ' inv-count-diff-short' : ' inv-count-diff-over');
-      const valor = (l.unit_cost != null && dif !== 0) ? money(Math.abs(dif * Number(l.unit_cost))) : '—';
-      return `
-        <tr>
-          <td class="inv-td-name" data-label="Insumo">${esc(l.item_name)}</td>
-          <td class="num" data-label="Sistema">${esc(qty(l.expected_quantity))}</td>
-          <td class="num" data-label="Contado">${esc(qty(l.counted_quantity))} ${esc(l.unit)}</td>
-          <td class="num${clase}" data-label="Diferencia">${dif === 0 ? '—' : esc(signedQty(dif))}</td>
-          <td class="num" data-label="Valor">${valor}</td>
-        </tr>`;
-    }).join('');
-
     const nota = c.is_first_count
       ? '<p class="inv-detail-note">Primer conteo de la sucursal: es su inventario de arranque. Las diferencias son lo que ya había antes de que el sistema llevara la cuenta, no faltantes.</p>'
       : '';
@@ -3647,7 +3728,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${detailBackHtml()}
       <div class="inv-detail-header">
         <span class="inv-detail-thumb inv-detail-thumb-count"><i data-lucide="${c.is_first_count ? 'flag' : 'clipboard-check'}"></i></span>
-        <span class="inv-badge ${c.is_first_count ? 'muted' : (c.mismatched_count ? 'warn' : 'ok')}">Conteo #${c.id}</span>
+        <span class="inv-badge muted">Conteo #${c.id}</span>
       </div>
       <h3>${esc(countTitle(c))}</h3>
       <p class="inv-detail-sub">${esc(utils.formatDateTime(c.counted_at))} · ${esc(c.branch_name)}</p>
@@ -3655,23 +3736,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${c.notes ? `<p class="inv-detail-note">${esc(c.notes)}</p>` : ''}
       <div class="inv-metrics">
         <div><span>Contados</span><strong>${c.items.length} <small>${c.items.length === 1 ? 'insumo' : 'insumos'}</small></strong></div>
-        <div><span>${c.is_first_count ? 'Valor cargado' : 'Diferencia'}</span><strong>${countAmountHtml(c)}</strong></div>
       </div>
-      <div class="inv-detail-section-header"><span>${c.is_first_count ? 'Lo que había' : 'Contado contra sistema'}</span></div>
-      <table class="inv-detail-table inv-count-table">
-        <thead>
-          <tr><th>Insumo</th><th class="num">Sistema</th><th class="num">Contado</th><th class="num">Diferencia</th><th class="num">Valor</th></tr>
-        </thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
+      <div class="inv-detail-section-header"><span>Qué faltó, qué sobró y qué cuadró</span></div>
+      <div class="inv-count-analysis" id="countAnalysisBox"><div class="inv-ca-loading">Calculando…</div></div>
       <div class="inv-detail-section-header"><span>Detalles</span></div>
       <div class="inv-detail-rows">
         <div><span>Sucursal</span><strong>${esc(c.branch_name)}</strong></div>
         <div><span>Contó</span><strong>${esc(c.counted_by_name)}</strong></div>
         <div><span>Cuándo</span><strong>${esc(utils.formatDateTime(c.counted_at))}</strong></div>
-        <div><span>Con diferencia</span><strong>${pluralize(c.mismatched_count, 'insumo', 'insumos')}</strong></div>
       </div>`;
     utils.renderIcons();
+    countAnalysisFor(c.id)
+      .then((a) => {
+        const box = $('countAnalysisBox');
+        if (!box || state.selected.count !== c.id) return;
+        box.innerHTML = countAnalysisHtml(a);
+        utils.renderIcons();
+      })
+      .catch(() => {
+        const box = $('countAnalysisBox');
+        if (box) box.innerHTML = '<p class="inv-ca-foot">No se pudo calcular el análisis. Probá de nuevo en un rato.</p>';
+      });
   }
 
   $('countSearch')?.addEventListener('input', (e) => {
@@ -3748,9 +3833,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const valor = state.countEntries.get(row.inventory_item_id);
     if (valor == null) return '—';
     const dif = Number(valor) - Number(row.on_hand);
-    if (Math.abs(dif) < 0.0005) return '<span class="inv-count-diff-ok">Cuadra</span>';
-    if (state.countIsFirst) return esc(signedQty(dif));
-    return `<span class="${dif < 0 ? 'inv-count-diff-short' : 'inv-count-diff-over'}">${esc(signedQty(dif))}</span>`;
+    if (state.countIsFirst || Math.abs(dif) < 0.0005) return '<span class="inv-count-diff-neutral">✓</span>';
+    return `<span class="inv-count-diff-neutral">${esc(signedQty(dif))}</span>`;
   }
 
   function renderCountLines() {
@@ -3778,7 +3862,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <small>${esc(r.category || 'Sin categoría')} · en ${esc(r.unit)}</small>
           </div>
           <div class="inv-count-cell">
-            <span class="inv-line-label">Sistema</span>
+            <span class="inv-line-label">Registrado</span>
             <span class="inv-count-system${sistema < 0 ? ' is-negative' : ''}">${esc(qty(sistema))}</span>
           </div>
           <div class="inv-count-cell">
@@ -3787,7 +3871,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                    placeholder="—" value="${valor != null ? esc(valor) : ''}" aria-label="Cantidad contada de ${esc(r.item_name)}">
           </div>
           <div class="inv-count-cell">
-            <span class="inv-line-label">Diferencia</span>
+            <span class="inv-line-label">Dif.</span>
             <span class="inv-count-diff">${countDiffHtml(r)}</span>
           </div>
         </div>`;
@@ -3837,25 +3921,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    $('countProgress').textContent = contados
-      ? `${pluralize(contados, 'contado', 'contados')} · ${distintos ? pluralize(distintos, 'no cuadra', 'no cuadran') : 'todo cuadra'}`
-      : 'Nada contado todavía';
+    $('countProgress').textContent = contados ? pluralize(contados, 'insumo contado', 'insumos contados') : 'Nada contado todavía';
 
     const total = $('countTotal');
     total.classList.remove('is-short', 'is-over');
-    if (!conCosto) {
-      total.textContent = '—';
-    } else if (state.countIsFirst) {
+    // Qué faltó y qué sobró no se puede saber acá: falta descontar lo que se usó en los platos
+    // vendidos (ventas de Invu × recetas), y eso lo calcula el servidor al guardar.
+    if (state.countIsFirst && conCosto) {
       total.textContent = money(Math.abs(valor));
     } else {
-      total.textContent = `${valor < 0 ? '-' : '+'}${money(Math.abs(valor))}`;
-      total.classList.add(valor < 0 ? 'is-short' : 'is-over');
+      total.textContent = contados ? String(contados) : '—';
     }
     const nota = document.querySelector('#modalCount .inv-total-box small');
     if (nota) {
       nota.textContent = state.countIsFirst
         ? 'Valor de lo que había, al costo del último cargamento'
-        : 'Diferencia al costo del último cargamento';
+        : 'Al guardar ves qué faltó y qué sobró, descontando lo vendido';
     }
   }
 
@@ -3915,15 +3996,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         items,
       });
       closeModal('modalCount');
-
-      utils.showToast(
-        creado.is_first_count
-          ? `Inventario de arranque cargado: ${pluralize(creado.items.length, 'insumo', 'insumos')}.`
-          : (creado.mismatched_count
-              ? `Conteo guardado. ${pluralize(creado.mismatched_count, 'insumo no cuadró', 'insumos no cuadraron')} y ya quedó corregido.`
-              : 'Conteo guardado. Todo cuadra con el sistema.'),
-        creado.is_first_count || !creado.mismatched_count ? 'success' : 'warning'
-      );
+      showCountResult(creado);
 
       state.selected.count = creado.id;
       await Promise.all([loadCounts({ reset: true }), loadStock()]);

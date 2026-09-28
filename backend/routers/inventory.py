@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from database import get_db
 from models.branch import Branch
 from models.inventory_item import InventoryItem, KIND_HOUSE, KIND_RAW
-from models.invu_sales import InvuRecipeLine, InvuSaleLine, InvuSaleModifier, InvuSyncDay
+from models.invu_sales import InvuRecipeLine, InvuSale, InvuSaleLine, InvuSaleModifier, InvuSyncDay
 from models.supplier import Supplier
 from models.shipment import Shipment, ShipmentItem
 from models.user import User
@@ -25,6 +25,7 @@ from schemas.inventory import (
     SupplierCreate, SupplierResponse,
     ShipmentCreate, ShipmentResponse, ShipmentItemResponse,
     StockCountCreate, StockCountItemResponse, StockCountResponse,
+    StockCountAnalysis, StockCountAnalysisLine, StockCountAnalysisTotals,
     StockRowResponse, WasteCreate, WasteItemResponse, WastePhotoResponse, WasteReasonResponse, WasteResponse,
     WasteAnalyticsGroup, WasteAnalyticsItem, WasteAnalyticsDay, WasteAnalyticsResponse, WasteAnalyticsTotals, WasteAnalyticsYield,
     WasteRecipeDish, WasteRecipeDishShare, WasteRecipeUsageItem, WasteRecipeUsageResponse,
@@ -1639,12 +1640,197 @@ def create_count(
     db.refresh(record)
 
     respuesta = _serialize_count(record, is_first=es_primero)
+    respuesta.analysis = _analizar_conteo(db, record)
     logger.info(
         f"Conteo #{record.id} en sucursal {record.branch_id} por {current_user.name}: "
         f"{len(record.items)} insumos, {respuesta.mismatched_count} con diferencia"
         + (" (arranque)" if es_primero else "")
     )
     return respuesta
+
+
+# ---- Análisis del conteo: lo que tenía que haber vs. lo que se contó ----
+# Hasta este porcentaje la diferencia se toma como que cuadra: balanza, redondeos, lo que queda
+# pegado en el recipiente. Por encima es algo que alguien tiene que mirar.
+COUNT_TOLERANCE_PCT = Decimal("3")
+
+
+def _uso_por_ventas(db: Session, branch_id: int, desde: datetime, hasta: datetime) -> dict:
+    """
+    Lo que se usó de cada insumo en los platos vendidos entre dos momentos (UTC), según las
+    recetas de Invu: Σ platos × receta + Σ modificadores × receta (mismo criterio que
+    /waste/recipe-usage). El momento de cada venta es la apertura de la orden en la caja.
+    """
+    momento = func.coalesce(InvuSale.opened_at, InvuSale.closed_at)
+    filtros = (
+        InvuSaleLine.branch_id == branch_id,
+        InvuSaleLine.counted == True,  # noqa: E712
+        momento >= desde,
+        momento < hasta,
+    )
+    platos = db.query(InvuSaleLine.invu_item_id, func.sum(InvuSaleLine.quantity)).join(
+        InvuSale, InvuSale.id == InvuSaleLine.sale_id
+    ).filter(*filtros, InvuSaleLine.invu_item_id.isnot(None)).group_by(InvuSaleLine.invu_item_id).all()
+    mods = db.query(InvuSaleModifier.invu_modifier_id, func.sum(InvuSaleModifier.quantity)).join(
+        InvuSaleLine, InvuSaleLine.id == InvuSaleModifier.line_id
+    ).join(InvuSale, InvuSale.id == InvuSaleLine.sale_id).filter(
+        *filtros, InvuSaleModifier.invu_modifier_id.isnot(None)
+    ).group_by(InvuSaleModifier.invu_modifier_id).all()
+
+    recetas: dict = {}
+    for linea in db.query(InvuRecipeLine).filter(InvuRecipeLine.branch_id == branch_id).all():
+        recetas.setdefault((linea.source_type, linea.source_invu_id), []).append(linea)
+    insumos = {i.invu_id: i for i in db.query(InventoryItem).filter(InventoryItem.invu_id.isnot(None))}
+
+    usado: dict = {}
+    for tipo, filas in (("item", platos), ("modifier", mods)):
+        for source_id, cantidad in filas:
+            for linea in recetas.get((tipo, source_id), []):
+                item = insumos.get(linea.product_invu_id)
+                if not item:
+                    continue
+                por_unidad = _a_unidad_del_insumo(Decimal(linea.quantity), linea.unit_name, item.unit)
+                if por_unidad is None:
+                    continue
+                usado[item.id] = usado.get(item.id, Decimal("0")) + Decimal(cantidad or 0) * por_unidad
+    return usado
+
+
+def _insumos_con_receta(db: Session, branch_id: int) -> set:
+    """Los insumos que aparecen en alguna receta de Invu de esa sucursal."""
+    invu_ids = {r[0] for r in db.query(InvuRecipeLine.product_invu_id).filter(InvuRecipeLine.branch_id == branch_id).distinct()}
+    if not invu_ids:
+        return set()
+    return {r[0] for r in db.query(InventoryItem.id).filter(InventoryItem.invu_id.in_(invu_ids))}
+
+
+def _analizar_conteo(db: Session, record: StockCount) -> StockCountAnalysis:
+    """
+    Explica cada insumo del conteo. Para cada uno se mira su conteo ANTERIOR en la sucursal:
+      - Sin conteo anterior → "arranque": es su punto de partida, no un faltante (el sistema
+        empezó a contar cuando ya había mercadería).
+      - Con conteo anterior → lo que decía el sistema ya incluye entradas, merma y traslados
+        desde entonces; falta descontar lo que se cocinó: las ventas de Invu × recetas en ese
+        lapso. Lo que queda es lo que nadie registró.
+    Se calcula al pedirlo (no se guarda): si las ventas de Invu llegan más tarde, el análisis
+    se corrige solo.
+    """
+    item_ids = [l.inventory_item_id for l in record.items]
+    anteriores = dict(
+        db.query(StockCountItem.inventory_item_id, func.max(StockCount.id))
+        .join(StockCount, StockCount.id == StockCountItem.stock_count_id)
+        .filter(
+            StockCount.branch_id == record.branch_id,
+            StockCount.id < record.id,
+            StockCountItem.inventory_item_id.in_(item_ids or [0]),
+        )
+        .group_by(StockCountItem.inventory_item_id)
+        .all()
+    )
+    fechas = dict(db.query(StockCount.id, StockCount.counted_at).filter(StockCount.id.in_(set(anteriores.values()) or [0])).all())
+    usos = {cid: _uso_por_ventas(db, record.branch_id, fechas[cid], record.counted_at) for cid in set(anteriores.values())}
+    con_receta = _insumos_con_receta(db, record.branch_id)
+
+    totales = StockCountAnalysisTotals(items=len(record.items))
+    lineas: List[StockCountAnalysisLine] = []
+    for line in record.items:
+        item = line.inventory_item
+        contado = Decimal(line.counted_quantity)
+        sistema = Decimal(line.expected_quantity)
+        costo = Decimal(line.unit_cost) if line.unit_cost is not None and Decimal(line.unit_cost) > 0 else None
+        estimado = False
+        if costo is None and item.reference_cost is not None:
+            costo, estimado = Decimal(item.reference_cost), True
+
+        previo = anteriores.get(item.id)
+        if previo is None:
+            valor = (contado * costo) if costo is not None else None
+            totales.baseline += 1
+            if valor:
+                totales.baseline_value += valor
+                totales.cost_estimated = totales.cost_estimated or estimado
+            lineas.append(StockCountAnalysisLine(
+                inventory_item_id=item.id, name=item.name, unit=item.unit, status="arranque",
+                expected_records=sistema, expected=sistema, counted=contado,
+                unit_cost=costo, cost=(valor.quantize(Decimal("0.01")) if valor is not None else None),
+                cost_estimated=estimado,
+            ))
+            continue
+
+        tiene_receta = item.id in con_receta
+        usado = usos.get(previo, {}).get(item.id, Decimal("0")) if tiene_receta else None
+        esperado = sistema - (usado or Decimal("0"))
+        sin_explicar = contado - esperado
+        base = max(abs(esperado), abs(contado))
+        pct = (sin_explicar / base * 100) if base > 0 else Decimal("0")
+        if abs(sin_explicar) < Decimal("0.001") or abs(pct) <= COUNT_TOLERANCE_PCT:
+            estado = "cuadra"
+        elif sin_explicar > 0:
+            estado = "sobra"
+        elif not tiene_receta:
+            estado = "sin_receta"
+        else:
+            estado = "falta"
+        valor = (sin_explicar * costo) if costo is not None else None
+
+        if estado == "cuadra":
+            totales.ok += 1
+        elif estado == "sobra":
+            totales.surplus += 1
+            totales.surplus_cost += valor or Decimal("0")
+        elif estado == "falta":
+            totales.missing += 1
+            totales.missing_cost += -(valor or Decimal("0"))
+        else:
+            totales.no_recipe += 1
+            totales.no_recipe_cost += -(valor or Decimal("0"))
+        if valor and estado != "cuadra":
+            totales.cost_estimated = totales.cost_estimated or estimado
+
+        lineas.append(StockCountAnalysisLine(
+            inventory_item_id=item.id, name=item.name, unit=item.unit, status=estado,
+            expected_records=sistema,
+            used_by_sales=(usado.quantize(Decimal("0.001")) if usado is not None else None),
+            expected=esperado.quantize(Decimal("0.001")), counted=contado,
+            unexplained=sin_explicar.quantize(Decimal("0.001")), unexplained_pct=pct.quantize(Decimal("0.1")),
+            unit_cost=costo, cost=(valor.quantize(Decimal("0.01")) if valor is not None else None),
+            cost_estimated=estimado, since=fechas.get(previo),
+        ))
+
+    # Primero lo que hay que ir a mirar (lo que más plata falta), al final lo que cuadró.
+    orden = {"falta": 0, "sin_receta": 1, "sobra": 2, "cuadra": 3, "arranque": 4}
+    lineas.sort(key=lambda l: (orden[l.status], -abs(l.cost or Decimal("0")), l.name))
+    for campo in ("missing_cost", "surplus_cost", "no_recipe_cost", "baseline_value"):
+        setattr(totales, campo, getattr(totales, campo).quantize(Decimal("0.01")))
+
+    hoy = db.query(InvuSyncDay.synced_at).filter(
+        InvuSyncDay.branch_id == record.branch_id,
+        InvuSyncDay.business_date == invu_sales_sync.hoy_panama(),
+    ).first()
+    return StockCountAnalysis(
+        count_id=record.id, branch_id=record.branch_id, branch_name=record.branch.name,
+        counted_at=record.counted_at, tolerance_pct=COUNT_TOLERANCE_PCT,
+        recipes_available=bool(con_receta), sales_synced_at=(hoy[0] if hoy else None),
+        totals=totales, lines=lineas,
+    )
+
+
+@router.get("/counts/{count_id}/analysis", response_model=StockCountAnalysis)
+def count_analysis(
+    count_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    record = db.query(StockCount).options(
+        joinedload(StockCount.items).joinedload(StockCountItem.inventory_item),
+        joinedload(StockCount.branch),
+    ).filter(StockCount.id == count_id).first()
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conteo no encontrado.")
+    efectiva = _visible_branch_filter(current_user, record.branch_id)
+    if efectiva is not None and efectiva != record.branch_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a los conteos de otra sucursal.")
+    return _analizar_conteo(db, record)
 
 
 @router.get("/counts", response_model=List[StockCountResponse])

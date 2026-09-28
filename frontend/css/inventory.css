@@ -3042,3 +3042,72 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
   .inv-reason-grid { grid-template-columns: 1fr 1fr; }
   .inv-qty-control .modal-input { max-width: none; }
 }
+
+
+/* ============================================================================
+   Análisis del conteo: tres cifras arriba (faltó, sobró, cuadró), hallazgos en palabras y la
+   lista de insumos agrupada (para revisar / cuadraron / punto de partida).
+   ============================================================================ */
+.inv-ca-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.inv-ca-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border: 1px solid var(--inv-border);
+  border-radius: 12px;
+  background: var(--inv-panel-2);
+  min-width: 0;
+}
+.inv-ca-tile span { font-size: 12px; font-weight: 600; color: var(--inv-text-muted); }
+.inv-ca-tile strong { font-size: 20px; font-weight: 800; color: var(--inv-text); overflow-wrap: anywhere; }
+.inv-ca-tile small { font-size: 11.5px; color: var(--inv-text-muted); }
+.inv-ca-tile-short strong { color: var(--inv-loss-text); }
+.inv-ca-tile-ok strong { color: var(--inv-green-dark); }
+
+.inv-ca-findings { margin: 0 0 14px; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.inv-ca-findings li { font-size: 14px; line-height: 1.45; color: var(--inv-text-secondary); }
+.inv-ca-findings strong { color: var(--inv-text); }
+
+.inv-ca-group { border-top: 1px solid var(--inv-border-light); padding: 10px 0 4px; }
+.inv-ca-group > summary {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--inv-text);
+  cursor: pointer;
+  padding: 2px 0 8px;
+  list-style-position: inside;
+}
+.inv-ca-group > summary small { font-weight: 500; color: var(--inv-text-muted); }
+.inv-ca-line { padding: 10px 0; border-bottom: 1px solid var(--inv-border-light); }
+.inv-ca-line:last-child { border-bottom: 0; }
+.inv-ca-line-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.inv-ca-line-head strong { font-size: 14px; color: var(--inv-text); min-width: 0; overflow-wrap: anywhere; }
+.inv-ca-line p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--inv-text-secondary); }
+.inv-ca-line p strong { color: var(--inv-text); }
+.inv-ca-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.inv-ca-chip i, .inv-ca-chip svg { width: 13px; height: 13px; }
+.inv-ca-chip-short { background: var(--danger-bg); color: var(--danger-text); }
+.inv-ca-chip-norecipe { background: var(--inv-panel); color: var(--inv-text-secondary); border: 1px dashed var(--inv-border); }
+.inv-ca-chip-over { background: var(--warning-bg, rgba(234, 179, 8, .14)); color: var(--warning-text, #854d0e); }
+.inv-ca-chip-ok { background: var(--inv-green-soft); color: var(--inv-green-dark); }
+.inv-ca-chip-base { background: var(--inv-panel); color: var(--inv-text-muted); }
+.inv-ca-foot { margin: 12px 0 0; font-size: 12px; color: var(--inv-text-muted); line-height: 1.4; }
+.inv-ca-loading { padding: 12px 0; font-size: 13px; color: var(--inv-text-muted); }
+
+@media (max-width: 640px) {
+  .inv-ca-tile { padding: 10px 8px; }
+  .inv-ca-tile strong { font-size: 17px; }
+}
+
+.inv-count-diff-neutral { color: var(--inv-text-muted); font-weight: 600; }

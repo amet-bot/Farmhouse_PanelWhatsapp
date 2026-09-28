@@ -59,7 +59,7 @@ class TransferItem(Base):
     transfer_id = Column(Integer, ForeignKey("transfers.id", ondelete="CASCADE"), nullable=False)
     inventory_item_id = Column(Integer, ForeignKey("inventory_items.id"), nullable=False)
     quantity = Column(Numeric(10, 3), nullable=False)
-    unit_cost = Column(Numeric(10, 2), nullable=True)
+    unit_cost = Column(Numeric(12, 4), nullable=True)
 
     transfer = relationship("Transfer", back_populates="items")
     inventory_item = relationship("InventoryItem")

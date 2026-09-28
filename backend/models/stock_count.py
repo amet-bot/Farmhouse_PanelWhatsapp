@@ -55,7 +55,7 @@ class StockCountItem(Base):
     difference = Column(Numeric(10, 3), nullable=False)
     # Costo del último cargamento de ese insumo en esa sucursal al momento de contar, copiado por
     # la misma razón que en la merma: la diferencia de marzo vale lo que valía en marzo.
-    unit_cost = Column(Numeric(10, 2), nullable=True)
+    unit_cost = Column(Numeric(12, 4), nullable=True)
 
     stock_count = relationship("StockCount", back_populates="items")
     inventory_item = relationship("InventoryItem")

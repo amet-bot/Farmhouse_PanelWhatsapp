@@ -90,7 +90,7 @@ class WasteItem(Base):
     # sucursal en el momento de registrar, en vez de recalcularlo después: el costo de un insumo
     # cambia con cada compra, y una merma de marzo tiene que seguir valiendo lo que valía en
     # marzo aunque el proveedor haya aumentado en abril.
-    unit_cost = Column(Numeric(10, 2), nullable=True)
+    unit_cost = Column(Numeric(12, 4), nullable=True)
     # Qué se botó (migración 047): "entera" = piezas completas (`pieces` de ellas) o "parte" = un
     # pedazo o residuo pesado en balanza. NULL en las mermas anteriores. `quantity` sigue siendo
     # siempre la cantidad en la unidad del insumo: la existencia y el costo no cambian de fórmula.

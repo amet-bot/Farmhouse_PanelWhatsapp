@@ -393,6 +393,63 @@ class StockCountResponse(BaseModel):
     # Si fue el primer conteo de esa sucursal: el que hace de inventario de arranque. La pantalla
     # lo dice así, porque una diferencia enorme ahí no es un faltante, es lo que ya había.
     is_first_count: bool = False
+    # Solo en la respuesta de crear: el análisis de lo contado (ver GET /counts/{id}/analysis).
+    analysis: Optional["StockCountAnalysis"] = None
+
+
+class StockCountAnalysisLine(BaseModel):
+    """
+    Un insumo del conteo, explicado: lo que tenía que haber y lo que no se explica.
+
+      tenía que haber = lo que decía el sistema (entradas, merma, traslados y el conteo anterior)
+                        − lo que se usó en los platos vendidos desde el conteo anterior (recetas)
+      sin explicar    = contado − tenía que haber     (negativo: faltó)
+    """
+    inventory_item_id: int
+    name: str
+    unit: str
+    # "arranque" (primer conteo del insumo: punto de partida, no es faltante), "cuadra", "falta",
+    # "sobra" o "sin_receta" (faltó, pero no está en ninguna receta de Invu: puede ser consumo).
+    status: str
+    expected_records: Decimal                 # lo que decía el sistema antes de contar
+    used_by_sales: Optional[Decimal] = None   # usado en ventas desde el conteo anterior (None: sin receta)
+    expected: Decimal                         # tenía que haber
+    counted: Decimal
+    unexplained: Optional[Decimal] = None     # None en el arranque
+    unexplained_pct: Optional[Decimal] = None
+    unit_cost: Optional[Decimal] = None
+    cost: Optional[Decimal] = None            # valor de lo sin explicar (en el arranque: valor de lo contado)
+    cost_estimated: bool = False              # valuado con el costo de referencia de Invu
+    since: Optional[datetime] = None          # el conteo anterior de este insumo
+
+
+class StockCountAnalysisTotals(BaseModel):
+    items: int = 0
+    baseline: int = 0
+    ok: int = 0
+    missing: int = 0
+    surplus: int = 0
+    no_recipe: int = 0
+    missing_cost: Decimal = Decimal("0")      # lo que faltó (con receta), en positivo
+    surplus_cost: Decimal = Decimal("0")
+    no_recipe_cost: Decimal = Decimal("0")    # faltó en insumos sin receta, en positivo
+    baseline_value: Decimal = Decimal("0")    # valor de lo contado por primera vez
+    cost_estimated: bool = False
+
+
+class StockCountAnalysis(BaseModel):
+    count_id: int
+    branch_id: int
+    branch_name: str
+    counted_at: datetime
+    tolerance_pct: Decimal
+    recipes_available: bool                   # la sucursal tiene recetas de Invu cargadas
+    sales_synced_at: Optional[datetime] = None  # hasta cuándo llegaron las ventas de hoy
+    totals: StockCountAnalysisTotals
+    lines: List[StockCountAnalysisLine]
+
+
+StockCountResponse.model_rebuild()   # `analysis` se declara antes que StockCountAnalysis
 
 
 # ==========================================================================

@@ -21,7 +21,7 @@ class InventoryMovement(Base):
     # signo correcto: positiva es sobrante, negativa es faltante).
     movement_type = Column(String(20), nullable=False)
     quantity = Column(Numeric(10, 3), nullable=False)
-    unit_cost = Column(Numeric(10, 2), nullable=True)
+    unit_cost = Column(Numeric(12, 4), nullable=True)
     occurred_at = Column(DateTime, nullable=False)
     # De qué registro salió este movimiento ("shipment", "waste", "count") + su id, para poder
     # rastrear cada fila hasta su origen sin adivinar por fecha e insumo.

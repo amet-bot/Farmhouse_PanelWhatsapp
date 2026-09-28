@@ -32,7 +32,7 @@ class ShipmentItem(Base):
     shipment_id = Column(Integer, ForeignKey("shipments.id", ondelete="CASCADE"), nullable=False)
     inventory_item_id = Column(Integer, ForeignKey("inventory_items.id"), nullable=False)
     quantity = Column(Numeric(10, 3), nullable=False)
-    unit_cost = Column(Numeric(10, 2), nullable=True) # opcional: alimenta Gasto por sucursal a futuro
+    unit_cost = Column(Numeric(12, 4), nullable=True) # opcional: alimenta Gasto por sucursal a futuro
 
     shipment = relationship("Shipment", back_populates="items")
     inventory_item = relationship("InventoryItem", back_populates="shipment_items")
