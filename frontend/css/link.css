@@ -318,3 +318,17 @@
 @media (prefers-reduced-motion: reduce) {
   .link-skeleton, #btnSyncNow.loading i { animation: none; }
 }
+
+
+/* Cuadre con Invu */
+.link-cuadre-summary { margin: 0 0 8px; font-size: 14px; line-height: 1.45; color: var(--inv-text-secondary); }
+.link-cuadre-summary strong { color: var(--inv-text); }
+.link-cuadre-ok { color: var(--inv-green-dark); font-weight: 800; }
+.link-cuadre-warn { color: var(--inv-loss-text); font-weight: 800; }
+.link-cuadre-details > summary { cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--inv-text-secondary); padding: 4px 0 8px; }
+.link-cuadre-table td, .link-cuadre-table th { white-space: nowrap; }
+.link-cuadre-table small { color: var(--inv-text-muted); }
+.link-cuadre-bad { color: var(--inv-loss-text); font-weight: 700; }
+.link-cuadre-miss { color: var(--inv-text-muted); font-style: italic; }
+#btnRefreshSales.loading i { animation: link-spin 1s linear infinite; }
+@keyframes link-spin { to { transform: rotate(360deg); } }

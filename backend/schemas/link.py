@@ -67,6 +67,7 @@ class LinkDailySalesRow(BaseModel):
     matches: Optional[bool] = None
     items_sold: Decimal = Field(default=Decimal("0"))
     synced_at: Optional[datetime] = None    # cuándo se trajo de Invu (para "actualizado a las...")
+    has_error: bool = False                 # la última vez que se pidió a Invu, falló (quedan los totales de antes)
 
 
 class LinkItemSalesRow(BaseModel):

@@ -144,6 +144,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       $('ventasSubtitle').textContent = subtitleFor(from, to, daily);
       renderKpis(daily, prevDaily);
+      renderCuadre(daily);
       renderDailyChart();
       renderDailyTable();
       renderBranchBars(daily);
@@ -177,6 +178,79 @@ document.addEventListener('DOMContentLoaded', async () => {
       return `Hoy, ${dia} · va parcial${hora ? ` · actualizado a las ${hora}` : ''} · se actualiza cada media hora`;
     }
     return `Del ${dayLabel(iso(from))} al ${dayLabel(iso(to))}${iso(to) === hoy ? ' · hoy va parcial' : ''}.`;
+  }
+
+  // ==========================================================================
+  // Cuadre con Invu: por día y sucursal, ¿coincide lo del sistema con el cierre de Invu?
+  // ==========================================================================
+  const horaPanama = (s) => {
+    const d = s ? utils._parseServerDate(s) : null;
+    return d ? d.toLocaleTimeString('es-PA', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Panama' }) : '';
+  };
+
+  function renderCuadre(daily) {
+    const hoy = iso(new Date());
+    const dias = (state.days || []).slice().reverse();   // el más reciente arriba
+    const filtro = state.branchFilter ? Number(state.branchFilter) : null;
+    // Las sucursales que se sincronizan (orden fijo), o la elegida en el filtro.
+    const sucursales = state.branches
+      .filter((b) => b.configured && (!filtro || b.branch_id === filtro))
+      .sort((a, b) => branchIndex(a.branch_id) - branchIndex(b.branch_id));
+    const porCelda = new Map(daily.map((r) => [`${r.branch_id}|${r.business_date}`, r]));
+
+    let ok = 0;
+    const problemas = [];
+    const celda = (b, d) => {
+      const r = porCelda.get(`${b.branch_id}|${d}`);
+      if (!r) {
+        problemas.push(`${b.branch_name} ${dayLabel(d)}: sin datos`);
+        return '<td class="num link-cuadre-miss" title="Ese día no se trajo de Invu">sin datos</td>';
+      }
+      const invu = r.invu_total != null ? Number(r.invu_total) : null;
+      const nuestro = r.calculated_total != null ? Number(r.calculated_total) : null;
+      if (r.has_error) {
+        problemas.push(`${b.branch_name} ${dayLabel(d)}: la última actualización falló`);
+        return `<td class="num link-cuadre-bad" title="La última vez que se pidió a Invu falló; se muestra lo que había">⚠ ${esc(money(r.net_total))}</td>`;
+      }
+      if (r.matches === false) {
+        problemas.push(`${b.branch_name} ${dayLabel(d)}: Invu ${money(invu)}, sistema ${money(nuestro)}`);
+        return `<td class="num link-cuadre-bad" title="Sistema: ${esc(money(nuestro))}">⚠ ${esc(money(invu))}</td>`;
+      }
+      ok += 1;
+      const cuando = d === hoy && r.synced_at ? ` · ${horaPanama(r.synced_at)}` : '';
+      return `<td class="num" title="Cuadra con Invu${esc(cuando)}">${esc(money(r.net_total))} <span class="link-cuadre-ok">✓</span></td>`;
+    };
+
+    const filas = dias.map((d) => {
+      const celdas = sucursales.map((b) => celda(b, d)).join('');
+      const total = sucursales.reduce((s, b) => s + (Number(porCelda.get(`${b.branch_id}|${d}`)?.net_total) || 0), 0);
+      return `<tr><td>${esc(dayLabelLong(d))}${d === hoy ? ' <small>(parcial)</small>' : ''}</td>${celdas}<td class="num"><strong>${esc(money(total))}</strong></td></tr>`;
+    }).join('');
+
+    $('cuadreTable').innerHTML = sucursales.length ? `
+      <table class="link-table link-cuadre-table">
+        <thead><tr><th>Día</th>${sucursales.map((b) => `<th class="num">${esc(b.branch_name)}</th>`).join('')}<th class="num">Total</th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table>` : '';
+
+    const total = dias.length * sucursales.length;
+    const hoyRows = daily.filter((r) => r.business_date === hoy && r.synced_at);
+    const horaHoy = hoyRows.length
+      ? horaPanama(hoyRows.map((r) => r.synced_at).sort()[0])   // la sucursal que se actualizó hace más
+      : '';
+    $('cuadreNote').textContent = horaHoy ? `Hoy, actualizado a las ${horaHoy}` : '';
+
+    const resumen = $('cuadreSummary');
+    if (!total) {
+      resumen.textContent = 'No hay sucursales conectadas a Invu.';
+    } else if (!problemas.length) {
+      const quien = sucursales.length === 1 ? esc(sucursales[0].branch_name) : `las ${sucursales.length} sucursales`;
+      const cuando = dias.length === 1 ? 'El día' : `Los ${dias.length} días`;
+      resumen.innerHTML = `<span class="link-cuadre-ok">✓</span> ${cuando} de ${quien} <strong>cuadran con Invu</strong>. La venta que ves es la del reporte de Invu.`;
+    } else {
+      resumen.innerHTML = `<span class="link-cuadre-warn">⚠</span> ${problemas.length === 1 ? 'Hay 1 día que no cuadra' : `Hay ${problemas.length} días que no cuadran`} (cuadran ${ok} de ${total}): ${problemas.slice(0, 3).map(esc).join(' · ')}${problemas.length > 3 ? '…' : ''}.${state.user && state.user.role === 'admin' ? ' Tocá <strong>Actualizar ahora</strong> para volver a traer hoy y ayer.' : ''}`;
+      $('cuadreDetails').open = true;
+    }
   }
 
   function setLoading() {
@@ -566,6 +640,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     utils.renderIcons();
   }
 
+  $('btnRefreshSales').addEventListener('click', async () => {
+    const btn = $('btnRefreshSales');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    try {
+      const res = await api.post('/link/invu/sync', {});
+      const errores = res.flatMap((b) => b.days).filter((d) => d.error).length;
+      utils.showToast(errores ? `Actualizado, pero ${errores} día(s) dieron error en Invu.` : 'Ventas de hoy y ayer actualizadas con Invu.', errores ? 'warning' : 'success');
+      await loadSales();
+    } catch (err) {
+      utils.showToast(err.message || 'No se pudo actualizar.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    }
+  });
+
   $('btnSyncNow').addEventListener('click', async () => {
     const btn = $('btnSyncNow');
     btn.disabled = true;
@@ -622,6 +713,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   FarmhouseShell.fillUserHeader({ nameId: 'linkAgentName', roleId: 'linkAgentRole', avatarId: 'linkAgentAvatar' }, user);
   state.isGlobal = user.role === 'admin' || !user.branch_id;
   $('btnSyncNow').hidden = user.role !== 'admin';
+  $('btnRefreshSales').hidden = user.role !== 'admin';
 
   try {
     const status = await api.get('/link/invu/status');

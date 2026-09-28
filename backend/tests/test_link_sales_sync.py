@@ -328,6 +328,16 @@ def test_la_venta_del_dia_es_la_que_da_invu(client, admin_user, invu_ventas, db_
     assert fila["gross_total"] is not None and fila["discount_total"] is not None
 
 
+def test_un_dia_que_fallo_al_actualizar_queda_marcado(client, admin_user, invu_ventas, db_session, clayton_branch):
+    invu_ventas["ordenes"]["api_cly"] = _dia_con_devolucion()
+    invu_sales_sync.sync_day(db_session, clayton_branch, invu_client.Credenciales("api_cly", "clave"), DIA)
+    invu_sales_sync._anotar_error(db_session, clayton_branch, DIA, "Invu respondió HTTP 429")
+
+    fila = client.get("/api/link/sales/daily?date_from=2026-09-23&date_to=2026-09-23", headers=_headers(admin_user)).json()[0]
+    assert fila["has_error"] is True
+    assert Decimal(fila["net_total"]) == TOTAL_NETO      # se siguen mostrando los totales de antes
+
+
 def test_el_supervisor_de_una_sucursal_solo_ve_la_suya(client, supervisor_user, clayton_device, invu_ventas,
                                                        db_session, obarrio_branch):
     invu_ventas["ordenes"]["api_obr"] = [_orden(500, [_linea(1, "MF364", "BOWL", 3, 56.85)])]
