@@ -18,19 +18,34 @@ CSV_PATH = PROJECT_ROOT / "database" / "farmhouse_catalog_meta.csv"
 # Categorías del CSV (columna custom_label_0) que son adicionales/premiums, no platos independientes.
 ADDON_CATEGORIES = {"Premiums", "Toastie Add-ons", "Smoothie Extras", "Acai Add-ons"}
 
-# Agrupación de categorías del CSV en las pestañas (pills) del menú digital.
+# Agrupación de categorías del CSV en las pestañas (pills) del menú digital. Mismo orden,
+# nombres y descripciones que el array `menu` de src/lib/site.ts de la página oficial.
 TAB_DEFINITIONS = [
-    {"key": "salads", "label": "🥗 Salads", "categories": ["Salads"], "addon_category": "Premiums"},
-    {"key": "bowls", "label": "🍚 Bowls", "categories": ["Bowls"], "addon_category": "Premiums"},
-    {"key": "acai", "label": "🍇 Açaí Bowl", "categories": ["Acai Bowl"], "addon_category": "Acai Add-ons"},
-    {"key": "wraps", "label": "🌯 Wraps", "categories": ["Wraps"], "addon_category": None},
-    {"key": "byo", "label": "🥣 Build Your Own", "categories": ["Build Your Own"], "addon_category": "Premiums"},
-    {"key": "toasties", "label": "🥪 Toasties", "categories": ["Toasties"], "addon_category": "Toastie Add-ons"},
-    {"key": "smoothies", "label": "🥤 Smoothies", "categories": ["Classic Smoothies", "Signature Smoothies"], "addon_category": "Smoothie Extras"},
-    {"key": "drinks", "label": "☕ Cafetería & Bebidas", "categories": ["Drinks"], "addon_category": None},
-    {"key": "vitrina", "label": "🍪 Sweets & Vitrina", "categories": ["Vitrina"], "addon_category": None},
-    {"key": "merch", "label": "🛍️ Merch", "categories": ["Merch"], "addon_category": None},
+    {"key": "salads", "label": "Ensaladas", "categories": ["Salads"], "addon_category": "Premiums",
+     "description": "Mezclas frescas de vegetales de temporada con proteínas y aderezos hechos en casa."},
+    {"key": "bowls", "label": "Bowls", "categories": ["Bowls", "Acai Bowl"], "addon_category": "Premiums",
+     "description": "Bowls balanceados con granos, vegetales y proteína a la carta."},
+    {"key": "wraps", "label": "Wraps", "categories": ["Wraps"], "addon_category": None,
+     "description": "Wraps rellenos y envueltos al momento, ideales para llevar."},
+    {"key": "byo", "label": "Arma tu bowl", "categories": ["Build Your Own"], "addon_category": "Premiums",
+     "description": "Elige tu base, toppings y dressing, y arma el bowl perfecto sumando una proteína o premium a tu gusto."},
+    {"key": "toasties", "label": "Toasties", "categories": ["Toasties"], "addon_category": "Toastie Add-ons",
+     "description": "Sándwiches tostados con combinaciones frescas y saludables."},
+    {"key": "smoothies", "label": "Smoothies", "categories": ["Classic Smoothies", "Signature Smoothies"], "addon_category": "Smoothie Extras",
+     "description": "Clásicos y signature, hechos con fruta fresca cada día."},
+    {"key": "drinks", "label": "Bebidas", "categories": ["Drinks"], "addon_category": None,
+     "description": "Café, jugos prensados en frío, refrescos artesanales y más — frías y calientes."},
+    {"key": "foamies", "label": "Foamies", "categories": ["Foamies"], "addon_category": None,
+     "description": "Cold brew, espresso, matcha y agua de pipa coronados con foamies llenos de sabor."},
+    {"key": "vitrina", "label": "Vitrina", "categories": ["Vitrina"], "addon_category": None,
+     "description": "Dulces y postres para el antojo del día."},
+    {"key": "merch", "label": "Merch", "categories": ["Merch"], "addon_category": None,
+     "description": "Productos de marca farmhouse."},
 ]
+
+# Productos cuya categoría trae sus propios adicionales, distintos a los de la pestaña
+# (el Açaí vive en la pestaña Bowls pero no lleva Premiums, sino sus toppings).
+PRODUCT_ADDON_CATEGORIES = {"Acai Bowl": "Acai Add-ons"}
 
 _cache: Dict[str, Any] = {"mtime": None, "rows": None}
 
@@ -137,6 +152,9 @@ def _build_products(categories: List[str]) -> List[Dict[str, Any]]:
     products = list(grouped.values()) + standalone
     for p in products:
         p["sizes"].sort(key=lambda s: 0 if s["code"] == "regular" else (1 if s["code"] == "large" else 2))
+        own_addons = PRODUCT_ADDON_CATEGORIES.get(p["category"])
+        if own_addons:
+            p["addons"] = _build_addon_group(own_addons)
     return products
 
 
@@ -168,6 +186,7 @@ def get_menu_structure() -> Dict[str, Any]:
         tabs.append({
             "key": tab["key"],
             "label": tab["label"],
+            "description": tab["description"],
             "products": _build_products(tab["categories"]),
             "addons": _build_addon_group(tab["addon_category"]),
         })

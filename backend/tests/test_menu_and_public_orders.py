@@ -17,8 +17,16 @@ def test_menu_items_returns_expected_tabs(client):
     resp = client.get("/api/menu/items")
     assert resp.status_code == 200
     data = resp.json()
-    tab_keys = {t["key"] for t in data["tabs"]}
-    assert {"salads", "bowls", "acai", "wraps", "byo", "toasties", "smoothies", "drinks", "vitrina", "merch"} == tab_keys
+    tab_keys = [t["key"] for t in data["tabs"]]
+    assert tab_keys == ["salads", "bowls", "wraps", "byo", "toasties", "smoothies", "drinks", "foamies", "vitrina", "merch"]
+
+    bowls_tab = next(t for t in data["tabs"] if t["key"] == "bowls")
+    acai = next(p for p in bowls_tab["products"] if p["title"] == "Açaí Bowl")
+    assert any(a["sku"] == "ACAI_ADDON_PROTEIN" for a in acai["addons"]["flat"]), "El Açaí trae sus toppings, no los Premiums"
+    foamies_tab = next(t for t in data["tabs"] if t["key"] == "foamies")
+    assert foamies_tab["products"][0]["title"] == "Mont Blanc"
+    drinks_tab = next(t for t in data["tabs"] if t["key"] == "drinks")
+    assert not any(p["title"] == "Mont Blanc" for p in drinks_tab["products"])
 
     salads_tab = next(t for t in data["tabs"] if t["key"] == "salads")
     assert len(salads_tab["products"]) > 0

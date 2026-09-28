@@ -385,6 +385,13 @@ a:focus-visible {
   font-weight: 500;
 }
 
+.menu-category-desc {
+  margin: var(--space-3) 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--fh-text-muted);
+}
+
 .category-products-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

@@ -729,6 +729,7 @@
             <h2 class="menu-category-title">${escapeHtml(stripLeadingEmoji(tab.label))}</h2>
             <span class="menu-category-count">${tab.products.length} producto${tab.products.length === 1 ? "" : "s"}</span>
           </div>
+          ${tab.description ? `<p class="menu-category-desc">${escapeHtml(tab.description)}</p>` : ""}
           <div class="category-products-grid">
             ${cardsHtml}
           </div>
@@ -747,7 +748,8 @@
   function openProductModal(product) {
     const tab = state.tabs.find((t) => t.key === (product._tabKey || state.activeTabKey));
     state.modal.product = product;
-    state.modal.tabAddons = (tab && tab.addons) ? tab.addons : { warm: [], cold: [], flat: [] };
+    // Algunos productos traen sus propios adicionales (el Açaí dentro de Bowls), distintos a los de la pestaña.
+    state.modal.tabAddons = product.addons || ((tab && tab.addons) ? tab.addons : { warm: [], cold: [], flat: [] });
     state.modal.addonMode = (tab && tab.addon_mode) ? tab.addon_mode : null;
     state.modal.selectedSizeSku = product.sizes[0] ? product.sizes[0].sku : null;
     state.modal.selectedAddonQty = new Map();
