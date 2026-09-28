@@ -2057,7 +2057,9 @@ def _cifras_sucursal(db: Session, branch: Branch, desde: date, hasta: date, tops
     ini, fin = _dias_utc(desde, hasta)
     f = DashboardFigures()
 
-    venta = db.query(func.sum(InvuSyncDay.net_total)).filter(
+    # La venta del día que da Invu en su reporte (igual que la pantalla de Ventas), y la nuestra
+    # solo si Invu no la dio.
+    venta = db.query(func.sum(func.coalesce(InvuSyncDay.invu_total, InvuSyncDay.net_total))).filter(
         InvuSyncDay.branch_id == branch.id, InvuSyncDay.business_date >= desde,
         InvuSyncDay.business_date <= hasta, InvuSyncDay.net_total.isnot(None),
     ).scalar()

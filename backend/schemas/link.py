@@ -59,8 +59,11 @@ class LinkDailySalesRow(BaseModel):
     branch_name: str
     business_date: date
     orders_count: int
-    net_total: Optional[Decimal] = None     # cerradas menos notas de crédito
+    net_total: Optional[Decimal] = None     # la venta del día según Invu (o la calculada si Invu no la dio)
+    calculated_total: Optional[Decimal] = None  # la suma nuestra: cerradas menos notas de crédito
     invu_total: Optional[Decimal] = None
+    gross_total: Optional[Decimal] = None   # antes de descuentos (subtotal de Invu)
+    discount_total: Optional[Decimal] = None
     matches: Optional[bool] = None
     items_sold: Decimal = Field(default=Decimal("0"))
     synced_at: Optional[datetime] = None    # cuándo se trajo de Invu (para "actualizado a las...")

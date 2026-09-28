@@ -193,8 +193,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Fichas
   // ==========================================================================
   function totals(rows) {
-    const t = { net: 0, orders: 0, items: 0 };
-    rows.forEach((r) => { t.net += Number(r.net_total) || 0; t.orders += r.orders_count; t.items += Number(r.items_sold) || 0; });
+    const t = { net: 0, orders: 0, items: 0, gross: 0, discount: 0 };
+    rows.forEach((r) => {
+      t.net += Number(r.net_total) || 0;   // la venta del día según el reporte de Invu
+      t.orders += r.orders_count;
+      t.items += Number(r.items_sold) || 0;
+      t.gross += Number(r.gross_total) || 0;
+      t.discount += Number(r.discount_total) || 0;
+    });
     t.ticket = t.orders ? t.net / t.orders : 0;
     return t;
   }
@@ -217,7 +223,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       : 'vs. período anterior';
     const kpis = [
       { icon: 'dollar-sign', label: 'Venta neta', value: money(t.net),
-        sub: p.net ? `${delta(t.net, p.net)} ${vs}` : (state.range === 'today' ? 'Va parcial: la comparación sale en "Ayer"' : 'Sin período anterior para comparar') },
+        sub: (p.net ? `${delta(t.net, p.net)} ${vs}` : (state.range === 'today' ? 'Va parcial: la comparación sale en "Ayer"' : 'Sin período anterior para comparar'))
+          // La misma cifra que el reporte de Invu. Hay pantallas de Invu que muestran la venta
+          // ANTES de descuentos: esa va debajo, para poder comparar contra cualquiera de las dos.
+          + (t.gross ? `<br>Antes de descuentos: ${esc(money(t.gross))}${t.discount ? ` (descuentos ${esc(money(t.discount))})` : ''}` : '') },
       { icon: 'receipt', label: 'Órdenes', value: num(t.orders), sub: p.orders ? `${delta(t.orders, p.orders)} ${vs}` : '&nbsp;' },
       { icon: 'wallet', label: 'Ticket promedio', value: money(t.ticket), sub: p.ticket ? `${delta(t.ticket, p.ticket)} ${vs}` : '&nbsp;' },
       { icon: 'utensils', label: 'Platos vendidos', value: num(t.items), sub: p.items ? `${delta(t.items, p.items)} ${vs}` : '&nbsp;' },

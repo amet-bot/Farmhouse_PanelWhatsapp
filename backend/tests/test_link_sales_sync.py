@@ -316,6 +316,18 @@ def test_ventas_por_dia_y_por_plato(client, admin_user, invu_ventas, db_session,
     assert top["code"] == "MF364" and Decimal(top["quantity"]) == Decimal("5") and top["branches"] == 2
 
 
+def test_la_venta_del_dia_es_la_que_da_invu(client, admin_user, invu_ventas, db_session, clayton_branch):
+    # Invu redondea su total aparte: si difiere un centavo de la suma orden por orden, manda Invu.
+    invu_ventas["ordenes"]["api_cly"] = _dia_con_devolucion()
+    invu_ventas["totales"]["api_cly"] = {"total": str(TOTAL_NETO + Decimal("0.01"))}
+    invu_sales_sync.sync_day(db_session, clayton_branch, invu_client.Credenciales("api_cly", "clave"), DIA)
+
+    fila = client.get("/api/link/sales/daily?date_from=2026-09-23&date_to=2026-09-23", headers=_headers(admin_user)).json()[0]
+    assert Decimal(fila["net_total"]) == TOTAL_NETO + Decimal("0.01")
+    assert Decimal(fila["calculated_total"]) == TOTAL_NETO
+    assert fila["gross_total"] is not None and fila["discount_total"] is not None
+
+
 def test_el_supervisor_de_una_sucursal_solo_ve_la_suya(client, supervisor_user, clayton_device, invu_ventas,
                                                        db_session, obarrio_branch):
     invu_ventas["ordenes"]["api_obr"] = [_orden(500, [_linea(1, "MF364", "BOWL", 3, 56.85)])]

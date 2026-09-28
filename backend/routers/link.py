@@ -244,6 +244,20 @@ def daily_sales(
         (b, d): n
         for b, d, n in ordenes_q.group_by(InvuSale.branch_id, InvuSale.business_date).all()
     }
+    # Venta antes de descuentos (el "subtotal" de Invu), con las notas de crédito restando: es la
+    # cifra "bruta" que algunas pantallas de Invu muestran en vez de la neta.
+    signo = case((InvuSale.is_credit_note == True, -1), else_=1)  # noqa: E712
+    brutos_q = db.query(
+        InvuSale.branch_id, InvuSale.business_date,
+        func.coalesce(func.sum(signo * func.coalesce(InvuSale.subtotal, 0)), 0),
+        func.coalesce(func.sum(signo * func.coalesce(InvuSale.discount, 0)), 0),
+    ).filter(InvuSale.business_date >= desde, InvuSale.business_date <= hasta)
+    if visible is not None:
+        brutos_q = brutos_q.filter(InvuSale.branch_id == visible)
+    brutos = {
+        (b, d): (Decimal(s), Decimal(x))
+        for b, d, s, x in brutos_q.group_by(InvuSale.branch_id, InvuSale.business_date).all()
+    }
 
     return [
         LinkDailySalesRow(
@@ -252,8 +266,14 @@ def daily_sales(
             branch_name=branch.name,
             business_date=dia.business_date,
             orders_count=ordenes.get((branch.id, dia.business_date), 0),
-            net_total=dia.net_total,
+            # La venta del día es la que da Invu en su reporte (totalporfecha), no la suma
+            # nuestra orden por orden: se pidió que sea exactamente la de Invu, y la suma propia
+            # podía diferir en centavos de redondeo. La nuestra queda como respaldo y control.
+            net_total=(dia.invu_total if dia.invu_total is not None else dia.net_total),
+            calculated_total=dia.net_total,
             invu_total=dia.invu_total,
+            gross_total=brutos.get((branch.id, dia.business_date), (None, None))[0],
+            discount_total=brutos.get((branch.id, dia.business_date), (None, None))[1],
             matches=dia.matches,
             items_sold=platos.get((branch.id, dia.business_date), Decimal("0")),
             synced_at=dia.synced_at,
