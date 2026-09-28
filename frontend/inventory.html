@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.12.0">
-  <link rel="stylesheet" href="css/inventory.css?v=4.17.0">
+  <link rel="stylesheet" href="css/inventory.css?v=4.18.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -509,6 +509,28 @@
   <input type="file" id="wasteCameraInput" accept="image/*" capture="environment" hidden>
 
   <!-- Cámara en computadora (sin `capture`, que ahí se ignora): la webcam en vivo. -->
+  <!-- ================= Modal: cargamento registrado =================
+       Al guardar un cargamento: precio contra la compra anterior, otra sucursal e Invu; la
+       existencia y para cuántos días alcanza; el gasto de la semana y con el proveedor. -->
+  <div class="modal-backdrop" id="modalShipmentResult">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div class="inv-modal-title">
+          <span class="inv-card-icon"><i data-lucide="truck"></i></span>
+          <div>
+            <h3 id="shipmentResultTitle">Cargamento registrado</h3>
+            <span class="modal-subtitle" id="shipmentResultSubtitle"></span>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="modalShipmentResult" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body" id="shipmentResultBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn-primary" data-close-modal="modalShipmentResult">Listo</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= Modal: merma registrada =================
        Al guardar una merma: cuánto va de ese insumo en la semana y el mes, si se repite, en qué
        puesto está y qué hacer, en vez de solo "Merma registrada". -->
@@ -943,7 +965,7 @@
       </div>
       <div class="inv-line-cell">
         <span class="inv-line-label">Costo unit.</span>
-        <input type="number" class="modal-input inv-line-cost" placeholder="Opcional" min="0" step="0.01">
+        <input type="number" class="modal-input inv-line-cost" placeholder="Opcional" min="0" step="any" inputmode="decimal">
       </div>
       <div class="inv-line-cell inv-line-subtotal-cell">
         <span class="inv-line-label">Subtotal</span>
@@ -1027,6 +1049,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.17.0"></script>
+  <script src="js/modules/inventory.js?v=4.18.0"></script>
 </body>
 </html>

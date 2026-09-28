@@ -3139,3 +3139,5 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
   font-size: 13px;
   line-height: 1.4;
 }
+
+.inv-si-qty { font-size: 12.5px; font-weight: 500; color: var(--inv-text-muted); margin-left: 4px; }

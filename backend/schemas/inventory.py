@@ -93,8 +93,46 @@ class ShipmentResponse(BaseModel):
     created_at: datetime
     items: List[ShipmentItemResponse]
     total_cost: Optional[Decimal] = None
+    # Solo en la respuesta de crear: el contexto del cargamento (ver GET /shipments/{id}/insights).
+    insights: Optional["ShipmentInsights"] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ShipmentInsightItem(BaseModel):
+    """Un insumo del cargamento, comparado con compras anteriores y con lo que hay."""
+    inventory_item_id: int
+    name: str
+    unit: str
+    quantity: Decimal
+    unit_cost: Optional[Decimal] = None
+    # La compra anterior de este insumo en esta sucursal (con costo).
+    prev_unit_cost: Optional[Decimal] = None
+    prev_received_at: Optional[datetime] = None
+    prev_supplier: Optional[str] = None
+    change_pct: Optional[Decimal] = None        # (este − anterior) / anterior × 100
+    # La compra más barata reciente en OTRA sucursal (últimos 90 días, la última de cada una).
+    best_other_cost: Optional[Decimal] = None
+    best_other_branch: Optional[str] = None
+    best_other_supplier: Optional[str] = None
+    best_other_received_at: Optional[datetime] = None
+    reference_cost: Optional[Decimal] = None    # el costo de Invu (el que usan sus recetas)
+    stock_now: Decimal = Decimal("0")           # existencia de hoy en la sucursal
+    used_per_day: Optional[Decimal] = None      # uso por día en platos vendidos (14 días, recetas)
+    days_left: Optional[Decimal] = None         # para cuántos días alcanza a ese ritmo
+
+
+class ShipmentInsights(BaseModel):
+    shipment_id: int
+    branch_id: int
+    branch_name: str
+    supplier_name: Optional[str] = None
+    total_cost: Optional[Decimal] = None
+    branch_week_spend: Decimal                  # compras de la sucursal, últimos 7 días
+    branch_prev_week_spend: Decimal
+    supplier_month_spend: Optional[Decimal] = None   # a este proveedor, últimos 30 días
+    items_without_cost: int = 0
+    items: List[ShipmentInsightItem]
 
 
 # ==========================================================================
@@ -486,6 +524,7 @@ class StockCountAnalysis(BaseModel):
 
 StockCountResponse.model_rebuild()   # `analysis` se declara antes que StockCountAnalysis
 WasteResponse.model_rebuild()        # `insights` se declara antes que WasteInsights
+ShipmentResponse.model_rebuild()     # `insights` se declara antes que ShipmentInsights
 
 
 # ==========================================================================

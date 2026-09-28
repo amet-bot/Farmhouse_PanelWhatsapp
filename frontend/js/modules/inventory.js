@@ -1025,6 +1025,125 @@ document.addEventListener('DOMContentLoaded', async () => {
     utils.renderIcons();
   }
 
+  // ---- Contexto de un cargamento ----
+  // Al guardar (y en el detalle): el precio contra la compra anterior, otra sucursal e Invu; la
+  // existencia y para cuántos días alcanza; el gasto. Sale de GET /shipments/{id}/insights.
+  const shipmentInsightsCache = new Map();
+
+  const fechaServidor = (s) => (s ? utils._parseServerDate(s)?.toLocaleDateString('es-PA', { day: 'numeric', month: 'short' }) : '');
+
+  /** $ por kg o por litro de un costo por unidad del insumo; null si el insumo va por pieza. */
+  function costoPorMil(costo, unit) {
+    const fam = unitFamily(unit);
+    if (fam.fam === 'unidad' || costo == null) return null;
+    return (Number(costo) / fam.base) * 1000;
+  }
+
+  function shipmentInsightItemHtml(it) {
+    const u = unitShort(it.unit);
+    const frases = [];
+    const costo = it.unit_cost != null ? Number(it.unit_cost) : null;
+
+    if (costo == null) {
+      frases.push('<span class="inv-line-warn">Sin costo: cargalo en el próximo cargamento para que la merma y el conteo usen el precio real.</span>');
+    } else if (it.change_pct != null) {
+      const pct = Number(it.change_pct);
+      const cuando = `la compra del ${esc(fechaServidor(it.prev_received_at))}${it.prev_supplier ? ` (${esc(it.prev_supplier)})` : ''}`;
+      if (Math.abs(pct) < 3) {
+        frases.push(`Mismo precio que ${cuando}.`);
+      } else {
+        frases.push(`${pct > 0 ? 'Subió' : 'Bajó'} <strong>${Math.abs(pct).toLocaleString('es-PA', { maximumFractionDigits: 1 })}%</strong> desde ${cuando}: de ${esc(unitCost(it.prev_unit_cost))} a ${esc(unitCost(costo))} por ${esc(u)}.`);
+      }
+    } else {
+      frases.push('Primera compra con precio en esta sucursal: desde la próxima se compara.');
+    }
+
+    if (costo != null && it.best_other_cost != null) {
+      const otro = Number(it.best_other_cost);
+      if (otro < costo * 0.97) {
+        frases.push(`<strong>${esc(it.best_other_branch)}</strong> lo compró más barato: ${esc(unitCost(otro))} por ${esc(u)}${it.best_other_supplier ? ` a ${esc(it.best_other_supplier)}` : ''} (${esc(fechaServidor(it.best_other_received_at))}).`);
+      } else {
+        frases.push('Es el mejor precio entre las sucursales.');
+      }
+    }
+
+    // Un costo cargado "por paquete" en un insumo que va en gramos da miles de dólares el kilo.
+    const porMil = costoPorMil(costo, it.unit);
+    if (porMil != null && porMil > 100) {
+      frases.push(`<span class="inv-line-warn">Ojo: ${esc(money(porMil))} el ${unitFamily(it.unit).fam === 'volumen' ? 'litro' : 'kilo'}. ¿Se cargó el precio del paquete? El costo va por ${esc(u)}.</span>`);
+    } else if (costo != null && it.reference_cost != null && hasPerm('inventory.adjust')) {
+      const ref = Number(it.reference_cost);
+      if (ref > 0 && Math.abs((costo - ref) / ref) > 0.15) {
+        frases.push(`En Invu figura a ${esc(unitCost(ref))}: conviene actualizarlo, las recetas de Invu calculan con ese costo.`);
+      }
+    }
+
+    const stock = Number(it.stock_now);
+    if (stock < 0) {
+      frases.push('La existencia da negativa: falta el conteo de arranque de la sucursal.');
+    } else {
+      const dias = it.days_left != null ? Number(it.days_left) : null;
+      frases.push(`Quedan <strong>${esc(qty(stock))} ${esc(u)}</strong> en existencia${dias != null ? `: alcanza para <strong>~${dias.toLocaleString('es-PA', { maximumFractionDigits: 0 })} días</strong> al ritmo de venta` : ''}.`);
+    }
+
+    const subtotal = costo != null ? money(Number(it.quantity) * costo) : null;
+    return `
+      <div class="inv-ca-line">
+        <div class="inv-ca-line-head">
+          <strong>${esc(it.name)} <small class="inv-si-qty">${esc(qty(it.quantity))} ${esc(u)}</small></strong>
+          ${subtotal ? `<span class="inv-ca-chip inv-ca-chip-ok">${esc(subtotal)}</span>` : ''}
+        </div>
+        <ul class="inv-wi-list">${frases.map((f) => `<li>${f}</li>`).join('')}</ul>
+      </div>`;
+  }
+
+  function shipmentInsightsHtml(ins) {
+    const semana = `En ${esc(ins.branch_name)} van <strong>${esc(money(ins.branch_week_spend))}</strong> en compras en los últimos 7 días${trendTxt(ins.branch_week_spend, ins.branch_prev_week_spend)}.`;
+    const prov = ins.supplier_name && ins.supplier_month_spend != null
+      ? ` A ${esc(ins.supplier_name)}, ${esc(money(ins.supplier_month_spend))} en los últimos 30 días.`
+      : '';
+    const sinCosto = ins.items_without_cost
+      ? `<p class="inv-wi-warn">${pluralize(ins.items_without_cost, 'insumo quedó', 'insumos quedaron')} sin costo: sin el precio, la merma y el conteo de ${ins.items_without_cost === 1 ? 'ese insumo' : 'esos insumos'} se valúan con el de Invu.</p>`
+      : '';
+    return `
+      ${sinCosto}
+      ${ins.items.map(shipmentInsightItemHtml).join('')}
+      <p class="inv-wi-branch">${semana}${prov}</p>`;
+  }
+
+  async function shipmentInsightsFor(id) {
+    if (shipmentInsightsCache.has(id)) return shipmentInsightsCache.get(id);
+    const ins = await api.get(`/inventory/shipments/${id}/insights`);
+    shipmentInsightsCache.set(id, ins);
+    return ins;
+  }
+
+  function showShipmentResult(cargamento) {
+    shipmentInsightsCache.clear();   // un cargamento nuevo cambia el contexto de los demás
+    if (cargamento.insights) shipmentInsightsCache.set(cargamento.id, cargamento.insights);
+    $('shipmentResultTitle').textContent = `Cargamento #${cargamento.id} registrado`;
+    $('shipmentResultSubtitle').textContent = [
+      cargamento.branch_name,
+      cargamento.supplier_name || 'Sin proveedor',
+      cargamento.total_cost != null ? money(cargamento.total_cost) : null,
+    ].filter(Boolean).join(' · ');
+    $('shipmentResultBody').innerHTML = cargamento.insights ? shipmentInsightsHtml(cargamento.insights) : '';
+    openModal('modalShipmentResult');
+  }
+
+  /** Debajo del costo de cada línea: en qué unidad va y el aviso si parece el precio de un paquete. */
+  function updateShipmentCostHint(row) {
+    const unitLabel = row.querySelector('.inv-line-unit');
+    const unit = row.querySelector('.inv-item-input').dataset.unit;
+    if (!unit) return;
+    const u = unitShort(unit);
+    const costo = row.querySelector('.inv-line-cost').value;
+    const porMil = costoPorMil(costo !== '' ? Number(costo) : null, unit);
+    unitLabel.innerHTML = porMil != null && porMil > 100
+      ? `<span class="inv-line-warn">Ojo: da ${esc(money(porMil))} el ${unitFamily(unit).fam === 'volumen' ? 'litro' : 'kilo'}. El costo va por ${esc(u)}, no por paquete.</span>`
+      : `Se cuenta en ${esc(unit)} · el costo va por ${esc(u)}`;
+  }
+
   function renderShipmentDetail() {
     const detail = $('shipmentDetail');
     const s = state.shipments.find((x) => x.id === state.selected.shipment);
@@ -1040,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <tr>
           <td class="inv-td-name" data-label="Insumo">${esc(l.item_name)}</td>
           <td class="num" data-label="Cantidad">${esc(qty(l.quantity))} ${esc(l.unit)}</td>
-          <td class="num" data-label="Costo unit.">${l.unit_cost != null ? money(l.unit_cost) : '—'}</td>
+          <td class="num" data-label="Costo unit.">${l.unit_cost != null ? unitCost(l.unit_cost) : '—'}</td>
           <td class="num" data-label="Subtotal">${subtotal}</td>
         </tr>`;
     }).join('');
@@ -1074,6 +1193,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         <tbody>${rowsHtml}</tbody>
         ${footHtml}
       </table>
+      <div class="inv-detail-section-header"><span>En contexto</span></div>
+      <div id="shipmentInsightsBox"><div class="inv-ca-loading">Calculando…</div></div>
       <div class="inv-detail-section-header"><span>Detalles</span></div>
       <div class="inv-detail-rows">
         <div><span>Sucursal</span><strong>${esc(s.branch_name)}</strong></div>
@@ -1082,6 +1203,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><span>Cargado al sistema</span><strong>${esc(utils.formatDateTime(s.created_at))}</strong></div>
       </div>`;
     utils.renderIcons();
+    shipmentInsightsFor(s.id)
+      .then((ins) => {
+        const box = $('shipmentInsightsBox');
+        if (!box || state.selected.shipment !== s.id) return;
+        box.innerHTML = shipmentInsightsHtml(ins);
+        utils.renderIcons();
+      })
+      .catch(() => {
+        const box = $('shipmentInsightsBox');
+        if (box) box.innerHTML = '<p class="inv-ca-foot">No se pudo calcular el contexto.</p>';
+      });
   }
 
   $('shipmentSearch')?.addEventListener('input', (e) => {
@@ -1197,7 +1329,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><span>Recibido</span><strong>${esc(qty(stats.quantity))} <small>${esc(item.unit)}</small></strong></div>
         <div><span>Gasto acumulado</span><strong>${stats.spend > 0 ? money(stats.spend) : '—'}</strong></div>
         <div><span>Veces recibido</span><strong>${stats.shipments}</strong></div>
-        <div><span>Costo promedio</span><strong>${avgCost != null ? money(avgCost) : '—'} <small>por ${esc(item.unit)}</small></strong></div>
+        <div><span>Costo promedio</span><strong>${avgCost != null ? unitCost(avgCost) : '—'} <small>por ${esc(item.unit)}</small></strong></div>
       </div>
       ${suppliers.length ? `
         <div class="inv-detail-section-header"><span>Quién lo trae</span></div>
@@ -1498,6 +1630,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.selectedSupplierId = '';
     $('notesInput').value = '';
     $('receivedAtInput').value = toLocalInputValue(new Date());
+    shipmentCostConfirmed = '';
     linesContainer.innerHTML = '';
     createLineRow();
     updateShipmentTotal();
@@ -1545,7 +1678,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     function selectItem(item) {
       itemInput.value = item.name;
       itemInput.dataset.itemId = String(item.id);
+      itemInput.dataset.unit = item.unit || '';
       unitLabel.textContent = item.unit ? `Se cuenta en ${item.unit}` : '';
+      updateShipmentCostHint(row);
       // El costo de Invu como sugerencia, no como valor: si no se escribe nada, el cargamento
       // queda sin costo (como siempre) en vez de guardar uno que nadie confirmó.
       if (!('defaultPlaceholder' in costInput.dataset)) costInput.dataset.defaultPlaceholder = costInput.placeholder;
@@ -1603,7 +1738,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     qtyInput.addEventListener('input', updateShipmentTotal);
-    costInput.addEventListener('input', updateShipmentTotal);
+    costInput.addEventListener('input', () => { updateShipmentTotal(); updateShipmentCostHint(row); });
 
     removeBtn.addEventListener('click', () => {
       if (linesContainer.children.length > 1) {
@@ -1691,6 +1826,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ---- Envío ----
+  let shipmentCostConfirmed = '';   // costos raros ya confirmados con un segundo toque
   $('btnSubmitShipment')?.addEventListener('click', async () => {
     const errorBox = $('shipmentError');
     errorBox.style.display = 'none';
@@ -1717,6 +1853,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (!items.length) { showModalError('shipmentError', 'Agregá al menos un insumo.'); return; }
 
+    const sospechosos = rows.map((row) => {
+      const unit = row.querySelector('.inv-item-input').dataset.unit;
+      const costo = row.querySelector('.inv-line-cost').value;
+      const porMil = costoPorMil(costo !== '' ? Number(costo) : null, unit);
+      return porMil != null && porMil > 100
+        ? `${row.querySelector('.inv-item-input').value} (${money(porMil)} el ${unitFamily(unit).fam === 'volumen' ? 'litro' : 'kilo'})`
+        : null;
+    }).filter(Boolean);
+    const firma = sospechosos.join('|');
+    if (sospechosos.length && shipmentCostConfirmed !== firma) {
+      shipmentCostConfirmed = firma;
+      showModalError('shipmentError', `Revisá el costo de ${sospechosos.join(', ')}: parece el precio del paquete y va por unidad del insumo (g, ml). Si está bien, tocá "Registrar cargamento" otra vez.`);
+      return;
+    }
+
     if (supplierInput.value.trim() && !state.selectedSupplierId) {
       showModalError('shipmentError', 'Elegí un proveedor de la lista (o creá uno nuevo), o dejá el campo vacío.');
       return;
@@ -1736,7 +1887,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.disabled = true;
     btn.textContent = 'Registrando...';
     try {
-      await api.post('/inventory/shipments', {
+      const creado = await api.post('/inventory/shipments', {
         branch_id: branchId,
         received_at: receivedAt,
         supplier_id: state.selectedSupplierId ? Number(state.selectedSupplierId) : null,
@@ -1744,7 +1895,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         items,
       });
       closeModal('modalShipment');
-      utils.showToast('Cargamento registrado.', 'success');
+      showShipmentResult(creado);
       state.selected.shipment = null;
       // loadStock también: Existencias quedaba mostrando lo de antes del cargamento hasta
       // recargar la página (merma y conteo ya la refrescaban).
@@ -1911,6 +2062,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!b) return '';
     const pct = Math.round(((a - b) / b) * 100);
     if (Math.abs(pct) < 5) return ', parecido a la semana anterior';
+    if (pct > 300) return `, <strong>mucho más</strong> que la semana anterior (${esc(money(b))})`;
     return pct > 0 ? `, <strong>${pct}% más</strong> que la semana anterior (${esc(money(b))})` : `, ${Math.abs(pct)}% menos que la semana anterior`;
   }
 

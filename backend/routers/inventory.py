@@ -23,7 +23,7 @@ from schemas.inventory import (
     InventoryItemCreate, InventoryItemPieceSize, InventoryItemResponse,
     InvuStatusResponse, InvuSyncResult,
     SupplierCreate, SupplierResponse,
-    ShipmentCreate, ShipmentResponse, ShipmentItemResponse,
+    ShipmentCreate, ShipmentResponse, ShipmentItemResponse, ShipmentInsightItem, ShipmentInsights,
     StockCountCreate, StockCountItemResponse, StockCountResponse,
     StockCountAnalysis, StockCountAnalysisLine, StockCountAnalysisTotals,
     StockRowResponse, WasteCreate, WasteItemResponse, WastePhotoResponse, WasteReasonResponse, WasteResponse,
@@ -277,7 +277,119 @@ def create_shipment(
     db.commit()
     db.refresh(shipment)
     logger.info(f"Cargamento #{shipment.id} registrado en sucursal {shipment.branch_id} por {current_user.name}")
-    return _serialize_shipment(shipment)
+    respuesta = _serialize_shipment(shipment)
+    respuesta.insights = _shipment_insights(db, shipment)
+    return respuesta
+
+
+def _shipment_insights(db: Session, shipment: Shipment) -> ShipmentInsights:
+    """
+    Pone el cargamento en contexto. Por insumo: el precio contra la compra anterior en esta
+    sucursal, contra lo más barato que pagó otra sucursal hace poco y contra el costo de Invu; la
+    existencia de hoy y, con recetas, para cuántos días alcanza. Y el gasto: la semana de la
+    sucursal contra la anterior y el mes con este proveedor. Como en la merma, "hoy" es el día en
+    que se recibió.
+    """
+    tz = invu_sales_sync.PANAMA_TZ
+    recibido = shipment.received_at if shipment.received_at.tzinfo else shipment.received_at.replace(tzinfo=timezone.utc)
+    dia = recibido.astimezone(tz).date()
+    semana = _dias_utc(dia - timedelta(days=6), dia)
+    previa = _dias_utc(dia - timedelta(days=13), dia - timedelta(days=7))
+    mes = _dias_utc(dia - timedelta(days=29), dia)
+    noventa = _dias_utc(dia - timedelta(days=89), dia)
+    recibido_utc = recibido.astimezone(timezone.utc).replace(tzinfo=None)
+
+    def gasto(rango, *extra):
+        valor = db.query(func.coalesce(func.sum(ShipmentItem.quantity * ShipmentItem.unit_cost), 0)).join(
+            Shipment, Shipment.id == ShipmentItem.shipment_id
+        ).filter(
+            Shipment.branch_id == shipment.branch_id,
+            Shipment.received_at >= rango[0], Shipment.received_at < rango[1],
+            ShipmentItem.unit_cost.isnot(None), *extra,
+        ).scalar()
+        return Decimal(valor or 0).quantize(Decimal("0.01"))
+
+    item_ids = [l.inventory_item_id for l in shipment.items]
+    existencias = _on_hand_map(db, shipment.branch_id, item_ids)
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    uso14 = _uso_por_ventas(db, shipment.branch_id, ahora - timedelta(days=14), ahora)
+    con_receta = _insumos_con_receta(db, shipment.branch_id)
+
+    items: List[ShipmentInsightItem] = []
+    sin_costo = 0
+    for line in shipment.items:
+        item = line.inventory_item
+        costo = Decimal(line.unit_cost) if line.unit_cost is not None else None
+        if costo is None:
+            sin_costo += 1
+
+        anterior = db.query(ShipmentItem, Shipment).join(Shipment, Shipment.id == ShipmentItem.shipment_id).filter(
+            Shipment.branch_id == shipment.branch_id,
+            ShipmentItem.inventory_item_id == item.id,
+            ShipmentItem.unit_cost.isnot(None),
+            Shipment.id != shipment.id,
+            Shipment.received_at <= recibido_utc,
+        ).order_by(Shipment.received_at.desc(), Shipment.id.desc()).first()
+        prev_costo = Decimal(anterior[0].unit_cost) if anterior else None
+        cambio = ((costo - prev_costo) / prev_costo * 100).quantize(Decimal("0.1")) if (costo and prev_costo) else None
+
+        # Lo último que pagó cada otra sucursal en 90 días; se queda con lo más barato.
+        otras = db.query(ShipmentItem, Shipment).join(Shipment, Shipment.id == ShipmentItem.shipment_id).filter(
+            Shipment.branch_id != shipment.branch_id,
+            ShipmentItem.inventory_item_id == item.id,
+            ShipmentItem.unit_cost.isnot(None),
+            Shipment.received_at >= noventa[0], Shipment.received_at < noventa[1],
+        ).order_by(Shipment.received_at.desc(), Shipment.id.desc()).all()
+        ultima_por_sucursal: dict = {}
+        for si, sh in otras:
+            ultima_por_sucursal.setdefault(sh.branch_id, (si, sh))
+        mejor = min(ultima_por_sucursal.values(), key=lambda par: Decimal(par[0].unit_cost), default=None)
+
+        stock = Decimal(existencias.get(item.id, Decimal("0")))
+        por_dia = (uso14.get(item.id, Decimal("0")) / 14) if item.id in con_receta else None
+        items.append(ShipmentInsightItem(
+            inventory_item_id=item.id, name=item.name, unit=item.unit,
+            quantity=line.quantity, unit_cost=line.unit_cost,
+            prev_unit_cost=prev_costo,
+            prev_received_at=(anterior[1].received_at if anterior else None),
+            prev_supplier=(anterior[1].supplier.name if anterior and anterior[1].supplier else None),
+            change_pct=cambio,
+            best_other_cost=(Decimal(mejor[0].unit_cost) if mejor else None),
+            best_other_branch=(mejor[1].branch.name if mejor else None),
+            best_other_supplier=(mejor[1].supplier.name if mejor and mejor[1].supplier else None),
+            best_other_received_at=(mejor[1].received_at if mejor else None),
+            reference_cost=item.reference_cost,
+            stock_now=stock.quantize(Decimal("0.001")),
+            used_per_day=(por_dia.quantize(Decimal("0.001")) if por_dia is not None else None),
+            days_left=((stock / por_dia).quantize(Decimal("0.1")) if por_dia and por_dia > 0 and stock > 0 else None),
+        ))
+
+    total = None
+    if any(l.unit_cost is not None for l in shipment.items):
+        total = sum((Decimal(l.quantity) * Decimal(l.unit_cost) for l in shipment.items if l.unit_cost is not None), Decimal("0")).quantize(Decimal("0.01"))
+    return ShipmentInsights(
+        shipment_id=shipment.id, branch_id=shipment.branch_id, branch_name=shipment.branch.name,
+        supplier_name=(shipment.supplier.name if shipment.supplier else None),
+        total_cost=total,
+        branch_week_spend=gasto(semana), branch_prev_week_spend=gasto(previa),
+        supplier_month_spend=(gasto(mes, Shipment.supplier_id == shipment.supplier_id) if shipment.supplier_id else None),
+        items_without_cost=sin_costo, items=items,
+    )
+
+
+@router.get("/shipments/{shipment_id}/insights", response_model=ShipmentInsights)
+def shipment_insights(
+    shipment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+    if not shipment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cargamento no encontrado.")
+    efectiva = _visible_branch_filter(current_user, shipment.branch_id)
+    if efectiva is not None and efectiva != shipment.branch_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a los cargamentos de otra sucursal.")
+    return _shipment_insights(db, shipment)
 
 
 @router.get("/shipments", response_model=List[ShipmentResponse])
