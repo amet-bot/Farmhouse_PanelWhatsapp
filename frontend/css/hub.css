@@ -972,6 +972,26 @@ body {
 
 .hub-m-sub { margin: 0; font-size: 14px; line-height: 1.45; color: var(--fh-muted); }
 
+/* El mismo paisaje de granja del inicio de escritorio, a lo ancho debajo del saludo. */
+.hub-m-hero-art { margin: 10px -4px -6px; pointer-events: none; }
+.hub-m-hero-art svg { display: block; width: 100%; height: auto; }
+/* Paisaje (escritorio y celular): verde de base, con acentos de granja: sol, techo terracota,
+   madera, surcos dorados. */
+:is(.hub-hero-art, .hub-m-hero-art) .art-sun { fill: #f2c14e; opacity: .95; }
+:is(.hub-hero-art, .hub-m-hero-art) .art-roof { fill: #c8553d; }
+:is(.hub-hero-art, .hub-m-hero-art) .art-wall { fill: #f7eedc; stroke: #d8c19a; }
+:is(.hub-hero-art, .hub-m-hero-art) .art-door { fill: #9a6b43; }
+:is(.hub-hero-art, .hub-m-hero-art) .art-field path { stroke: #e3c07a; opacity: 1; }
+:is(.hub-hero-art, .hub-m-hero-art) .art-trees ellipse:nth-of-type(1) { fill: #e0a24a; }
+:is(.hub-hero-art, .hub-m-hero-art) .art-trees ellipse:nth-of-type(4) { fill: #c9703f; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-sun { fill: #e0ac3e; opacity: .85; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-roof { fill: #b24a35; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-wall { fill: #e8dcc4; stroke: #a8916a; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-door { fill: #7a5234; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-field path { stroke: #a78a4c; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-trees ellipse:nth-of-type(1) { fill: #c08a3c; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-trees ellipse:nth-of-type(4) { fill: #a85d35; }
+
 .hub-m-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
 .hub-m-card {
@@ -996,6 +1016,35 @@ body {
 .hub-m-card-arrow { width: 26px; height: 26px; border: 0; }
 .hub-m-card strong { font-size: 16px; font-weight: 700; }
 .hub-m-card small { font-size: 12.5px; line-height: 1.35; color: var(--fh-muted); }
+
+/* Cajas de módulos del inicio (celular y escritorio): fondo verde muy suave y el ícono en un
+   verde más calmo. */
+:is(.hub-m-card, .hub-module-card) { background: #f2f9f5; border-color: #dcece3; }
+:is(.hub-m-card, .hub-module-card) .hub-module-icon { background: #e0f1e8; color: #3d8c67; }
+[data-theme="dark"] :is(.hub-m-card, .hub-module-card) { background: #1c342c; border-color: rgba(163, 217, 189, .20); }
+[data-theme="dark"] :is(.hub-m-card, .hub-module-card) .hub-module-icon { background: rgba(163, 217, 189, .16); color: #a8dcc0; }
+[data-theme="dark"] .hub-module-card:hover { border-color: rgba(163, 217, 189, .34); }
+
+/* Íconos con textura: el dibujo a dos tonos (relleno suave dentro de la línea) y el cuadrito con
+   un degradado y una trama fina de puntos, en vez de un color plano. */
+:is(.hub-m-card, .hub-module-card) .hub-module-icon {
+  background-image:
+    radial-gradient(rgba(61, 140, 103, .16) 1px, transparent 1.2px),
+    linear-gradient(145deg, #eaf6ef 0%, #d3eadd 100%);
+  background-size: 5px 5px, 100% 100%;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 -1px 0 rgba(61, 140, 103, .12);
+}
+[data-theme="dark"] :is(.hub-m-card, .hub-module-card) .hub-module-icon {
+  background-image:
+    radial-gradient(rgba(168, 220, 192, .14) 1px, transparent 1.2px),
+    linear-gradient(145deg, rgba(168, 220, 192, .22) 0%, rgba(168, 220, 192, .08) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 -1px 0 rgba(0, 0, 0, .25);
+}
+:is(.hub-m-card, .hub-module-card) .hub-module-icon svg :is(path, rect, circle, ellipse, polygon) {
+  fill: currentColor;
+  fill-opacity: .18;
+}
+
 
 .hub-pending { scroll-margin-top: 80px; }
 

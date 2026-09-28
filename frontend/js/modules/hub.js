@@ -152,6 +152,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   $('hubHeroArt').innerHTML = C.heroArt();
+  $('hubMobileHeroArt').innerHTML = C.heroArt();
   $('hubSidebarArt').innerHTML = C.leafArt();
 
   // ---- Ocultar / mostrar la barra lateral ----

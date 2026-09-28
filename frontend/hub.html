@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.12.0">
-  <link rel="stylesheet" href="css/hub.css?v=4.5.1">
+  <link rel="stylesheet" href="css/hub.css?v=4.6.5">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -204,6 +204,7 @@
             <p class="hub-m-greeting" id="hubGreeting">Hola</p>
             <h1>¿Qué quieres hacer?</h1>
             <p class="hub-m-sub">Accedé rápidamente a los principales módulos del sistema.</p>
+            <div class="hub-m-hero-art" id="hubMobileHeroArt" aria-hidden="true"></div>
           </div>
 
           <div class="hub-m-grid" id="hubMobileGrid"><!-- hub.js --></div>
@@ -269,6 +270,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/modules/hub_components.js?v=4.4.3"></script>
-  <script src="js/modules/hub.js?v=4.5.0"></script>
+  <script src="js/modules/hub.js?v=4.6.0"></script>
 </body>
 </html>
