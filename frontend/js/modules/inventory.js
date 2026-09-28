@@ -2949,7 +2949,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         `${pluralize(negativos.length, 'insumo da', 'insumos dan')} negativo. No es que falte mercadería: ` +
         (sinEntradas
           ? `se registró merma${sinEntradas === negativos.length ? '' : ' en varios'}, pero nunca lo que entró (no hay cargamentos), así que el sistema resta de cero. `
-          : 'salió más de lo que el sistema tiene registrado como entrada. ') +
+          : (negativos.some((r) => Number(r.sold_since_count))
+              ? 'se vendió más de lo que el sistema tiene registrado desde el último conteo: falta registrar algún cargamento, o la receta de Invu pide más de lo que se usa. '
+              : 'salió más de lo que el sistema tiene registrado como entrada. ')) +
         'Se arregla registrando los cargamentos que llegan, o con un conteo de lo que hay hoy: el conteo fija el punto de partida.';
     } else {
       note.hidden = true;
@@ -2967,6 +2969,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // La columna de traslados solo aparece cuando hubo alguno: la mayoría de las sucursales
     // todavía no los usa y una columna llena de "—" solo le quita lugar al resto en celular.
     const hayTraslados = rows.some((r) => Number(r.transferred));
+    // Lo vendido desde el último conteo (ventas de Invu × recetas): solo si algún insumo lo tiene.
+    const hayVendido = rows.some((r) => Number(r.sold_since_count));
     // Cada número con su unidad al lado: un "692" solo no dice si son gramos, kilos o unidades.
     const cant = (n, unit, conSigno = false) =>
       `${esc(conSigno ? signedQty(n) : qty(n))} <small>${esc(unitShort(unit))}</small>`;
@@ -2979,7 +2983,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             <th class="num" title="Lo que se registró como merma">Salió<small>por merma</small></th>
             <th class="num" title="Lo que corrigió el último conteo: + sobraba, − faltaba">Ajuste<small>por conteo</small></th>
             ${hayTraslados ? '<th class="num" title="Recibido de otras sucursales menos lo enviado">Traslados<small>entre sucursales</small></th>' : ''}
-            <th class="num" title="Entró − salió ± ajuste ± traslados">Queda<small>hoy</small></th>
+            ${hayVendido ? '<th class="num" title="Lo que se usó en los platos vendidos desde el último conteo, según las recetas de Invu">Vendido<small>desde el conteo</small></th>' : ''}
+            <th class="num" title="Entró − salió ± ajuste ± traslados − vendido">Queda<small>hoy</small></th>
             <th class="num" title="Lo que costó lo que salió por merma">Pérdida<small>en $</small></th>
           </tr>
         </thead>
@@ -2997,6 +3002,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td class="num" data-label="Salió por merma">${Number(r.wasted) ? cant(r.wasted, r.unit) : '—'}</td>
                 <td class="num" data-label="Ajuste por conteo" title="${r.last_counted_at ? `Último conteo: ${esc(utils.formatDateTime(r.last_counted_at))}` : 'Nunca se contó'}">${Number(r.adjusted) ? cant(r.adjusted, r.unit, true) : '—'}</td>
                 ${hayTraslados ? `<td class="num" data-label="Traslados">${Number(r.transferred) ? cant(r.transferred, r.unit, true) : '—'}</td>` : ''}
+                ${hayVendido ? `<td class="num" data-label="Vendido desde el conteo">${Number(r.sold_since_count) ? `−${cant(r.sold_since_count, r.unit)}` : '—'}</td>` : ''}
                 <td class="num inv-stock-onhand" data-label="Queda hoy"><span class="inv-stock-pill${clase}">${cant(r.on_hand, r.unit)}</span></td>
                 <td class="num" data-label="Pérdida en $">${r.wasted_cost != null
                   ? `${money(r.wasted_cost)}${r.wasted_cost_estimated ? ' <small title="Valuado con el costo de referencia de Invu: todavía no hay cargamento con costo">≈</small>' : ''}`
@@ -4038,6 +4044,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const COUNT_STATUS = {
     falta: { label: 'Faltó', cls: 'short', icon: 'trending-down' },
     sin_receta: { label: 'Faltó · sin receta', cls: 'norecipe', icon: 'help-circle' },
+    sin_conversion: { label: 'No se pudo calcular', cls: 'norecipe', icon: 'help-circle' },
     sobra: { label: 'Sobró', cls: 'over', icon: 'trending-up' },
     cuadra: { label: 'Cuadra', cls: 'ok', icon: 'check' },
     arranque: { label: 'Punto de partida', cls: 'base', icon: 'flag' },
@@ -4094,10 +4101,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (t.no_recipe) {
         hallazgos.push(`En ${pluralize(t.no_recipe, 'insumo', 'insumos')} faltó más de lo esperado, pero no ${t.no_recipe === 1 ? 'está' : 'están'} en ninguna receta de Invu: puede ser lo que se usó. Si se les carga la receta en Invu, el conteo lo descuenta solo.`);
       }
+      if (t.no_conversion) {
+        hallazgos.push(`En ${pluralize(t.no_conversion, 'insumo', 'insumos')} no se pudo calcular cuánto se usó: la receta de Invu lo pide en otra unidad (por ejemplo gramos) y el insumo se cuenta por pieza. Anotá cuánto pesa una pieza (al registrar una merma, o en el insumo) y el conteo lo descuenta solo.`);
+      }
       if (t.surplus) {
         hallazgos.push(`${t.surplus === 1 ? 'Sobró 1 insumo' : `Sobraron ${t.surplus} insumos`}: casi siempre es una compra que no se registró en Cargamentos.`);
       }
-      if (!t.missing && !t.no_recipe && !t.surplus && t.ok) {
+      if (!t.missing && !t.no_recipe && !t.no_conversion && !t.surplus && t.ok) {
         hallazgos.push('<strong>Todo cuadró</strong> con lo que tenía que haber.');
       }
       if (t.baseline) {
@@ -4118,7 +4128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="inv-ca-tile inv-ca-tile-ok"><span>Cuadró</span><strong>${t.ok}</strong><small>de ${t.items - t.baseline} comparados</small></div>
       </div>`;
 
-    const revisar = a.lines.filter((l) => ['falta', 'sin_receta', 'sobra'].includes(l.status));
+    const revisar = a.lines.filter((l) => ['falta', 'sin_receta', 'sin_conversion', 'sobra'].includes(l.status));
     const cuadran = a.lines.filter((l) => l.status === 'cuadra');
     const arranque = a.lines.filter((l) => l.status === 'arranque');
     const grupo = (titulo, lineas, abierto) => (lineas.length ? `

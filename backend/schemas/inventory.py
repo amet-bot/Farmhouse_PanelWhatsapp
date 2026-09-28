@@ -408,7 +408,10 @@ class StockRowResponse(BaseModel):
     wasted: Decimal                      # todo lo que salió por merma
     adjusted: Decimal = Decimal("0")     # suma de las diferencias de conteo; negativo = faltó
     transferred: Decimal = Decimal("0")  # neto de traslados: recibido - despachado
-    on_hand: Decimal                     # entered - wasted + adjusted + transferred; puede ser negativo, a propósito
+    # Lo que se usó en platos vendidos desde el último conteo (ventas de Invu × recetas). None si
+    # el insumo no tiene receta o nunca se contó: sin punto de partida no se descuenta nada.
+    sold_since_count: Optional[Decimal] = None
+    on_hand: Decimal                     # entered - wasted + adjusted + transferred - sold_since_count; puede ser negativo, a propósito
     wasted_cost: Optional[Decimal] = None
     wasted_cost_estimated: bool = False   # parte de la pérdida se valuó con el costo de Invu
     last_movement_at: Optional[datetime] = None
@@ -503,9 +506,11 @@ class StockCountAnalysisTotals(BaseModel):
     missing: int = 0
     surplus: int = 0
     no_recipe: int = 0
+    no_conversion: int = 0                    # faltó, pero parte del uso no se pudo pasar de unidad
     missing_cost: Decimal = Decimal("0")      # lo que faltó (con receta), en positivo
     surplus_cost: Decimal = Decimal("0")
     no_recipe_cost: Decimal = Decimal("0")    # faltó en insumos sin receta, en positivo
+    no_conversion_cost: Decimal = Decimal("0")
     baseline_value: Decimal = Decimal("0")    # valor de lo contado por primera vez
     cost_estimated: bool = False
 

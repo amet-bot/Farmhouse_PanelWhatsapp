@@ -311,7 +311,7 @@ def _shipment_insights(db: Session, shipment: Shipment) -> ShipmentInsights:
         return Decimal(valor or 0).quantize(Decimal("0.01"))
 
     item_ids = [l.inventory_item_id for l in shipment.items]
-    existencias = _on_hand_map(db, shipment.branch_id, item_ids)
+    existencias = _existencia_map(db, shipment.branch_id, item_ids)
     ahora = datetime.now(timezone.utc).replace(tzinfo=None)
     uso14 = _uso_por_ventas(db, shipment.branch_id, ahora - timedelta(days=14), ahora)
     con_receta = _insumos_con_receta(db, shipment.branch_id)
@@ -590,6 +590,58 @@ def _on_hand_map(db: Session, branch_id: int, item_ids: List[int]) -> dict:
     }
 
 
+def _vendido_desde_conteo(db: Session, branch_id: int, item_ids: Optional[List[int]] = None) -> dict:
+    """
+    Por insumo: lo que se usó en los platos vendidos (ventas de Invu × recetas) desde su ÚLTIMO
+    conteo en esa sucursal.
+
+    Desde el último conteo y no desde siempre: el conteo ya fijó cuánto había, y la diferencia
+    que guardó absorbió todo lo que se cocinó antes. Restar ventas anteriores las contaría dos
+    veces. Por lo mismo, un insumo que nunca se contó no descuenta nada todavía: sin punto de
+    partida no se sabe cuánto había cuando empezaron las ventas. Y sin receta en Invu no hay de
+    dónde sacar cuánto se usó.
+    """
+    con_receta = _insumos_con_receta(db, branch_id)
+    if item_ids is not None:
+        con_receta &= set(item_ids)
+    if not con_receta:
+        return {}
+    ultimos = (
+        db.query(StockCountItem.inventory_item_id, func.max(StockCount.counted_at))
+        .join(StockCount, StockCount.id == StockCountItem.stock_count_id)
+        .filter(StockCount.branch_id == branch_id, StockCountItem.inventory_item_id.in_(con_receta))
+        .group_by(StockCountItem.inventory_item_id)
+        .all()
+    )
+    if not ultimos:
+        return {}
+    # Los insumos de un mismo conteo comparten el momento: una consulta de ventas por conteo.
+    grupos: dict = {}
+    for item_id, contado in ultimos:
+        grupos.setdefault(contado, []).append(item_id)
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    recetas_insumos = _recetas_de_sucursal(db, branch_id)
+    vendido: dict = {}
+    for contado, ids in grupos.items():
+        uso = _uso_por_ventas(db, branch_id, contado, ahora, recetas_insumos=recetas_insumos)
+        for item_id in ids:
+            if uso.get(item_id):
+                vendido[item_id] = uso[item_id]
+    return vendido
+
+
+def _existencia_map(db: Session, branch_id: int, item_ids: List[int]) -> dict:
+    """
+    Lo que hay de verdad: lo que dicen los registros (`_on_hand_map`) menos lo que se vendió
+    desde el último conteo. Es lo que se MUESTRA (existencias, días que alcanza, aviso de merma).
+    El conteo, en cambio, guarda su diferencia contra los registros solos: así el conteo
+    siguiente arranca limpio y su análisis descuenta las ventas una sola vez.
+    """
+    registros = _on_hand_map(db, branch_id, item_ids)
+    vendido = _vendido_desde_conteo(db, branch_id, item_ids)
+    return {iid: cantidad - vendido.get(iid, Decimal("0")) for iid, cantidad in registros.items()}
+
+
 def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -> WasteResponse:
     items: List[WasteItemResponse] = []
     total_cost = Decimal("0.00")
@@ -827,7 +879,7 @@ def create_waste(
         cantidades.append(_cantidad_de_linea(item, line, tamano))
 
     # La existencia se mira ANTES de grabar: después este mismo registro ya estaría restando.
-    stock_before = _on_hand_map(db, waste_in.branch_id, item_ids)
+    stock_before = _existencia_map(db, waste_in.branch_id, item_ids)
 
     record = WasteRecord(
         branch_id=waste_in.branch_id,
@@ -1297,8 +1349,16 @@ _UNIT_FAMILY = {
 }
 
 
-def _a_unidad_del_insumo(cantidad: Decimal, unidad_receta: Optional[str], unidad_insumo: Optional[str]) -> Optional[Decimal]:
-    """La cantidad de la receta en la unidad del insumo, o None si no se puede convertir."""
+def _a_unidad_del_insumo(
+    cantidad: Decimal, unidad_receta: Optional[str], unidad_insumo: Optional[str], piece_size: Optional[Decimal] = None,
+) -> Optional[Decimal]:
+    """
+    La cantidad de la receta en la unidad del insumo, o None si no se puede convertir.
+
+    Entre familias distintas (la receta en gramos y el insumo por unidad, o al revés) se usa lo
+    que pesa una pieza del insumo (`piece_size`: gramos, o ml si el insumo es líquido), el mismo
+    dato que aprende la merma. Sin ese dato no se inventa: queda None y quien llama lo informa.
+    """
     r = (unidad_receta or "").strip().lower()
     i = (unidad_insumo or "").strip().lower()
     if not r or r == i:
@@ -1306,6 +1366,14 @@ def _a_unidad_del_insumo(cantidad: Decimal, unidad_receta: Optional[str], unidad
     fr, fi = _UNIT_FAMILY.get(r), _UNIT_FAMILY.get(i)
     if fr and fi and fr[0] == fi[0]:
         return cantidad * fr[1] / fi[1]
+    if not fr or piece_size is None or Decimal(piece_size) <= 0:
+        return None
+    pieza = Decimal(piece_size)
+    fam_i, base_i = _familia_de_unidad(unidad_insumo)   # base_i: g (o ml) por unidad del insumo
+    if fam_i == "unidad" and fr[0] == "peso":
+        return cantidad * fr[1] * 1000 / pieza          # gramos de la receta / gramos por pieza
+    if fr[0] == "unidad" and fam_i in ("peso", "volumen"):
+        return cantidad * pieza / base_i                # piezas x gramos por pieza, en la unidad del insumo
     return None
 
 
@@ -1383,7 +1451,7 @@ def waste_recipe_usage(
             item = insumos.get(linea.product_invu_id)
             if not item:
                 continue   # ingrediente archivado en Invu que no se trajo al catálogo
-            por_unidad = _a_unidad_del_insumo(Decimal(linea.quantity), linea.unit_name, item.unit)
+            por_unidad = _a_unidad_del_insumo(Decimal(linea.quantity), linea.unit_name, item.unit, item.piece_size)
             if por_unidad is None:
                 lineas_sin_conversion += 1
                 continue
@@ -1669,7 +1737,8 @@ def list_stock(
     current_user: User = Depends(get_current_authorized_user),
 ):
     """
-    Existencias por insumo: entró, salió por merma, se corrigió por conteo, y lo que queda.
+    Existencias por insumo: entró, salió por merma, se corrigió por conteo, se vendió desde el
+    último conteo (ventas de Invu × recetas), y lo que queda.
 
     Se calcula con tres sumas agrupadas cada vez que se pide, sin tabla de saldos. Con el tamaño
     de este negocio son dos consultas sobre miles de renglones, no millones; el día que eso deje
@@ -1723,6 +1792,13 @@ def list_stock(
     salidas = {r.item_id: r for r in salidas_q.group_by(WasteItem.inventory_item_id).all()}
     ajustes = {r.item_id: r for r in ajustes_q.group_by(StockCountItem.inventory_item_id).all()}
     traslados = _transfer_net_map(db, efectiva)
+    # Lo vendido desde el último conteo, por sucursal (cada una tiene sus recetas y sus conteos);
+    # sumando todas, se suma lo de cada una.
+    vendidos: dict = {}
+    sucursales = [efectiva] if efectiva is not None else [b.id for b in db.query(Branch.id).all()]
+    for b_id in sucursales:
+        for item_id, cantidad in _vendido_desde_conteo(db, b_id).items():
+            vendidos[item_id] = vendidos.get(item_id, Decimal("0")) + cantidad
 
     ultimos_costos = _last_costs_map(db, efectiva) if efectiva is not None else {}
 
@@ -1750,6 +1826,7 @@ def list_stock(
         entro = Decimal(entrada.cantidad) if entrada else Decimal("0")
         salio = Decimal(salida.cantidad) if salida else Decimal("0")
         ajustado = Decimal(ajuste.cantidad) if ajuste else Decimal("0")
+        vendido = vendidos.get(item.id)
         fechas = [f for f in (
             (entrada.ultimo if entrada else None),
             (salida.ultimo if salida else None),
@@ -1767,7 +1844,8 @@ def list_stock(
             wasted=salio,
             adjusted=ajustado,
             transferred=trasladado,
-            on_hand=entro - salio + ajustado + trasladado,
+            sold_since_count=(vendido.quantize(Decimal("0.001")) if vendido else None),
+            on_hand=entro - salio + ajustado + trasladado - (vendido or Decimal("0")),
             wasted_cost=(Decimal(salida.costo).quantize(Decimal("0.01")) if salida and salida.costo else None),
             wasted_cost_estimated=bool(salida and salida.costo_estimado and Decimal(salida.costo_estimado) > 0),
             last_movement_at=(max(fechas) if fechas else None),
@@ -1944,11 +2022,26 @@ def create_count(
 COUNT_TOLERANCE_PCT = Decimal("3")
 
 
-def _uso_por_ventas(db: Session, branch_id: int, desde: datetime, hasta: datetime) -> dict:
+def _recetas_de_sucursal(db: Session, branch_id: int) -> tuple:
+    """Las recetas de Invu de la sucursal por (tipo, id de Invu) y el catálogo por id de Invu."""
+    recetas: dict = {}
+    for linea in db.query(InvuRecipeLine).filter(InvuRecipeLine.branch_id == branch_id).all():
+        recetas.setdefault((linea.source_type, linea.source_invu_id), []).append(linea)
+    insumos = {i.invu_id: i for i in db.query(InventoryItem).filter(InventoryItem.invu_id.isnot(None))}
+    return recetas, insumos
+
+
+def _uso_por_ventas(
+    db: Session, branch_id: int, desde: datetime, hasta: datetime,
+    sin_conversion: Optional[set] = None, recetas_insumos: Optional[tuple] = None,
+) -> dict:
     """
     Lo que se usó de cada insumo en los platos vendidos entre dos momentos (UTC), según las
     recetas de Invu: Σ platos × receta + Σ modificadores × receta (mismo criterio que
     /waste/recipe-usage). El momento de cada venta es la apertura de la orden en la caja.
+
+    Si se pasa `sin_conversion`, ahí se anotan los insumos con alguna receta vendida cuya unidad
+    no se pudo pasar a la del insumo: su uso quedó corto y no hay que leerlo como faltante.
     """
     momento = func.coalesce(InvuSale.opened_at, InvuSale.closed_at)
     filtros = (
@@ -1966,10 +2059,7 @@ def _uso_por_ventas(db: Session, branch_id: int, desde: datetime, hasta: datetim
         *filtros, InvuSaleModifier.invu_modifier_id.isnot(None)
     ).group_by(InvuSaleModifier.invu_modifier_id).all()
 
-    recetas: dict = {}
-    for linea in db.query(InvuRecipeLine).filter(InvuRecipeLine.branch_id == branch_id).all():
-        recetas.setdefault((linea.source_type, linea.source_invu_id), []).append(linea)
-    insumos = {i.invu_id: i for i in db.query(InventoryItem).filter(InventoryItem.invu_id.isnot(None))}
+    recetas, insumos = recetas_insumos or _recetas_de_sucursal(db, branch_id)
 
     usado: dict = {}
     for tipo, filas in (("item", platos), ("modifier", mods)):
@@ -1978,8 +2068,10 @@ def _uso_por_ventas(db: Session, branch_id: int, desde: datetime, hasta: datetim
                 item = insumos.get(linea.product_invu_id)
                 if not item:
                     continue
-                por_unidad = _a_unidad_del_insumo(Decimal(linea.quantity), linea.unit_name, item.unit)
+                por_unidad = _a_unidad_del_insumo(Decimal(linea.quantity), linea.unit_name, item.unit, item.piece_size)
                 if por_unidad is None:
+                    if sin_conversion is not None and cantidad:
+                        sin_conversion.add(item.id)
                     continue
                 usado[item.id] = usado.get(item.id, Decimal("0")) + Decimal(cantidad or 0) * por_unidad
     return usado
@@ -2017,7 +2109,13 @@ def _analizar_conteo(db: Session, record: StockCount) -> StockCountAnalysis:
         .all()
     )
     fechas = dict(db.query(StockCount.id, StockCount.counted_at).filter(StockCount.id.in_(set(anteriores.values()) or [0])).all())
-    usos = {cid: _uso_por_ventas(db, record.branch_id, fechas[cid], record.counted_at) for cid in set(anteriores.values())}
+    recetas_insumos = _recetas_de_sucursal(db, record.branch_id)
+    sin_conversion: dict = {cid: set() for cid in set(anteriores.values())}
+    usos = {
+        cid: _uso_por_ventas(db, record.branch_id, fechas[cid], record.counted_at,
+                             sin_conversion=sin_conversion[cid], recetas_insumos=recetas_insumos)
+        for cid in set(anteriores.values())
+    }
     con_receta = _insumos_con_receta(db, record.branch_id)
 
     totales = StockCountAnalysisTotals(items=len(record.items))
@@ -2058,6 +2156,10 @@ def _analizar_conteo(db: Session, record: StockCount) -> StockCountAnalysis:
             estado = "sobra"
         elif not tiene_receta:
             estado = "sin_receta"
+        elif item.id in sin_conversion.get(previo, ()):
+            # Parte de lo que se usó no se pudo convertir (receta en gramos, insumo por unidad y
+            # sin peso por pieza): el faltante puede ser solo eso. No se acusa de pérdida.
+            estado = "sin_conversion"
         else:
             estado = "falta"
         valor = (sin_explicar * costo) if costo is not None else None
@@ -2070,6 +2172,9 @@ def _analizar_conteo(db: Session, record: StockCount) -> StockCountAnalysis:
         elif estado == "falta":
             totales.missing += 1
             totales.missing_cost += -(valor or Decimal("0"))
+        elif estado == "sin_conversion":
+            totales.no_conversion += 1
+            totales.no_conversion_cost += -(valor or Decimal("0"))
         else:
             totales.no_recipe += 1
             totales.no_recipe_cost += -(valor or Decimal("0"))
@@ -2087,9 +2192,9 @@ def _analizar_conteo(db: Session, record: StockCount) -> StockCountAnalysis:
         ))
 
     # Primero lo que hay que ir a mirar (lo que más plata falta), al final lo que cuadró.
-    orden = {"falta": 0, "sin_receta": 1, "sobra": 2, "cuadra": 3, "arranque": 4}
+    orden = {"falta": 0, "sin_receta": 1, "sin_conversion": 2, "sobra": 3, "cuadra": 4, "arranque": 5}
     lineas.sort(key=lambda l: (orden[l.status], -abs(l.cost or Decimal("0")), l.name))
-    for campo in ("missing_cost", "surplus_cost", "no_recipe_cost", "baseline_value"):
+    for campo in ("missing_cost", "surplus_cost", "no_recipe_cost", "no_conversion_cost", "baseline_value"):
         setattr(totales, campo, getattr(totales, campo).quantize(Decimal("0.01")))
 
     hoy = db.query(InvuSyncDay.synced_at).filter(
@@ -2177,11 +2282,11 @@ def _cifras_sucursal(db: Session, branch: Branch, desde: date, hasta: date, tops
     for c in conteos:
         a = _analizar_conteo(db, c)
         f.count_missing += a.totals.missing_cost
-        f.count_no_recipe += a.totals.no_recipe_cost
+        f.count_no_recipe += a.totals.no_recipe_cost + a.totals.no_conversion_cost
         f.count_surplus += a.totals.surplus_cost
         if tops is not None:
             for l in a.lines:
-                if l.status not in ("falta", "sin_receta") or l.unexplained is None:
+                if l.status not in ("falta", "sin_receta", "sin_conversion") or l.unexplained is None:
                     continue
                 t = tops["missing"].setdefault(l.inventory_item_id, DashboardTopItem(
                     inventory_item_id=l.inventory_item_id, name=l.name, unit=l.unit,
