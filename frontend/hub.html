@@ -14,7 +14,7 @@
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=4.12.0">
+  <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
   <link rel="stylesheet" href="css/hub.css?v=4.6.5">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
@@ -253,6 +253,11 @@
           </div>
         </div>
         <div class="hub-sheet-links" id="hubProfileLinks"><!-- hub.js: módulos que no están en los accesos rápidos --></div>
+        <!-- Solo en la app de Android (native-app.js): comprobar que los avisos llegan a este celular. -->
+        <button type="button" class="hub-sheet-row" id="btnNativeTest" hidden>
+          <i data-lucide="bell-ring" aria-hidden="true"></i>
+          <span>Probar notificaciones</span>
+        </button>
         <button type="button" class="hub-sheet-row" id="btnMobileTheme">
           <span id="mobileThemeIconSlot"><i data-lucide="moon"></i></span>
           <span id="mobileThemeLabel">Modo oscuro</span>
@@ -269,7 +274,8 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
+  <script src="js/shared/native-app.js?v=1.0.0"></script>
   <script src="js/modules/hub_components.js?v=4.4.3"></script>
-  <script src="js/modules/hub.js?v=4.7.0"></script>
+  <script src="js/modules/hub.js?v=4.8.0"></script>
 </body>
 </html>

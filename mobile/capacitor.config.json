@@ -1,0 +1,22 @@
+{
+  "appId": "pa.farmhouse.link",
+  "appName": "Farmhouse Link",
+  "webDir": "www",
+  "server": {
+    "url": "https://farmhousepanelwhatsapp-production.up.railway.app/hub",
+    "cleartext": false
+  },
+  "android": {
+    "appendUserAgent": "FarmhouseLinkApp/1.0",
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
+  }
+}

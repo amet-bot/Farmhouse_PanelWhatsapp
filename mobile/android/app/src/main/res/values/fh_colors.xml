@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Color con el que Android pinta el icono de las notificaciones. -->
+    <color name="fh_notification">#2F8F6A</color>
+</resources>

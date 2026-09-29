@@ -141,6 +141,11 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: Optional[str] = None
     VAPID_CLAIM_SUB: str = "mailto:admin@farmhouse.pa"
 
+    # Notificaciones nativas de la app de Android (Firebase Cloud Messaging). La cuenta de servicio
+    # de Firebase, como el JSON completo que baja la consola (o ese JSON en base64). Sin esto la app
+    # funciona igual, solo que sin avisos nativos.
+    FIREBASE_SERVICE_ACCOUNT_JSON: Optional[str] = None
+
     def get_excluded_phone_number_ids(self) -> List[str]:
         if not self.EXCLUDED_PHONE_NUMBER_IDS:
             return []

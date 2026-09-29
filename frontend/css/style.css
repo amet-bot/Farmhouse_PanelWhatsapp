@@ -3767,3 +3767,31 @@ input:-webkit-autofill:focus {
   color: #ffffff;
   transform: translateY(-1px);
 }
+
+/* ==========================================================================
+   App de Android: aviso que llega con la app abierta (js/shared/native-app.js)
+   ========================================================================== */
+.fh-native-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  z-index: 100000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: #0f3d2e;
+  color: #eaf7f0;
+  font: inherit;
+  text-align: left;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .28);
+  transform: translateY(-140%);
+  transition: transform .3s ease;
+  cursor: pointer;
+}
+.fh-native-banner.is-in { transform: translateY(0); }
+.fh-native-banner strong { font-size: 15px; }
+.fh-native-banner span { font-size: 13.5px; opacity: .9; }

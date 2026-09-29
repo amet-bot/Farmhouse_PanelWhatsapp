@@ -1,0 +1,8 @@
+node_modules/
+# Lo genera el build
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+# Credenciales de Firebase: se ponen a mano, nunca en el repositorio
+android/app/google-services.json

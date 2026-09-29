@@ -14,11 +14,53 @@ except ImportError:
 from config import settings
 from models.user import User
 from models.push_subscription import PushSubscription
+from models.native_push import NativePushToken
+from services import fcm_service
 
 logger = logging.getLogger("farmhouse.push")
 
 def is_push_configured() -> bool:
+    """Web Push del navegador (VAPID)."""
     return bool(settings.VAPID_PUBLIC_KEY and settings.VAPID_PRIVATE_KEY)
+
+
+def any_channel_configured() -> bool:
+    """Si algún aviso puede salir: por el navegador o por la app nativa (Firebase)."""
+    return is_push_configured() or fcm_service.is_configured()
+
+
+def _send_native(db: Session, user_ids: list, payload: dict) -> int:
+    """
+    Manda el aviso a los celulares con la app (FCM) de esos usuarios. Un token que Firebase da por
+    muerto (se desinstaló la app) se borra para no reintentar. Devuelve a cuántos se mandó.
+    """
+    if not user_ids or not fcm_service.is_configured():
+        return 0
+    enviados = 0
+    for t in db.query(NativePushToken).filter(NativePushToken.user_id.in_(user_ids)).all():
+        try:
+            fcm_service.send(t.token, payload.get("title") or "Farmhouse Link", payload.get("body") or "",
+                             url=payload.get("url"), tag=payload.get("tag"))
+            enviados += 1
+        except fcm_service.TokenInvalido:
+            db.query(NativePushToken).filter(NativePushToken.id == t.id).delete()
+            db.commit()
+            logger.info(f"[Push] Token nativo vencido eliminado (user_id={t.user_id}).")
+        except Exception as e:
+            logger.warning(f"[Push] Error mandando aviso nativo a user_id={t.user_id}: {e}")
+    return enviados
+
+
+def _deliver(db: Session, user_ids: list, payload: dict) -> int:
+    """El mismo aviso por los dos caminos: navegador (Web Push) y app nativa (FCM)."""
+    if not user_ids:
+        return 0
+    enviados = 0
+    if is_push_configured():
+        for sub in db.query(PushSubscription).filter(PushSubscription.user_id.in_(user_ids)).all():
+            _send_to_subscription(db, sub, payload)
+            enviados += 1
+    return enviados + _send_native(db, user_ids, payload)
 
 def _send_to_subscription(db: Session, sub: PushSubscription, payload: dict) -> None:
     try:
@@ -56,9 +98,9 @@ def notify_branch_new_message(db: Session, branch_id: Optional[int], title: str,
     branch_id puede ser None (conversación aún sin sucursal asignada): en ese caso solo
     califican los que ven global (admin y supervisor sin sucursal), nunca agentes ni
     supervisores de sucursal.
-    No hace nada si el servidor no tiene VAPID configurado (Web Push deshabilitado).
+    Sale por el navegador (VAPID) y por la app nativa (Firebase), lo que esté configurado.
     """
-    if not is_push_configured():
+    if not any_channel_configured():
         return
 
     # Traducción a SQL de services/notification_audience.can_receive_branch_event.
@@ -81,9 +123,6 @@ def notify_branch_new_message(db: Session, branch_id: Optional[int], title: str,
         return
 
     user_ids = [u.id for u in target_users]
-    subs = db.query(PushSubscription).filter(PushSubscription.user_id.in_(user_ids)).all()
-    if not subs:
-        return
 
     payload = {
         "title": title,
@@ -91,10 +130,10 @@ def notify_branch_new_message(db: Session, branch_id: Optional[int], title: str,
         # "/app" (no "/"): "/" ahora es el Panel General de sistemas, no el Centro WhatsApp — un
         # clic en la notificación debe abrir la conversación directo, sin pasar por el hub.
         "url": f"/app?conversation_id={conversation_id}",
-        "conversation_id": conversation_id
+        "conversation_id": conversation_id,
+        "tag": f"fh-conv-{conversation_id}",
     }
-    for sub in subs:
-        _send_to_subscription(db, sub, payload)
+    _deliver(db, user_ids, payload)
 
 
 def notify_internal_message(
@@ -116,13 +155,7 @@ def notify_internal_message(
     pena abrir el panel sin tener que abrirlo. Un canal de equipo antepone el nombre del canal
     porque "Juan" solo no dice si te escribió a vos o al grupo.
     """
-    if not is_push_configured() or not recipient_user_ids:
-        return
-
-    subs = db.query(PushSubscription).filter(
-        PushSubscription.user_id.in_(recipient_user_ids)
-    ).all()
-    if not subs:
+    if not any_channel_configured() or not recipient_user_ids:
         return
 
     payload = {
@@ -134,8 +167,7 @@ def notify_internal_message(
         "tag": f"fh-internal-{thread_id}",
         "internal_thread_id": thread_id,
     }
-    for sub in subs:
-        _send_to_subscription(db, sub, payload)
+    _deliver(db, list(recipient_user_ids), payload)
 
 
 def notify_branch_staff(
@@ -151,9 +183,9 @@ def notify_branch_staff(
     Avisa por push a la gente de una sucursal: sus usuarios, los supervisores globales y los
     admins (misma audiencia que notify_branch_new_message). Con `managers_only` quedan fuera los
     agentes: una diferencia en un cargamento la tiene que resolver un supervisor, no la cocina.
-    Devuelve a cuántas suscripciones se mandó (0 si Web Push no está configurado).
+    Devuelve a cuántos navegadores y celulares se mandó (0 si no hay nada configurado).
     """
-    if not is_push_configured():
+    if not any_channel_configured():
         return 0
     condiciones = [
         User.role == "admin",
@@ -164,12 +196,7 @@ def notify_branch_staff(
     else:
         condiciones.append(User.branch_id == branch_id)
     user_ids = [u.id for u in db.query(User.id).filter(User.active == True, or_(*condiciones)).all()]  # noqa: E712
-    if not user_ids:
-        return 0
-    subs = db.query(PushSubscription).filter(PushSubscription.user_id.in_(user_ids)).all()
     payload = {"title": title, "body": (body or "")[:140], "url": url}
     if tag:
         payload["tag"] = tag
-    for sub in subs:
-        _send_to_subscription(db, sub, payload)
-    return len(subs)
+    return _deliver(db, user_ids, payload)

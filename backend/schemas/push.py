@@ -12,3 +12,9 @@ class PushSubscriptionCreate(BaseModel):
 
 class PushUnsubscribe(BaseModel):
     endpoint: str = Field(..., min_length=1, max_length=500)
+
+
+class NativeTokenIn(BaseModel):
+    """El token de Firebase de un celular con la app de Android."""
+    token: str = Field(..., min_length=20, max_length=255)
+    platform: str = Field("android", pattern="^(android|ios)$")

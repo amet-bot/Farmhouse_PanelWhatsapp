@@ -661,6 +661,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const profileSheet = $('hubProfileSheet');
+  // En la app de Android: el botón para mandarse una notificación de prueba.
+  const btnNativeTest = $('btnNativeTest');
+  if (btnNativeTest && window.FarmhouseNative) {
+    btnNativeTest.hidden = false;
+    btnNativeTest.addEventListener('click', async () => {
+      btnNativeTest.disabled = true;
+      try {
+        await window.FarmhouseNative.activar();
+        await window.FarmhouseNative.test();
+        utils.showToast('Te mandamos una notificación de prueba. Debería aparecer en unos segundos.', 'success');
+      } catch (err) {
+        utils.showToast(err.message || 'No se pudo mandar la prueba.', 'error');
+      } finally {
+        btnNativeTest.disabled = false;
+      }
+    });
+  }
+
   function openProfileSheet() {
     profileSheet.hidden = false;
     syncMobileThemeButton(document.documentElement.getAttribute('data-theme'));

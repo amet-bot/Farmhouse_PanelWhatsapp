@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Farmhouse Link</string>
+    <string name="title_activity_main">Farmhouse Link</string>
+    <string name="package_name">pa.farmhouse.link</string>
+    <string name="custom_url_scheme">pa.farmhouse.link</string>
+</resources>

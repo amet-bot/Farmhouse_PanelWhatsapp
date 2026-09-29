@@ -14,6 +14,7 @@ from models.inventory_item import InventoryItem, KIND_HOUSE, KIND_RAW
 from models.invu_sales import InvuRecipeLine, InvuSale, InvuSaleLine, InvuSaleModifier, InvuSyncDay
 from models.supplier import Supplier
 from models.ops import Incident
+from models.native_push import NativePushToken
 from models.push_subscription import PushSubscription
 from models.shipment import ExpectedShipment, Shipment, ShipmentItem
 from models.user import User
@@ -37,7 +38,7 @@ from schemas.inventory import (
     MovementComparisonResponse,
 )
 from config import settings
-from services import invu_client, invu_items_sync, invu_recipes_sync, invu_sales_sync, invu_sync, push_service
+from services import fcm_service, invu_client, invu_items_sync, invu_recipes_sync, invu_sales_sync, invu_sync, push_service
 from services.audit import log_audit_event
 from security.auth import get_current_authorized_user
 from security.permissions import has_permission, require_permission
@@ -278,14 +279,22 @@ def _avisar_diferencias_background(branch_id: int, title: str, body: str, url: s
 
 
 def _hay_a_quien_avisar(db: Session, branch_id: int) -> bool:
-    """Si el aviso de diferencias le puede llegar a alguien (push configurado y un encargado suscrito)."""
-    if not push_service.is_push_configured():
-        return False
-    return db.query(PushSubscription.id).join(User, User.id == PushSubscription.user_id).filter(
+    """
+    Si el aviso le puede llegar a algún encargado: por el navegador (Web Push) o por la app de
+    Android (Firebase), según lo que esté configurado y lo que tenga activado cada uno.
+    """
+    encargado = and_(
         User.active == True,  # noqa: E712
         or_(User.role == "admin",
             and_(User.role == "supervisor", or_(User.branch_id.is_(None), User.branch_id == branch_id))),
-    ).first() is not None
+    )
+    if push_service.is_push_configured() and db.query(PushSubscription.id).join(
+        User, User.id == PushSubscription.user_id
+    ).filter(encargado).first() is not None:
+        return True
+    return fcm_service.is_configured() and db.query(NativePushToken.id).join(
+        User, User.id == NativePushToken.user_id
+    ).filter(encargado).first() is not None
 
 
 @router.post("/shipments", response_model=ShipmentResponse, status_code=status.HTTP_201_CREATED)
