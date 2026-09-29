@@ -997,9 +997,42 @@ def set_item_piece_size(
     return item
 
 
+# Cuándo una merma merece que se entere el encargado sin tener que ir a buscarla: cuando cuesta
+# mucho de una vez o cuando el mismo insumo se bota por el mismo motivo varias veces en el mes.
+# El residuo al limpiar queda fuera: es merma esperada y se mide con el rendimiento.
+WASTE_ALERT_MIN_COST = Decimal("20")
+WASTE_ALERT_REPEAT = 3
+
+
+def _alertas_de_merma(record: WasteRecord, insights: WasteInsights) -> List[str]:
+    """Las razones para avisar, en frases cortas (van en la notificación y en la pantalla)."""
+    if record.reason in PROCESS_WASTE_REASONS:
+        return []
+    razones: List[str] = []
+    total = sum((i.this_cost or Decimal("0") for i in insights.items), Decimal("0"))
+    if total >= WASTE_ALERT_MIN_COST:
+        razones.append(f"Se pierden ${total.quantize(Decimal('0.01'))} de una vez")
+    motivo = WASTE_REASON_LABELS.get(record.reason, record.reason).lower()
+    for i in insights.items:
+        if i.same_reason_month >= WASTE_ALERT_REPEAT:
+            razones.append(f"{i.name}: {i.same_reason_month}.ª vez en el mes por «{motivo}»")
+    return razones
+
+
+def _avisar_merma_background(branch_id: int, title: str, body: str, url: str, tag: str) -> None:
+    db = SessionLocal()
+    try:
+        push_service.notify_branch_staff(db, branch_id, title, body, url, tag=tag, managers_only=True)
+    except Exception as e:  # un aviso fallido no deshace la merma
+        logger.error(f"[Push merma] sucursal {branch_id}: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
 @router.post("/waste", response_model=WasteResponse, status_code=status.HTTP_201_CREATED)
 def create_waste(
     waste_in: WasteCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_authorized_user),
 ):
@@ -1121,6 +1154,17 @@ def create_waste(
 
     respuesta = _serialize_waste(record, stock_before=stock_before)
     respuesta.insights = _waste_insights(db, record)
+    razones = _alertas_de_merma(record, respuesta.insights)
+    if razones:
+        respuesta.alert_reasons = razones
+        respuesta.notified = _hay_a_quien_avisar(db, record.branch_id)
+        insumos = ", ".join(i.name for i in respuesta.insights.items[:3])
+        background_tasks.add_task(
+            _avisar_merma_background, record.branch_id,
+            f"Merma importante · {record.branch.name}",
+            f"{insumos} ({WASTE_REASON_LABELS.get(record.reason, record.reason)}). " + "; ".join(razones),
+            f"/inventario?view=merma&waste={record.id}", f"fh-waste-{record.id}",
+        )
     logger.info(
         f"Merma #{record.id} ({record.reason}) en sucursal {record.branch_id} por {current_user.name}"
         + (f" — deja en negativo: {', '.join(respuesta.negative_items)}" if respuesta.negative_items else "")
@@ -1186,6 +1230,8 @@ def _waste_insights(db: Session, record: WasteRecord) -> WasteInsights:
 
     sem_total, sem_registros = total_sucursal(semana)
     prev_total, _ = total_sucursal(previa)
+    vencido = record.reason == "vencido"
+    ocurrio_utc = ocurrio.astimezone(timezone.utc).replace(tzinfo=None)
 
     q2 = lambda v: Decimal(v).quantize(Decimal("0.01"))  # noqa: E731
     items: List[WasteInsightItem] = []
@@ -1208,6 +1254,7 @@ def _waste_insights(db: Session, record: WasteRecord) -> WasteInsights:
             used_month=(usado.quantize(Decimal("0.001")) if usado is not None else None),
             waste_pct_month=((m[0] / (usado + m[0]) * 100).quantize(Decimal("0.1")) if usado else None),
             cost_estimated=line.unit_cost is None and item.reference_cost is not None,
+            **(_compra_contra_vencimiento(db, record, item, usado, ocurrio_utc) if vencido else {}),
         ))
 
     return WasteInsights(
@@ -1216,6 +1263,51 @@ def _waste_insights(db: Session, record: WasteRecord) -> WasteInsights:
         branch_week_cost=q2(sem_total), branch_prev_week_cost=q2(prev_total), branch_week_records=sem_registros,
         items=items,
     )
+
+
+def _compra_contra_vencimiento(db: Session, record: WasteRecord, item: InventoryItem,
+                               usado_mes: Optional[Decimal], ocurrio_utc: datetime) -> dict:
+    """
+    Cuando algo se vence: ¿se compró de más? Se mira la última compra de ese insumo en la
+    sucursal antes del vencimiento y, con recetas, cuánto se usa por día (30 días de ventas):
+
+      alcanzaba para  = compra / uso por día
+      duró            = días entre la compra y el vencimiento
+      máximo sugerido = uso por día × días que duró   (lo que se alcanza a usar antes de vencer)
+
+    Sin receta no se sabe el ritmo de uso: se informa la compra y cuánto duró, sin sugerir.
+    """
+    compra = db.query(ShipmentItem, Shipment).join(Shipment, Shipment.id == ShipmentItem.shipment_id).filter(
+        Shipment.branch_id == record.branch_id,
+        ShipmentItem.inventory_item_id == item.id,
+        ShipmentItem.quantity > 0,
+        Shipment.received_at <= ocurrio_utc,
+    ).order_by(Shipment.received_at.desc(), Shipment.id.desc()).first()
+    vencidos = db.query(func.count(func.distinct(WasteRecord.id))).join(
+        WasteItem, WasteItem.waste_record_id == WasteRecord.id
+    ).filter(
+        WasteRecord.branch_id == record.branch_id, WasteRecord.reason == "vencido",
+        WasteItem.inventory_item_id == item.id,
+        WasteRecord.occurred_at > ocurrio_utc - timedelta(days=90), WasteRecord.occurred_at <= ocurrio_utc,
+    ).scalar() or 0
+    datos: dict = {"expired_90d": int(vencidos)}
+    if not compra:
+        return datos
+    linea, envio = compra
+    cantidad = Decimal(linea.quantity)
+    dias = max((ocurrio_utc - envio.received_at).days, 0)
+    datos.update(
+        last_purchase_qty=cantidad, last_purchase_at=envio.received_at,
+        last_purchase_supplier=(envio.supplier.name if envio.supplier else None),
+        days_to_expire=dias,
+    )
+    if usado_mes and usado_mes > 0:
+        por_dia = usado_mes / 30
+        datos["used_per_day"] = por_dia.quantize(Decimal("0.001"))
+        datos["purchase_cover_days"] = (cantidad / por_dia).quantize(Decimal("0.1"))
+        if dias > 0:
+            datos["suggested_max_qty"] = (por_dia * dias).quantize(Decimal("0.001"))
+    return datos
 
 
 @router.get("/waste/{waste_id}/insights", response_model=WasteInsights)

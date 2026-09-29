@@ -301,6 +301,9 @@ class WasteResponse(BaseModel):
     # (ver create_waste): el sistema empezó a contar entradas hace poco y nadie cargó el
     # inventario de arranque, así que un negativo dice "falta cargar el arranque", no "error".
     negative_items: List[str] = []
+    # Solo al crear: por qué se avisó al encargado (monto alto, motivo repetido) y si le llegó.
+    alert_reasons: List[str] = []
+    notified: Optional[bool] = None
     # Evidencia: el peso leído en la balanza y las fotos (estas se suben después de crear la merma).
     weight_value: Optional[Decimal] = None
     weight_unit: Optional[str] = None
@@ -336,6 +339,15 @@ class WasteInsightItem(BaseModel):
     used_month: Optional[Decimal] = None        # usado en platos vendidos en 30 días (recetas de Invu)
     waste_pct_month: Optional[Decimal] = None   # merma / (usado + merma)
     cost_estimated: bool = False
+    # Solo si se venció: la última compra de ese insumo en la sucursal contra el ritmo de uso.
+    last_purchase_qty: Optional[Decimal] = None
+    last_purchase_at: Optional[datetime] = None
+    last_purchase_supplier: Optional[str] = None
+    days_to_expire: Optional[int] = None        # días entre esa compra y el vencimiento
+    used_per_day: Optional[Decimal] = None      # uso por día en platos vendidos (30 días, recetas)
+    purchase_cover_days: Optional[Decimal] = None   # para cuántos días alcanzaba esa compra
+    suggested_max_qty: Optional[Decimal] = None     # lo que se alcanza a usar antes de que venza
+    expired_90d: int = 0                        # veces que se venció este insumo en 90 días
 
 
 class WasteInsights(BaseModel):

@@ -2757,6 +2757,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const pct = Number(it.waste_pct_month);
       frases.push(`De todo lo que se usó este mes, se botó el <strong>${pct.toLocaleString('es-PA', { maximumFractionDigits: 1 })}%</strong>${pct > 5 ? ': arriba de 5% vale revisarlo' : ''}.`);
     }
+    if (ins.reason === 'vencido') frases.push(...vencidoFrases(it, u));
     return `
       <div class="inv-ca-line">
         <div class="inv-ca-line-head">
@@ -2765,6 +2766,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <ul class="inv-wi-list">${frases.map((f) => `<li>${f}</li>`).join('')}</ul>
       </div>`;
+  }
+
+  /** Se venció: la última compra contra el ritmo de uso, y cuánto conviene pedir. */
+  function vencidoFrases(it, u) {
+    const frases = [];
+    const dias0 = (n) => Number(n).toLocaleString('es-PA', { maximumFractionDigits: 0 });
+    if (it.last_purchase_qty != null) {
+      const dias = it.days_to_expire;
+      const compra = `La última compra fue de <strong>${esc(qty(it.last_purchase_qty))} ${esc(u)}</strong> el ${esc(fechaServidor(it.last_purchase_at))}${it.last_purchase_supplier ? ` (${esc(it.last_purchase_supplier)})` : ''}`;
+      if (dias === 0) {
+        frases.push(`${compra} y se venció el mismo día que llegó: revisalo con el proveedor.`);
+      } else if (it.used_per_day != null) {
+        frases.push(`${compra} y se venció a los <strong>${dias} ${dias === 1 ? 'día' : 'días'}</strong>. Se usan ~${esc(qty(it.used_per_day))} ${esc(u)} por día en platos vendidos: esa compra alcanzaba para <strong>${dias0(it.purchase_cover_days)} días</strong>.`);
+        if (it.suggested_max_qty != null && Number(it.suggested_max_qty) < Number(it.last_purchase_qty)) {
+          frases.push(`<span class="inv-wi-action">Para que no se venza, comprá como máximo <strong>~${esc(qty(it.suggested_max_qty))} ${esc(u)}</strong> por pedido (lo que se usa en ${dias} ${dias === 1 ? 'día' : 'días'}), o pedí más seguido y en menos cantidad.</span>`);
+        } else if (it.suggested_max_qty != null) {
+          frases.push('No se compró de más para lo que se usa: revisá cómo se guarda y que se use primero lo que llegó antes.');
+        }
+      } else {
+        frases.push(`${compra} y se venció a los <strong>${dias} ${dias === 1 ? 'día' : 'días'}</strong>. Sin receta en Invu no se sabe cuánto se usa por día; con la receta, el sistema te dice cuánto conviene comprar.`);
+      }
+    } else {
+      frases.push('No hay compras registradas de este insumo en la sucursal: registrá los cargamentos para saber si se está pidiendo de más.');
+    }
+    if (it.expired_90d >= 2) frases.push(`Se venció <strong>${it.expired_90d} veces</strong> en los últimos 90 días.`);
+    return frases;
   }
 
   function wasteInsightsHtml(ins) {
@@ -2795,7 +2822,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     $('wasteResultTitle').textContent = `Merma #${merma.id} registrada`;
     $('wasteResultSubtitle').textContent = `${merma.branch_name} · se pierde ${wasteCostTxt(merma)}`;
+    const alerta = (merma.alert_reasons || []).length ? `
+      <div class="inv-recv-result is-warn">
+        <i data-lucide="bell-ring"></i>
+        <div>
+          <strong>Merma importante</strong>
+          <ul>${merma.alert_reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
+          <p class="inv-recv-result-note">${merma.notified
+            ? 'Se le avisó al encargado por notificación.'
+            : 'Ningún encargado tiene las notificaciones activadas en este momento: avisale también por el grupo.'}</p>
+        </div>
+      </div>` : '';
     $('wasteResultBody').innerHTML = `
+      ${alerta}
       ${avisos.map((a) => `<p class="inv-wi-warn">${a}</p>`).join('')}
       ${merma.insights ? wasteInsightsHtml(merma.insights) : ''}`;
     openModal('modalWasteResult');
@@ -5074,6 +5113,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (viewParam === 'cargamentos' && shipmentParam && state.shipments.some((s) => s.id === shipmentParam)) {
       state.selected.shipment = shipmentParam;
       renderShipmentList();
+    }
+    const wasteParam = Number(urlParams.get('waste'));
+    if (viewParam === 'merma' && wasteParam && state.waste.some((w) => w.id === wasteParam)) {
+      state.selected.waste = wasteParam;
+      renderWasteList();
     }
   }
 });

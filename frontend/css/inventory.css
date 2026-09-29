@@ -3420,3 +3420,12 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
   .inv-expected-actions { width: 100%; justify-content: flex-end; }
   .inv-expected-receive { flex: 1; justify-content: center; }
 }
+
+/* Lo que conviene hacer, dentro del análisis de la merma (p. ej. cuánto pedir para que no se venza). */
+.inv-wi-action {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--inv-green-soft);
+  color: var(--inv-green-soft-text);
+}
