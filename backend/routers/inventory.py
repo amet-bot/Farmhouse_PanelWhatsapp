@@ -3,17 +3,19 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
-from sqlalchemy import case, func
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Response, UploadFile, status
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from database import get_db
+from database import SessionLocal, get_db
 from models.branch import Branch
 from models.inventory_item import InventoryItem, KIND_HOUSE, KIND_RAW
 from models.invu_sales import InvuRecipeLine, InvuSale, InvuSaleLine, InvuSaleModifier, InvuSyncDay
 from models.supplier import Supplier
-from models.shipment import Shipment, ShipmentItem
+from models.ops import Incident
+from models.push_subscription import PushSubscription
+from models.shipment import ExpectedShipment, Shipment, ShipmentItem
 from models.user import User
 from models.waste import WasteRecord, WasteItem, WastePhoto
 from models.stock_count import StockCount, StockCountItem
@@ -23,7 +25,8 @@ from schemas.inventory import (
     InventoryItemCreate, InventoryItemPieceSize, InventoryItemResponse,
     InvuStatusResponse, InvuSyncResult,
     SupplierCreate, SupplierResponse,
-    ShipmentCreate, ShipmentResponse, ShipmentItemResponse, ShipmentInsightItem, ShipmentInsights,
+    SHIPMENT_LINE_STATUSES, ShipmentCreate, ShipmentPhotoResponse, ShipmentResponse, ShipmentItemResponse,
+    ShipmentInsightItem, ShipmentInsights,
     StockCountCreate, StockCountItemResponse, StockCountResponse,
     StockCountAnalysis, StockCountAnalysisLine, StockCountAnalysisTotals,
     DashboardBranch, DashboardFigures, DashboardResponse, DashboardTopItem,
@@ -34,7 +37,7 @@ from schemas.inventory import (
     MovementComparisonResponse,
 )
 from config import settings
-from services import invu_client, invu_items_sync, invu_recipes_sync, invu_sales_sync, invu_sync
+from services import invu_client, invu_items_sync, invu_recipes_sync, invu_sales_sync, invu_sync, push_service
 from services.audit import log_audit_event
 from security.auth import get_current_authorized_user
 from security.permissions import has_permission, require_permission
@@ -67,14 +70,31 @@ WASTE_REASON_LABELS = dict(WASTE_REASONS)
 PROCESS_WASTE_REASONS = {"recorte"}
 
 
+def _reclamo_de_linea(line: ShipmentItem) -> Optional[Decimal]:
+    """Lo que hay que reclamarle al proveedor por un renglón: (facturado − llegó) × costo."""
+    if line.invoiced_quantity is None or line.unit_cost is None:
+        return None
+    falta = Decimal(line.invoiced_quantity) - Decimal(line.quantity)
+    if falta <= 0:
+        return None
+    return (falta * Decimal(line.unit_cost)).quantize(Decimal("0.01"))
+
+
+def _linea_con_problema(line: ShipmentItem) -> bool:
+    return line.line_status not in (None, "ok")
+
+
 def _serialize_shipment(shipment: Shipment) -> ShipmentResponse:
     items: List[ShipmentItemResponse] = []
     total_cost = Decimal("0.00")
     has_cost = False
+    reclamo_total = Decimal("0")
     for line in shipment.items:
         if line.unit_cost is not None:
             total_cost += (Decimal(line.quantity) * Decimal(line.unit_cost))
             has_cost = True
+        reclamo = _reclamo_de_linea(line)
+        reclamo_total += reclamo or Decimal("0")
         items.append(ShipmentItemResponse(
             id=line.id,
             inventory_item_id=line.inventory_item_id,
@@ -82,6 +102,10 @@ def _serialize_shipment(shipment: Shipment) -> ShipmentResponse:
             unit=line.inventory_item.unit,
             quantity=line.quantity,
             unit_cost=line.unit_cost,
+            invoiced_quantity=line.invoiced_quantity,
+            line_status=line.line_status,
+            line_note=line.line_note,
+            claim_value=reclamo,
         ))
     return ShipmentResponse(
         id=shipment.id,
@@ -96,6 +120,18 @@ def _serialize_shipment(shipment: Shipment) -> ShipmentResponse:
         created_at=shipment.created_at,
         items=items,
         total_cost=total_cost.quantize(Decimal("0.01")) if has_cost else None,
+        invoice_number=shipment.invoice_number,
+        has_issues=shipment.has_issues,
+        issues_count=sum(1 for l in shipment.items if _linea_con_problema(l)),
+        claim_total=(reclamo_total.quantize(Decimal("0.01")) if reclamo_total else None),
+        incident_id=shipment.incident_id,
+        expected_shipment_id=(shipment.expected_shipment.id if shipment.expected_shipment else None),
+        photos=[
+            ShipmentPhotoResponse(
+                id=p.id, content_type=p.content_type, size_bytes=p.size_bytes,
+                uploaded_by_name=None, created_at=p.created_at,
+            ) for p in shipment.photos
+        ],
     )
 
 
@@ -204,12 +240,69 @@ def create_supplier(
     return supplier
 
 
+_ESTADO_TEXTO = {
+    "falto": "faltó", "sobro": "sobró", "equivocado": "llegó equivocado", "danado": "llegó dañado",
+}
+
+
+def _cant(valor: Decimal, unidad: Optional[str]) -> str:
+    texto = f"{Decimal(valor).normalize():f}"
+    return f"{texto} {unidad or ''}".strip()
+
+
+def _describir_problema(line: ShipmentItem) -> str:
+    """"Tomate: facturado 10 kg, llegó 8 kg (faltó 2 kg) — nota"."""
+    item = line.inventory_item
+    partes = []
+    if line.invoiced_quantity is not None:
+        partes.append(f"facturado {_cant(line.invoiced_quantity, item.unit)}, llegó {_cant(line.quantity, item.unit)}")
+    estado = _ESTADO_TEXTO.get(line.line_status, line.line_status or "")
+    if line.line_status in ("falto", "sobro") and line.invoiced_quantity is not None:
+        diferencia = abs(Decimal(line.invoiced_quantity) - Decimal(line.quantity))
+        estado = f"{estado} {_cant(diferencia, item.unit)}"
+    texto = f"{item.name}: " + (f"{', '.join(partes)} ({estado})" if partes else estado)
+    if line.line_note:
+        texto += f" — {line.line_note}"
+    return texto
+
+
+def _avisar_diferencias_background(branch_id: int, title: str, body: str, url: str, tag: str) -> None:
+    """El aviso sale después de responder: mandar push no puede demorar el registro."""
+    db = SessionLocal()
+    try:
+        push_service.notify_branch_staff(db, branch_id, title, body, url, tag=tag, managers_only=True)
+    except Exception as e:  # un aviso fallido no deshace el cargamento
+        logger.error(f"[Push cargamento] sucursal {branch_id}: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+def _hay_a_quien_avisar(db: Session, branch_id: int) -> bool:
+    """Si el aviso de diferencias le puede llegar a alguien (push configurado y un encargado suscrito)."""
+    if not push_service.is_push_configured():
+        return False
+    return db.query(PushSubscription.id).join(User, User.id == PushSubscription.user_id).filter(
+        User.active == True,  # noqa: E712
+        or_(User.role == "admin",
+            and_(User.role == "supervisor", or_(User.branch_id.is_(None), User.branch_id == branch_id))),
+    ).first() is not None
+
+
 @router.post("/shipments", response_model=ShipmentResponse, status_code=status.HTTP_201_CREATED)
 def create_shipment(
     shipment_in: ShipmentCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_authorized_user),
 ):
+    """
+    Registra lo que llegó. Recibir contra factura es opcional por renglón: con lo facturado, el
+    servidor deduce si faltó o sobró; "equivocado" y "dañado" los marca quien recibe. `quantity`
+    es siempre lo que entró de verdad a la existencia (puede ser 0 si no llegó nada de eso).
+
+    Si algún renglón no llegó como decía la factura se abre sola una incidencia en Operación de
+    Sucursal y se avisa por notificación a los encargados, sin depender del grupo de WhatsApp.
+    """
     # Igual que conversations.py: agente y supervisor local solo su propia sucursal (Punto 3).
     if current_user.role == "agent":
         if shipment_in.branch_id != current_user.branch_id:
@@ -243,23 +336,60 @@ def create_shipment(
             detail=f"Ítem(s) de inventario no encontrados: {sorted(missing)}"
         )
 
+    esperado = None
+    if shipment_in.expected_shipment_id is not None:
+        esperado = db.query(ExpectedShipment).filter(ExpectedShipment.id == shipment_in.expected_shipment_id).first()
+        if not esperado or esperado.branch_id != shipment_in.branch_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El cargamento agendado no existe en esta sucursal.")
+        if esperado.status != "pendiente":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ese cargamento agendado ya se recibió o se canceló.")
+
+    nombres = {i.id: i.name for i in found_items}
+    estados: List[Optional[str]] = []
+    for line in shipment_in.items:
+        nombre = nombres[line.inventory_item_id]
+        estado = (line.line_status or "").strip().lower() or None
+        if estado is not None and estado not in SHIPMENT_LINE_STATUSES:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{nombre}: estado no válido.")
+        if estado in ("equivocado", "danado"):
+            pass
+        elif line.invoiced_quantity is not None:
+            q, fac = Decimal(line.quantity), Decimal(line.invoiced_quantity)
+            estado = "falto" if q < fac else ("sobro" if q > fac else "ok")
+        elif estado in ("falto", "sobro"):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"{nombre}: para decir que faltó o sobró, anotá cuánto dice la factura.")
+        if Decimal(line.quantity) == 0 and estado not in ("falto", "equivocado", "danado"):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"{nombre}: la cantidad que llegó no puede ser cero.")
+        estados.append(estado)
+    comparado = bool(shipment_in.invoice_number) or any(e is not None for e in estados)
+
     shipment = Shipment(
         branch_id=shipment_in.branch_id,
         received_by_user_id=current_user.id,
         received_at=shipment_in.received_at or datetime.now(timezone.utc),
         supplier_id=shipment_in.supplier_id,
         notes=(shipment_in.notes or None),
+        invoice_number=((shipment_in.invoice_number or "").strip() or None),
     )
-    for line in shipment_in.items:
+    for line, estado in zip(shipment_in.items, estados):
         shipment.items.append(ShipmentItem(
             inventory_item_id=line.inventory_item_id,
             quantity=line.quantity,
             unit_cost=line.unit_cost,
+            invoiced_quantity=line.invoiced_quantity,
+            line_status=(estado or ("ok" if comparado else None)),
+            line_note=((line.line_note or "").strip() or None),
         ))
+    problemas = [l for l in shipment.items if _linea_con_problema(l)]
+    shipment.has_issues = bool(problemas) if comparado else None
 
     db.add(shipment)
     db.flush()  # asigna shipment.id antes de generar los movimientos del libro (Fase 4)
     for line in shipment.items:
+        if Decimal(line.quantity) == 0:
+            continue   # no llegó nada de eso: no hay movimiento que anotar
         db.add(InventoryMovement(
             branch_id=shipment.branch_id,
             inventory_item_id=line.inventory_item_id,
@@ -271,15 +401,52 @@ def create_shipment(
             source_id=shipment.id,
             created_by_user_id=current_user.id,
         ))
+    aviso = None
+    if problemas:
+        proveedor = db.query(Supplier.name).filter(Supplier.id == shipment.supplier_id).scalar() if shipment.supplier_id else None
+        lineas = [_describir_problema(l) for l in problemas]
+        reclamo = sum((_reclamo_de_linea(l) or Decimal("0") for l in problemas), Decimal("0"))
+        grave = any(l.line_status in ("equivocado", "danado") for l in problemas) or reclamo >= Decimal("50")
+        titulo = f"Cargamento con diferencias{f' · {proveedor}' if proveedor else ''}"[:150]
+        detalle = "\n".join(f"- {x}" for x in lineas)
+        if shipment.invoice_number:
+            detalle = f"Factura {shipment.invoice_number}\n" + detalle
+        if reclamo:
+            detalle += f"\nPara reclamar: ${reclamo.quantize(Decimal('0.01'))}"
+        incidencia = Incident(
+            branch_id=shipment.branch_id, reported_by_user_id=current_user.id,
+            title=titulo, description=f"Cargamento #{shipment.id}\n{detalle}",
+            severity=("alta" if grave else "media"),
+        )
+        db.add(incidencia)
+        db.flush()
+        shipment.incident_id = incidencia.id
+        sucursal = db.query(Branch.name).filter(Branch.id == shipment.branch_id).scalar()
+        aviso = (
+            f"Cargamento con diferencias · {sucursal}",
+            f"{proveedor + ': ' if proveedor else ''}" + "; ".join(lineas),
+            f"/inventario?view=cargamentos&shipment={shipment.id}",
+            f"fh-shipment-{shipment.id}",
+        )
+    if esperado is not None:
+        esperado.status = "recibido"
+        esperado.shipment_id = shipment.id
+
     log_audit_event(
         db, current_user.id, shipment.branch_id, "shipment.create", "shipment", shipment.id,
-        {"items": len(shipment.items), "supplier_id": shipment.supplier_id}
+        {"items": len(shipment.items), "supplier_id": shipment.supplier_id,
+         "has_issues": shipment.has_issues, "incident_id": shipment.incident_id,
+         "expected_shipment_id": esperado.id if esperado else None}
     )
     db.commit()
     db.refresh(shipment)
-    logger.info(f"Cargamento #{shipment.id} registrado en sucursal {shipment.branch_id} por {current_user.name}")
+    logger.info(f"Cargamento #{shipment.id} registrado en sucursal {shipment.branch_id} por {current_user.name}"
+                + (f" con {len(problemas)} diferencia(s)" if problemas else ""))
     respuesta = _serialize_shipment(shipment)
     respuesta.insights = _shipment_insights(db, shipment)
+    if aviso is not None:
+        respuesta.notified = _hay_a_quien_avisar(db, shipment.branch_id)
+        background_tasks.add_task(_avisar_diferencias_background, shipment.branch_id, *aviso)
     return respuesta
 
 
@@ -365,6 +532,21 @@ def _shipment_insights(db: Session, shipment: Shipment) -> ShipmentInsights:
             days_left=((stock / por_dia).quantize(Decimal("0.1")) if por_dia and por_dia > 0 and stock > 0 else None),
         ))
 
+    # Historial del proveedor, todas las sucursales, 90 días: cuántas entregas comparadas contra
+    # factura vinieron con diferencias y cuánto faltó en $.
+    prov_total = prov_fallas = None
+    prov_reclamo = None
+    if shipment.supplier_id:
+        comparados = db.query(Shipment).options(selectinload(Shipment.items)).filter(
+            Shipment.supplier_id == shipment.supplier_id,
+            Shipment.has_issues.isnot(None),
+            Shipment.received_at >= noventa[0], Shipment.received_at < noventa[1],
+        ).all()
+        prov_total = len(comparados)
+        prov_fallas = sum(1 for s in comparados if s.has_issues)
+        prov_reclamo = sum((_reclamo_de_linea(l) or Decimal("0") for s in comparados for l in s.items),
+                           Decimal("0")).quantize(Decimal("0.01"))
+
     total = None
     if any(l.unit_cost is not None for l in shipment.items):
         total = sum((Decimal(l.quantity) * Decimal(l.unit_cost) for l in shipment.items if l.unit_cost is not None), Decimal("0")).quantize(Decimal("0.01"))
@@ -375,6 +557,7 @@ def _shipment_insights(db: Session, shipment: Shipment) -> ShipmentInsights:
         branch_week_spend=gasto(semana), branch_prev_week_spend=gasto(previa),
         supplier_month_spend=(gasto(mes, Shipment.supplier_id == shipment.supplier_id) if shipment.supplier_id else None),
         items_without_cost=sin_costo, items=items,
+        supplier_shipments_90d=prov_total, supplier_issues_90d=prov_fallas, supplier_claim_90d=prov_reclamo,
     )
 
 
@@ -414,9 +597,14 @@ def delete_shipment(
         ],
         "delete_reason": (motivo or "").strip() or None,
     }
+    snapshot["invoice_number"] = shipment.invoice_number
+    snapshot["incident_id"] = shipment.incident_id
     db.query(InventoryMovement).filter(
         InventoryMovement.source_type == "shipment", InventoryMovement.source_id == shipment.id,
     ).delete(synchronize_session=False)
+    # Si se estaba recibiendo un cargamento agendado, vuelve a esperarse.
+    db.query(ExpectedShipment).filter(ExpectedShipment.shipment_id == shipment.id).update(
+        {ExpectedShipment.status: "pendiente", ExpectedShipment.shipment_id: None}, synchronize_session=False)
     log_audit_event(db, current_user.id, shipment.branch_id, "shipment.delete", "shipment", shipment.id, snapshot)
     db.delete(shipment)   # las líneas se van con él (cascade)
     db.commit()

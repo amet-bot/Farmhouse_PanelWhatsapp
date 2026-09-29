@@ -10,7 +10,7 @@ from models.push_subscription import PushSubscription
 from models.bot_flow import BotFlow
 from models.inventory_item import InventoryItem
 from models.supplier import Supplier
-from models.shipment import Shipment, ShipmentItem
+from models.shipment import Shipment, ShipmentItem, ShipmentPhoto, ExpectedShipment
 from models.internal_chat import InternalThread, InternalParticipant, InternalMessage
 from models.waste import WasteRecord, WasteItem, WastePhoto
 from models.stock_count import StockCount, StockCountItem
@@ -21,4 +21,4 @@ from models.ops import SupplyRequest, Incident, Task
 from models.audit import AuditEvent
 from models.prep import PrepTemplate, PrepTemplateItem, PrepCheck, PrepCheckEntry
 
-__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription", "BotFlow", "InventoryItem", "Supplier", "Shipment", "ShipmentItem", "InternalThread", "InternalParticipant", "InternalMessage", "WasteRecord", "WasteItem", "WastePhoto", "StockCount", "StockCountItem", "InvuMenuItem", "InvuSale", "InvuSaleLine", "InvuSaleModifier", "InvuRecipeLine", "InvuSyncDay", "InventoryMovement", "Transfer", "TransferItem", "SupplyRequest", "Incident", "Task", "AuditEvent", "PrepTemplate", "PrepTemplateItem", "PrepCheck", "PrepCheckEntry"]
+__all__ = ["Base", "Branch", "User", "Device", "Contact", "Conversation", "Message", "Order", "PushSubscription", "BotFlow", "InventoryItem", "Supplier", "Shipment", "ShipmentItem", "ShipmentPhoto", "ExpectedShipment", "InternalThread", "InternalParticipant", "InternalMessage", "WasteRecord", "WasteItem", "WastePhoto", "StockCount", "StockCountItem", "InvuMenuItem", "InvuSale", "InvuSaleLine", "InvuSaleModifier", "InvuRecipeLine", "InvuSyncDay", "InventoryMovement", "Transfer", "TransferItem", "SupplyRequest", "Incident", "Task", "AuditEvent", "PrepTemplate", "PrepTemplateItem", "PrepCheck", "PrepCheckEntry"]

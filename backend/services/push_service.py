@@ -136,3 +136,40 @@ def notify_internal_message(
     }
     for sub in subs:
         _send_to_subscription(db, sub, payload)
+
+
+def notify_branch_staff(
+    db: Session,
+    branch_id: int,
+    title: str,
+    body: str,
+    url: str,
+    tag: Optional[str] = None,
+    managers_only: bool = False,
+) -> int:
+    """
+    Avisa por push a la gente de una sucursal: sus usuarios, los supervisores globales y los
+    admins (misma audiencia que notify_branch_new_message). Con `managers_only` quedan fuera los
+    agentes: una diferencia en un cargamento la tiene que resolver un supervisor, no la cocina.
+    Devuelve a cuántas suscripciones se mandó (0 si Web Push no está configurado).
+    """
+    if not is_push_configured():
+        return 0
+    condiciones = [
+        User.role == "admin",
+        and_(User.role == "supervisor", User.branch_id.is_(None)),
+    ]
+    if managers_only:
+        condiciones.append(and_(User.role == "supervisor", User.branch_id == branch_id))
+    else:
+        condiciones.append(User.branch_id == branch_id)
+    user_ids = [u.id for u in db.query(User.id).filter(User.active == True, or_(*condiciones)).all()]  # noqa: E712
+    if not user_ids:
+        return 0
+    subs = db.query(PushSubscription).filter(PushSubscription.user_id.in_(user_ids)).all()
+    payload = {"title": title, "body": (body or "")[:140], "url": url}
+    if tag:
+        payload["tag"] = tag
+    for sub in subs:
+        _send_to_subscription(db, sub, payload)
+    return len(subs)

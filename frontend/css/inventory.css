@@ -1262,6 +1262,7 @@ body {
 .inv-line-label { display: none; }
 
 .inv-line-qty,
+.inv-line-invoiced,
 .inv-line-cost { text-align: right; }
 
 .inv-line-subtotal-cell { justify-content: flex-start; }
@@ -3232,4 +3233,190 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
   .inv-dash-table td { display: flex; justify-content: space-between; border: 0; padding: 3px 0; }
   .inv-dash-table td::before { content: attr(data-label); color: var(--inv-text-muted); font-size: 12px; }
   .inv-dash-table td:first-child::before { content: none; }
+}
+
+/* ==========================================================================
+   Recibir cargamentos contra factura
+   ========================================================================== */
+.inv-recv-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--inv-green-border);
+  border-radius: var(--radius-sm);
+  background: var(--inv-green-soft);
+  color: var(--inv-green-soft-text);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.inv-recv-banner svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+
+.inv-invoice-box {
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--inv-border);
+  border-radius: var(--radius-sm);
+  background: var(--inv-panel-2);
+}
+.inv-invoice-toggle { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.inv-invoice-toggle input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--inv-green); flex-shrink: 0; }
+.inv-invoice-toggle span { display: flex; flex-direction: column; gap: 2px; }
+.inv-invoice-toggle small { color: var(--inv-text-muted); font-size: 12.5px; }
+.inv-invoice-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+.inv-invoice-fields[hidden] { display: none; }
+.inv-photo-grid-sm { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+
+/* La columna "Facturado" solo existe en modo factura. */
+.inv-col-invoiced { display: none !important; }
+.inv-invoice-mode .inv-lines-head .inv-col-invoiced { display: block !important; text-align: right; }
+.inv-invoice-mode .inv-line-cell.inv-col-invoiced { display: flex !important; }
+.inv-invoice-mode .inv-lines-head,
+.inv-invoice-mode .inv-line-row { grid-template-columns: minmax(0, 2fr) 96px 96px 110px 84px 38px; }
+.inv-invoice-mode .inv-lines-head span:nth-child(5) { text-align: right; }
+
+/* Cómo llegó cada renglón: la diferencia y los botones, a lo ancho debajo de la fila. */
+.inv-recv-strip {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: -2px;
+}
+.inv-recv-strip[hidden] { display: none; }
+.inv-recv-diff {
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.inv-recv-diff.is-ok { background: var(--inv-green-soft); color: var(--inv-green-soft-text); }
+.inv-recv-diff.is-short { background: var(--inv-loss-soft); color: var(--inv-loss-text); }
+.inv-recv-diff.is-over { background: var(--inv-amber-soft); color: var(--inv-amber); }
+.inv-recv-diff.is-muted { background: transparent; color: var(--inv-text-muted); font-weight: 500; padding-left: 0; }
+.inv-recv-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.inv-recv-chip {
+  min-height: 32px;
+  padding: 4px 11px;
+  border: 1px solid var(--inv-border);
+  border-radius: 999px;
+  background: var(--inv-panel);
+  color: var(--inv-text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.inv-recv-chip.is-active { border-color: var(--inv-green-border); background: var(--inv-green-soft); color: var(--inv-green-soft-text); }
+.inv-recv-chip[data-status="equivocado"].is-active,
+.inv-recv-chip[data-status="danado"].is-active { border-color: var(--inv-loss); background: var(--inv-loss-soft); color: var(--inv-loss-text); }
+.inv-recv-note { flex: 1 1 220px; min-width: 0; }
+.inv-recv-note[hidden] { display: none; }
+
+/* Resumen para quien entrega y resultado al guardar. */
+/* Se abre encima del formulario del cargamento (que está después en la página). */
+#modalShipmentCheck { z-index: 10000; }
+.inv-card-icon-warn { background: var(--inv-amber-soft); color: var(--inv-amber); }
+.inv-check-list { margin: 0 0 12px; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; line-height: 1.45; }
+.inv-check-claim { margin: 0 0 10px; font-size: 14.5px; }
+
+.inv-recv-result {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.inv-recv-result > svg { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; }
+.inv-recv-result ul { margin: 6px 0; padding-left: 18px; }
+.inv-recv-result p { margin: 4px 0 0; }
+.inv-recv-result.is-ok { background: var(--inv-green-soft); color: var(--inv-green-soft-text); }
+.inv-recv-result.is-warn { background: var(--inv-amber-soft); color: var(--inv-text); border: 1px solid var(--inv-amber); }
+.inv-recv-result.is-warn > svg { color: var(--inv-amber); }
+.inv-recv-result-note { color: var(--inv-text-secondary); font-size: 13px; }
+
+/* Próximos cargamentos (agendados). */
+.inv-expected {
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--inv-border);
+  border-radius: var(--radius-md, 14px);
+  background: var(--inv-panel);
+}
+.inv-expected h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; }
+.inv-expected h2 svg { width: 18px; height: 18px; color: var(--inv-green); }
+.inv-expected-list { display: flex; flex-direction: column; gap: 8px; }
+.inv-expected-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--inv-border);
+  border-radius: var(--radius-sm);
+  background: var(--inv-panel-2);
+}
+.inv-expected-card.is-today { border-color: var(--inv-green-border); background: var(--inv-green-soft); }
+.inv-expected-card.is-late { border-color: var(--inv-amber); background: var(--inv-amber-soft); }
+.inv-expected-icon {
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: var(--inv-panel);
+  color: var(--inv-green);
+}
+.inv-expected-icon svg { width: 18px; height: 18px; }
+.inv-expected-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.inv-expected-info small { color: var(--inv-text-secondary); font-size: 12.5px; }
+.inv-expected-note { font-style: italic; }
+.inv-expected-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.inv-expected-cancel {
+  border: 0; background: none; padding: 6px 4px;
+  color: var(--inv-text-muted); font: inherit; font-size: 13px; cursor: pointer;
+}
+.inv-expected-cancel:hover { color: var(--inv-loss-text); }
+.inv-expected-receive { min-height: 38px; padding: 0 14px; }
+
+.inv-supplier-issues {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--inv-border);
+  border-radius: var(--radius-sm);
+  background: var(--inv-panel);
+}
+.inv-supplier-issues summary {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; font-weight: 700; font-size: 14px; list-style: none;
+}
+.inv-supplier-issues summary::-webkit-details-marker { display: none; }
+.inv-supplier-issues summary svg { width: 17px; height: 17px; color: var(--inv-amber); }
+.inv-supplier-issues summary small { color: var(--inv-text-muted); font-weight: 500; }
+.inv-supplier-issue {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--inv-border-light);
+  margin-top: 8px;
+  font-size: 13.5px;
+}
+.inv-supplier-issue span { color: var(--inv-text-secondary); grid-column: 1; }
+.inv-supplier-issue-claim { grid-column: 2 !important; grid-row: 1 / span 2; align-self: center; font-weight: 700; color: var(--inv-loss-text) !important; }
+
+@media (max-width: 900px) {
+  .inv-invoice-fields { grid-template-columns: 1fr; }
+  .inv-invoice-mode .inv-line-row { grid-template-columns: 1fr 1fr; }
+  .inv-expected-card { flex-wrap: wrap; }
+  .inv-expected-actions { width: 100%; justify-content: flex-end; }
+  .inv-expected-receive { flex: 1; justify-content: center; }
 }

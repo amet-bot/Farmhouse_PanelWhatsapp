@@ -55,10 +55,20 @@ class SupplierResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# Cómo llegó un renglón comparado con la factura. "falto" y "sobro" los deduce el servidor de lo
+# facturado contra lo que llegó; "equivocado" y "danado" los marca quien recibe.
+SHIPMENT_LINE_STATUSES = ("ok", "falto", "sobro", "equivocado", "danado")
+
+
 class ShipmentItemCreate(BaseModel):
     inventory_item_id: int
-    quantity: Decimal = Field(..., gt=0)
+    # Lo que llegó de verdad y entra a la existencia. Puede ser 0 si no llegó nada de lo
+    # facturado, o si llegó equivocado o dañado y se devolvió.
+    quantity: Decimal = Field(..., ge=0)
     unit_cost: Optional[Decimal] = Field(None, ge=0)
+    invoiced_quantity: Optional[Decimal] = Field(None, ge=0)   # lo que dice la factura
+    line_status: Optional[str] = Field(None, max_length=20)
+    line_note: Optional[str] = Field(None, max_length=200)
 
 
 class ShipmentItemResponse(BaseModel):
@@ -68,6 +78,11 @@ class ShipmentItemResponse(BaseModel):
     unit: str
     quantity: Decimal
     unit_cost: Optional[Decimal] = None
+    invoiced_quantity: Optional[Decimal] = None
+    line_status: Optional[str] = None
+    line_note: Optional[str] = None
+    # Lo que hay que reclamar: (facturado − llegó) × costo, si faltó.
+    claim_value: Optional[Decimal] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -77,7 +92,51 @@ class ShipmentCreate(BaseModel):
     received_at: Optional[datetime] = None
     supplier_id: Optional[int] = None
     notes: Optional[str] = None
+    invoice_number: Optional[str] = Field(None, max_length=60)
+    expected_shipment_id: Optional[int] = None   # el cargamento agendado que se está recibiendo
     items: List[ShipmentItemCreate] = Field(..., min_length=1, max_length=100)
+
+
+class ShipmentPhotoResponse(BaseModel):
+    id: int
+    content_type: str
+    size_bytes: int
+    uploaded_by_name: Optional[str] = None
+    created_at: datetime
+
+
+class ExpectedShipmentCreate(BaseModel):
+    branch_id: int
+    supplier_id: Optional[int] = None
+    expected_date: date
+    time_from: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    notes: Optional[str] = Field(None, max_length=500)
+
+
+class ExpectedShipmentResponse(BaseModel):
+    id: int
+    branch_id: int
+    branch_name: str
+    supplier_id: Optional[int] = None
+    supplier_name: Optional[str] = None
+    expected_date: date
+    time_from: Optional[str] = None
+    notes: Optional[str] = None
+    status: str
+    created_by_name: Optional[str] = None
+    created_at: datetime
+    shipment_id: Optional[int] = None
+
+
+class SupplierIssueRow(BaseModel):
+    """Qué tanto falla un proveedor al entregar (cargamentos recibidos contra factura)."""
+    supplier_id: Optional[int] = None
+    supplier_name: str
+    shipments: int                     # recibidos contra factura en el período
+    with_issues: int
+    issue_pct: Decimal
+    claim_value: Decimal               # lo que faltó, en $
+    last_issue_at: Optional[datetime] = None
 
 
 class ShipmentResponse(BaseModel):
@@ -93,6 +152,15 @@ class ShipmentResponse(BaseModel):
     created_at: datetime
     items: List[ShipmentItemResponse]
     total_cost: Optional[Decimal] = None
+    invoice_number: Optional[str] = None
+    has_issues: Optional[bool] = None
+    issues_count: int = 0
+    claim_total: Optional[Decimal] = None
+    incident_id: Optional[int] = None
+    expected_shipment_id: Optional[int] = None
+    photos: List[ShipmentPhotoResponse] = []
+    # Solo al crear: si se avisó al supervisor por notificación (hay a quién y está configurado).
+    notified: Optional[bool] = None
     # Solo en la respuesta de crear: el contexto del cargamento (ver GET /shipments/{id}/insights).
     insights: Optional["ShipmentInsights"] = None
 
@@ -133,6 +201,10 @@ class ShipmentInsights(BaseModel):
     supplier_month_spend: Optional[Decimal] = None   # a este proveedor, últimos 30 días
     items_without_cost: int = 0
     items: List[ShipmentInsightItem]
+    # Historial del proveedor (todas las sucursales, 90 días): cuántas entregas con diferencias.
+    supplier_shipments_90d: Optional[int] = None
+    supplier_issues_90d: Optional[int] = None
+    supplier_claim_90d: Optional[Decimal] = None
 
 
 # ==========================================================================

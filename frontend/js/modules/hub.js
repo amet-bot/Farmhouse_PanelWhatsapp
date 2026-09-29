@@ -720,23 +720,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('hubActivityList').innerHTML = '<div class="hub-skeleton"></div><div class="hub-skeleton"></div><div class="hub-skeleton"></div>';
     $('hubPendingList').innerHTML = '<div class="hub-skeleton"></div><div class="hub-skeleton"></div>';
 
-    const [counts, tasks, requests, convs, stockCounts, shipments] = await Promise.allSettled([
+    const [counts, tasks, requests, convs, stockCounts, shipments, expected] = await Promise.allSettled([
       api.get('/conversations/counts'),
       api.get('/ops/tasks?status=pendiente&limit=200'),
       api.get('/ops/requests?status=open&limit=200'),
       api.get('/conversations/?status=todas&limit=4'),
       api.get('/inventory/counts?limit=3'),
       api.get('/inventory/shipments?limit=3'),
+      api.get('/inventory/expected-shipments?days_ahead=1'),
     ]);
     const ok = (r) => (r.status === 'fulfilled' ? r.value : null);
 
-    renderPending(ok(counts), ok(tasks), ok(requests));
+    renderPending(ok(counts), ok(tasks), ok(requests), ok(expected));
     activityEntries = buildActivity(ok(convs), ok(stockCounts), ok(shipments), ok(requests));
     renderActivity();
   }
 
-  function renderPending(counts, tasks, requests) {
+  /** "Hoy llega PriceSmart · desde las 3:00 pm" (hoy, mañana o atrasado). */
+  function expectedRow(e) {
+    const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    const dia = e.expected_date === hoy ? 'Hoy llega' : (e.expected_date < hoy ? 'Atrasado:' : 'Mañana llega');
+    let hora = '';
+    if (e.time_from) {
+      const [h, m] = e.time_from.split(':').map(Number);
+      hora = ` · desde las ${(h % 12) || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
+    }
+    return {
+      icon: 'truck', tone: e.expected_date < hoy ? 'orange' : 'blue', route: '/inventario?view=cargamentos',
+      title: `${dia} ${e.supplier_name || 'un cargamento'}${hora}`,
+      subtitle: `${e.branch_name} · revisar contra factura`,
+    };
+  }
+
+  function renderPending(counts, tasks, requests, expected) {
     const rows = [];
+    if (Array.isArray(expected)) expected.slice(0, 3).forEach((e) => rows.push(expectedRow(e)));
     if (counts && counts.no_asignadas > 0) {
       rows.push({ icon: 'message-square', tone: 'green', route: '/app',
         title: plural(counts.no_asignadas, 'conversación nueva', 'conversaciones nuevas'), subtitle: 'En Centro WhatsApp' });
@@ -775,8 +793,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       title: 'Conteo de inventario completado', subtitle: `${s.branch_name} · ${s.counted_by_name}`, route: '/inventario',
     }));
     (shipments || []).forEach((s) => entries.push({
-      at: s.received_at, icon: 'truck', tone: 'blue', badge: 'Inventario',
-      title: 'Cargamento recibido', subtitle: [s.branch_name, s.supplier_name].filter(Boolean).join(' · '), route: '/inventario',
+      at: s.received_at, icon: s.has_issues ? 'alert-triangle' : 'truck', tone: s.has_issues ? 'orange' : 'blue', badge: 'Inventario',
+      title: s.has_issues ? 'Cargamento con diferencias' : 'Cargamento recibido',
+      subtitle: [s.branch_name, s.supplier_name].filter(Boolean).join(' · '),
+      route: s.has_issues ? `/inventario?view=cargamentos&shipment=${s.id}` : '/inventario',
     }));
     (requests || []).slice(0, 3).forEach((r) => entries.push({
       at: r.created_at, icon: 'package-plus', tone: 'orange', badge: 'Operación',

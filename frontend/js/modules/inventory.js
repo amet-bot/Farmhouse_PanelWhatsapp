@@ -103,6 +103,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const PHOTO_MAX_SIDE = 1600;          // px del lado largo: se ve bien el detalle y pesa ~300 KB
   let pendingWastePhotos = [];          // [{ blob, url }] elegidas en el modal; se suben al guardar
   const wastePhotoUrls = new Map();     // id de foto → URL ya descargada (no se vuelve a pedir)
+  const SHIPMENT_PHOTOS_MAX = 4;        // factura (y lo que llegó mal): mismo tope que el servidor
+  let pendingShipmentPhotos = [];       // [{ blob, url }] del formulario; se suben al guardar
+  const shipmentPhotoUrls = new Map();
 
   /** Cantidades con hasta 3 decimales pero sin ceros de relleno: 2.500 → "2.5", 3.000 → "3". */
   const qty = (n) => {
@@ -1147,7 +1150,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             <strong>${esc(s.supplier_name || 'Sin proveedor')}</strong>
             <small>${esc(sub)}</small>
           </span>
-          <span class="inv-badge muted">${pluralize(s.items.length, 'ítem', 'ítems')}</span>
+          ${s.has_issues
+            ? '<span class="inv-badge warn">Con diferencias</span>'
+            : `<span class="inv-badge muted">${pluralize(s.items.length, 'ítem', 'ítems')}</span>`}
           <span class="inv-row-amount">${s.total_cost != null ? money(s.total_cost) : '—'}</span>
         </button>`;
     }).join('');
@@ -1247,10 +1252,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sinCosto = ins.items_without_cost
       ? `<p class="inv-wi-warn">${pluralize(ins.items_without_cost, 'insumo quedó', 'insumos quedaron')} sin costo: sin el precio, la merma y el conteo de ${ins.items_without_cost === 1 ? 'ese insumo' : 'esos insumos'} se valúan con el de Invu.</p>`
       : '';
+    let historial = '';
+    if (ins.supplier_name && ins.supplier_shipments_90d) {
+      historial = ins.supplier_issues_90d
+        ? `<p class="inv-wi-branch"><strong>${esc(ins.supplier_name)}</strong>: ${ins.supplier_issues_90d} de ${ins.supplier_shipments_90d} ${ins.supplier_shipments_90d === 1 ? 'entrega revisada' : 'entregas revisadas'} contra factura ${ins.supplier_issues_90d === 1 ? 'vino' : 'vinieron'} con diferencias en 90 días${Number(ins.supplier_claim_90d) ? ` (${esc(money(ins.supplier_claim_90d))} faltante)` : ''}.</p>`
+        : `<p class="inv-wi-branch"><strong>${esc(ins.supplier_name)}</strong>: ${ins.supplier_shipments_90d === 1 ? 'la entrega revisada' : `las ${ins.supplier_shipments_90d} entregas revisadas`} contra factura en 90 días llegaron completas.</p>`;
+    }
     return `
       ${sinCosto}
       ${ins.items.map(shipmentInsightItemHtml).join('')}
-      <p class="inv-wi-branch">${semana}${prov}</p>`;
+      <p class="inv-wi-branch">${semana}${prov}</p>
+      ${historial}`;
   }
 
   async function shipmentInsightsFor(id) {
@@ -1269,8 +1281,54 @@ document.addEventListener('DOMContentLoaded', async () => {
       cargamento.supplier_name || 'Sin proveedor',
       cargamento.total_cost != null ? money(cargamento.total_cost) : null,
     ].filter(Boolean).join(' · ');
-    $('shipmentResultBody').innerHTML = cargamento.insights ? shipmentInsightsHtml(cargamento.insights) : '';
+    $('shipmentResultBody').innerHTML = shipmentIssuesHtml(cargamento, true)
+      + (cargamento.insights ? shipmentInsightsHtml(cargamento.insights) : '');
     openModal('modalShipmentResult');
+    utils.renderIcons();
+  }
+
+  /** Un renglón con diferencia, en una frase. */
+  function lineIssueText(l) {
+    const u = unitShort(l.unit);
+    let txt = `<strong>${esc(l.item_name)}</strong>: `;
+    const partes = [];
+    if (l.invoiced_quantity != null) partes.push(`facturado ${esc(qty(l.invoiced_quantity))} ${esc(u)}, llegó ${esc(qty(l.quantity))} ${esc(u)}`);
+    if ((l.line_status === 'falto' || l.line_status === 'sobro') && l.invoiced_quantity != null) {
+      partes.push(`${RECV_TEXT[l.line_status]} ${esc(qty(Math.abs(Number(l.invoiced_quantity) - Number(l.quantity))))} ${esc(u)}`);
+    } else if (RECV_TEXT[l.line_status]) {
+      partes.push(RECV_TEXT[l.line_status]);
+    }
+    txt += partes.join(' · ');
+    if (l.line_note) txt += ` — ${esc(l.line_note)}`;
+    if (l.claim_value != null && Number(l.claim_value)) txt += ` · ${esc(money(l.claim_value))}`;
+    return txt;
+  }
+
+  /** Cómo llegó contra la factura. `alGuardar`: además, si se avisó al encargado. */
+  function shipmentIssuesHtml(c, alGuardar) {
+    if (c.has_issues == null) return '';
+    if (!c.has_issues) {
+      return `<div class="inv-recv-result is-ok"><i data-lucide="check-circle-2"></i><div><strong>Todo llegó como decía la factura${c.invoice_number ? ` ${esc(c.invoice_number)}` : ''}.</strong></div></div>`;
+    }
+    const lineas = c.items.filter((l) => l.line_status && l.line_status !== 'ok').map(lineIssueText);
+    let aviso = '';
+    if (alGuardar) {
+      aviso = c.notified
+        ? 'Se abrió una incidencia y se le avisó al encargado por notificación.'
+        : 'Se abrió una incidencia en Operación de Sucursal. Ningún encargado tiene las notificaciones activadas en este momento: avisale también por el grupo.';
+    } else if (c.incident_id) {
+      aviso = `Incidencia #${c.incident_id} en Operación de Sucursal.`;
+    }
+    return `
+      <div class="inv-recv-result is-warn">
+        <i data-lucide="alert-triangle"></i>
+        <div>
+          <strong>${pluralize(c.issues_count, 'diferencia', 'diferencias')} con la factura${c.invoice_number ? ` ${esc(c.invoice_number)}` : ''}</strong>
+          <ul>${lineas.map((x) => `<li>${x}</li>`).join('')}</ul>
+          ${c.claim_total != null && Number(c.claim_total) ? `<p>Para reclamar: <strong>${esc(money(c.claim_total))}</strong></p>` : ''}
+          ${aviso ? `<p class="inv-recv-result-note">${aviso}</p>` : ''}
+        </div>
+      </div>`;
   }
 
   /** Debajo del costo de cada línea: en qué unidad va y el aviso si parece el precio de un paquete. */
@@ -1295,12 +1353,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    const conFactura = s.items.some((l) => l.invoiced_quantity != null);
     const rowsHtml = s.items.map((l) => {
       const subtotal = l.unit_cost != null ? money(Number(l.quantity) * Number(l.unit_cost)) : '—';
+      const marca = l.line_status && l.line_status !== 'ok'
+        ? ` <span class="inv-badge warn">${esc(RECV_TEXT[l.line_status] || l.line_status)}</span>` : '';
       return `
         <tr>
-          <td class="inv-td-name" data-label="Insumo">${esc(l.item_name)}</td>
-          <td class="num" data-label="Cantidad">${esc(qty(l.quantity))} ${esc(l.unit)}</td>
+          <td class="inv-td-name" data-label="Insumo">${esc(l.item_name)}${marca}</td>
+          ${conFactura ? `<td class="num" data-label="Facturado">${l.invoiced_quantity != null ? `${esc(qty(l.invoiced_quantity))} ${esc(l.unit)}` : '—'}</td>` : ''}
+          <td class="num" data-label="${conFactura ? 'Llegó' : 'Cantidad'}">${esc(qty(l.quantity))} ${esc(l.unit)}</td>
           <td class="num" data-label="Costo unit.">${l.unit_cost != null ? unitCost(l.unit_cost) : '—'}</td>
           <td class="num" data-label="Subtotal">${subtotal}</td>
         </tr>`;
@@ -1309,7 +1371,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const footHtml = s.total_cost != null ? `
       <tfoot>
         <tr>
-          <td colspan="3" class="inv-td-total-label">Total</td>
+          <td colspan="${conFactura ? 4 : 3}" class="inv-td-total-label">Total</td>
           <td class="num" data-label="Total">${money(s.total_cost)}</td>
         </tr>
       </tfoot>` : '';
@@ -1319,10 +1381,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="inv-detail-header">
         <span class="inv-detail-thumb"><i data-lucide="truck"></i></span>
         <span class="inv-badge ok">Cargamento #${s.id}</span>
+        ${s.has_issues === true ? '<span class="inv-badge warn">Con diferencias</span>' : ''}
+        ${s.has_issues === false ? '<span class="inv-badge ok">Cuadró con la factura</span>' : ''}
       </div>
       <h3>${esc(s.supplier_name || 'Sin proveedor')}</h3>
-      <p class="inv-detail-sub">${esc(utils.formatDateTime(s.received_at))} · ${esc(s.branch_name)}</p>
+      <p class="inv-detail-sub">${esc(utils.formatDateTime(s.received_at))} · ${esc(s.branch_name)}${s.invoice_number ? ` · Factura ${esc(s.invoice_number)}` : ''}</p>
       ${s.notes ? `<p class="inv-detail-note">${esc(s.notes)}</p>` : ''}
+      ${s.has_issues ? shipmentIssuesHtml(s, false) : ''}
       <div class="inv-metrics">
         <div><span>Ítems</span><strong>${s.items.length} <small>${s.items.length === 1 ? 'línea' : 'líneas'}</small></strong></div>
         <div><span>Total</span><strong>${s.total_cost != null ? money(s.total_cost) : '—'}</strong></div>
@@ -1330,11 +1395,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="inv-detail-section-header"><span>Insumos recibidos</span></div>
       <table class="inv-detail-table">
         <thead>
-          <tr><th>Insumo</th><th class="num">Cantidad</th><th class="num">Costo unit.</th><th class="num">Subtotal</th></tr>
+          <tr><th>Insumo</th>${conFactura ? '<th class="num">Facturado</th><th class="num">Llegó</th>' : '<th class="num">Cantidad</th>'}<th class="num">Costo unit.</th><th class="num">Subtotal</th></tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
         ${footHtml}
       </table>
+      ${(s.photos || []).length ? `
+        <div class="inv-detail-section-header"><span>Foto de la factura</span></div>
+        <div class="inv-photo-grid" id="shipmentDetailPhotos">
+          ${s.photos.map((p) => `<button type="button" class="inv-photo-thumb is-loading" data-shipment-photo="${p.id}" aria-label="Ver foto"></button>`).join('')}
+        </div>` : ''}
       <div class="inv-detail-section-header"><span>En contexto</span></div>
       <div id="shipmentInsightsBox"><div class="inv-ca-loading">Calculando…</div></div>
       <div class="inv-detail-section-header"><span>Detalles</span></div>
@@ -1355,6 +1425,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('btnDeleteShipment').addEventListener('click', () => openShipmentDelete(s));
     }
     utils.renderIcons();
+    $('shipmentDetail').querySelectorAll('[data-shipment-photo]').forEach((btn) => {
+      shipmentPhotoUrl(s.id, Number(btn.dataset.shipmentPhoto))
+        .then((url) => {
+          if (!btn.isConnected) return;
+          btn.classList.remove('is-loading');
+          btn.innerHTML = '<img src="' + url + '" alt="Foto de la factura">';
+          btn.addEventListener('click', () => openPhotoViewer(url));
+        })
+        .catch(() => {
+          if (!btn.isConnected) return;
+          btn.classList.remove('is-loading');
+          btn.classList.add('is-error');
+          btn.innerHTML = '<i data-lucide="image-off"></i>';
+          utils.renderIcons();
+        });
+    });
     shipmentInsightsFor(s.id)
       .then((ins) => {
         const box = $('shipmentInsightsBox');
@@ -1426,6 +1512,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.branchFilter = e.target.value;
     state.selected.shipment = null;
     loadShipments({ reset: true });
+    loadExpected();
+    loadSupplierIssues();
   });
 
   $('btnLoadMore')?.addEventListener('click', async () => {
@@ -1820,20 +1908,114 @@ document.addEventListener('DOMContentLoaded', async () => {
   const supplierInput = $('supplierInput');
   const supplierSuggestions = $('supplierSuggestions');
 
-  function openShipmentModal() {
+  /** `expected`: el cargamento agendado que se está recibiendo (llena proveedor y sucursal). */
+  function openShipmentModal(expected = null) {
     resetShipmentForm();
+    if (expected) {
+      state.receivingExpected = expected;
+      if (expected.supplier_id) selectSupplier({ id: expected.supplier_id, name: expected.supplier_name });
+      if (!state.fixedBranchId) $('branchSelect').value = String(expected.branch_id);
+      const banner = $('shipmentExpectedBanner');
+      banner.innerHTML = `<i data-lucide="calendar-check"></i><span>Recibiendo lo agendado: <strong>${esc(expected.supplier_name || 'Cargamento')}</strong> · ${esc(expectedWhen(expected))}${expected.notes ? ` · ${esc(expected.notes)}` : ''}</span>`;
+      banner.hidden = false;
+    }
     openModal('modalShipment');
+    utils.renderIcons();
+  }
+
+  // ---- Recibir contra factura ----
+  const invoiceMode = () => $('invoiceModeToggle').checked;
+
+  function applyInvoiceMode() {
+    const on = invoiceMode();
+    $('modalShipment').classList.toggle('inv-invoice-mode', on);
+    $('invoiceFields').hidden = !on;
+    $('shipmentQtyHead').textContent = on ? 'Llegó' : 'Cantidad';
+    linesContainer.querySelectorAll('.inv-line-row').forEach(updateLineReceipt);
+  }
+  $('invoiceModeToggle')?.addEventListener('change', applyInvoiceMode);
+
+  /** Lo facturado, lo que llegó y cómo llegó un renglón del formulario. */
+  function lineReceipt(row) {
+    const inv = row.querySelector('.inv-line-invoiced').value;
+    const q = row.querySelector('.inv-line-qty').value;
+    return {
+      invoiced: inv === '' ? null : Number(inv),
+      qty: q === '' ? null : Number(q),
+      status: row.dataset.recvStatus || '',
+      note: row.querySelector('.inv-recv-note').value.trim(),
+    };
+  }
+
+  /** La franja de "cómo llegó" debajo de cada renglón: la diferencia al vuelo y los botones. */
+  function updateLineReceipt(row) {
+    const on = invoiceMode();
+    row.querySelector('.inv-ship-qty-label').textContent = on ? 'Llegó' : 'Cantidad';
+    const strip = row.querySelector('.inv-recv-strip');
+    const itemInput = row.querySelector('.inv-item-input');
+    strip.hidden = !(on && itemInput.dataset.itemId);
+    if (strip.hidden) return;
+    const { invoiced, qty: q, status } = lineReceipt(row);
+    const u = unitShort(itemInput.dataset.unit || '');
+    const diff = strip.querySelector('.inv-recv-diff');
+    let txt = 'Anotá lo facturado';
+    let cls = 'muted';
+    if (invoiced != null && q != null) {
+      const d = q - invoiced;
+      if (Math.abs(d) < 0.0005) { txt = 'Completo'; cls = 'ok'; }
+      else if (d < 0) { txt = `Faltan ${qty(-d)} ${u}`; cls = 'short'; }
+      else { txt = `Sobran ${qty(d)} ${u}`; cls = 'over'; }
+    }
+    diff.textContent = txt;
+    diff.className = `inv-recv-diff is-${cls}`;
+    strip.querySelectorAll('.inv-recv-chip').forEach((c) => {
+      const activo = c.dataset.status === status;
+      c.classList.toggle('is-active', activo);
+      c.setAttribute('aria-checked', String(activo));
+    });
+    strip.querySelector('.inv-recv-note').hidden = !status;
+  }
+
+  const RECV_TEXT = { falto: 'faltó', sobro: 'sobró', equivocado: 'llegó equivocado', danado: 'llegó dañado' };
+
+  /** Lo que no coincide con la factura, en frases, para enseñárselo a quien entrega. */
+  function shipmentProblems(rows) {
+    const problemas = [];
+    let reclamo = 0;
+    rows.forEach((row) => {
+      const itemInput = row.querySelector('.inv-item-input');
+      if (!itemInput.dataset.itemId) return;
+      const { invoiced, qty: q, status, note } = lineReceipt(row);
+      const u = unitShort(itemInput.dataset.unit || '');
+      const d = invoiced != null && q != null ? q - invoiced : 0;
+      if (!status && Math.abs(d) < 0.0005) return;
+      let txt = `<strong>${esc(itemInput.value)}</strong>: `;
+      if (invoiced != null) txt += `facturado ${esc(qty(invoiced))} ${esc(u)}, llegó ${esc(qty(q ?? 0))} ${esc(u)}`;
+      if (Math.abs(d) >= 0.0005) txt += ` (${d < 0 ? 'faltan' : 'sobran'} ${esc(qty(Math.abs(d)))} ${esc(u)})`;
+      if (status) txt += `${invoiced != null ? ' · ' : ''}${RECV_TEXT[status]}`;
+      if (note) txt += ` — ${esc(note)}`;
+      const costo = row.querySelector('.inv-line-cost').value;
+      if (d < 0 && costo !== '') reclamo += -d * Number(costo);
+      problemas.push(txt);
+    });
+    return { problemas, reclamo };
   }
 
   function resetShipmentForm() {
     $('shipmentError').style.display = 'none';
     supplierInput.value = '';
     state.selectedSupplierId = '';
+    state.receivingExpected = null;
     $('notesInput').value = '';
+    $('invoiceNumberInput').value = '';
+    $('invoiceModeToggle').checked = true;
+    $('shipmentExpectedBanner').hidden = true;
     $('receivedAtInput').value = toLocalInputValue(new Date());
     shipmentCostConfirmed = '';
+    resetShipmentPhotos();
     linesContainer.innerHTML = '';
     createLineRow();
+    applyInvoiceMode();
     updateShipmentTotal();
   }
 
@@ -1867,9 +2049,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const removeBtn = row.querySelector('.inv-line-remove');
     const qtyInput = row.querySelector('.inv-line-qty');
     const costInput = row.querySelector('.inv-line-cost');
+    const invoicedInput = row.querySelector('.inv-line-invoiced');
+    const noteInput = row.querySelector('.inv-recv-note');
 
     itemInput.dataset.itemId = '';
     itemInput._reqId = 0;
+    row.dataset.recvStatus = '';
 
     function hideSuggestions() {
       suggestBox.hidden = true;
@@ -1882,6 +2067,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       itemInput.dataset.unit = item.unit || '';
       unitLabel.textContent = item.unit ? `Se cuenta en ${item.unit}` : '';
       updateShipmentCostHint(row);
+      updateLineReceipt(row);
       // El costo de Invu como sugerencia, no como valor: si no se escribe nada, el cargamento
       // queda sin costo (como siempre) en vez de guardar uno que nadie confirmó.
       if (!('defaultPlaceholder' in costInput.dataset)) costInput.dataset.defaultPlaceholder = costInput.placeholder;
@@ -1889,7 +2075,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? `Ref. ${unitCost(item.reference_cost)}`
         : costInput.dataset.defaultPlaceholder;
       hideSuggestions();
-      qtyInput.focus();
+      (invoiceMode() ? invoicedInput : qtyInput).focus();
     }
 
     function renderSuggestions(results, query) {
@@ -1933,13 +2119,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     itemInput.addEventListener('input', () => {
       itemInput.dataset.itemId = '';
       unitLabel.textContent = '';
+      updateLineReceipt(row);
       clearTimeout(itemInput._debounce);
       const query = itemInput.value;
       itemInput._debounce = setTimeout(() => fetchSuggestions(query), 300);
     });
 
-    qtyInput.addEventListener('input', updateShipmentTotal);
+    qtyInput.addEventListener('input', () => {
+      row.dataset.qtyAuto = '';   // lo escribió la persona: ya no se copia de la factura
+      updateShipmentTotal();
+      updateLineReceipt(row);
+    });
     costInput.addEventListener('input', () => { updateShipmentTotal(); updateShipmentCostHint(row); });
+    // Casi siempre llega lo facturado: "llegó" se completa igual, y se corrige si no.
+    invoicedInput.addEventListener('input', () => {
+      if (qtyInput.value === '' || row.dataset.qtyAuto === '1') {
+        qtyInput.value = invoicedInput.value;
+        row.dataset.qtyAuto = invoicedInput.value === '' ? '' : '1';
+      }
+      updateShipmentTotal();
+      updateLineReceipt(row);
+    });
+    row.querySelector('.inv-recv-chips').addEventListener('click', (e) => {
+      const chip = e.target.closest('.inv-recv-chip');
+      if (!chip) return;
+      row.dataset.recvStatus = chip.dataset.status;
+      updateLineReceipt(row);
+      if (chip.dataset.status) noteInput.focus();
+    });
 
     removeBtn.addEventListener('click', () => {
       if (linesContainer.children.length > 1) {
@@ -1950,11 +2157,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         unitLabel.textContent = '';
         qtyInput.value = '';
         costInput.value = '';
+        invoicedInput.value = '';
+        noteInput.value = '';
+        row.dataset.recvStatus = '';
+        row.dataset.qtyAuto = '';
+        updateLineReceipt(row);
       }
       updateShipmentTotal();
     });
 
     linesContainer.appendChild(row);
+    updateLineReceipt(row);
     utils.renderIcons();
   }
 
@@ -2036,6 +2249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!branchId) { showModalError('shipmentError', 'Elegí una sucursal.'); return; }
 
     const rows = Array.from(linesContainer.querySelectorAll('.inv-line-row'));
+    const conFactura = invoiceMode();
     const items = [];
     for (const row of rows) {
       const itemInput = row.querySelector('.inv-item-input');
@@ -2043,13 +2257,31 @@ document.addEventListener('DOMContentLoaded', async () => {
       const costInput = row.querySelector('.inv-line-cost');
       const itemId = itemInput.dataset.itemId;
       const qtyValue = qtyInput.value;
-      if (!itemId && !qtyValue) continue; // fila vacía, se ignora
+      const r = lineReceipt(row);
+      const facturado = conFactura ? row.querySelector('.inv-line-invoiced').value : '';
+      if (!itemId && !qtyValue && !facturado) continue; // fila vacía, se ignora
       if (!itemId) { showModalError('shipmentError', 'Elegí un insumo de la lista (o creá uno nuevo) en cada fila con cantidad.'); itemInput.focus(); return; }
-      if (!qtyValue || Number(qtyValue) <= 0) { showModalError('shipmentError', `Falta la cantidad de "${itemInput.value}".`); qtyInput.focus(); return; }
+      if (qtyValue === '' || Number(qtyValue) < 0) {
+        showModalError('shipmentError', conFactura ? `Falta cuánto llegó de "${itemInput.value}" (0 si no llegó nada).` : `Falta la cantidad de "${itemInput.value}".`);
+        qtyInput.focus();
+        return;
+      }
+      // Cero solo vale si es un faltante completo o algo que llegó mal y se devolvió.
+      const ceroValido = conFactura && ((facturado !== '' && Number(facturado) > 0) || (r.status && r.status !== ''));
+      if (Number(qtyValue) === 0 && !ceroValido) {
+        showModalError('shipmentError', conFactura
+          ? `"${itemInput.value}" dice 0: si no llegó nada, anotá cuánto dice la factura.`
+          : `Falta la cantidad de "${itemInput.value}".`);
+        qtyInput.focus();
+        return;
+      }
       items.push({
         inventory_item_id: Number(itemId),
         quantity: qtyValue,
         unit_cost: costInput.value !== '' ? costInput.value : null,
+        invoiced_quantity: facturado !== '' ? facturado : null,
+        line_status: conFactura && r.status ? r.status : null,
+        line_note: conFactura && r.status && r.note ? r.note : null,
       });
     }
     if (!items.length) { showModalError('shipmentError', 'Agregá al menos un insumo.'); return; }
@@ -2084,23 +2316,58 @@ document.addEventListener('DOMContentLoaded', async () => {
       receivedAt = parsed.toISOString();
     }
 
+    const payload = {
+      branch_id: branchId,
+      received_at: receivedAt,
+      supplier_id: state.selectedSupplierId ? Number(state.selectedSupplierId) : null,
+      notes: $('notesInput').value.trim() || null,
+      invoice_number: conFactura ? ($('invoiceNumberInput').value.trim() || null) : null,
+      expected_shipment_id: state.receivingExpected ? state.receivingExpected.id : null,
+      items,
+    };
+
+    // Si algo no coincide con la factura, primero el resumen para enseñárselo a quien entrega.
+    const { problemas, reclamo } = conFactura ? shipmentProblems(rows) : { problemas: [], reclamo: 0 };
+    if (problemas.length) {
+      pendingShipmentPayload = payload;
+      $('shipmentCheckList').innerHTML = problemas.map((p) => `<li>${p}</li>`).join('');
+      const claim = $('shipmentCheckClaim');
+      claim.hidden = !(reclamo > 0);
+      claim.innerHTML = reclamo > 0 ? `Para reclamar: <strong>${esc(money(reclamo))}</strong>` : '';
+      openModal('modalShipmentCheck');
+      utils.renderIcons();
+      return;
+    }
+    await sendShipment(payload);
+  });
+
+  let pendingShipmentPayload = null;
+  $('btnConfirmShipmentCheck')?.addEventListener('click', async () => {
+    if (!pendingShipmentPayload) return;
+    const payload = pendingShipmentPayload;
+    pendingShipmentPayload = null;
+    closeModal('modalShipmentCheck');
+    await sendShipment(payload);
+  });
+
+  async function sendShipment(payload) {
     const btn = $('btnSubmitShipment');
     btn.disabled = true;
     btn.textContent = 'Registrando...';
     try {
-      const creado = await api.post('/inventory/shipments', {
-        branch_id: branchId,
-        received_at: receivedAt,
-        supplier_id: state.selectedSupplierId ? Number(state.selectedSupplierId) : null,
-        notes: $('notesInput').value.trim() || null,
-        items,
-      });
+      let creado = await api.post('/inventory/shipments', payload);
+      if (pendingShipmentPhotos.length) {
+        btn.textContent = 'Subiendo foto...';
+        const { ultima, fallidas } = await uploadShipmentPhotos(creado.id, pendingShipmentPhotos.map((p) => p.blob));
+        if (ultima) creado = { ...ultima, insights: creado.insights, notified: creado.notified };
+        if (fallidas) utils.showToast(`${pluralize(fallidas, 'foto no se pudo', 'fotos no se pudieron')} subir. Podés intentarlo de nuevo más tarde.`, 'error');
+      }
       closeModal('modalShipment');
       showShipmentResult(creado);
       state.selected.shipment = null;
       // loadStock también: Existencias quedaba mostrando lo de antes del cargamento hasta
       // recargar la página (merma y conteo ya la refrescaban).
-      await Promise.all([loadShipments({ reset: true }), loadAnalytics(), loadStock()]);
+      await Promise.all([loadShipments({ reset: true }), loadAnalytics(), loadStock(), loadExpected(), loadSupplierIssues()]);
       renderResumen();
       renderItemList();
       renderSupplierList();
@@ -2110,7 +2377,214 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.disabled = false;
       btn.textContent = 'Registrar cargamento';
     }
+  }
+
+  // ---- Fotos de la factura (formulario) ----
+  function renderShipmentPhotos() {
+    const grid = $('shipmentPhotoPreviews');
+    if (!grid) return;
+    const add = grid.querySelector('.inv-photo-add-group');
+    grid.querySelectorAll('.inv-photo-thumb').forEach((n) => n.remove());
+    pendingShipmentPhotos.forEach((p, i) => {
+      const el = document.createElement('div');
+      el.className = 'inv-photo-thumb';
+      el.innerHTML = `<img src="${p.url}" alt="Foto ${i + 1}">
+        <button type="button" class="inv-photo-remove" data-idx="${i}" aria-label="Quitar foto ${i + 1}">&times;</button>`;
+      grid.insertBefore(el, add);
+    });
+    add.hidden = pendingShipmentPhotos.length >= SHIPMENT_PHOTOS_MAX;
+  }
+
+  function resetShipmentPhotos() {
+    pendingShipmentPhotos.forEach((p) => URL.revokeObjectURL(p.url));
+    pendingShipmentPhotos = [];
+    renderShipmentPhotos();
+  }
+
+  async function addShipmentPhotos(files) {
+    for (const f of files) {
+      if (pendingShipmentPhotos.length >= SHIPMENT_PHOTOS_MAX) break;
+      const blob = await compressPhoto(f);
+      pendingShipmentPhotos.push({ blob, url: URL.createObjectURL(blob) });
+    }
+    renderShipmentPhotos();
+  }
+
+  $('shipmentPhotoInput')?.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    await addShipmentPhotos(files);
   });
+
+  $('shipmentPhotoPreviews')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.inv-photo-remove');
+    if (!btn) return;
+    const [quitada] = pendingShipmentPhotos.splice(Number(btn.dataset.idx), 1);
+    if (quitada) URL.revokeObjectURL(quitada.url);
+    renderShipmentPhotos();
+  });
+
+  async function uploadShipmentPhotos(shipmentId, blobs) {
+    let ultima = null;
+    let fallidas = 0;
+    for (const blob of blobs) {
+      const fd = new FormData();
+      fd.append('file', blob, blob.type === 'image/png' ? 'factura.png' : 'factura.jpg');
+      try {
+        ultima = await api.request(`/inventory/shipments/${shipmentId}/photos`, { method: 'POST', body: fd });
+      } catch (err) {
+        fallidas += 1;
+      }
+    }
+    return { ultima, fallidas };
+  }
+
+  async function shipmentPhotoUrl(shipmentId, photoId) {
+    if (shipmentPhotoUrls.has(photoId)) return shipmentPhotoUrls.get(photoId);
+    const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+    const deviceId = api.getDeviceId();
+    if (deviceId) headers['X-Device-ID'] = deviceId;
+    const res = await fetch(`${api.baseUrl}/inventory/shipments/${shipmentId}/photos/${photoId}`, { credentials: 'include', headers });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const url = URL.createObjectURL(await res.blob());
+    shipmentPhotoUrls.set(photoId, url);
+    return url;
+  }
+
+  // ==========================================================================
+  // Cargamentos agendados y proveedores con diferencias
+  // ==========================================================================
+  const panamaDate = (d) => d.toLocaleDateString('en-CA', { timeZone: 'America/Panama' });   // AAAA-MM-DD
+  function hora12(hhmm) {
+    if (!hhmm) return '';
+    const [h, m] = hhmm.split(':').map(Number);
+    return `${(h % 12) || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
+  }
+  function expectedWhen(e) {
+    const hoy = panamaDate(new Date());
+    const manana = panamaDate(new Date(Date.now() + 86400000));
+    const fecha = new Date(`${e.expected_date}T12:00:00`).toLocaleDateString('es-PA', { weekday: 'short', day: 'numeric', month: 'short' });
+    const dia = e.expected_date === hoy ? 'Hoy' : e.expected_date === manana ? 'Mañana'
+      : e.expected_date < hoy ? `Atrasado · era el ${fecha}` : fecha;
+    return `${dia}${e.time_from ? ` · desde las ${hora12(e.time_from)}` : ''}`;
+  }
+
+  async function loadExpected() {
+    const params = new URLSearchParams();
+    if (state.branchFilter) params.set('branch_id', state.branchFilter);
+    try {
+      state.expected = await api.get(`/inventory/expected-shipments?${params.toString()}`);
+    } catch (err) {
+      state.expected = [];
+    }
+    renderExpected();
+  }
+
+  function renderExpected() {
+    const box = $('expectedBox');
+    const lista = state.expected || [];
+    box.hidden = !lista.length;
+    if (!lista.length) return;
+    const hoy = panamaDate(new Date());
+    $('expectedList').innerHTML = lista.map((e) => `
+      <div class="inv-expected-card${e.expected_date < hoy ? ' is-late' : ''}${e.expected_date === hoy ? ' is-today' : ''}">
+        <span class="inv-expected-icon"><i data-lucide="truck"></i></span>
+        <div class="inv-expected-info">
+          <strong>${esc(e.supplier_name || 'Cargamento')}</strong>
+          <small>${esc(expectedWhen(e))}${state.isGlobalScope ? ` · ${esc(e.branch_name)}` : ''}</small>
+          ${e.notes ? `<small class="inv-expected-note">${esc(e.notes)}</small>` : ''}
+        </div>
+        <div class="inv-expected-actions">
+          ${hasPerm('inventory.adjust') ? `<button type="button" class="inv-expected-cancel" data-expected-cancel="${e.id}">Cancelar</button>` : ''}
+          <button type="button" class="inv-primary-btn inv-expected-receive" data-expected-receive="${e.id}"><i data-lucide="package-check"></i> Recibir</button>
+        </div>
+      </div>`).join('');
+    utils.renderIcons();
+  }
+
+  $('expectedList')?.addEventListener('click', async (e) => {
+    const recibir = e.target.closest('[data-expected-receive]');
+    const cancelar = e.target.closest('[data-expected-cancel]');
+    if (recibir) {
+      const agendado = state.expected.find((x) => x.id === Number(recibir.dataset.expectedReceive));
+      if (agendado) openShipmentModal(agendado);
+    } else if (cancelar) {
+      const agendado = state.expected.find((x) => x.id === Number(cancelar.dataset.expectedCancel));
+      if (!agendado || !window.confirm(`¿Cancelar el cargamento de ${agendado.supplier_name || 'este proveedor'} (${expectedWhen(agendado)})?`)) return;
+      try {
+        await api.post(`/inventory/expected-shipments/${agendado.id}/cancel`, {});
+        utils.showToast('Cargamento agendado cancelado.', 'success');
+        await loadExpected();
+      } catch (err) {
+        utils.showToast(err.message || 'No se pudo cancelar.', 'error');
+      }
+    }
+  });
+
+  function openExpectedModal() {
+    $('expectedError').style.display = 'none';
+    const sel = $('expectedBranch');
+    if (state.fixedBranchId) {
+      sel.innerHTML = `<option value="${state.fixedBranchId}">${esc(state.user.branch ? state.user.branch.name : 'Mi sucursal')}</option>`;
+      sel.disabled = true;
+    } else {
+      sel.innerHTML = (state.branches || []).map((b) => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
+      sel.disabled = false;
+      if (state.branchFilter) sel.value = state.branchFilter;
+    }
+    const proveedores = [...(state.suppliers || [])].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    $('expectedSupplier').innerHTML = '<option value="">Sin proveedor / otro</option>'
+      + proveedores.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+    const hoy = panamaDate(new Date());
+    $('expectedDate').min = hoy;
+    $('expectedDate').value = panamaDate(new Date(Date.now() + 86400000));
+    $('expectedTime').value = '';
+    $('expectedNotes').value = '';
+    openModal('modalExpected');
+  }
+  $('btnScheduleShipment')?.addEventListener('click', openExpectedModal);
+
+  $('btnSaveExpected')?.addEventListener('click', async () => {
+    const fecha = $('expectedDate').value;
+    if (!fecha) { showModalError('expectedError', 'Elegí el día.'); return; }
+    const btn = $('btnSaveExpected');
+    btn.disabled = true;
+    try {
+      await api.post('/inventory/expected-shipments', {
+        branch_id: Number($('expectedBranch').value),
+        supplier_id: $('expectedSupplier').value ? Number($('expectedSupplier').value) : null,
+        expected_date: fecha,
+        time_from: $('expectedTime').value || null,
+        notes: $('expectedNotes').value.trim() || null,
+      });
+      closeModal('modalExpected');
+      utils.showToast('Agendado. Se le avisó a la sucursal.', 'success');
+      await loadExpected();
+    } catch (err) {
+      showModalError('expectedError', err.message || 'No se pudo agendar.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  async function loadSupplierIssues() {
+    const params = new URLSearchParams();
+    if (state.branchFilter) params.set('branch_id', state.branchFilter);
+    let filas = [];
+    try {
+      filas = await api.get(`/inventory/suppliers/issues?${params.toString()}`);
+    } catch (err) {
+      filas = [];
+    }
+    const conFallas = filas.filter((f) => f.with_issues > 0);
+    $('supplierIssuesBox').hidden = !conFallas.length;
+    $('supplierIssuesList').innerHTML = conFallas.map((f) => `
+      <div class="inv-supplier-issue">
+        <strong>${esc(f.supplier_name)}</strong>
+        <span>${f.with_issues} de ${f.shipments} ${f.shipments === 1 ? 'entrega revisada' : 'entregas revisadas'} con diferencias (${Number(f.issue_pct).toLocaleString('es-PA', { maximumFractionDigits: 0 })}%)</span>
+        <span class="inv-supplier-issue-claim">${Number(f.claim_value) ? `${esc(money(f.claim_value))} faltante` : ''}</span>
+      </div>`).join('');
+  }
 
 
   // ==========================================================================
@@ -3662,6 +4136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function deliverCameraPhotos(files) {
     if (!files.length) return;
     if (cameraTarget === 'detail') await uploadDetailPhotos(files);
+    else if (cameraTarget === 'shipment') await addShipmentPhotos(files);
     else await addPendingPhotos(files);
   }
 
@@ -3699,7 +4174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       );
       // Si todavía vale el clic del usuario, abre el selector directo; si el navegador ya no lo
       // deja (pasó mucho rato en el aviso de permiso), queda el botón «Galería».
-      $(cameraTarget === 'detail' ? 'wasteDetailPhotoInput' : 'wastePhotoInput').click();
+      $({ detail: 'wasteDetailPhotoInput', shipment: 'shipmentPhotoInput' }[cameraTarget] || 'wastePhotoInput').click();
     }
   }
 
@@ -4567,7 +5042,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadStock(),
     loadCounts({ reset: true }),
     loadInvuStatus(),
+    loadExpected(),
+    loadSupplierIssues(),
   ]);
+  $('btnScheduleShipment').hidden = !hasPerm('inventory.adjust');
 
   renderResumen();
   renderItemList();
@@ -4586,4 +5064,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     count: () => { setView('conteo'); openCountModal(); },
   };
   AUTO_OPEN[openParam]?.();
+
+  // Desde una notificación: ?view=cargamentos&shipment=ID abre ese cargamento.
+  const urlParams = new URLSearchParams(window.location.search);
+  const viewParam = urlParams.get('view');
+  if (!openParam && VIEWS[viewParam]) {
+    setView(viewParam);
+    const shipmentParam = Number(urlParams.get('shipment'));
+    if (viewParam === 'cargamentos' && shipmentParam && state.shipments.some((s) => s.id === shipmentParam)) {
+      state.selected.shipment = shipmentParam;
+      renderShipmentList();
+    }
+  }
 });

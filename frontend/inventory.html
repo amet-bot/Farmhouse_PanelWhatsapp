@@ -15,7 +15,7 @@
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.12.0">
-  <link rel="stylesheet" href="css/inventory.css?v=4.20.1">
+  <link rel="stylesheet" href="css/inventory.css?v=4.21.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -169,10 +169,25 @@
               <h1>Cargamentos</h1>
               <p>Todo lo que recibió cada sucursal, con su detalle.</p>
             </div>
-            <button type="button" class="inv-primary-btn" data-open-shipment>
-              <i data-lucide="plus"></i> Nuevo cargamento
-            </button>
+            <div class="inv-view-head-actions">
+              <button type="button" class="inv-secondary-btn" id="btnScheduleShipment" hidden>
+                <i data-lucide="calendar-plus"></i> <span>Agendar</span>
+              </button>
+              <button type="button" class="inv-primary-btn" data-open-shipment>
+                <i data-lucide="plus"></i> Nuevo cargamento
+              </button>
+            </div>
           </div>
+
+          <!-- Lo que se espera ("mañana llega PriceSmart, 3 pm"): se recibe desde acá. -->
+          <section class="inv-expected" id="expectedBox" hidden aria-labelledby="expectedTitle">
+            <h2 id="expectedTitle"><i data-lucide="calendar-clock"></i> Próximos cargamentos</h2>
+            <div class="inv-expected-list" id="expectedList"></div>
+          </section>
+          <details class="inv-supplier-issues" id="supplierIssuesBox" hidden>
+            <summary><i data-lucide="alert-triangle"></i> Proveedores con diferencias <small>(últimos 90 días)</small></summary>
+            <div id="supplierIssuesList"></div>
+          </details>
 
           <div class="inv-workspace">
             <div class="inv-list-col">
@@ -529,6 +544,78 @@
   <!-- ================= Modal: cargamento registrado =================
        Al guardar un cargamento: precio contra la compra anterior, otra sucursal e Invu; la
        existencia y para cuántos días alcanza; el gasto de la semana y con el proveedor. -->
+  <!-- ================= Modal: revisar con quien entrega =================
+       Antes de guardar un cargamento con diferencias: la lista para enseñársela a quien entrega
+       ("tenemos órdenes de corroborar que el pedido se entregó en su totalidad"). -->
+  <div class="modal-backdrop" id="modalShipmentCheck">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="inv-modal-title">
+          <span class="inv-card-icon inv-card-icon-warn"><i data-lucide="clipboard-check"></i></span>
+          <div>
+            <h3>Revisalo con quien entrega</h3>
+            <span class="modal-subtitle">No coincide con la factura.</span>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="modalShipmentCheck" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <ul class="inv-check-list" id="shipmentCheckList"></ul>
+        <p class="inv-check-claim" id="shipmentCheckClaim" hidden></p>
+        <p class="inv-delete-note">Al confirmar se guarda lo que llegó de verdad, se abre una incidencia y se le avisa al encargado.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-close-modal="modalShipmentCheck">Corregir</button>
+        <button type="button" class="btn-primary" id="btnConfirmShipmentCheck">Confirmar y avisar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= Modal: agendar cargamento ================= -->
+  <div class="modal-backdrop" id="modalExpected">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="inv-modal-title">
+          <span class="inv-card-icon"><i data-lucide="calendar-plus"></i></span>
+          <div>
+            <h3>Agendar cargamento</h3>
+            <span class="modal-subtitle">A la sucursal le llega el aviso y le aparece en el inicio.</span>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="modalExpected" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="expectedError" class="login-error-box" style="display:none"></div>
+        <div class="inv-field">
+          <label class="modal-label" for="expectedBranch">Sucursal</label>
+          <select id="expectedBranch" class="modal-input"></select>
+        </div>
+        <div class="inv-field">
+          <label class="modal-label" for="expectedSupplier">Proveedor</label>
+          <select id="expectedSupplier" class="modal-input"></select>
+        </div>
+        <div class="inv-field-row">
+          <div class="inv-field">
+            <label class="modal-label" for="expectedDate">Día</label>
+            <input type="date" id="expectedDate" class="modal-input">
+          </div>
+          <div class="inv-field">
+            <label class="modal-label" for="expectedTime">Desde qué hora <small>(opcional)</small></label>
+            <input type="time" id="expectedTime" class="modal-input">
+          </div>
+        </div>
+        <div class="inv-field">
+          <label class="modal-label" for="expectedNotes">Indicaciones <small>(opcional)</small></label>
+          <input type="text" id="expectedNotes" class="modal-input" maxlength="500" placeholder="Ej.: revisar todo contra factura junto con quien entrega">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-close-modal="modalExpected">Cancelar</button>
+        <button type="button" class="btn-primary" id="btnSaveExpected">Agendar y avisar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="modalShipmentResult">
     <div class="modal-card modal-lg">
       <div class="modal-header">
@@ -888,9 +975,42 @@
           </div>
         </div>
 
+        <div class="inv-recv-banner" id="shipmentExpectedBanner" hidden></div>
+
+        <!-- Recibir contra factura: lo que dice la factura contra lo que llegó de verdad. Si algo
+             no coincide, antes de guardar se muestra el resumen para enseñárselo a quien entrega,
+             y al guardar se abre una incidencia y se avisa al encargado. -->
+        <section class="inv-invoice-box">
+          <label class="inv-invoice-toggle">
+            <input type="checkbox" id="invoiceModeToggle" checked>
+            <span><strong>Revisar contra la factura</strong><small>Anotá lo que dice la factura y lo que llegó de verdad.</small></span>
+          </label>
+          <div class="inv-invoice-fields" id="invoiceFields">
+            <div class="inv-field">
+              <label class="modal-label" for="invoiceNumberInput">N.º de factura <small>(opcional)</small></label>
+              <input type="text" id="invoiceNumberInput" class="modal-input" maxlength="60" placeholder="Ej.: F-10234" autocomplete="off">
+            </div>
+            <div class="inv-field">
+              <span class="modal-label">Foto de la factura <small>(opcional)</small></span>
+              <div class="inv-photo-grid inv-photo-grid-sm" id="shipmentPhotoPreviews">
+                <div class="inv-photo-add-group">
+                  <button type="button" class="inv-photo-add" data-photo-camera="shipment">
+                    <i data-lucide="camera"></i><span>Tomar foto</span>
+                  </button>
+                  <label class="inv-photo-add inv-photo-add-secondary" for="shipmentPhotoInput">
+                    <i data-lucide="image"></i><span>Galería</span>
+                  </label>
+                </div>
+              </div>
+              <input type="file" id="shipmentPhotoInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*" multiple hidden>
+            </div>
+          </div>
+        </section>
+
         <div class="inv-lines-head">
           <span>Insumos recibidos</span>
-          <span>Cantidad</span>
+          <span class="inv-col-invoiced">Facturado</span>
+          <span id="shipmentQtyHead">Cantidad</span>
           <span>Costo unit.</span>
           <span>Subtotal</span>
           <span></span>
@@ -1003,9 +1123,13 @@
         <div class="inv-item-suggestions" hidden></div>
         <small class="inv-line-unit"></small>
       </div>
+      <div class="inv-line-cell inv-col-invoiced">
+        <span class="inv-line-label">Facturado</span>
+        <input type="number" class="modal-input inv-line-invoiced" placeholder="Factura" min="0" step="0.001" inputmode="decimal">
+      </div>
       <div class="inv-line-cell">
-        <span class="inv-line-label">Cantidad</span>
-        <input type="number" class="modal-input inv-line-qty" placeholder="0" min="0" step="0.001">
+        <span class="inv-line-label inv-ship-qty-label">Cantidad</span>
+        <input type="number" class="modal-input inv-line-qty" placeholder="0" min="0" step="0.001" inputmode="decimal">
       </div>
       <div class="inv-line-cell">
         <span class="inv-line-label">Costo unit.</span>
@@ -1018,6 +1142,16 @@
       <button type="button" class="inv-line-remove" title="Quitar" aria-label="Quitar insumo">
         <i data-lucide="x"></i>
       </button>
+      <!-- Cómo llegó: faltó/sobró sale solo de facturado contra llegó; lo demás se marca. -->
+      <div class="inv-recv-strip" hidden>
+        <span class="inv-recv-diff"></span>
+        <div class="inv-recv-chips" role="radiogroup" aria-label="Cómo llegó">
+          <button type="button" class="inv-recv-chip is-active" data-status="" role="radio" aria-checked="true">Llegó bien</button>
+          <button type="button" class="inv-recv-chip" data-status="equivocado" role="radio" aria-checked="false">Equivocado</button>
+          <button type="button" class="inv-recv-chip" data-status="danado" role="radio" aria-checked="false">Dañado</button>
+        </div>
+        <input type="text" class="modal-input inv-recv-note" maxlength="200" placeholder="¿Qué pasó? Ej.: llegó repollo en vez de lechuga" hidden>
+      </div>
     </div>
   </template>
 
@@ -1093,6 +1227,6 @@
   <script src="js/api.js?v=4.0.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/modules/inventory.js?v=4.22.0"></script>
+  <script src="js/modules/inventory.js?v=4.23.0"></script>
 </body>
 </html>
