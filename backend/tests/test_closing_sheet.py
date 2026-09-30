@@ -104,6 +104,30 @@ def test_cerrar_turno_calcula_lo_gastado_y_fija_la_existencia(client, db_session
     assert ritmo[pollo.id] == Decimal("8") / Decimal("14") and ritmo[bolsa.id] == Decimal("20") / Decimal("14")
 
 
+def test_la_hoja_aprende_el_tamano_de_pieza(client, db_session, clayton_branch, clayton_agent, clayton_device, supervisor_user, insumos):
+    """Si se contó en piezas y el insumo no sabía cuánto es una pieza, el operario lo escribe y
+    queda guardado; cambiar uno ya cargado solo lo hace un encargado."""
+    pollo, _ = insumos
+    ha = auth_headers_for(clayton_agent, clayton_device.device_id)
+    hs = auth_headers_for(supervisor_user, clayton_device.device_id)
+    client.put("/api/inventory/closing-sheet/config", json={"branch_id": clayton_branch.id, "item_ids": [pollo.id]}, headers=hs)
+
+    r = client.post("/api/inventory/closing-sheet", json={"branch_id": clayton_branch.id, "lines": [{"inventory_item_id": pollo.id, "counted_quantity": "1.5", "piece_size": "500"}]}, headers=ha)
+    assert r.status_code == 201, r.text
+    db_session.refresh(pollo)
+    assert pollo.piece_size == Decimal("500")
+    assert db_session.query(AuditEvent).filter(AuditEvent.action == "item.piece_size").count() == 1
+    assert float(client.get("/api/inventory/closing-sheet", headers=ha).json()["items"][0]["piece_size"]) == 500
+
+    # El operario no pisa un tamaño ya cargado; el encargado sí.
+    client.post("/api/inventory/closing-sheet", json={"branch_id": clayton_branch.id, "lines": [{"inventory_item_id": pollo.id, "counted_quantity": "1", "piece_size": "400"}]}, headers=ha)
+    db_session.refresh(pollo)
+    assert pollo.piece_size == Decimal("500")
+    client.post("/api/inventory/closing-sheet", json={"branch_id": clayton_branch.id, "lines": [{"inventory_item_id": pollo.id, "counted_quantity": "1", "piece_size": "450"}]}, headers=hs)
+    db_session.refresh(pollo)
+    assert pollo.piece_size == Decimal("450")
+
+
 def test_el_operario_no_cierra_otra_sucursal(client, clayton_branch, obarrio_branch, clayton_agent, clayton_device, supervisor_user, insumos):
     pollo, _ = insumos
     ha = auth_headers_for(clayton_agent, clayton_device.device_id)

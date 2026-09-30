@@ -17,8 +17,11 @@
 .cie-field-label { position: absolute; top: -8px; left: 10px; padding: 0 5px; border-radius: 6px; background: var(--bg-surface, #fff); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted, #6b7280); line-height: 1.4; white-space: nowrap; }
 .cie-field-label small { font-weight: 500; text-transform: none; letter-spacing: 0; }
 .cie-field input.derived { color: var(--text-muted, #6b7280); font-weight: 600; border-style: dashed; }
-.cie-field input:disabled { background: transparent; border-style: dashed; opacity: .55; }
-.cie-field.no-piece { cursor: pointer; }
+/* "¿Cuánto trae 1 pieza?" aparece en el renglón cuando se contó en piezas y el insumo no lo sabía. */
+.cie-psize { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 130px; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(245,158,11,.10); font-size: 13.5px; color: var(--text-secondary, #4b5563); }
+.cie-psize[hidden] { display: none; }
+.cie-psize strong { color: var(--text-primary, #111827); }
+.cie-psize-field input { height: 46px; font-size: 19px; }
 .cie-field .cie-unit { max-width: 64px; }
 .cie-row-name { font-size: 16px; font-weight: 700; color: var(--text-primary, #111827); line-height: 1.25; }
 .cie-row-prev { display: block; margin-top: 3px; font-size: 12.5px; color: var(--text-muted, #6b7280); }
@@ -94,6 +97,7 @@
   .cie-intro { flex-direction: column; }
   .cie-row { grid-template-columns: 1fr; gap: 8px; padding: 10px 12px; }
   .cie-fields { padding-top: 8px; }
+  .cie-psize { grid-template-columns: 1fr 112px; }
   .inv-header #branchSelect { max-width: 120px; font-size: 13px; }
   .cie-field input { height: 50px; font-size: 20px; }
   .cie-row-name { font-size: 15px; }

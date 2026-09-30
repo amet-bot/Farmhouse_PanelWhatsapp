@@ -51,6 +51,9 @@ class SheetConfigIn(BaseModel):
 class SheetLineIn(BaseModel):
     inventory_item_id: int
     counted_quantity: Decimal = Field(..., ge=0, max_digits=10, decimal_places=3)
+    # Si se contó en piezas enteras y el insumo no tenía cargado cuánto es una pieza (g o ml),
+    # el operario lo escribe en la hoja y el insumo lo aprende (igual que en la merma).
+    piece_size: Optional[Decimal] = Field(None, gt=0, max_digits=12, decimal_places=3)
 
 
 class SheetSubmitIn(BaseModel):
@@ -246,6 +249,19 @@ def submit_sheet(
     fuera = [l.inventory_item_id for l in data.lines if l.inventory_item_id not in permitidos]
     if fuera:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Hay insumos que no están en la hoja de esta sucursal.")
+
+    # Tamaño de pieza aprendido en la hoja: se guarda si el insumo no tenía uno; cambiar uno ya
+    # cargado es cosa de un encargado (inventory.adjust), mismo criterio que la merma.
+    aprendidos = {l.inventory_item_id: l.piece_size for l in data.lines if l.piece_size is not None}
+    if aprendidos:
+        puede_ajustar = has_permission(current_user, "inventory.adjust")
+        for item in db.query(InventoryItem).filter(InventoryItem.id.in_(list(aprendidos))).all():
+            nuevo = aprendidos[item.id]
+            if item.piece_size is not None and (not puede_ajustar or Decimal(item.piece_size) == nuevo):
+                continue
+            log_audit_event(db, current_user.id, efectiva, "item.piece_size", "inventory_item", item.id,
+                            {"before": str(item.piece_size) if item.piece_size is not None else None, "after": str(nuevo), "via": "closing_sheet"})
+            item.piece_size = nuevo
 
     conteo = create_count(
         StockCountCreate(

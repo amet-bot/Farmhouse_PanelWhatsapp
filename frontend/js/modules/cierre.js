@@ -118,12 +118,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <span class="cie-unit">${esc(shortUnit(it.unit))}</span>
                   </span>
                   ${it.unit_family !== 'unidad' ? `
-                  <span class="cie-field ${it.piece_size ? '' : 'no-piece'}" data-piece="${it.inventory_item_id}">
+                  <span class="cie-field">
                     <span class="cie-field-label">Piezas <small>(opcional)</small></span>
-                    <input type="number" min="0" step="0.5" inputmode="decimal" value="${fmt(v.pieces)}" data-id="${it.inventory_item_id}" data-kind="pieces" ${it.piece_size ? '' : 'disabled'} aria-label="Cuántas piezas enteras quedan de ${esc(it.name)}" />
-                    <span class="cie-unit">${it.piece_size ? `×${num(it.piece_size)}${it.unit_family === 'volumen' ? 'ml' : 'g'}` : '?'}</span>
+                    <input type="number" min="0" step="0.5" inputmode="decimal" value="${fmt(v.pieces)}" data-id="${it.inventory_item_id}" data-kind="pieces" aria-label="Cuántas piezas enteras quedan de ${esc(it.name)}" />
+                    <span class="cie-unit">${it.piece_size ? `×${num(it.piece_size)}${pieceUnit(it)}` : 'pzas'}</span>
                   </span>` : ''}
                 </span>
+                ${it.unit_family !== 'unidad' && !it.piece_size ? `
+                <span class="cie-psize" data-psize="${it.inventory_item_id}" ${v.source === 'pieces' ? '' : 'hidden'}>
+                  <span>¿Cuánto trae <strong>1 pieza</strong>? (bolsa, bandeja, botella)</span>
+                  <span class="cie-field cie-psize-field">
+                    <input type="number" min="0" step="1" inputmode="decimal" value="${fmt(v.pieceSize)}" data-id="${it.inventory_item_id}" data-kind="psize" aria-label="Cuánto trae una pieza de ${esc(it.name)}" />
+                    <span class="cie-unit">${pieceUnit(it)}</span>
+                  </span>
+                </span>` : ''}
               </div>`;
           }).join('')}
         </div>
@@ -136,14 +144,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Lo que había antes de este cierre: la última vez más lo que llegó. Null si nunca se contó.
   const baseOf = (it) => (it.last_counted_qty == null ? null : Number(it.last_counted_qty) + Number(it.received_since || 0));
   const rowClass = (v) => (v.left != null ? 'filled' : '');
+  const pieceUnit = (it) => (it.unit_family === 'volumen' ? 'ml' : 'g');
   // Piezas enteras → unidad del insumo: piezas × (g o ml de una pieza) / (g o ml de la unidad).
-  const fromPieces = (it, pieces) => Number((pieces * Number(it.piece_size) / Number(it.unit_base || 1)).toFixed(3));
-  function resolve(it, kind, n) {
+  // El tamaño sale del insumo; si no lo tiene, del que escribió el operario en el renglón.
+  function fromPieces(it, pieces, learned) {
+    const size = Number(it.piece_size) || learned || null;
+    return {
+      pieces, source: 'pieces', pieceSize: it.piece_size ? null : (learned || null),
+      left: size ? Number((pieces * size / Number(it.unit_base || 1)).toFixed(3)) : null,
+    };
+  }
+  function resolve(it, kind, n, prev) {
+    if (kind === 'psize') return prev && prev.pieces != null ? fromPieces(it, prev.pieces, n) : null;
     if (n == null) return null;
-    if (kind === 'pieces') return { left: fromPieces(it, n), pieces: n, source: 'pieces' };
+    if (kind === 'pieces') return fromPieces(it, n, prev && prev.pieceSize);
     return { left: n, pieces: null, source: 'left' };
   }
   function rowNote(it, v) {
+    if (v.source === 'pieces' && v.left == null) return `Escribe cuántos ${pieceUnit(it)} trae una pieza para calcular cuánto queda.`;
     if (v.left == null) return '';
     const partes = [];
     if (v.source === 'pieces') partes.push(`${num(v.pieces)} pieza${v.pieces === 1 ? '' : 's'} = <strong>${num(v.left)} ${esc(it.unit)}</strong>`);
@@ -171,17 +189,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const it = state.sheet.items.find((i) => i.inventory_item_id === id);
     const raw = inp.value.trim();
     const n = raw === '' || Number.isNaN(Number(raw)) || Number(raw) < 0 ? null : Number(raw);
-    const v = resolve(it, inp.dataset.kind, n);
+    const kind = inp.dataset.kind;
+    const v = resolve(it, kind, n, state.values.get(id));
     if (v) state.values.set(id, v); else state.values.delete(id);
     const row = inp.closest('.cie-row');
     const left = row.querySelector('input[data-kind="left"]');
     const pieces = row.querySelector('input[data-kind="pieces"]');
-    if (inp.dataset.kind === 'pieces') {
-      left.value = v ? v.left : '';
-      left.classList.toggle('derived', !!v);
+    const psize = row.querySelector('[data-psize]');
+    if (kind === 'pieces' || kind === 'psize') {
+      left.value = v && v.left != null ? v.left : '';
+      left.classList.toggle('derived', !!(v && v.left != null));
     } else {
       left.classList.remove('derived');
       if (pieces) pieces.value = '';
+    }
+    if (psize) {
+      const mostrar = !!(v && v.source === 'pieces');
+      psize.hidden = !mostrar;
+      if (!mostrar) psize.querySelector('input').value = '';
     }
     row.className = `cie-row ${rowClass(v || {})}`;
     row.querySelector('[data-now]').innerHTML = rowNote(it, v || {});
@@ -199,27 +224,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (next) { next.focus(); next.select(); } else inp.blur();
   });
   $('sheetBox').addEventListener('focusin', (e) => { const inp = e.target.closest('input[data-id]'); if (inp) inp.select(); });
-  // Piezas sin tamaño cargado: el encargado lo define aquí mismo; el operario ve el aviso.
-  $('sheetBox').addEventListener('click', async (e) => {
-    const field = e.target.closest('.cie-field.no-piece');
-    if (!field) return;
-    const it = state.sheet.items.find((i) => i.inventory_item_id === Number(field.dataset.piece));
-    const medida = it.unit_family === 'volumen' ? 'mililitros' : 'gramos';
-    if (!state.sheet.can_configure) { utils.showToast(`Para anotar ${it.name} en piezas, un encargado tiene que cargar cuántos ${medida} tiene una pieza.`, 'info'); return; }
-    const raw = prompt(`¿Cuántos ${medida} tiene UNA pieza entera de ${it.name}? (bolsa, bandeja, botella…)`);
-    if (raw == null) return;
-    const n = Number(String(raw).replace(',', '.'));
-    if (!(n > 0)) { utils.showToast('Escribe un número mayor que cero.', 'error'); return; }
-    try {
-      await api.request(`/inventory/items/${it.inventory_item_id}/piece-size`, { method: 'PATCH', body: JSON.stringify({ piece_size: String(n) }) });
-      utils.showToast(`Listo: 1 pieza de ${it.name} = ${num(n)} ${medida === 'gramos' ? 'g' : 'ml'}.`, 'success');
-      await loadSheet();
-    } catch (err) { utils.showToast(err.message || 'No se pudo guardar.', 'error'); }
-  });
 
   // ---- cerrar turno ----
   $('btnSubmit').addEventListener('click', async () => {
     const total = state.sheet.items.length;
+    const sinTamano = [...state.values.entries()].filter(([, v]) => v.source === 'pieces' && v.left == null);
+    if (sinTamano.length) {
+      const nombre = (state.sheet.items.find((i) => i.inventory_item_id === sinTamano[0][0]) || {}).name || 'un insumo';
+      utils.showToast(`Falta cuánto trae una pieza de ${nombre}.`, 'error');
+      const inp = $('sheetBox').querySelector(`input[data-kind="psize"][data-id="${sinTamano[0][0]}"]`);
+      if (inp) inp.focus();
+      return;
+    }
     const listos = [...state.values.entries()].filter(([, v]) => v.left != null);
     const faltan = total - listos.length;
     if (faltan > 0 && !confirm(`Faltan ${faltan} insumo${faltan === 1 ? '' : 's'} sin anotar. Los que quedan vacíos no se tocan. ¿Cerrar igual?`)) return;
@@ -228,7 +244,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const res = await api.post('/inventory/closing-sheet', {
         branch_id: Number(state.branchId), notes: $('notes').value.trim() || null,
-        lines: listos.map(([id, v]) => ({ inventory_item_id: id, counted_quantity: String(v.left) })),
+        lines: listos.map(([id, v]) => ({ inventory_item_id: id, counted_quantity: String(v.left), ...(v.pieceSize ? { piece_size: String(v.pieceSize) } : {}) })),
       });
       state.values.clear();
       $('notes').value = '';
