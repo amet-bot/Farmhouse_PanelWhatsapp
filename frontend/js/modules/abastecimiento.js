@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       catSel.innerHTML = '<option value="">Todas las categorías</option>' + data.categories.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
     }
     const conDatos = data.branches.filter((b) => b.has_data);
-    $('stockNote').textContent = data.items_below_min ? `${data.items_below_min} insumo${data.items_below_min === 1 ? '' : 's'} bajo el mínimo en alguna sucursal.` : (conDatos.length ? 'Existencia según cargamentos, conteos, consumo y ventas.' : '');
+    $('stockNote').textContent = data.items_below_min ? `${data.items_below_min} insumo${data.items_below_min === 1 ? '' : 's'} bajo el mínimo en alguna sucursal.` : (conDatos.length ? 'Existencia según cargamentos, conteos, ventas y lo que el equipo anota en Registrar consumo.' : '');
 
     if (!data.branches.length) { box.innerHTML = '<div class="ops-empty">No hay sucursales activas.</div>'; return; }
     if (!conDatos.length) {

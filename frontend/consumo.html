@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
   <link rel="stylesheet" href="css/gestion.css?v=1.0.0">
-  <link rel="stylesheet" href="css/consumo.css?v=1.0.0">
+  <link rel="stylesheet" href="css/consumo.css?v=2.0.1">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -56,30 +56,20 @@
     </header>
 
     <main class="con-body">
-      <section class="con-form-card">
-        <div class="con-form-head">
-          <div>
-            <h2>¿Qué se usó?</h2>
-            <p>Anota cuánto se gastó de cada insumo. Descuenta la existencia de la sucursal al guardar.</p>
-          </div>
-          <select class="inv-filter-select" id="branchSelect" aria-label="Sucursal" hidden></select>
-        </div>
 
-        <div class="ops-item-picker con-picker">
-          <input class="modal-input" id="itemSearch" placeholder="Buscar insumo…" autocomplete="off" />
-          <input class="modal-input ops-qty" id="itemQty" type="number" min="0.001" step="0.001" inputmode="decimal" placeholder="Cant." />
-          <button type="button" class="inv-primary-btn" id="btnAddItem"><i data-lucide="plus"></i> Agregar</button>
-          <div class="ops-autocomplete" id="itemResults" hidden></div>
+      <section class="con-toolbar">
+        <div class="con-search">
+          <i data-lucide="search"></i>
+          <input id="itemSearch" placeholder="Buscar insumo… (pollo, papel, aceite)" autocomplete="off" />
+          <button type="button" class="con-search-clear" id="btnClearSearch" hidden aria-label="Limpiar búsqueda"><i data-lucide="x"></i></button>
         </div>
-        <p class="con-hint" id="pickedHint" hidden></p>
+        <select class="inv-filter-select" id="branchSelect" aria-label="Sucursal" hidden></select>
+        <p class="con-hint">Toca un insumo, escribe cuánto se gastó y guarda. La existencia se descuenta al momento y también se ve en Abastecimiento.</p>
+        <div class="con-chips" id="chips"></div>
+      </section>
 
-        <ul class="con-lines" id="lines"></ul>
-        <p class="ops-empty con-empty" id="linesEmpty">Todavía no agregaste insumos.</p>
-
-        <div class="con-footer">
-          <input class="modal-input" id="notes" maxlength="500" placeholder="Nota (opcional): turno, motivo…" />
-          <button type="button" class="inv-primary-btn con-save" id="btnSave" disabled><i data-lucide="check"></i> Guardar consumo</button>
-        </div>
+      <section class="con-board-wrap">
+        <div class="con-board" id="board"><div class="ops-loading">Cargando insumos…</div></div>
       </section>
 
       <section class="con-history">
@@ -92,6 +82,43 @@
         <div id="history"></div>
       </section>
     </main>
+
+    <!-- Barra de lo que está por guardar -->
+    <div class="con-cart" id="cart" hidden>
+      <div class="con-cart-lines" id="cartLines"></div>
+      <div class="con-cart-actions">
+        <input class="modal-input con-cart-notes" id="notes" maxlength="500" placeholder="Nota (opcional)" />
+        <button type="button" class="inv-secondary-btn" id="btnClearCart">Vaciar</button>
+        <button type="button" class="inv-primary-btn con-save" id="btnSave"><i data-lucide="check"></i> <span id="btnSaveLabel">Guardar</span></button>
+      </div>
+    </div>
+
+    <!-- Hoja de cantidad -->
+    <div class="modal-backdrop con-sheet-backdrop" id="sheet">
+      <div class="modal-card con-sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+        <div class="con-sheet-head">
+          <div>
+            <h3 id="sheetTitle">Insumo</h3>
+            <p id="sheetStock">—</p>
+          </div>
+          <button type="button" class="modal-close-btn" id="btnSheetClose" aria-label="Cerrar"><i data-lucide="x"></i></button>
+        </div>
+        <div class="con-qty-row">
+          <button type="button" class="con-qty-step" id="btnMinus" aria-label="Menos">−</button>
+          <div class="con-qty-field">
+            <input id="sheetQty" type="number" min="0.001" step="0.001" inputmode="decimal" placeholder="0" />
+            <span id="sheetUnit">kg</span>
+          </div>
+          <button type="button" class="con-qty-step" id="btnPlus" aria-label="Más">+</button>
+        </div>
+        <div class="con-presets" id="presets"></div>
+        <p class="con-sheet-after" id="sheetAfter"></p>
+        <div class="con-sheet-actions">
+          <button type="button" class="inv-secondary-btn" id="btnSheetCancel">Cancelar</button>
+          <button type="button" class="inv-primary-btn" id="btnSheetAdd"><i data-lucide="plus"></i> Agregar</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="js/utils.js?v=3.5.0"></script>
@@ -99,6 +126,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/consumo.js?v=1.0.0"></script>
+  <script src="js/modules/consumo.js?v=2.0.0"></script>
 </body>
 </html>
