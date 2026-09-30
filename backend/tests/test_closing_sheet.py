@@ -46,6 +46,9 @@ def test_solo_un_encargado_arma_la_hoja_y_el_operario_la_ve_en_orden(client, db_
     hoja = client.get("/api/inventory/closing-sheet", headers=ha).json()
     assert hoja["configured"] is True and [i["name"] for i in hoja["items"]] == ["Bolsa con logo", "Pollo"]
     assert hoja["items"][0]["last_counted_qty"] is None and hoja["last_closing"] is None
+    por_id = {i["inventory_item_id"]: i for i in hoja["items"]}
+    assert por_id[pollo.id]["unit_family"] == "peso" and float(por_id[pollo.id]["unit_base"]) == 1000 and por_id[pollo.id]["piece_size"] is None
+    assert por_id[bolsa.id]["unit_family"] == "unidad" and float(por_id[bolsa.id]["unit_base"]) == 1
     assert db_session.query(AuditEvent).filter(AuditEvent.action == "closing_sheet.config").count() == 1
 
     # Reemplaza la lista entera: quitar la bolsa la saca de la hoja sin borrar su fila de ajustes.

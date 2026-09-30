@@ -13,11 +13,13 @@
 .cie-rows { display: grid; gap: 8px; }
 .cie-row { display: grid; grid-template-columns: 1fr 270px; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); transition: border-color .12s ease, background .12s ease; }
 .cie-row.filled { border-color: var(--green-border, #16a34a); background: rgba(22,163,74,.05); }
-.cie-row.invalid { border-color: #dc2626; background: rgba(220,38,38,.05); }
 .cie-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 6px; }
 .cie-field-label { position: absolute; top: -8px; left: 10px; padding: 0 5px; border-radius: 6px; background: var(--bg-surface, #fff); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted, #6b7280); line-height: 1.4; white-space: nowrap; }
 .cie-field-label small { font-weight: 500; text-transform: none; letter-spacing: 0; }
 .cie-field input.derived { color: var(--text-muted, #6b7280); font-weight: 600; border-style: dashed; }
+.cie-field input:disabled { background: transparent; border-style: dashed; opacity: .55; }
+.cie-field.no-piece { cursor: pointer; }
+.cie-field .cie-unit { max-width: 64px; }
 .cie-row-name { font-size: 16px; font-weight: 700; color: var(--text-primary, #111827); line-height: 1.25; }
 .cie-row-prev { display: block; margin-top: 3px; font-size: 12.5px; color: var(--text-muted, #6b7280); }
 .cie-row-prev .in { color: var(--green, #15803d); font-weight: 600; }

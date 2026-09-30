@@ -27,7 +27,7 @@ from models.shipment import Shipment, ShipmentItem
 from models.stock_count import StockCount, StockCountItem
 from models.supply import ItemBranchSetting
 from models.user import User
-from routers.inventory import _visible_branch_filter, create_count
+from routers.inventory import _familia_de_unidad, _visible_branch_filter, create_count
 from schemas.inventory import StockCountCreate, StockCountItemCreate
 from security.access_control import check_target_branch_valid
 from security.auth import get_current_authorized_user
@@ -164,6 +164,7 @@ def get_sheet(
         if not it.active:
             continue
         u = ultimos.get(it.id)
+        familia, base = _familia_de_unidad(it.unit)
         items.append({
             "inventory_item_id": it.id, "name": it.name, "unit": it.unit, "category": it.category,
             "position": a.sheet_position,
@@ -172,6 +173,11 @@ def get_sheet(
             # Lo que se usó entre el penúltimo y el último conteo (None si solo se contó una vez).
             "last_used": (u["used"] if u else None),
             "received_since": llegaron.get(it.id, Decimal("0")),
+            # Para anotar en piezas enteras: cuánto es una pieza (g o ml) y cuántos g/ml tiene la
+            # unidad del insumo (kilogramo = 1000). En insumos por unidad no aplica.
+            "unit_family": familia,
+            "unit_base": base,
+            "piece_size": it.piece_size,
         })
     from models.branch import Branch
     sucursal = db.get(Branch, efectiva)
