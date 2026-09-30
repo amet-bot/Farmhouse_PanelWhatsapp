@@ -94,7 +94,7 @@ def test_la_ubicacion_asigna_la_sucursal_mas_cercana_y_sigue_con_el_menu(client,
     assert any("/menu?" in c and "branch=CLY" in c for c in contenidos)
     contacto = db_session.query(Contact).filter(Contact.phone == f"+{PHONE}").one()
     assert (float(contacto.latitude), float(contacto.longitude)) == CERCA_DE_CLAYTON
-    assert (contacto.address, contacto.building_or_house, contacto.address_reference) == ("Calle 50, Obarrio", "PH / edificio", "PH Torre Mar, apto 5B")
+    assert (contacto.address, contacto.building_or_house, contacto.address_reference) == ("Calle 50, Obarrio", "PH / edificio", "PH Torre Mar, apto 5B")   # sin full_address en el simulado: cae al label
     entrante = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "incoming", Message.content.like("%Ubicaci%")).first()
     assert "maps.google.com" in entrante.content and entrante.media_type is None
 

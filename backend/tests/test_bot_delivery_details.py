@@ -26,7 +26,8 @@ def _env(monkeypatch):
     monkeypatch.setattr("routers.webhooks.is_branch_open", lambda branch: True)
 
     async def _fake_geocode(lat, lng):
-        return {"street": "Avenida Samuel Lewis", "area": "Obarrio", "place": "", "label": "Avenida Samuel Lewis, Obarrio"}
+        return {"street": "Avenida Samuel Lewis", "area": "Obarrio", "place": "", "label": "Avenida Samuel Lewis, Obarrio",
+                "full_address": "Avenida Samuel Lewis, Obarrio, Bella Vista, Ciudad de Panamá"}
     monkeypatch.setattr("routers.webhooks.reverse_geocode", _fake_geocode)
 
 
@@ -45,8 +46,9 @@ def _start_delivery_with_location(client):
 
 
 def test_describe_arma_la_frase_con_lugar_calle_y_barrio():
-    d = geocoding.describe({"road": "Avenida Samuel Lewis", "neighbourhood": "Obarrio", "shop": "La Cuisine"}, "La Cuisine", "shop")
+    d = geocoding.describe({"road": "Avenida Samuel Lewis", "neighbourhood": "Obarrio", "suburb": "Bella Vista", "county": "Distrito de Panamá", "shop": "La Cuisine"}, "La Cuisine", "shop")
     assert d["label"] == "La Cuisine, Avenida Samuel Lewis, Obarrio" and d["place"] == "La Cuisine"
+    assert d["full_address"] == "Avenida Samuel Lewis, Obarrio, Bella Vista, Ciudad de Panamá"
     d = geocoding.describe({"road": "Calle 50", "house_number": "12", "suburb": "Bella Vista"}, "Calle 50", "highway")
     assert d["label"] == "Calle 50 12, Bella Vista" and d["place"] == ""
     assert geocoding.describe({}, None, None)["label"] == ""
@@ -90,7 +92,9 @@ def test_el_resumen_del_handoff_trae_la_entrega_completa(client, clayton_branch,
     _post_bot_message(client, PHONE, "wamid.D7", text="quiero hablar con alguien")
     conv = _conv(db_session)
     resumen = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.is_internal == True).order_by(Message.id.desc()).first()  # noqa: E712
-    assert "• Entrega: Local / oficina · Oficinas Delta, piso 3 · Avenida Samuel Lewis, Obarrio · https://maps.google.com/?q=9.005,-79.57" in resumen.content
+    assert "• Entrega: Local / oficina · Oficinas Delta, piso 3" in resumen.content
+    assert "• Dirección para PedidosYa: Avenida Samuel Lewis, Obarrio, Bella Vista, Ciudad de Panamá" in resumen.content
+    assert "• Pin exacto: 9.005000, -79.570000 · https://maps.google.com/?q=9.005,-79.57" in resumen.content
 
 
 def test_empezar_de_nuevo_limpia_las_preguntas_de_entrega(client, clayton_branch, db_session):

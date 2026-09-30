@@ -391,11 +391,17 @@ def _delivery_details_line(conv: Conversation) -> Optional[str]:
         partes.append(DELIVERY_PLACE_LABELS.get(conv.delivery_place_type, conv.delivery_place_type))
     if conv.delivery_reference:
         partes.append(conv.delivery_reference)
+    lines = []
+    if partes:
+        lines.append(f"• Entrega: {' · '.join(partes)}")
+    # La dirección va aparte y en el formato que entienden los buscadores de mapas (PedidosYa):
+    # calle, barrio, corregimiento, ciudad. Y el pin exacto por si el buscador acepta coordenadas.
     if contact is not None and contact.address:
-        partes.append(contact.address)
+        lines.append(f"• Dirección para PedidosYa: {contact.address}")
     if contact is not None and contact.latitude is not None and contact.longitude is not None:
-        partes.append(f"https://maps.google.com/?q={float(contact.latitude)},{float(contact.longitude)}")
-    return f"• Entrega: {' · '.join(partes)}" if partes else None
+        lat, lng = float(contact.latitude), float(contact.longitude)
+        lines.append(f"• Pin exacto: {lat:.6f}, {lng:.6f} · https://maps.google.com/?q={lat},{lng}")
+    return "\n".join(lines) if lines else None
 
 def _conversation_context_summary(conv: Conversation) -> str:
     """Resumen breve para el equipo cuando el cliente pide atención humana."""
@@ -569,7 +575,7 @@ async def _step_handle_shared_location(db: Session, wa_service, conv: Conversati
     # resumen; si el servicio de mapas no responde, se sigue sin ella.
     described = await reverse_geocode(latitude, longitude) if es_delivery else None
     if described:
-        contact.address = described["label"][:500]
+        contact.address = (described.get("full_address") or described["label"])[:500]
         db.commit()
         text += "\n" + get_node_text(db, "location_described", LOCATION_DESCRIBED_MESSAGE.format(lugar=described["label"]), lugar=described["label"])
     await _send_plain_text_message(db, wa_service, conv, contact, phone, text)

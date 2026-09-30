@@ -31,7 +31,19 @@ def describe(address: dict, name: Optional[str], category: Optional[str]) -> dic
     house_number = address.get("house_number") or ""
     street_part = f"{street} {house_number}".strip()
     parts = [p for p in (place, street_part, area) if p]
-    return {"street": street_part, "area": area, "place": place, "label": ", ".join(parts)}
+    # Dirección completa para pegar en el buscador del mapa de PedidosYa (o cualquier buscador
+    # de direcciones): calle, barrio, corregimiento y ciudad, de lo más específico a lo más
+    # general, sin el nombre del comercio (eso confunde a los buscadores) y sin repetir niveles.
+    district = address.get("suburb") or address.get("city_district") or address.get("town") or ""
+    city = "Ciudad de Panamá" if "Panamá" in (address.get("county") or address.get("city") or address.get("state") or "") else (address.get("city") or "")
+    full_parts = []
+    for p in (street_part, area, district, city):
+        if p and p not in full_parts:
+            full_parts.append(p)
+    return {
+        "street": street_part, "area": area, "place": place, "label": ", ".join(parts),
+        "full_address": ", ".join(full_parts),
+    }
 
 
 async def reverse_geocode(latitude: float, longitude: float) -> Optional[dict]:
