@@ -159,7 +159,7 @@
   <div class="modal-backdrop" id="modalTask">
     <div class="modal-card modal-sm">
       <div class="modal-header">
-        <div><h3><i data-lucide="clipboard-list"></i> Nueva tarea</h3><span class="modal-subtitle">Queda visible para la sucursal y avisa a quien la tenga asignada</span></div>
+        <div><h3><i data-lucide="clipboard-list"></i> Nueva tarea</h3><span class="modal-subtitle">Sin asignar le llega aviso a todo el equipo de la sucursal; asignada, solo a esa persona</span></div>
         <button class="modal-close-btn" type="button" data-close="modalTask" aria-label="Cerrar">&times;</button>
       </div>
       <form id="taskForm">
@@ -171,7 +171,7 @@
           <label class="modal-label" for="taskDescription" style="margin-top:10px">Detalle (opcional)</label>
           <textarea class="modal-input" id="taskDescription" rows="2"></textarea>
           <label class="modal-label" for="taskAssignee" style="margin-top:10px">Asignar a</label>
-          <select class="modal-select" id="taskAssignee"><option value="">Sin asignar</option></select>
+          <select class="modal-select" id="taskAssignee"><option value="">Todo el equipo de la sucursal</option></select>
           <label class="modal-label" for="taskDue" style="margin-top:10px">Vence (opcional)</label>
           <input class="modal-input" id="taskDue" type="datetime-local" />
           <p class="ops-form-error" id="taskError" hidden></p>

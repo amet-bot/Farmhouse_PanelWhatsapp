@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>Tareas — Farmhouse Link</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
+  <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
+  <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
+  <link rel="stylesheet" href="css/gestion.css?v=1.0.0">
+  <link rel="stylesheet" href="css/tareas.css?v=1.0.1">
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+
+  <div class="inv-gate" id="tarGate">
+    <span class="inv-gate-spinner" aria-hidden="true"></span>
+    <p>Verificando sesión...</p>
+  </div>
+
+  <div class="inv-app" id="tarMain" hidden>
+
+    <header class="inv-header">
+      <a class="inv-back" href="/operacion" title="Volver a Operación de Sucursal">
+        <i data-lucide="arrow-left"></i>
+        <span>Operación de Sucursal</span>
+      </a>
+      <div class="inv-header-titles">
+        <p class="inv-title">Tareas</p>
+        <span class="inv-subtitle" id="tarHeaderScope">—</span>
+      </div>
+      <div class="inv-header-actions">
+        <select class="inv-filter-select" id="branchSelect" aria-label="Sucursal" hidden></select>
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="tarAgentAvatar">AD</div>
+          <div>
+            <strong id="tarAgentName">Usuario</strong>
+            <small id="tarAgentRole">AGENTE</small>
+          </div>
+        </div>
+        <button class="inv-logout-btn" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="tar-body">
+      <div class="tar-tabs" role="tablist">
+        <button type="button" class="tar-tab active" data-tab="pendientes" role="tab">Por hacer <span id="countPend">0</span></button>
+        <button type="button" class="tar-tab" data-tab="hechas" role="tab">Hechas hoy <span id="countDone">0</span></button>
+      </div>
+      <div id="taskBox"><div class="ops-loading">Cargando tareas…</div></div>
+      <p class="tar-foot">Las tareas las manda el encargado o la oficina desde el Centro de operación. Te llega un aviso al celular o a la tablet cuando hay una nueva.</p>
+    </main>
+  </div>
+
+  <script src="js/utils.js?v=3.5.0"></script>
+  <script src="js/api.js?v=4.0.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/shared/shell.js?v=4.2.0"></script>
+  <script src="js/shared/native-app.js?v=1.1.0"></script>
+  <script src="js/modules/tareas.js?v=1.0.0"></script>
+</body>
+</html>

@@ -45,6 +45,8 @@ logger = logging.getLogger("farmhouse.ops")
 router = APIRouter(prefix="/ops", tags=["Operación de Sucursal"])
 
 OPS_URL = "/gestion"
+# Donde ve sus tareas el equipo de la sucursal (quien no entra al Centro de operación).
+TASKS_URL = "/tareas"
 
 
 def _is_global(current_user: User) -> bool:
@@ -136,6 +138,33 @@ def _incident_out(i: Incident) -> IncidentResponse:
         resolved_at=i.resolved_at, resolution_notes=i.resolution_notes,
         hours_open=hours_open,
     )
+
+
+def _task_link(user: User, task: Task) -> str:
+    """El enlace del aviso según lo que esa persona puede abrir: el encargado va al Centro de
+    operación; el resto del equipo, a la pantalla de tareas de su sucursal."""
+    if has_permission(user, "purchasing.approve"):
+        return f"{OPS_URL}?tab=tareas&branch={task.branch_id}"
+    return f"{TASKS_URL}?task={task.id}"
+
+
+def _notify_task(db: Session, user_ids: List[int], title: str, body: str, task: Task) -> None:
+    """Manda el aviso de una tarea a esas personas, cada una con el enlace que le sirve."""
+    if not user_ids:
+        return
+    grupos: dict = {}
+    for u in db.query(User).filter(User.id.in_(user_ids), User.active == True).all():  # noqa: E712
+        grupos.setdefault(_task_link(u, task), []).append(u.id)
+    for url, ids in grupos.items():
+        _notify_safely(notify_users, db, ids, title, body, url, tag=f"fh-task-{task.id}")
+
+
+def _branch_team_ids(db: Session, branch_id: int, exclude_user_id: Optional[int] = None) -> List[int]:
+    """Todos los usuarios activos de esa sucursal (equipo y encargado local), sin quien crea."""
+    q = db.query(User.id).filter(User.branch_id == branch_id, User.active == True)  # noqa: E712
+    if exclude_user_id is not None:
+        q = q.filter(User.id != exclude_user_id)
+    return [uid for (uid,) in q.all()]
 
 
 def _task_overdue(t: Task) -> bool:
@@ -415,12 +444,14 @@ def create_task(
     db.commit()
     db.refresh(task)
     logger.info(f"Tarea #{task.id} en sucursal {task.branch_id} creada por {current_user.name}")
-    if assignee and assignee.id != current_user.id:
-        _notify_safely(
-            notify_users, db, [assignee.id],
-            f"Tarea nueva · {task.branch.name}", task.title + (f" · vence {task.due_date:%d/%m %H:%M}" if task.due_date else ""),
-            f"{OPS_URL}?tab=tareas&branch={task.branch_id}", tag=f"fh-task-{task.id}",
-        )
+    cuerpo = task.title + (f" · vence {task.due_date:%d/%m %H:%M}" if task.due_date else "")
+    if assignee:
+        if assignee.id != current_user.id:
+            _notify_task(db, [assignee.id], f"Tarea nueva · {task.branch.name}", cuerpo, task)
+    else:
+        # Sin asignar es "para la sucursal": le llega a todo el equipo de ahí.
+        _notify_task(db, _branch_team_ids(db, task.branch_id, exclude_user_id=current_user.id),
+                     f"Tarea para {task.branch.name}", cuerpo, task)
     return _task_out(task)
 
 
@@ -491,11 +522,7 @@ def update_task(
     db.commit()
     db.refresh(task)
     if nuevo_asignado and nuevo_asignado.id != current_user.id:
-        _notify_safely(
-            notify_users, db, [nuevo_asignado.id],
-            f"Te asignaron una tarea · {task.branch.name}", task.title,
-            f"{OPS_URL}?tab=tareas&branch={task.branch_id}", tag=f"fh-task-{task.id}",
-        )
+        _notify_task(db, [nuevo_asignado.id], f"Te asignaron una tarea · {task.branch.name}", task.title, task)
     return _task_out(task)
 
 
@@ -520,11 +547,7 @@ def update_task_status(
     db.commit()
     db.refresh(task)
     if update.status == "hecha" and task.created_by_user_id != current_user.id:
-        _notify_safely(
-            notify_users, db, [task.created_by_user_id],
-            f"Tarea hecha: {task.title}", f"{current_user.name} · {task.branch.name}",
-            f"{OPS_URL}?tab=tareas&branch={task.branch_id}", tag=f"fh-task-{task.id}",
-        )
+        _notify_task(db, [task.created_by_user_id], f"Tarea hecha: {task.title}", f"{current_user.name} · {task.branch.name}", task)
     return _task_out(task)
 
 

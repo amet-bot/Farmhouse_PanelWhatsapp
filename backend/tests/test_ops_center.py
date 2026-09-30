@@ -123,6 +123,33 @@ def test_tarea_vencida_asignacion_y_aviso(client, db_session, clayton_branch, cl
     assert client.patch(f"/api/ops/tasks/{t['id']}", json={"title": "x"}, headers=hs).status_code == 409
 
 
+def test_tarea_sin_asignar_le_llega_a_todo_el_equipo_de_la_sucursal(client, db_session, admin_user, clayton_branch, obarrio_branch, clayton_agent, obarrio_agent, clayton_device, supervisor_user, inactive_user, avisos):
+    """El dueño manda una tarea a Clayton sin asignarla: le llega al equipo de Clayton (cada uno
+    con el enlace que puede abrir), no a Obarrio ni a quien la creó."""
+    ha = _h(admin_user)
+    r = client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Limpiar la campana"}, headers=ha)
+    assert r.status_code == 201, r.text
+    t = r.json()
+    por_url = {a["url"]: a for a in avisos if a["kind"] == "users"}
+    assert por_url[f"/tareas?task={t['id']}"]["user_ids"] == [clayton_agent.id]
+    assert por_url[f"/gestion?tab=tareas&branch={clayton_branch.id}"]["user_ids"] == [supervisor_user.id]
+    avisados = {uid for a in avisos for uid in a.get("user_ids", [])}
+    assert obarrio_agent.id not in avisados and admin_user.id not in avisados and inactive_user.id not in avisados
+    assert all(a["title"] == f"Tarea para {clayton_branch.name}" and a["tag"] == f"fh-task-{t['id']}" for a in avisos)
+
+    # Quien la crea desde la sucursal no se avisa a sí mismo.
+    avisos.clear()
+    client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Sacar la basura"}, headers=_h(supervisor_user, clayton_device))
+    assert [a["user_ids"] for a in avisos] == [[clayton_agent.id]]
+
+    # El empleado la ve en su lista y la marca hecha; el aviso al dueño lo lleva al Centro de operación.
+    hc = _h(clayton_agent, clayton_device)
+    assert t["id"] in [x["id"] for x in client.get("/api/ops/tasks?status=pendientes", headers=hc).json()]
+    avisos.clear()
+    assert client.post(f"/api/ops/tasks/{t['id']}/status", json={"status": "hecha"}, headers=hc).status_code == 200
+    assert avisos[-1]["user_ids"] == [admin_user.id] and avisos[-1]["url"].startswith("/gestion?tab=tareas")
+
+
 def test_no_se_asigna_a_un_usuario_inactivo(client, clayton_branch, supervisor_user, clayton_device, inactive_user, avisos):
     hs = _h(supervisor_user, clayton_device)
     r = client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "x", "assigned_to_user_id": inactive_user.id}, headers=hs)

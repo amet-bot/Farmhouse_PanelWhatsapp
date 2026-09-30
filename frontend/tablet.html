@@ -18,7 +18,7 @@
   <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario: se reusa su hoja tal cual
        y tablet.css solo agrega la grilla de botones grandes, que Inventario no tiene. -->
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
-  <link rel="stylesheet" href="css/tablet.css?v=4.4.7">
+  <link rel="stylesheet" href="css/tablet.css?v=4.5.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -63,6 +63,11 @@
       <div class="tablet-branch-badge" id="tabletBranchBadge">Sucursal</div>
 
       <div class="tablet-grid">
+        <a class="tablet-tile tablet-tile-tasks" id="tileTareas" href="/tareas">
+          <span class="tablet-tile-icon"><i data-lucide="list-checks"></i></span>
+          <span class="tablet-tile-label">Tareas</span>
+          <span class="tablet-tile-badge" id="tareasBadge" hidden></span>
+        </a>
         <button type="button" class="tablet-tile" id="btnGoShipment">
           <span class="tablet-tile-icon"><i data-lucide="truck"></i></span>
           <span class="tablet-tile-label">Recibir mercancía</span>
@@ -198,5 +203,6 @@
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
   <script src="js/modules/tablet.js?v=4.0.0"></script>
+  <script src="js/modules/tablet-tareas.js?v=1.0.0"></script>
 </body>
 </html>

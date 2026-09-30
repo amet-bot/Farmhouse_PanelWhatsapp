@@ -292,6 +292,11 @@ if frontend_dir.exists():
         def serve_consumo():
             return FileResponse(str(frontend_dir / "consumo.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
+    if (frontend_dir / "tareas.html").exists():
+        @app.get("/tareas", include_in_schema=False)
+        def serve_tareas():
+            return FileResponse(str(frontend_dir / "tareas.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
     if (frontend_dir / "consumo_libre.html").exists():
         @app.get("/consumo/libre", include_in_schema=False)
         def serve_consumo_libre():

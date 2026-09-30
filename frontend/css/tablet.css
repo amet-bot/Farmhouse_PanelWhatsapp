@@ -238,3 +238,10 @@
 .tablet-submit-btn:hover {
   background: var(--green-dark);
 }
+
+
+/* Mosaico de Tareas: es un enlace, se ve igual que los botones, con contador de pendientes. */
+a.tablet-tile { text-decoration: none; color: inherit; }
+.tablet-tile-tasks { position: relative; }
+.tablet-tile-badge { position: absolute; top: 12px; right: 12px; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 999px; background: #f59e0b; color: #111827; font-size: 14px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
+.tablet-tile-badge.is-late { background: #dc2626; color: #fff; }

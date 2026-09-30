@@ -797,8 +797,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const gestor = (hubUser?.permissions || []).includes('purchasing.approve');
     if (Array.isArray(tasks) && tasks.length) {
-      rows.push({ icon: 'clipboard-list', tone: 'orange', route: gestor ? '/gestion?tab=tareas' : '/operacion',
-        title: plural(tasks.length, 'tarea por completar', 'tareas por completar'), subtitle: gestor ? 'En el Centro de operación' : 'En Operación de Sucursal' });
+      rows.push({ icon: 'clipboard-list', tone: 'orange', route: gestor ? '/gestion?tab=tareas' : '/tareas',
+        title: plural(tasks.length, 'tarea por completar', 'tareas por completar'), subtitle: gestor ? 'En el Centro de operación' : 'Toca para verlas y marcarlas hechas' });
     }
     if (Array.isArray(requests) && requests.length) {
       rows.push({ icon: 'package', tone: 'blue', route: gestor ? '/gestion?tab=solicitudes' : '/operacion',
