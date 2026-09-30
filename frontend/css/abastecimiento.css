@@ -1,0 +1,100 @@
+/* Abastecimiento (abastecimiento.html): existencias por sucursal, mínimos y pares, pedido
+   sugerido, órdenes de compra y precios por proveedor. Reusa el armazón de Inventario y las
+   pestañas/tablas del Centro de operación (gestion.css); acá solo lo propio. */
+.sup-body { max-width: 1400px; margin: 0 auto; }
+.sup-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.sup-filters .modal-input { max-width: 260px; height: 38px; }
+.sup-filters .inv-filter-select { max-width: 240px; }
+.sup-filters .sup-days { max-width: 150px; }
+.sup-filters-note { font-size: 12.5px; color: var(--text-muted, #6b7280); flex: 1; min-width: 200px; }
+.sup-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary, #4b5563); cursor: pointer; white-space: nowrap; }
+.sup-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary, #4b5563); }
+.sup-save { height: 38px; }
+.sup-save:disabled { opacity: .5; cursor: default; }
+
+/* Existencias: una fila por insumo, una columna por sucursal. Con scroll horizontal (no se
+   apila en celular como .ops-table: la gracia es comparar sucursales lado a lado). */
+.sup-matrix-wrap { overflow-x: auto; border: 1px solid var(--line, #e5e7eb); border-radius: 12px; background: var(--bg-surface, #fff); }
+.sup-matrix { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 640px; }
+.sup-matrix th { position: sticky; top: 0; z-index: 1; background: var(--bg-surface, #fff); text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted, #6b7280); padding: 10px 12px; border-bottom: 1px solid var(--line, #e5e7eb); white-space: nowrap; }
+.sup-matrix th.sup-col-branch { text-align: right; min-width: 130px; }
+.sup-matrix th.sup-col-branch small { display: block; font-weight: 500; text-transform: none; letter-spacing: 0; color: #b45309; }
+.sup-matrix td { padding: 9px 12px; border-bottom: 1px solid var(--line, #e5e7eb); vertical-align: middle; font-size: 13.5px; }
+.sup-matrix tr:last-child td { border-bottom: 0; }
+.sup-matrix td.sup-cell { text-align: right; white-space: nowrap; }
+.sup-matrix td.sup-cell.is-low { background: rgba(239,68,68,.07); }
+.sup-matrix td.sup-cell.is-low .sup-qty { color: #dc2626; }
+.sup-matrix td.sup-cell.no-data { color: var(--text-muted, #9ca3af); font-size: 12px; font-style: italic; }
+.sup-matrix td.sup-cell.is-zero .sup-qty { color: var(--text-muted, #6b7280); }
+.sup-matrix .sup-item-name { font-weight: 600; }
+.sup-matrix .sup-item-name small { display: block; font-weight: 500; color: var(--text-muted, #6b7280); }
+.sup-matrix tr.sup-cat-row td { background: var(--bg-hover, rgba(0,0,0,.035)); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted, #6b7280); padding: 6px 12px; }
+.sup-matrix td.sup-col-item { position: sticky; left: 0; background: var(--bg-surface, #fff); z-index: 1; min-width: 180px; }
+.sup-qty { font-weight: 700; font-variant-numeric: tabular-nums; }
+.sup-qty small { font-weight: 500; color: var(--text-muted, #6b7280); }
+.sup-days-chip { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(22,163,74,.12); color: #15803d; }
+.sup-days-chip.warn { background: rgba(245,158,11,.14); color: #b45309; }
+.sup-days-chip.bad { background: rgba(239,68,68,.12); color: #dc2626; }
+.sup-days-chip.none { background: rgba(107,114,128,.12); color: #4b5563; }
+.sup-min-hint { display: block; font-size: 11px; color: var(--text-muted, #6b7280); font-weight: 500; }
+
+/* Estado vacío: todavía no hay datos. */
+.sup-empty { display: grid; justify-items: center; text-align: center; gap: 8px; padding: 40px 20px; border: 1px dashed var(--line, #e5e7eb); border-radius: 14px; background: var(--bg-surface, #fff); }
+.sup-empty i { width: 36px; height: 36px; color: var(--text-muted, #9ca3af); }
+.sup-empty h3 { margin: 4px 0 0; font-size: 16px; }
+.sup-empty p { margin: 0; max-width: 520px; font-size: 13.5px; color: var(--text-muted, #6b7280); line-height: 1.5; }
+.sup-empty .sup-empty-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+.sup-branch-pills { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+.sup-branch-pills span { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(107,114,128,.12); color: #4b5563; }
+.sup-branch-pills span.ok { background: rgba(22,163,74,.12); color: #15803d; }
+
+/* Mínimos y pares: inputs chicos dentro de la tabla. */
+.sup-min-input { width: 84px; height: 32px; padding: 0 8px; text-align: right; border-radius: 8px; border: 1px solid var(--line, #e5e7eb); font: inherit; font-size: 13.5px; background: var(--bg-surface, #fff); color: var(--text-primary, #111827); }
+.sup-min-input.changed { border-color: var(--green, #16a34a); box-shadow: 0 0 0 2px rgba(22,163,74,.15); }
+.sup-min-select { height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line, #e5e7eb); font: inherit; font-size: 13px; background: var(--bg-surface, #fff); color: var(--text-primary, #111827); max-width: 170px; }
+.sup-min-select.changed { border-color: var(--green, #16a34a); }
+.ops-table td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ops-table th.num { text-align: right; }
+.ops-table tr.is-low td:first-child { box-shadow: inset 3px 0 0 #ef4444; }
+
+/* Pedido sugerido: un grupo por proveedor. */
+.sup-group { border: 1px solid var(--line, #e5e7eb); border-radius: 12px; background: var(--bg-surface, #fff); margin-bottom: 12px; overflow: hidden; }
+.sup-group-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line, #e5e7eb); background: var(--bg-hover, rgba(0,0,0,.03)); }
+.sup-group-head strong { flex: 1; font-size: 14px; }
+.sup-group-head .sup-group-cost { font-size: 13px; color: var(--text-secondary, #4b5563); font-variant-numeric: tabular-nums; }
+.sup-group .ops-table { border: 0; border-radius: 0; }
+.sup-reason { font-size: 11.5px; color: var(--text-muted, #6b7280); display: block; }
+.sup-reason.low { color: #dc2626; font-weight: 600; }
+.sup-qty-input { width: 84px; height: 32px; padding: 0 8px; text-align: right; border-radius: 8px; border: 1px solid var(--line, #e5e7eb); font: inherit; font-size: 13.5px; background: var(--bg-surface, #fff); color: var(--text-primary, #111827); }
+.sup-totals { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary, #4b5563); margin: 0 0 12px; }
+.sup-totals strong { color: var(--text-primary, #111827); }
+
+/* Órdenes */
+.sup-order { border: 1px solid var(--line, #e5e7eb); border-radius: 12px; background: var(--bg-surface, #fff); padding: 12px 14px; margin-bottom: 10px; }
+.sup-order-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sup-order-head strong { font-size: 14.5px; }
+.sup-order-head .sup-order-meta { font-size: 12.5px; color: var(--text-muted, #6b7280); flex: 1; }
+.sup-order.is-late { box-shadow: inset 3px 0 0 #ef4444; }
+.sup-order-items { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.sup-order-items li { padding: 3px 9px; border-radius: 999px; background: var(--bg-hover, rgba(0,0,0,.05)); font-size: 12.5px; }
+.sup-order-items li small { color: var(--text-muted, #6b7280); }
+
+/* Precios */
+.sup-best { color: #15803d; font-weight: 700; }
+.sup-worse { color: #b45309; font-size: 11.5px; }
+
+/* Modal de orden */
+.sup-modal { max-width: 640px; width: 100%; }
+.sup-modal-sub { margin: 0 0 12px; font-size: 13px; color: var(--text-muted, #6b7280); }
+.sup-form-grid { display: grid; grid-template-columns: 1fr 150px 130px; gap: 10px; }
+.sup-order-lines { list-style: none; margin: 12px 0 0; padding: 0; max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+.sup-order-lines li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 8px; background: var(--bg-hover, rgba(0,0,0,.04)); font-size: 13px; }
+.sup-order-lines li small { color: var(--text-muted, #6b7280); }
+
+@media (max-width: 760px) {
+  .sup-filters .modal-input, .sup-filters .inv-filter-select { max-width: none; width: 100%; }
+  .sup-filters .sup-days { width: auto; }
+  .sup-save { width: 100%; }
+  .sup-form-grid { grid-template-columns: 1fr; }
+  .sup-matrix td.sup-col-item { min-width: 140px; }
+}

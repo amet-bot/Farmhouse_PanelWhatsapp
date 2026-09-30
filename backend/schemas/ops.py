@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+from decimal import Decimal
 
 
 # ==========================================================================
@@ -11,6 +12,9 @@ class SupplyRequestCreate(BaseModel):
     item_name: str = Field(..., min_length=1, max_length=150)
     quantity_hint: Optional[str] = Field(None, max_length=50)
     notes: Optional[str] = None
+    # Opcionales: ligar la solicitud a un insumo del catálogo con cantidad (la cuenta el pedido sugerido).
+    inventory_item_id: Optional[int] = None
+    quantity: Optional[Decimal] = Field(None, gt=0, max_digits=10, decimal_places=3)
 
 
 class SupplyRequestResponse(BaseModel):
@@ -21,6 +25,8 @@ class SupplyRequestResponse(BaseModel):
     requested_by_name: str
     item_name: str
     quantity_hint: Optional[str] = None
+    inventory_item_id: Optional[int] = None
+    quantity: Optional[Decimal] = None
     notes: Optional[str] = None
     status: str
     created_at: datetime

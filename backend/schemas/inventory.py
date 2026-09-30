@@ -113,6 +113,15 @@ class ExpectedShipmentCreate(BaseModel):
     notes: Optional[str] = Field(None, max_length=500)
 
 
+class ExpectedShipmentLine(BaseModel):
+    """Una línea de una orden de compra (cargamento agendado con cantidades)."""
+    inventory_item_id: int
+    item_name: str
+    unit: str
+    quantity: Decimal
+    unit_cost: Optional[Decimal] = None
+
+
 class ExpectedShipmentResponse(BaseModel):
     id: int
     branch_id: int
@@ -126,6 +135,9 @@ class ExpectedShipmentResponse(BaseModel):
     created_by_name: Optional[str] = None
     created_at: datetime
     shipment_id: Optional[int] = None
+    # Vacío en lo agendado a mano; con líneas cuando es una orden de compra (abastecimiento).
+    items: List[ExpectedShipmentLine] = []
+    est_cost: Optional[Decimal] = None
 
 
 class SupplierIssueRow(BaseModel):

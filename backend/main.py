@@ -35,9 +35,10 @@ from routers import (
     transfers,
     ops,
     prep,
+    supply,
 )
 from services.bot_followup import run_followup_sweep_loop
-from services import invu_recipes_sync, invu_sync, invu_sales_sync, weekly_digest
+from services import invu_recipes_sync, invu_sync, invu_sales_sync, supply_alerts, weekly_digest
 
 logging.basicConfig(
     level=logging.INFO,
@@ -100,9 +101,14 @@ async def lifespan(app: FastAPI):
     if "PYTEST_CURRENT_TEST" not in os.environ:
         digest_task = asyncio.create_task(weekly_digest.run_weekly_digest_loop())
 
+    # Sexto loop: la alerta diaria de stock bajo por sucursal (ver services/supply_alerts).
+    lowstock_task = None
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        lowstock_task = asyncio.create_task(supply_alerts.run_low_stock_loop())
+
     yield
 
-    for task in (followup_task, invu_task, ventas_task, recetas_task, digest_task):
+    for task in (followup_task, invu_task, ventas_task, recetas_task, digest_task, lowstock_task):
         if task:
             task.cancel()
             try:
@@ -200,6 +206,7 @@ app.include_router(link.router, prefix=settings.API_V1_STR)
 app.include_router(transfers.router, prefix=settings.API_V1_STR)
 app.include_router(ops.router, prefix=settings.API_V1_STR)
 app.include_router(prep.router, prefix=settings.API_V1_STR)
+app.include_router(supply.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)
 
 # -----------------------------------------------------------------------------
@@ -285,6 +292,11 @@ if frontend_dir.exists():
         @app.get("/gestion", include_in_schema=False)
         def serve_gestion():
             return FileResponse(str(frontend_dir / "gestion.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+    if (frontend_dir / "abastecimiento.html").exists():
+        @app.get("/abastecimiento", include_in_schema=False)
+        def serve_abastecimiento():
+            return FileResponse(str(frontend_dir / "abastecimiento.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     if (frontend_dir / "prep.html").exists():
         @app.get("/prep", include_in_schema=False)

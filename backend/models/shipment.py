@@ -95,6 +95,10 @@ class ExpectedShipment(Base):
     branch = relationship("Branch")
     supplier = relationship("Supplier")
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
+    # Las líneas (cantidad y costo) cuando se agendó como orden de compra (bloque de
+    # abastecimiento). Un cargamento agendado "a mano" no tiene líneas y sigue funcionando igual.
+    items = relationship("ExpectedShipmentItem", back_populates="expected_shipment", cascade="all, delete-orphan",
+                         order_by="ExpectedShipmentItem.id")
 
     __table_args__ = (
         Index("ix_expected_shipment_branch_status", "branch_id", "status"),

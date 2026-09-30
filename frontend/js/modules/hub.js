@@ -43,6 +43,13 @@ const HUB_MODULES = [
     tags: ['Stock', 'Sucursales', 'Abastecimiento'], icon: 'package', route: '/inventario',
   },
   {
+    id: 'abastecimiento', name: 'Abastecimiento', shortName: 'Abastecimiento',
+    description: 'Cuánto le queda a cada sucursal, mínimos y pares, pedido sugerido por proveedor, órdenes de compra y precios.',
+    shortDescription: 'Qué pedir y a quién',
+    tags: ['Stock', 'Proveedores', 'Órdenes'], icon: 'shopping-cart', route: '/abastecimiento',
+    requiredPermission: 'purchasing.approve',
+  },
+  {
     id: 'gestion', name: 'Centro de operación', shortName: 'Operación',
     description: 'Incidencias, tareas, solicitudes, traslados y cargamentos de todas las sucursales, con sus acciones.',
     shortDescription: 'Pendientes de todas las sucursales',
@@ -78,6 +85,7 @@ const HUB_SIDEBAR = [
   { id: 'operacion', label: 'Operación', title: 'Operación de Sucursal', icon: 'clipboard-list', route: '/operacion' },
   { id: 'gestion', label: 'Centro', title: 'Centro de operación', icon: 'layout-grid', route: '/gestion', requiredPermission: 'purchasing.approve' },
   { id: 'inventario', label: 'Inventario', title: 'Inventario', icon: 'package', route: '/inventario' },
+  { id: 'abastecimiento', label: 'Abastecimiento', title: 'Abastecimiento', icon: 'shopping-cart', route: '/abastecimiento', requiredPermission: 'purchasing.approve' },
   { id: 'reportes', label: 'Reportes', title: 'Reportes de ventas', icon: 'line-chart', route: '/link', requiredPermission: 'reports.view' },
   { id: 'equipo', label: 'Equipo', title: 'Comunicación Interna', icon: 'users', route: '/interno' },
   { id: 'ajustes', label: 'Ajustes', title: 'Administración', icon: 'settings', route: '/administracion', requiredPermission: 'users.manage' },

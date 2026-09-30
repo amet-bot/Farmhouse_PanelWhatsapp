@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.branch import Branch
 from models.conversation import Conversation
+from models.inventory_item import InventoryItem
 from models.ops import SupplyRequest, Incident, Task
 from models.prep import PrepTemplate, PrepCheck
 from models.shipment import ExpectedShipment
@@ -108,6 +109,7 @@ def _request_out(r: SupplyRequest) -> SupplyRequestResponse:
         id=r.id, branch_id=r.branch_id, branch_name=r.branch.name,
         requested_by_user_id=r.requested_by_user_id, requested_by_name=r.requested_by_user.name,
         item_name=r.item_name, quantity_hint=r.quantity_hint, notes=r.notes,
+        inventory_item_id=r.inventory_item_id, quantity=r.quantity,
         status=r.status, created_at=r.created_at,
         approved_by_user_id=r.approved_by_user_id,
         approved_by_name=r.approved_by_user.name if r.approved_by_user else None,
@@ -164,12 +166,16 @@ def create_supply_request(
 ):
     _require_own_branch_or_admin(current_user, request_in.branch_id, "No tienes permiso para pedir insumos en otra sucursal.")
     branch = check_target_branch_valid(db, request_in.branch_id)
+    if request_in.inventory_item_id is not None and not db.query(InventoryItem.id).filter(InventoryItem.id == request_in.inventory_item_id).first():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El insumo elegido no existe.")
 
     req = SupplyRequest(
         branch_id=request_in.branch_id,
         requested_by_user_id=current_user.id,
         item_name=request_in.item_name,
         quantity_hint=request_in.quantity_hint,
+        inventory_item_id=request_in.inventory_item_id,
+        quantity=request_in.quantity,
         notes=request_in.notes,
     )
     db.add(req)

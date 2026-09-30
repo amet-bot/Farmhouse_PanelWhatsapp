@@ -1916,11 +1916,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (expected.supplier_id) selectSupplier({ id: expected.supplier_id, name: expected.supplier_name });
       if (!state.fixedBranchId) $('branchSelect').value = String(expected.branch_id);
       const banner = $('shipmentExpectedBanner');
-      banner.innerHTML = `<i data-lucide="calendar-check"></i><span>Recibiendo lo agendado: <strong>${esc(expected.supplier_name || 'Cargamento')}</strong> · ${esc(expectedWhen(expected))}${expected.notes ? ` · ${esc(expected.notes)}` : ''}</span>`;
+      banner.innerHTML = `<i data-lucide="calendar-check"></i><span>Recibiendo lo agendado: <strong>${esc(expected.supplier_name || 'Cargamento')}</strong> · ${esc(expectedWhen(expected))}${expected.notes ? ` · ${esc(expected.notes)}` : ''}${expected.items?.length ? ` · ${expected.items.length} línea${expected.items.length === 1 ? '' : 's'} de la orden ya cargadas` : ''}</span>`;
       banner.hidden = false;
+      prefillLinesFromOrder(expected.items || []);
     }
     openModal('modalShipment');
     utils.renderIcons();
+  }
+
+  /**
+   * Una orden de compra (Abastecimiento) trae sus líneas: la recepción arranca con cada una como
+   * "facturado" y "llegó" iguales, y el equipo solo corrige lo que vino distinto.
+   */
+  function prefillLinesFromOrder(lines) {
+    if (!lines.length) return;
+    linesContainer.innerHTML = '';
+    lines.forEach((l) => {
+      createLineRow();
+      const row = linesContainer.lastElementChild;
+      const itemInput = row.querySelector('.inv-item-input');
+      itemInput.value = l.item_name;
+      itemInput.dataset.itemId = String(l.inventory_item_id);
+      itemInput.dataset.unit = l.unit || '';
+      row.querySelector('.inv-line-unit').textContent = l.unit ? `Se cuenta en ${l.unit}` : '';
+      row.querySelector('.inv-line-invoiced').value = String(Number(l.quantity));
+      row.querySelector('.inv-line-qty').value = String(Number(l.quantity));
+      row.dataset.qtyAuto = '1';
+      if (l.unit_cost != null) row.querySelector('.inv-line-cost').value = String(Number(l.unit_cost));
+      updateShipmentCostHint(row);
+      updateLineReceipt(row);
+    });
+    updateShipmentTotal();
   }
 
   // ---- Recibir contra factura ----

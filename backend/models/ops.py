@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Index
+from sqlalchemy import Column, Integer, Numeric, String, DateTime, ForeignKey, Text, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from database import Base
@@ -29,6 +29,10 @@ class SupplyRequest(Base):
     requested_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     item_name = Column(String(150), nullable=False)
     quantity_hint = Column(String(50), nullable=True)
+    # Opcionales (bloque de abastecimiento): si la solicitud se ligó a un insumo del catálogo con
+    # una cantidad, el pedido sugerido la cuenta. El texto libre sigue valiendo para lo demás.
+    inventory_item_id = Column(Integer, ForeignKey("inventory_items.id", ondelete="SET NULL"), nullable=True)
+    quantity = Column(Numeric(10, 3), nullable=True)
     notes = Column(Text, nullable=True)
     status = Column(String(20), nullable=False, default="open")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -41,6 +45,7 @@ class SupplyRequest(Base):
     requested_by_user = relationship("User", foreign_keys=[requested_by_user_id])
     approved_by_user = relationship("User", foreign_keys=[approved_by_user_id])
     resolved_by_user = relationship("User", foreign_keys=[resolved_by_user_id])
+    inventory_item = relationship("InventoryItem")
 
     __table_args__ = (
         Index("ix_supply_request_branch_status", "branch_id", "status"),

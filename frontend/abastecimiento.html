@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>Abastecimiento — Farmhouse Link</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
+  <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
+  <!-- Mismo armazón (cabecera, gate de sesión, botones, pestañas y tablas) que Inventario y el Centro de operación. -->
+  <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
+  <link rel="stylesheet" href="css/gestion.css?v=1.0.0">
+  <link rel="stylesheet" href="css/abastecimiento.css?v=1.0.0">
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+
+  <div class="inv-gate" id="supGate">
+    <span class="inv-gate-spinner" aria-hidden="true"></span>
+    <p>Verificando sesión...</p>
+  </div>
+
+  <div class="inv-app" id="supMain" hidden>
+
+    <header class="inv-header">
+      <a class="inv-back" href="/hub" title="Volver al inicio">
+        <i data-lucide="arrow-left"></i>
+        <span>Inicio</span>
+      </a>
+      <div class="inv-header-titles">
+        <p class="inv-title">Abastecimiento</p>
+        <span class="inv-subtitle" id="supHeaderScope">Todas las sucursales</span>
+      </div>
+      <div class="inv-header-actions">
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="supAgentAvatar">AD</div>
+          <div>
+            <strong id="supAgentName">Usuario</strong>
+            <small id="supAgentRole">ADMIN</small>
+          </div>
+        </div>
+        <button class="inv-logout-btn" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="ops-body sup-body">
+
+      <div class="ops-toolbar">
+        <nav class="ops-tabs" id="supTabs" aria-label="Secciones">
+          <button type="button" class="ops-tab active" data-tab="existencias"><i data-lucide="warehouse"></i> Existencias</button>
+          <button type="button" class="ops-tab" data-tab="minimos"><i data-lucide="sliders-horizontal"></i> Mínimos y pares</button>
+          <button type="button" class="ops-tab" data-tab="sugerido"><i data-lucide="shopping-cart"></i> Pedido sugerido <span class="ops-tab-count" id="countSugerido" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="ordenes"><i data-lucide="truck"></i> Órdenes <span class="ops-tab-count" id="countOrdenes" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="precios"><i data-lucide="tags"></i> Precios</button>
+        </nav>
+        <button type="button" class="inv-secondary-btn ops-refresh" id="btnRefresh" title="Actualizar"><i data-lucide="refresh-cw"></i></button>
+      </div>
+
+      <!-- ---------- Existencias: cuánto le queda a cada sucursal ---------- -->
+      <section class="sup-view" id="viewExistencias">
+        <div class="sup-filters">
+          <input class="modal-input" id="stockSearch" placeholder="Buscar insumo…" autocomplete="off" />
+          <select class="inv-filter-select" id="stockCategory" aria-label="Categoría"><option value="">Todas las categorías</option></select>
+          <label class="sup-check"><input type="checkbox" id="stockOnlyLow" /> Solo bajo el mínimo</label>
+          <span class="sup-filters-note" id="stockNote"></span>
+        </div>
+        <div id="stockBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
+
+      <!-- ---------- Mínimos y pares por sucursal ---------- -->
+      <section class="sup-view" id="viewMinimos" hidden>
+        <div class="sup-filters">
+          <select class="inv-filter-select" id="minBranch" aria-label="Sucursal"></select>
+          <input class="modal-input" id="minSearch" placeholder="Buscar insumo…" autocomplete="off" />
+          <span class="sup-filters-note">Mínimo: por debajo avisa. Par: hasta cuánto se repone. Se guardan por sucursal.</span>
+          <button type="button" class="inv-primary-btn sup-save" id="btnSaveSettings" disabled><i data-lucide="check"></i> Guardar cambios</button>
+        </div>
+        <div id="minBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
+
+      <!-- ---------- Pedido sugerido ---------- -->
+      <section class="sup-view" id="viewSugerido" hidden>
+        <div class="sup-filters">
+          <select class="inv-filter-select" id="sugBranch" aria-label="Sucursal"></select>
+          <label class="sup-inline">Cubrir <select class="inv-filter-select sup-days" id="sugDays"><option value="3">3 días</option><option value="7" selected>7 días</option><option value="14">14 días</option></select></label>
+          <span class="sup-filters-note" id="sugNote"></span>
+          <button type="button" class="inv-primary-btn sup-save" id="btnCreateOrder" disabled><i data-lucide="file-plus-2"></i> Crear orden con lo marcado</button>
+        </div>
+        <div id="sugBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
+
+      <!-- ---------- Órdenes de compra ---------- -->
+      <section class="sup-view" id="viewOrdenes" hidden>
+        <div class="sup-filters">
+          <select class="inv-filter-select" id="ordBranch" aria-label="Sucursal"></select>
+          <select class="inv-filter-select" id="ordStatus" aria-label="Estado">
+            <option value="pendiente">Pendientes</option>
+            <option value="recibido">Recibidas</option>
+            <option value="cancelado">Canceladas</option>
+            <option value="todos">Todas</option>
+          </select>
+          <span class="sup-filters-note">Al llegar, se reciben desde Inventario → Cargamentos: la recepción arranca con estas líneas.</span>
+        </div>
+        <div id="ordBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
+
+      <!-- ---------- Precios por proveedor ---------- -->
+      <section class="sup-view" id="viewPrecios" hidden>
+        <div class="sup-filters">
+          <input class="modal-input" id="priceSearch" placeholder="Buscar insumo…" autocomplete="off" />
+          <select class="inv-filter-select" id="priceSupplier" aria-label="Proveedor"><option value="">Todos los proveedores</option></select>
+          <select class="inv-filter-select sup-days" id="priceDays" aria-label="Período">
+            <option value="90">Últimos 90 días</option>
+            <option value="180" selected>Últimos 6 meses</option>
+            <option value="365">Último año</option>
+          </select>
+          <span class="sup-filters-note">Sale de los cargamentos recibidos con costo. Mejor precio: el último más bajo entre proveedores.</span>
+        </div>
+        <div id="priceBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ---------- Modal: crear orden ---------- -->
+  <div class="modal-backdrop" id="modalOrder">
+    <div class="modal-card modal-lg sup-modal">
+      <div class="modal-header">
+        <div class="inv-modal-title">
+          <span class="inv-card-icon"><i data-lucide="file-plus-2"></i></span>
+          <div>
+            <h3>Crear orden de compra</h3>
+            <span class="modal-subtitle">Queda agendada como cargamento; al llegar se recibe contra estas líneas.</span>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" data-close aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="sup-modal-sub" id="orderSummary"></p>
+        <div class="sup-form-grid">
+          <label class="inv-field"><span>Proveedor</span><select class="inv-filter-select" id="orderSupplier"></select></label>
+          <label class="inv-field"><span>Llega el</span><input class="modal-input" type="date" id="orderDate" /></label>
+          <label class="inv-field"><span>Desde (opcional)</span><input class="modal-input" type="time" id="orderTime" /></label>
+        </div>
+        <label class="inv-field"><span>Nota (opcional)</span><input class="modal-input" id="orderNotes" maxlength="500" placeholder="Ej: confirmar con el vendedor por WhatsApp" /></label>
+        <ul class="sup-order-lines" id="orderLines"></ul>
+        <p class="ops-form-error" id="orderError" hidden></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="inv-secondary-btn" data-close>Cancelar</button>
+        <button type="button" class="inv-primary-btn" id="btnConfirmOrder"><i data-lucide="check"></i> Crear orden</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/utils.js?v=3.5.0"></script>
+  <script src="js/api.js?v=4.0.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/shared/shell.js?v=4.2.0"></script>
+  <script src="js/shared/native-app.js?v=1.1.0"></script>
+  <script src="js/modules/abastecimiento.js?v=1.0.0"></script>
+</body>
+</html>

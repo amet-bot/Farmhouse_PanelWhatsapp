@@ -19,10 +19,11 @@ from database import SessionLocal, get_db
 from models.branch import Branch
 from models.shipment import ExpectedShipment, Shipment, ShipmentPhoto
 from models.supplier import Supplier
+from models.supply import ExpectedShipmentItem
 from models.user import User
 from routers.inventory import _image_type, _reclamo_de_linea, _serialize_shipment, _visible_branch_filter
 from schemas.inventory import (
-    ExpectedShipmentCreate, ExpectedShipmentResponse, ShipmentResponse, SupplierIssueRow,
+    ExpectedShipmentCreate, ExpectedShipmentLine, ExpectedShipmentResponse, ShipmentResponse, SupplierIssueRow,
 )
 from security.access_control import check_target_branch_valid
 from security.auth import get_current_authorized_user
@@ -41,12 +42,21 @@ SHIPMENT_PHOTOS_PER_RECORD = 4
 # Cargamentos agendados
 # ==========================================================================
 def _serialize_expected(e: ExpectedShipment) -> ExpectedShipmentResponse:
+    lineas = [
+        ExpectedShipmentLine(
+            inventory_item_id=li.inventory_item_id, item_name=li.inventory_item.name, unit=li.inventory_item.unit,
+            quantity=li.quantity, unit_cost=li.unit_cost,
+        )
+        for li in (e.items or [])
+    ]
+    costo = sum((Decimal(li.quantity) * Decimal(li.unit_cost) for li in (e.items or []) if li.unit_cost is not None), Decimal("0"))
     return ExpectedShipmentResponse(
         id=e.id, branch_id=e.branch_id, branch_name=e.branch.name,
         supplier_id=e.supplier_id, supplier_name=(e.supplier.name if e.supplier else None),
         expected_date=e.expected_date, time_from=e.time_from, notes=e.notes, status=e.status,
         created_by_name=(e.created_by_user.name if e.created_by_user else None),
         created_at=e.created_at, shipment_id=e.shipment_id,
+        items=lineas, est_cost=(costo.quantize(Decimal("0.01")) if lineas and costo else None),
     )
 
 
@@ -129,6 +139,7 @@ def list_expected_shipments(
     q = db.query(ExpectedShipment).options(
         selectinload(ExpectedShipment.branch), selectinload(ExpectedShipment.supplier),
         selectinload(ExpectedShipment.created_by_user),
+        selectinload(ExpectedShipment.items).selectinload(ExpectedShipmentItem.inventory_item),
     )
     if efectiva is not None:
         q = q.filter(ExpectedShipment.branch_id == efectiva)
