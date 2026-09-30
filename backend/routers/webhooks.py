@@ -18,7 +18,7 @@ from models.conversation import Conversation
 from models.message import Message
 from models.branch import Branch
 from services.whatsapp_service import get_whatsapp_service
-from services.yappy_payment import is_yappy_configured
+from services.yappy_payment import is_yappy_configured, build_yappy_payment_url
 from services.websocket_manager import ws_manager
 from services.auto_responses import (
     MAIN_MENU_LIST_BUTTON, MAIN_MENU_LIST_ROWS, NAV_RESTART_ROW,
@@ -45,7 +45,7 @@ from services.auto_responses import (
     CHAT_ORDER_INTRO_QUESTION, CHAT_ORDER_PAYMENT_QUESTION, CHAT_ORDER_PAYMENT_ROWS,
     RESTART_MESSAGE, CANCEL_MESSAGE,
     CHANGE_ORDER_TYPE_MESSAGE, CHANGE_BRANCH_MESSAGE, get_human_handoff_message,
-    get_customer_first_name, get_chat_order_context_line,
+    get_customer_first_name, get_chat_order_context_line, YAPPY_BUTTON_MESSAGE,
     CLOSED_NOW_MESSAGE, BOT_SESSION_TIMEOUT_HOURS,
     DELIVERY_LOCATION_REQUEST_BODY, NEAREST_BRANCH_MESSAGE, DELIVERY_MAX_KM, DELIVERY_OUT_OF_RANGE_MESSAGE,
     LOCATION_DESCRIBED_MESSAGE, DELIVERY_PLACE_QUESTION, DELIVERY_PLACE_ROWS, DELIVERY_PLACE_LABELS,
@@ -1002,6 +1002,26 @@ async def _step_confirm_web_menu_order(db: Session, wa_service, conv: Conversati
     # texto no debe insinuar que ya se envió uno — cae al mismo "coordinará el pago contigo"
     # de siempre.
     is_yappy_active = conv.payment_method == "yappy" and is_yappy_configured()
+    # El pedido recién creado desde /menu (el más reciente de la conversación) y si su botón
+    # de pago ya salió por el envío de respaldo de routers/orders.py.
+    yappy_order = None
+    yappy_boton_ya_enviado = False
+    if is_yappy_active:
+        for o in (conv.orders or []):
+            if o.status not in ("carrito_activo", "abandonado") and o.payment_status != "paid" and o.deleted_at is None:
+                try:
+                    if json.loads(o.items_json or "{}").get("payment_method") == "yappy":
+                        yappy_order = o
+                        break
+                except (TypeError, ValueError):
+                    continue
+        if yappy_order is None:
+            is_yappy_active = False
+        else:
+            yappy_boton_ya_enviado = db.query(Message.id).filter(
+                Message.conversation_id == conv.id,
+                Message.content.contains(f"pago-yappy?order={yappy_order.order_code}"),
+            ).first() is not None
     branch_name = conv.branch.name if conv.branch else "Farmhouse"
     first_name = get_customer_first_name(contact.name)
     greeting = f"¡Gracias por tu pedido, {first_name}!" if first_name else "¡Gracias por tu pedido!"
@@ -1009,8 +1029,9 @@ async def _step_confirm_web_menu_order(db: Session, wa_service, conv: Conversati
     payment_label = payment_labels.get(conv.payment_method, "Por confirmar")
     delivery_label = "Delivery" if is_delivery else "Retiro en sucursal"
     if is_yappy_active:
+        donde = "Arriba te dejamos" if yappy_boton_ya_enviado else "Aquí abajo te dejamos"
         next_step = (
-            "Arriba te dejamos el botón para pagar con Yappy 📱 En cuanto completes el pago, "
+            f"{donde} el botón para pagar con Yappy 📱 En cuanto completes el pago, "
             "te confirmamos aquí mismo — no hace falta que hagas nada más."
         )
     else:
@@ -1038,6 +1059,18 @@ async def _step_confirm_web_menu_order(db: Session, wa_service, conv: Conversati
     conv.automation_paused = True
     conv.bot_handoff_at = datetime.utcnow()
     await _send_plain_text_message(db, wa_service, conv, contact, phone, confirmation_text)
+
+    # El botón de Yappy va justo después de la confirmación, en orden, cuando el cliente ya
+    # volvió al chat. El envío diferido de routers/orders.py ve que ya salió y no lo repite.
+    if is_yappy_active and not yappy_boton_ya_enviado:
+        await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        payment_url = build_yappy_payment_url(yappy_order.order_code)
+        payment_message = YAPPY_BUTTON_MESSAGE.format(pedido=yappy_order.order_code, total=f"{yappy_order.total:.2f}")
+        await _send_and_log(
+            db, wa_service, conv, contact, phone,
+            wa_service.send_cta_url_message(phone, payment_message, "Pagar con Yappy", payment_url),
+            f"{payment_message}\n{payment_url}",
+        )
 
 async def _step_download_pending_media(db: Session, wa_service, conv: Conversation, message_type: str, msg_data: Dict[str, Any], incoming_msg: Optional[Message]) -> None:
     """Bloque 1: descarga el archivo multimedia adjunto si existe y aún no fue descargado

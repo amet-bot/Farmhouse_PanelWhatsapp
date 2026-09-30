@@ -370,6 +370,14 @@ CARD_PAYMENT_MESSAGE = (
     "Por favor regálanos unos breves minutos mientras lo generamos para ti. ¡Muchas gracias por tu paciencia y preferencia! 😊✨"
 )
 
+# Mensaje del botón de pago (CTA "Pagar con Yappy") para un pedido ya creado. Lo manda el bot
+# justo después de confirmar el pedido del menú web (ver _step_confirm_web_menu_order), o el
+# panel con "Cobrar con Yappy"; el envío diferido de routers/orders.py es solo de respaldo.
+YAPPY_BUTTON_MESSAGE = (
+    "Tu pedido {pedido} por ${total} está listo para pagar con Yappy. "
+    "Toca el botón para recibir y aprobar la solicitud en tu aplicación Yappy."
+)
+
 YAPPY_PAYMENT_MESSAGE = (
     "¡Perfecto! 📱 Elegiste pagar con Yappy. Cuando confirmes el pedido te enviaremos por este mismo chat "
     "un botón con el monto exacto. Solo tendrás que abrirlo y aprobar la solicitud en tu aplicación Yappy. "

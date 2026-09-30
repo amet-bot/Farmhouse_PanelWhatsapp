@@ -249,6 +249,30 @@ def test_confirmation_mentions_the_yappy_button_when_yappy_is_configured(client,
     ).order_by(Message.created_at.desc(), Message.id.desc()).first()
     assert "botón para pagar con Yappy" in reply.content
     assert "coordinará el pago contigo" not in reply.content
+    # El respaldo (delay 0 en tests) ya había mandado el botón: el bot no lo repite.
+    botones = db_session.query(Message).filter(Message.conversation_id == created["conversation_id"], Message.content.contains("pago-yappy?order=")).all()
+    assert len(botones) == 1 and "Arriba te dejamos" in reply.content
+
+
+def test_el_bot_manda_el_boton_despues_de_confirmar_si_el_respaldo_no_salio(client, clayton_branch, db_session, monkeypatch):
+    _enable_yappy(monkeypatch)
+    monkeypatch.setattr(settings, "WHATSAPP_MODE", "mock")
+    monkeypatch.setattr("routers.webhooks.SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr("routers.webhooks.notify_branch_new_message", lambda *a, **k: None)
+
+    async def _sin_respaldo(*args, **kwargs):
+        return None
+    monkeypatch.setattr("routers.orders._send_delayed_yappy_button", _sin_respaldo)
+
+    created = client.post("/api/orders/public", json=ORDER_PAYLOAD, headers={"X-Requested-With": "XMLHttpRequest"}).json()
+    assert _post_mi_pedido_farmhouse_text(client, "65550101", "wamid.confirm.3").status_code == 200
+    msgs = db_session.query(Message).filter(Message.conversation_id == created["conversation_id"], Message.direction == "outgoing").order_by(Message.id).all()
+    contenidos = [m.content for m in msgs]
+    confirmacion = next(i for i, c in enumerate(contenidos) if "Ya lo tenemos registrado" in c)
+    boton = next(i for i, c in enumerate(contenidos) if f"pago-yappy?order={created['order_code']}" in c)
+    assert boton == confirmacion + 1, "el botón va justo después de la confirmación"
+    assert "Aquí abajo te dejamos" in contenidos[confirmacion]
+    assert f"Tu pedido {created['order_code']} por $2.00" in contenidos[boton]
 
 
 def test_confirmation_stays_generic_when_yappy_is_not_configured(client, clayton_branch, db_session, monkeypatch):

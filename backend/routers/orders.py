@@ -47,7 +47,11 @@ WA_NUMBER_RE = re.compile(r"^\d{8,15}$")
 # mensaje de confirmación del pedido (y de la respuesta del bot con el resumen) — si se manda
 # de inmediato, el botón puede llegarle antes de esos mensajes y aparecer fuera de contexto.
 # Los tests lo bajan a 0 (ver _enable_yappy en test_yappy_payments.py) para no esperar de verdad.
-YAPPY_BUTTON_SEND_DELAY_SECONDS = 10
+# Respaldo: el bot manda el botón apenas el cliente confirma el pedido en WhatsApp (ver
+# _step_confirm_web_menu_order en routers/webhooks.py). Si en este tiempo el cliente no volvió
+# al chat (cerró la página, no tocó "enviar"), igual le llega el botón desde aquí. Antes eran
+# 10 s y el botón solía llegar ANTES que la confirmación del pedido.
+YAPPY_BUTTON_SEND_DELAY_SECONDS = 60
 
 
 def _delivery_quote(branch: Branch, delivery_type: str, latitude: Optional[float], longitude: Optional[float], *, require_pin: bool) -> tuple[Optional[Decimal], Decimal]:
@@ -125,6 +129,14 @@ async def _send_delayed_yappy_button(
     await asyncio.sleep(YAPPY_BUTTON_SEND_DELAY_SECONDS)
     db = SessionLocal()
     try:
+        # Si el bot ya lo mandó al confirmar el pedido (o el panel lo cobró), no se repite.
+        ya_enviado = db.query(Message.id).filter(
+            Message.conversation_id == conv_id,
+            Message.content.contains(f"pago-yappy?order={order_code}"),
+        ).first()
+        if ya_enviado:
+            logger.info("[PublicOrder] Botón de Yappy del pedido %s ya enviado por el bot; se omite el respaldo.", order_code)
+            return
         wamid = None
         message_status = "sent"
         error_detail = None
