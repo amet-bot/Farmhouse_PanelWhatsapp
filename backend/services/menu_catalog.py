@@ -58,6 +58,9 @@ def _parse_price(raw: str) -> Decimal:
 
 
 def _image_url(row: Dict[str, str]) -> str:
+    link = (row.get("image_link") or "").strip()
+    if link.startswith("/frontend/static/"):
+        return link
     sku = row.get("id", "").strip()
     return f"/static/catalog/{sku}.jpg"
 

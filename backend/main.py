@@ -236,6 +236,8 @@ if frontend_dir.exists():
         app.mount("/css", StaticFiles(directory=str(frontend_dir / "css")), name="css")
     if (frontend_dir / "js").exists():
         app.mount("/js", StaticFiles(directory=str(frontend_dir / "js")), name="js")
+    if (frontend_dir / "static").exists():
+        app.mount("/frontend/static", StaticFiles(directory=str(frontend_dir / "static")), name="frontend_static")
 
     # "/" es ahora el Panel General (hub de sistemas): WhatsApp Center pasó a ser uno de varios
     # sistemas internos, no el punto de entrada único. Ver push_service.py, que enlaza a "/app"

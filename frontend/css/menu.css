@@ -476,7 +476,7 @@ a:focus-visible {
   background: var(--fh-panel-alt);
   overflow: hidden;
 }
-.product-card-img-wrap img.product-card-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+.product-card-img-wrap img.product-card-photo { width: 100%; height: 100%; object-fit: contain; padding: 10px; display: block; }
 
 /* Fallback: solo visible cuando la imagen real falla (ver menu_app.js).
    Nota: el selector apunta a .product-card-photo (no a "img" genérico) porque el
@@ -662,7 +662,7 @@ a:focus-visible {
   background: var(--fh-panel-alt);
   flex-shrink: 0;
 }
-.product-modal-img-wrap img.product-card-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+.product-modal-img-wrap img.product-card-photo { width: 100%; height: 100%; object-fit: contain; padding: 12px; display: block; }
 .product-modal-img-wrap.img-error .product-card-photo { display: none; }
 .product-modal-img-wrap .product-card-fallback-badge { background: var(--fh-green-soft); }
 .product-modal-img-wrap .product-card-fallback-logo { max-width: 84px; }

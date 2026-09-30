@@ -10,434 +10,50 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --fh-green: #303d36;
-      --fh-green-dark: #232e28;
-      --fh-green-light: #4f6155;
-      --fh-gold: #a9834f;
-      --fh-bg: #faf7f1;
-      --fh-panel: #ffffff;
-      --fh-text: #262521;
-      --fh-text-muted: #78766d;
-      --fh-line: #e7e1d3;
-      --radius-lg: 24px;
-      --shadow-md: 0 10px 28px rgba(38, 37, 33, 0.08);
-      --font-heading: 'Poppins', 'Inter', sans-serif;
-      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --fh-green: #5c7266;
-        --fh-bg: #1a1815;
-        --fh-panel: #242220;
-        --fh-text: #f2efe6;
-        --fh-text-muted: #b6b0a1;
-        --fh-line: #3a372f;
-      }
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    html, body {
-      font-family: var(--font-body);
-      background: var(--fh-bg);
-      color: var(--fh-text);
-      line-height: 1.6;
-    }
-
-    body { padding-bottom: 100px; }
-
-    /* =============== HEADER =============== */
-    .menu-header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: var(--fh-bg);
-      border-bottom: 1px solid var(--fh-line);
-      padding: 16px 20px;
-      backdrop-filter: blur(10px);
-    }
-
-    .menu-header-inner {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-    }
-
-    .menu-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      text-decoration: none;
-      color: inherit;
-      min-width: 0;
-    }
-
-    .menu-logo { width: 40px; height: 40px; }
-
-    .menu-header-titles h1 {
-      font-family: var(--font-heading);
-      font-size: 20px;
-      font-weight: 600;
-      margin: 0;
-    }
-
-    .menu-header-titles span {
-      font-size: 12px;
-      color: var(--fh-text-muted);
-    }
-
-    .menu-search-wrap {
-      position: relative;
-      flex: 1;
-      max-width: 400px;
-      display: none;
-    }
-
-    @media (min-width: 768px) {
-      .menu-search-wrap { display: block; }
-    }
-
-    .menu-search-input {
-      width: 100%;
-      padding: 10px 16px 10px 40px;
-      border: 1px solid var(--fh-line);
-      border-radius: 20px;
-      background: var(--fh-panel);
-      color: var(--fh-text);
-      font-size: 14px;
-    }
-
-    .menu-search-input::placeholder { color: var(--fh-text-muted); }
-
-    .menu-search-icon {
-      position: absolute;
-      left: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 18px;
-      height: 18px;
-      stroke: var(--fh-text-muted);
-    }
-
-    .header-branch-pill {
-      position: relative;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      border: 1px solid var(--fh-line);
-      border-radius: 20px;
-      background: var(--fh-panel);
-      font-size: 13px;
-    }
-
-    .branch-select {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-    }
-
-    .header-cart-btn {
-      position: relative;
-      background: none;
-      border: none;
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: var(--fh-text);
-    }
-
-    .header-cart-btn .icon { width: 24px; height: 24px; }
-
-    .header-cart-count {
-      position: absolute;
-      top: -8px;
-      right: -8px;
-      background: var(--fh-gold);
-      color: var(--fh-green-dark);
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    /* =============== CATEGORY PILLS =============== */
-    .category-pills-wrap {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 16px 20px 0;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
-
-    .category-pills { display: flex; gap: 8px; padding-bottom: 16px; }
-
-    .category-pills::-webkit-scrollbar { display: none; }
-
-    .category-pill {
-      flex-shrink: 0;
-      padding: 8px 16px;
-      border: 1px solid var(--fh-line);
-      border-radius: 20px;
-      background: var(--fh-panel);
-      color: var(--fh-text);
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      transition: all 0.2s;
-      white-space: nowrap;
-    }
-
-    .category-pill:hover { border-color: var(--fh-gold); }
-
-    .category-pill.active {
-      border-color: var(--fh-green);
-      background: var(--fh-green);
-      color: var(--fh-gold);
-    }
-
-    /* =============== PRODUCTS GRID =============== */
-    .products-container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 40px 20px;
-    }
-
-    .products-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 24px;
-      margin-bottom: 48px;
-    }
-
-    @media (min-width: 768px) {
-      .products-grid {
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        gap: 28px;
-      }
-    }
-
-    .product-card {
-      position: relative;
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      background: var(--fh-panel);
-      border: 1px solid var(--fh-line);
-      transition: all 0.3s;
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-    }
-
-    .product-card:hover {
-      box-shadow: var(--shadow-md);
-      transform: translateY(-4px);
-    }
-
-    .product-image-wrap {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 1;
-      background: var(--fh-bg);
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .product-image {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      padding: 12px;
-      transition: transform 0.3s;
-    }
-
-    .product-card:hover .product-image { transform: scale(1.05); }
-
-    .product-info {
-      padding: 16px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .product-name {
-      font-family: var(--font-heading);
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--fh-text);
-      margin-bottom: 8px;
-      line-height: 1.3;
-    }
-
-    .product-meta {
-      font-size: 12px;
-      color: var(--fh-text-muted);
-      margin-bottom: 12px;
-      line-height: 1.4;
-    }
-
-    .product-desc {
-      font-size: 13px;
-      color: var(--fh-text-muted);
-      margin-bottom: 16px;
-      flex: 1;
-      line-height: 1.4;
-    }
-
-    .product-action {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .btn-add {
-      flex: 1;
-      padding: 10px 16px;
-      background: var(--fh-gold);
-      color: var(--fh-green-dark);
-      border: none;
-      border-radius: 20px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 13px;
-      transition: all 0.2s;
-    }
-
-    .btn-add:hover { transform: scale(1.05); }
-
-    .btn-add:active { transform: scale(0.95); }
-
-    /* =============== FLOATING CART =============== */
-    .floating-cart-btn {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: var(--fh-green);
-      color: white;
-      border: none;
-      border-radius: 20px;
-      padding: 12px 20px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: var(--shadow-md);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      z-index: 50;
-      transition: all 0.2s;
-    }
-
-    .floating-cart-btn:hover { transform: translateY(-4px); }
-
-    .floating-cart-btn[hidden] { display: none; }
-
-    .cart-count {
-      background: var(--fh-gold);
-      color: var(--fh-green-dark);
-      border-radius: 50%;
-      width: 28px;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 12px;
-    }
-
-    /* =============== EMPTY STATE =============== */
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-    }
-
-    .empty-state p {
-      font-size: 18px;
-      color: var(--fh-text-muted);
-    }
-
-    /* =============== SKELETONS =============== */
-    .skeleton-card {
-      border-radius: var(--radius-lg);
-      background: linear-gradient(90deg, var(--fh-panel) 25%, var(--fh-bg) 50%, var(--fh-panel) 75%);
-      background-size: 200% 100%;
-      animation: loading 1.5s infinite;
-      aspect-ratio: 1;
-    }
-
-    @keyframes loading {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-
-    .skeletons-wrapper {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 24px;
-      margin-bottom: 48px;
-    }
-
-    @media (min-width: 768px) {
-      .skeletons-wrapper {
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        gap: 28px;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/css/menu.css?v=4.2.0">
 </head>
 <body>
 
-  <!-- HEADER -->
+  <!-- ===================== HEADER ===================== -->
   <header class="menu-header">
     <div class="menu-header-inner">
-      <a href="/menu" class="menu-brand">
+      <a href="/menu" class="menu-brand" aria-label="Farmhouse, ir al inicio del menú">
         <img src="/assets/images/farmhouse-logo.png" alt="" class="menu-logo" onerror="this.style.display='none'">
         <div class="menu-header-titles">
           <h1>Farmhouse</h1>
-          <span>Cocina fresca & casual</span>
+          <span>Cocina fresca &amp; casual</span>
         </div>
       </a>
+
       <div class="menu-search-wrap">
-        <svg class="menu-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="searchInput" class="menu-search-input" type="search" placeholder="Buscar un plato..." aria-label="Buscar en el menú">
+        <svg class="menu-search-icon icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" class="menu-search-input" type="search" placeholder="Buscar un plato, ingrediente..." aria-label="Buscar en el menú">
       </div>
-      <div class="header-branch-pill">
-        <span id="headerBranchBadge">Selecciona sede</span>
-        <select id="branchSelect" class="branch-select" aria-label="Selecciona tu sucursal">
-          <option value="">Cambiar sucursal…</option>
-        </select>
+
+      <div class="menu-header-actions">
+        <div class="header-branch-pill">
+          <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+          <span id="headerBranchBadge">Selecciona sucursal</span>
+          <select id="branchSelect" class="branch-select" aria-label="Selecciona tu sucursal">
+            <option value="">Cambiar sucursal…</option>
+          </select>
+        </div>
+        <button id="headerCartBtn" class="header-cart-btn" type="button" aria-label="Ver pedido, 0 productos">
+          <svg class="icon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          <span class="header-cart-count" id="headerCartCount" hidden>0</span>
+        </button>
       </div>
-      <button id="headerCartBtn" class="header-cart-btn" type="button" aria-label="Ver pedido">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-        <span class="header-cart-count" id="headerCartCount" hidden>0</span>
-      </button>
     </div>
 
     <div class="category-pills-wrap">
-      <nav id="categoryPills" class="category-pills"></nav>
+      <nav id="categoryPills" class="category-pills" aria-label="Categorías del menú"></nav>
     </div>
   </header>
 
-  <!-- MAIN CONTENT -->
-  <main class="products-container">
-    <div id="productsGrid" class="skeletons-wrapper">
+  <!-- ===================== PRODUCT GRID ===================== -->
+  <main id="productsGrid" class="products-grid" aria-live="polite">
+    <div class="skeletons-wrapper">
       <div class="skeleton-card" aria-hidden="true"></div>
       <div class="skeleton-card" aria-hidden="true"></div>
       <div class="skeleton-card" aria-hidden="true"></div>
@@ -449,12 +65,196 @@
     <p>No encontramos platos que coincidan con tu búsqueda.</p>
   </div>
 
-  <!-- FLOATING CART BUTTON -->
+  <!-- ===================== FLOATING CART BUTTON ===================== -->
   <button id="floatingCartBtn" class="floating-cart-btn" hidden aria-label="Ver pedido">
     <span class="cart-count" id="cartCount">0</span>
-    <span>Ver pedido</span>
+    <span class="cart-label">Ver pedido</span>
+    <span class="cart-subtotal" id="cartSubtotal">$0.00</span>
   </button>
 
-  <script src="/js/modules/menu_app.js" type="module"></script>
+  <!-- ===================== PRODUCT CUSTOMIZATION MODAL ===================== -->
+  <div id="productModalBackdrop" class="modal-backdrop" hidden>
+    <div class="product-modal" role="dialog" aria-modal="true" aria-labelledby="productModalTitle">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <button class="modal-close-btn" id="productModalClose" aria-label="Cerrar">✕</button>
+      <div class="product-modal-img-wrap" id="productModalImgWrap">
+        <img id="productModalImg" class="product-card-photo" src="" alt="">
+        <div class="product-card-fallback-badge">
+          <img src="/assets/images/farmhouse-logo.png" alt="" class="product-card-fallback-logo">
+        </div>
+      </div>
+      <div class="product-modal-body">
+        <h2 id="productModalTitle"></h2>
+        <p id="productModalDesc" class="product-modal-desc"></p>
+
+        <div id="sizeSection" class="modal-section" hidden>
+          <h3>Tamaño</h3>
+          <div id="sizeOptions" class="option-pills"></div>
+        </div>
+
+        <div id="warmAddonsSection" class="modal-section" hidden>
+          <h3>Proteínas y adicionales calientes</h3>
+          <div id="warmAddonsList" class="addon-list"></div>
+        </div>
+
+        <div id="coldAddonsSection" class="modal-section" hidden>
+          <h3>Adicionales fríos</h3>
+          <div id="coldAddonsList" class="addon-list"></div>
+        </div>
+
+        <div id="flatAddonsSection" class="modal-section" hidden>
+          <h3 id="flatAddonsTitle">Adicionales</h3>
+          <div id="flatAddonsList" class="addon-list"></div>
+        </div>
+
+        <div class="modal-section">
+          <label class="field-label" for="productNotes">Notas especiales</label>
+          <textarea id="productNotes" class="notes-input" maxlength="300" placeholder='Ej: "sin cebolla", "aderezo aparte"...'></textarea>
+        </div>
+
+        <div class="modal-footer">
+          <div class="qty-stepper">
+            <button id="qtyMinus" type="button" aria-label="Restar cantidad">−</button>
+            <span id="qtyValue">1</span>
+            <button id="qtyPlus" type="button" aria-label="Sumar cantidad">+</button>
+          </div>
+          <button id="addToOrderBtn" class="btn-add-order">
+            Agregar al pedido · <span id="productModalPrice">$0.00</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== CART / CHECKOUT DRAWER ===================== -->
+  <div id="cartDrawerBackdrop" class="modal-backdrop cart-drawer-backdrop" hidden>
+    <div class="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cartDrawerTitle">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <button id="cartDrawerClose" class="modal-close-btn" aria-label="Cerrar">✕</button>
+      <div class="cart-drawer-header">
+        <div>
+          <span class="checkout-eyebrow">CHECKOUT FARMHOUSE</span>
+          <h2 id="cartDrawerTitle">Finalizar pedido</h2>
+          <span id="cartBranchTag" class="cart-branch-tag">Farmhouse</span>
+          <span id="cartSyncDot" class="cart-sync-dot" title="Sincronizando con el restaurante"></span>
+        </div>
+      </div>
+
+      <div class="checkout-progress" aria-label="Progreso del pedido">
+        <span id="checkoutProgressBar"></span>
+      </div>
+
+      <div class="checkout-layout">
+        <div class="checkout-form-column">
+      <details class="checkout-step" data-step="1" open>
+        <summary><span class="step-number">1</span><span>Entrega<small>Retiro gratis o delivery calculado</small></span></summary>
+        <div class="checkout-step-body">
+          <div class="delivery-toggle">
+            <button type="button" class="delivery-option" data-delivery="pickup">
+              Retiro en sucursal<span class="delivery-price">Gratis</span>
+            </button>
+            <button type="button" class="delivery-option active" data-delivery="delivery">
+              Delivery<span id="deliveryOptionPrice" class="delivery-price">Selecciona tu pin</span>
+            </button>
+          </div>
+
+          <div id="deliveryAddressSection" class="delivery-address-section">
+            <div class="delivery-address-header">
+              <label class="field-label delivery-address-label" for="deliveryAddress" id="deliveryAddressLabel">Dirección</label>
+              <button type="button" id="btnDetectGps" class="btn-detect-gps" title="Detectar mi ubicación actual por GPS">
+                <span class="gps-icon">📍</span> <span id="btnDetectGpsLabel">Usar mi ubicación actual</span>
+              </button>
+            </div>
+            <div class="address-search-row">
+              <input id="deliveryAddress" class="text-input delivery-address-input" type="text" placeholder="Busca una dirección o mueve el pin..." autocomplete="off">
+              <button type="button" id="btnSearchAddress" class="btn-address-search">Buscar</button>
+              <div id="addressSuggestions" class="address-suggestions" hidden></div>
+            </div>
+            <div id="deliveryMap" class="delivery-map" aria-label="Mapa para seleccionar ubicación"></div>
+            <p class="map-attribution-note">Toca el mapa o arrastra el pin verde. Las sucursales aparecen identificadas.</p>
+            <div id="deliveryGpsHint" class="delivery-gps-hint" hidden></div>
+            <div class="delivery-reference-field">
+              <label class="field-label" for="deliveryReference">Detalles de la dirección <span class="field-label-optional">(opcional)</span></label>
+              <input id="deliveryReference" class="text-input" type="text" placeholder="Ej: Torre Azul, piso 4, portón negro...">
+            </div>
+            <div id="deliveryQuote" class="delivery-quote" hidden></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="checkout-step" data-step="2">
+        <summary><span class="step-number">2</span><span>¿Cuándo y cómo pagas?<small>Horario de entrega y método de pago</small></span></summary>
+        <div class="checkout-step-body">
+          <div class="delivery-toggle fulfillment-toggle">
+            <button type="button" class="fulfillment-option active" data-fulfillment="asap">Lo antes posible</button>
+            <button type="button" class="fulfillment-option" data-fulfillment="scheduled">Programar</button>
+          </div>
+          <div id="scheduledTimeWrap" hidden>
+            <label class="field-label" for="scheduledFor">Fecha y hora</label>
+            <input id="scheduledFor" class="text-input" type="datetime-local">
+          </div>
+
+          <div id="paymentOptions" class="option-pills payment-pills checkout-substep">
+            <!-- Oculto hasta que Farmhouse esté afiliado con Tilopay: no se borra el markup, solo se
+                 agrega `hidden` (ver PAYMENT_METHOD_LABELS en routers/orders.py, que sigue mostrando
+                 "Tilopay (Tarjeta)" para pedidos viejos que ya usaron este método). -->
+            <button type="button" class="option-pill payment-card-option tilopay-option" data-payment="card" aria-label="Pagar con Tilopay, tarjeta de crédito o débito" hidden>
+              <span class="payment-brand tilopay-brand">Tilopay</span>
+              <small>Tarjeta de crédito/débito</small>
+            </button>
+            <button type="button" class="option-pill payment-card-option yappy-option" data-payment="yappy" aria-label="Pagar con Yappy">
+              <span class="payment-brand yappy-brand"><span class="yappy-mark" aria-hidden="true"><i></i><i></i></span>yappy</span>
+              <small>Solicitud directa a tu celular</small>
+            </button>
+          </div>
+          <p class="payment-method-hint">Recibirás por WhatsApp el enlace seguro correspondiente al método que elijas.</p>
+        </div>
+      </details>
+
+      <details class="checkout-step" data-step="3" id="customerSection">
+        <summary><span class="step-number">3</span><span>Tus datos<small>Para identificar y confirmar tu pedido</small></span></summary>
+        <div class="checkout-step-body" id="customerInputFields">
+          <div>
+            <label class="field-label" for="customerName">Tu nombre</label>
+            <input id="customerName" class="text-input" type="text" placeholder="Nombre completo">
+          </div>
+          <div>
+            <label class="field-label" for="customerPhone">Tu teléfono</label>
+            <input id="customerPhone" class="text-input" type="tel" placeholder="Ej: 6000-1234">
+          </div>
+          <p class="customer-fields-hint">Tomamos tu nombre y teléfono de WhatsApp, pero puedes cambiarlos si quieres.</p>
+        </div>
+      </details>
+        </div>
+
+        <aside class="checkout-summary" aria-labelledby="checkoutSummaryTitle">
+          <div class="summary-heading-row">
+            <h3 id="checkoutSummaryTitle">Resumen</h3>
+            <span id="summaryItemCount">0 productos</span>
+          </div>
+          <div id="cartItemsList" class="cart-items-list"></div>
+          <div class="cart-totals">
+            <div class="totals-row"><span>Subtotal</span><span id="totalSubtotal">$0.00</span></div>
+            <div class="totals-row"><span>Entrega</span><span id="totalDelivery">$0.00</span></div>
+            <div class="totals-row totals-final"><span>Total a pagar</span><span id="totalFinal">$0.00</span></div>
+          </div>
+
+          <button id="sendOrderBtn" class="btn-send-order" disabled>
+            <svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 6.32A8.86 8.86 0 0 0 12.03 4C7.18 4 3.24 7.94 3.24 12.79c0 1.62.44 3.13 1.2 4.44L3.2 21l3.9-1.2a8.7 8.7 0 0 0 4.93 1.5h.01c4.85 0 8.79-3.94 8.79-8.79a8.7 8.7 0 0 0-3.23-6.19zm-5.57 13.5a7.3 7.3 0 0 1-3.72-1.02l-.27-.16-2.77.85.86-2.7-.18-.28a7.29 7.29 0 0 1-1.12-3.9c0-4.05 3.3-7.35 7.36-7.35a7.32 7.32 0 0 1 7.34 7.35c0 4.06-3.3 7.36-7.35 7.36zm4.03-5.5c-.22-.11-1.3-.64-1.5-.71-.2-.07-.35-.11-.5.11-.15.22-.57.71-.7.86-.13.15-.26.16-.48.05-.22-.11-.94-.35-1.79-1.11-.66-.59-1.11-1.31-1.24-1.53-.13-.22-.01-.34.1-.45.1-.1.22-.26.33-.39.11-.13.15-.22.22-.37.07-.15.04-.28-.02-.39-.06-.11-.5-1.2-.68-1.65-.18-.43-.36-.37-.5-.38h-.43c-.15 0-.39.06-.6.28-.2.22-.78.76-.78 1.85s.8 2.15.91 2.3c.11.15 1.57 2.4 3.81 3.36.53.23.95.37 1.27.47.53.17 1.02.15 1.4.09.43-.06 1.3-.53 1.48-1.04.18-.51.18-.94.13-1.04-.05-.09-.2-.15-.42-.26z"/></svg>
+            <span id="sendOrderLabel">Completa tus datos para continuar</span>
+          </button>
+          <div id="checkoutMissingHint" class="checkout-missing-hint" role="status">Empieza indicando tu dirección o ubicación.</div>
+          <div class="checkout-trust-row">
+            <span>✓ Pedido revisado</span><span>✓ Confirmación por WhatsApp</span>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="menu-toast" hidden role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/js/modules/menu_app.js?v=4.2.0"></script>
 </body>
 </html>
