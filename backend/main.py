@@ -19,6 +19,7 @@ from routers import (
     messages,
     orders,
     bot_stats,
+    reports,
     media,
     websocket,
     webhooks,
@@ -35,7 +36,7 @@ from routers import (
     prep,
 )
 from services.bot_followup import run_followup_sweep_loop
-from services import invu_recipes_sync, invu_sync, invu_sales_sync
+from services import invu_recipes_sync, invu_sync, invu_sales_sync, weekly_digest
 
 logging.basicConfig(
     level=logging.INFO,
@@ -93,9 +94,14 @@ async def lifespan(app: FastAPI):
     if invu_recipes_sync.debe_arrancar_loop():
         recetas_task = asyncio.create_task(invu_recipes_sync.run_recipes_sync_loop())
 
+    # Quinto loop: el resumen semanal por push a gerencia, los lunes (ver services/weekly_digest).
+    digest_task = None
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        digest_task = asyncio.create_task(weekly_digest.run_weekly_digest_loop())
+
     yield
 
-    for task in (followup_task, invu_task, ventas_task, recetas_task):
+    for task in (followup_task, invu_task, ventas_task, recetas_task, digest_task):
         if task:
             task.cancel()
             try:
@@ -184,6 +190,7 @@ app.include_router(webhooks.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router)
 app.include_router(bot_flows.router, prefix=settings.API_V1_STR)
 app.include_router(bot_stats.router, prefix=settings.API_V1_STR)
+app.include_router(reports.router, prefix=settings.API_V1_STR)
 app.include_router(inventory.router, prefix=settings.API_V1_STR)
 app.include_router(receiving.router, prefix=settings.API_V1_STR)
 app.include_router(internal_chat.router, prefix=settings.API_V1_STR)

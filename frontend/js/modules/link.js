@@ -25,9 +25,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     isGlobal: false,
     branches: [],          // las de Link, en orden fijo: define el color de cada una
     range: '7',
+    customFrom: null,      // rango personalizado (ISO) cuando range === 'custom'
+    customTo: null,
     branchFilter: '',
     daily: [],
     showTable: false,
+    view: 'ventas',
+    month: null,           // AAAA-MM del cierre de mes
   };
 
   const moneyFmt = new Intl.NumberFormat('es-PA', { style: 'currency', currency: 'USD' });
@@ -49,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function rangeDates(range) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    if (range === 'custom' && state.customFrom && state.customTo) return [parseIso(state.customFrom), parseIso(state.customTo)];
     if (range === 'today') return [today, today];
     if (range === 'yesterday') { const y = addDays(today, -1); return [y, y]; }
     if (range === 'month') return [new Date(today.getFullYear(), today.getMonth(), 1), today];
@@ -78,13 +83,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Vistas
   // ==========================================================================
-  const VIEWS = { ventas: 'viewVentas', sincronizacion: 'viewSincronizacion' };
+  const VIEWS = { ventas: 'viewVentas', analisis: 'viewAnalisis', compras: 'viewCompras', cierre: 'viewCierre', sincronizacion: 'viewSincronizacion' };
 
   function setView(view) {
+    if (!VIEWS[view]) view = 'ventas';
+    state.view = view;
     Object.entries(VIEWS).forEach(([key, id]) => { $(id).hidden = key !== view; });
     document.querySelectorAll('#linkNav .inv-nav-item').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+    // Los filtros de período mandan en Ventas, Análisis y Compras; en Cierre el período es el mes.
+    $('linkFilters').hidden = view === 'sincronizacion';
+    $('rangeGroup').hidden = view === 'cierre';
     if (view === 'sincronizacion') loadSyncStatus();
     if (view === 'ventas' && state.daily.length) renderDailyChart();  // el ancho pudo cambiar estando oculto
+    if (view === 'analisis') loadAnalisis();
+    if (view === 'compras') loadCompras();
+    if (view === 'cierre') loadCierre();
+  }
+
+  /** Recarga lo que esté a la vista (los filtros cambiaron). */
+  function reloadCurrent() {
+    if (state.view === 'ventas') loadSales();
+    else if (state.view === 'analisis') loadAnalisis();
+    else if (state.view === 'compras') loadCompras();
+    else if (state.view === 'cierre') loadCierre();
   }
   document.querySelectorAll('#linkNav .inv-nav-item').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
 
@@ -709,13 +730,214 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('#rangeSegmented button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('#rangeSegmented button').forEach((x) => x.classList.toggle('active', x === b));
     state.range = b.dataset.range;
-    loadSales();
+    reloadCurrent();
   }));
+
+  $('btnApplyRange').addEventListener('click', () => {
+    const from = $('dateFrom').value, to = $('dateTo').value;
+    if (!from || !to) { utils.showToast('Elige las dos fechas.', 'info'); return; }
+    if (from > to) { utils.showToast('La fecha inicial es posterior a la final.', 'error'); return; }
+    state.customFrom = from; state.customTo = to; state.range = 'custom';
+    document.querySelectorAll('#rangeSegmented button').forEach((x) => x.classList.remove('active'));
+    reloadCurrent();
+  });
 
   $('branchFilter').addEventListener('change', (e) => {
     state.branchFilter = e.target.value;
-    loadSales();
+    reloadCurrent();
   });
+
+  $('monthInput').addEventListener('change', (e) => { state.month = e.target.value || null; loadCierre(); });
+
+  // Exportar a Excel: la sesión va en la cookie, así que se baja con fetch y se guarda el archivo.
+  document.querySelectorAll('#exportMenu [data-export]').forEach((b) => b.addEventListener('click', async () => {
+    const [from, to] = rangeDates(state.range);
+    b.disabled = true;
+    try {
+      const res = await fetch(`/api/reports/export/${b.dataset.export}.xlsx?${query(from, to)}`, { credentials: 'include', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'No se pudo exportar.');
+      const blob = await res.blob();
+      const disp = res.headers.get('Content-Disposition') || '';
+      const name = (disp.match(/filename="([^"]+)"/) || [])[1] || `farmhouse-${b.dataset.export}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), { href: url, download: name });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      $('exportMenu').open = false;
+    } catch (err) {
+      utils.showToast(err.message || 'No se pudo exportar.', 'error');
+    } finally {
+      b.disabled = false;
+    }
+  }));
+
+  // ==========================================================================
+  // Análisis: hora, día de la semana, categoría, plato por sucursal
+  // ==========================================================================
+  function barRows(containerId, rows, { name, value, sub, tone } = {}) {
+    const box = $(containerId);
+    if (!rows.length) { box.innerHTML = emptyHtml('Sin datos', 'Nada en este período.'); return; }
+    const max = Math.max(...rows.map((r) => Number(value(r))), 0.01);
+    box.innerHTML = rows.map((r) => `
+      <div class="inv-bar-row" title="${esc(name(r))}: ${esc(money(value(r)))}">
+        <span class="inv-bar-name">${esc(name(r))}</span>
+        <span class="inv-bar-value">${esc(money(value(r)))}${sub ? ` <small>${esc(sub(r))}</small>` : ''}</span>
+        <span class="inv-bar-track"><span class="inv-bar-fill" style="width:${Math.max(2, (Number(value(r)) / max) * 100)}%${tone ? `; background:${tone(r)}` : ''}"></span></span>
+      </div>`).join('');
+  }
+
+  function renderHourChart(byHour) {
+    const max = Math.max(...byHour.map((h) => Number(h.net)), 0.01);
+    const total = byHour.reduce((a, h) => a + Number(h.net), 0);
+    const pico = byHour.reduce((best, h) => (Number(h.net) > Number(best.net) ? h : best), byHour[0]);
+    $('hourNote').textContent = total ? `Hora pico: ${pico.hour}:00 (${money(pico.net)})` : 'Sin ventas';
+    $('hourChart').innerHTML = byHour.map((h) => `
+      <div class="link-hour-col ${Number(h.net) ? '' : 'zero'}" title="${h.hour}:00 · ${num(h.orders)} órdenes · ${money(h.net)}">
+        <span class="link-hour-bar" style="height:${Math.max(2, (Number(h.net) / max) * 100)}%"></span>
+        <small>${h.hour}h</small>
+      </div>`).join('');
+  }
+
+  function renderMatrix(m) {
+    if (!m.rows.length) { $('matrixTable').innerHTML = emptyHtml('Sin platos vendidos', 'Nada vendido en este período.'); return; }
+    const maxQty = Math.max(...m.rows.flatMap((r) => m.branches.map((b) => Number((r.by_branch[String(b.id)] || {}).qty || 0))), 1);
+    $('matrixTable').innerHTML = `
+      <table class="link-table link-matrix">
+        <thead><tr><th>Plato</th><th class="hide-sm">Categoría</th><th class="num">Total</th>${m.branches.map((b) => `<th class="num"><span class="link-legend-swatch" style="background:${branchColorVar(b.id)}"></span>${esc(b.code)}</th>`).join('')}</tr></thead>
+        <tbody>${m.rows.map((r) => `
+          <tr>
+            <td><span class="link-item-name">${esc(r.name)}</span></td>
+            <td class="hide-sm muted">${esc(r.category || '')}</td>
+            <td class="num strong">${num(r.total_qty)}</td>
+            ${m.branches.map((b) => { const c = r.by_branch[String(b.id)]; const q = Number((c || {}).qty || 0); return `<td class="num heat" style="--heat:${(q / maxQty * 0.55).toFixed(2)}" title="${esc(b.name)}: ${num(q)} · ${money((c || {}).revenue || 0)}"><span>${q ? num(q) : '·'}</span></td>`; }).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  let analisisSeq = 0;
+  async function loadAnalisis() {
+    const seq = ++analisisSeq;
+    const [from, to] = rangeDates(state.range);
+    ['hourChart', 'weekdayBars', 'categoryBars', 'matrixTable'].forEach((id) => { $(id).innerHTML = '<div class="inv-skeleton-row"></div>'; });
+    try {
+      const [time, cats, matrix] = await Promise.all([
+        api.get(`/reports/sales/time?${query(from, to)}`),
+        api.get(`/reports/sales/categories?${query(from, to)}`),
+        api.get(`/reports/sales/dish-matrix?${query(from, to)}&limit=25`),
+      ]);
+      if (seq !== analisisSeq) return;
+      matrix.branches.forEach((b) => branchCodes.set(b.id, b.code));
+      renderHourChart(time.by_hour);
+      barRows('weekdayBars', time.by_weekday, { name: (r) => r.label, value: (r) => r.avg_net_per_day, sub: (r) => `${num(r.orders)} órdenes en ${r.days} día${r.days === 1 ? '' : 's'}` });
+      $('categoryNote').textContent = `Total ${money(cats.total_revenue)}`;
+      barRows('categoryBars', cats.rows, { name: (r) => r.category, value: (r) => r.revenue, sub: (r) => `${r.share_pct == null ? 0 : r.share_pct}% · ${num(r.quantity)} uds` });
+      renderMatrix(matrix);
+      utils.renderIcons();
+    } catch (err) {
+      if (seq !== analisisSeq) return;
+      utils.showToast(err.message || 'No se pudo cargar el análisis.', 'error');
+      ['hourChart', 'weekdayBars', 'categoryBars', 'matrixTable'].forEach((id) => { $(id).innerHTML = emptyHtml('No se pudo cargar', 'Probá de nuevo en unos segundos.'); });
+    }
+  }
+
+  // ==========================================================================
+  // Compras y merma
+  // ==========================================================================
+  let comprasSeq = 0;
+  async function loadCompras() {
+    const seq = ++comprasSeq;
+    const [from, to] = rangeDates(state.range);
+    $('comprasKpis').innerHTML = '';
+    ['supplierBars', 'purchaseCategoryBars', 'wasteReasonBars', 'wasteCategoryBars'].forEach((id) => { $(id).innerHTML = '<div class="inv-skeleton-row"></div>'; });
+    try {
+      const [compras, merma, daily] = await Promise.all([
+        api.get(`/reports/purchases?${query(from, to)}`),
+        api.get(`/reports/waste?${query(from, to)}`),
+        api.get(`/link/sales/daily?${query(from, to)}`),
+      ]);
+      if (seq !== comprasSeq) return;
+      const venta = totals(daily).net;
+      const pct = (v) => (venta ? `${((Number(v) / venta) * 100).toFixed(1)}% de la venta` : 'Sin venta para comparar');
+      const kpis = [
+        { icon: 'shopping-cart', label: 'Compras', value: money(compras.total), sub: `${pct(compras.total)}${compras.lines_without_cost ? ` · ${num(compras.lines_without_cost)} línea${compras.lines_without_cost === 1 ? '' : 's'} sin costo` : ''}` },
+        { icon: 'truck', label: 'Líneas recibidas', value: num(compras.lines), sub: `${num(compras.by_supplier.length)} proveedor${compras.by_supplier.length === 1 ? '' : 'es'}` },
+        { icon: 'trash-2', label: 'Merma', value: money(merma.total), sub: `${pct(merma.total)}${merma.lines_without_cost ? ` · ${num(merma.lines_without_cost)} sin costo` : ''}` },
+        { icon: 'dollar-sign', label: 'Venta neta', value: money(venta), sub: 'Mismo período (Invu)' },
+      ];
+      $('comprasKpis').innerHTML = kpis.map((k) => `
+        <div class="inv-kpi">
+          <span class="inv-kpi-label"><i data-lucide="${k.icon}"></i> ${esc(k.label)}</span>
+          <span class="inv-kpi-value">${esc(k.value)}</span>
+          <span class="inv-kpi-sub">${esc(k.sub)}</span>
+        </div>`).join('');
+      $('supplierNote').textContent = `Total ${money(compras.total)}`;
+      barRows('supplierBars', compras.by_supplier, { name: (r) => r.supplier, value: (r) => r.amount, sub: (r) => `${r.share_pct == null ? 0 : r.share_pct}% · ${num(r.shipments)} cargamento${r.shipments === 1 ? '' : 's'}${r.issues ? ` · ${num(r.issues)} con diferencias` : ''}` });
+      barRows('purchaseCategoryBars', compras.by_category, { name: (r) => r.category, value: (r) => r.amount, sub: (r) => `${r.share_pct == null ? 0 : r.share_pct}%` });
+      $('wasteNote').textContent = `Total ${money(merma.total)}`;
+      barRows('wasteReasonBars', merma.by_reason, { name: (r) => r.label, value: (r) => r.cost, sub: (r) => `${r.share_pct == null ? 0 : r.share_pct}% · ${num(r.lines)} registro${r.lines === 1 ? '' : 's'}`, tone: () => 'var(--inv-amber, #b45309)' });
+      barRows('wasteCategoryBars', merma.by_category, { name: (r) => r.category, value: (r) => r.cost, sub: (r) => `${r.share_pct == null ? 0 : r.share_pct}%`, tone: () => 'var(--inv-amber, #b45309)' });
+      utils.renderIcons();
+    } catch (err) {
+      if (seq !== comprasSeq) return;
+      utils.showToast(err.message || 'No se pudieron cargar compras y merma.', 'error');
+      ['supplierBars', 'purchaseCategoryBars', 'wasteReasonBars', 'wasteCategoryBars'].forEach((id) => { $(id).innerHTML = emptyHtml('No se pudo cargar', 'Probá de nuevo en unos segundos.'); });
+    }
+  }
+
+  // ==========================================================================
+  // Cierre de mes
+  // ==========================================================================
+  let cierreSeq = 0;
+  async function loadCierre() {
+    const seq = ++cierreSeq;
+    if (!state.month) { const t = new Date(); state.month = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`; $('monthInput').value = state.month; }
+    $('cierreTable').innerHTML = '<div class="inv-skeleton-row"></div>';
+    try {
+      const p = new URLSearchParams({ month: state.month });
+      if (state.branchFilter) p.set('branch_id', state.branchFilter);
+      const d = await api.get(`/reports/month-close?${p}`);
+      if (seq !== cierreSeq) return;
+      const t = d.current.total, pv = d.previous.total;
+      const pctTxt = (v) => (v == null ? '—' : `${v}%`);
+      const kpis = [
+        { icon: 'dollar-sign', label: 'Venta neta', value: money(t.sales_net), sub: `${delta(Number(t.sales_net), Number(pv.sales_net))} vs. mes anterior (${money(pv.sales_net)})` },
+        { icon: 'receipt', label: 'Órdenes', value: num(t.orders), sub: `Ticket promedio ${money(t.avg_ticket)}` },
+        { icon: 'shopping-cart', label: 'Compras', value: money(t.purchases), sub: `${pctTxt(t.purchases_pct_sales)} de la venta · antes ${pctTxt(pv.purchases_pct_sales)}` },
+        { icon: 'trash-2', label: 'Merma', value: money(t.waste_cost), sub: `${pctTxt(t.waste_pct_sales)} de la venta · antes ${pctTxt(pv.waste_pct_sales)}` },
+      ];
+      $('cierreKpis').innerHTML = kpis.map((k) => `
+        <div class="inv-kpi">
+          <span class="inv-kpi-label"><i data-lucide="${k.icon}"></i> ${esc(k.label)}</span>
+          <span class="inv-kpi-value">${esc(k.value)}</span>
+          <span class="inv-kpi-sub">${k.sub}</span>
+        </div>`).join('');
+      $('cierreNote').textContent = `${dayLabel(d.current.date_from)} al ${dayLabel(d.current.date_to)} · ${num(t.days_synced)} días-sucursal con ventas`;
+      const rows = d.current.branches;
+      const fila = (b, cls = '') => `
+        <tr class="${cls}">
+          <td>${cls ? '' : `<span class="link-legend-swatch" style="background:${branchColorVar(b.branch_id)}"></span> `}<strong>${esc(b.branch_name)}</strong></td>
+          <td class="num">${money(b.sales_net)}</td>
+          <td class="num hide-sm">${num(b.orders)}</td>
+          <td class="num hide-sm">${money(b.avg_ticket)}</td>
+          <td class="num">${money(b.purchases)} <small class="muted">${pctTxt(b.purchases_pct_sales)}</small>${b.purchase_lines_without_cost ? ` <small class="warn" title="líneas sin costo">+${num(b.purchase_lines_without_cost)} s/c</small>` : ''}</td>
+          <td class="num ${b.waste_pct_sales != null && b.waste_pct_sales > 3 ? 'bad' : ''}">${money(b.waste_cost)} <small class="muted">${pctTxt(b.waste_pct_sales)}</small></td>
+          <td class="num hide-sm">${money(b.count_missing_cost)}</td>
+          <td class="num hide-sm">${num(b.counts)}</td>
+          <td class="num hide-sm">${num(b.incidents)}</td>
+        </tr>`;
+      $('cierreTable').innerHTML = rows.length ? `
+        <table class="link-table">
+          <thead><tr><th>Sucursal</th><th class="num">Venta</th><th class="num hide-sm">Órdenes</th><th class="num hide-sm">Ticket</th><th class="num">Compras</th><th class="num">Merma</th><th class="num hide-sm">Faltantes conteo</th><th class="num hide-sm">Conteos</th><th class="num hide-sm">Incidencias</th></tr></thead>
+          <tbody>${rows.map((b) => fila(b)).join('')}${rows.length > 1 ? fila(t, 'total') : ''}</tbody>
+        </table>` : emptyHtml('Sin datos', 'No hay ventas sincronizadas para ese mes.');
+      utils.renderIcons();
+    } catch (err) {
+      if (seq !== cierreSeq) return;
+      utils.showToast(err.message || 'No se pudo cargar el cierre.', 'error');
+      $('cierreTable').innerHTML = emptyHtml('No se pudo cargar', 'Probá de nuevo en unos segundos.');
+    }
+  }
 
   let resizeTimer;
   window.addEventListener('resize', () => {
@@ -751,6 +973,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     utils.showToast('No se pudo leer el estado de Link.', 'error');
   }
 
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('date_from') && urlParams.get('date_to')) {
+    state.customFrom = urlParams.get('date_from'); state.customTo = urlParams.get('date_to'); state.range = 'custom';
+    $('dateFrom').value = state.customFrom; $('dateTo').value = state.customTo;
+    document.querySelectorAll('#rangeSegmented button').forEach((x) => x.classList.remove('active'));
+  }
+  if (urlParams.get('view') && VIEWS[urlParams.get('view')]) state.view = urlParams.get('view');
+
   if (state.isGlobal && state.branches.length > 1) {
     $('branchFilter').innerHTML = `<option value="">Todas las sucursales</option>${state.branches.map((b) => `<option value="${b.branch_id}">${esc(b.branch_name)}</option>`).join('')}`;
     $('branchFilter').hidden = false;
@@ -764,8 +994,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Fase 5: "Administración → Integraciones" del hub linkea acá con ?view=sincronizacion en vez
   // de reconstruir esta pantalla — el estado de la sincronización con Invu ya vivía en esta
   // pestaña, solo hacía falta un acceso más directo que "Reportes → Ventas Invu".
-  if (new URLSearchParams(window.location.search).get('view') === 'sincronizacion') {
-    setView('sincronizacion');
-  }
+  if (state.view !== 'ventas') setView(state.view);
   utils.renderIcons();
 });

@@ -18,7 +18,7 @@
   <!-- El armazón (cabecera, rail, fichas, paneles) es el mismo de Inventario: se reusa su hoja
        tal cual y link.css solo agrega lo que Inventario no tiene (gráficos y tablas). -->
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
-  <link rel="stylesheet" href="css/link.css?v=4.6.0">
+  <link rel="stylesheet" href="css/link.css?v=4.7.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -80,6 +80,9 @@
         </div>
         <nav class="inv-nav" id="linkNav">
           <button type="button" class="inv-nav-item active" data-view="ventas"><i data-lucide="line-chart"></i> <span>Ventas</span></button>
+          <button type="button" class="inv-nav-item" data-view="analisis"><i data-lucide="bar-chart-3"></i> <span>Análisis</span></button>
+          <button type="button" class="inv-nav-item" data-view="compras"><i data-lucide="shopping-cart"></i> <span>Compras y merma</span></button>
+          <button type="button" class="inv-nav-item" data-view="cierre"><i data-lucide="calendar-check"></i> <span>Cierre de mes</span></button>
           <button type="button" class="inv-nav-item" data-view="sincronizacion"><i data-lucide="refresh-cw"></i> <span>Sincronización</span></button>
         </nav>
         <div class="inv-nav-sep">Próximamente</div>
@@ -97,6 +100,38 @@
       <!-- ================= Contenido ================= -->
       <section class="inv-content">
 
+        <!-- Filtros: una sola fila arriba de todo; mandan sobre Ventas, Análisis y Compras. En
+             Cierre de mes el período es el mes elegido ahí; en Sincronización no aplican. -->
+        <div class="link-filters" id="linkFilters">
+          <div class="link-range-group" id="rangeGroup">
+            <div class="link-segmented" id="rangeSegmented" role="group" aria-label="Período">
+              <button type="button" data-range="today">Hoy</button>
+              <button type="button" data-range="yesterday">Ayer</button>
+              <button type="button" data-range="7" class="active">7 días</button>
+              <button type="button" data-range="30">30 días</button>
+              <button type="button" data-range="month">Este mes</button>
+              <button type="button" data-range="prev-month">Mes anterior</button>
+            </div>
+            <div class="link-custom-range" aria-label="Rango personalizado">
+              <input type="date" id="dateFrom" aria-label="Desde" />
+              <span>a</span>
+              <input type="date" id="dateTo" aria-label="Hasta" />
+              <button type="button" class="link-text-btn" id="btnApplyRange"><i data-lucide="check"></i> <span>Aplicar</span></button>
+            </div>
+          </div>
+          <select class="inv-filter-select" id="branchFilter" aria-label="Sucursal" hidden></select>
+          <details class="link-export" id="exportMenu">
+            <summary class="inv-secondary-btn"><i data-lucide="download"></i> Exportar a Excel</summary>
+            <div class="link-export-menu">
+              <button type="button" data-export="ventas">Ventas (por día y por plato)</button>
+              <button type="button" data-export="compras">Compras (línea por línea)</button>
+              <button type="button" data-export="merma">Merma</button>
+              <button type="button" data-export="conteos">Conteos de inventario</button>
+              <button type="button" data-export="auditoria">Auditoría</button>
+            </div>
+          </details>
+        </div>
+
         <!-- ---------- Ventas ---------- -->
         <div class="inv-view" id="viewVentas">
           <div class="inv-view-head">
@@ -109,19 +144,6 @@
             <button type="button" class="inv-primary-btn" id="btnRefreshSales" hidden>
               <i data-lucide="refresh-cw"></i> Actualizar ahora
             </button>
-          </div>
-
-          <!-- Filtros: una sola fila arriba de todo, y mandan sobre todos los gráficos. -->
-          <div class="link-filters">
-            <div class="link-segmented" id="rangeSegmented" role="group" aria-label="Período">
-              <button type="button" data-range="today">Hoy</button>
-              <button type="button" data-range="yesterday">Ayer</button>
-              <button type="button" data-range="7" class="active">7 días</button>
-              <button type="button" data-range="30">30 días</button>
-              <button type="button" data-range="month">Este mes</button>
-              <button type="button" data-range="prev-month">Mes anterior</button>
-            </div>
-            <select class="inv-filter-select" id="branchFilter" aria-label="Sucursal" hidden></select>
           </div>
 
           <div class="inv-kpi-row" id="kpiRow"></div>
@@ -177,6 +199,83 @@
           </div>
         </div>
 
+        <!-- ---------- Análisis ---------- -->
+        <div class="inv-view" id="viewAnalisis" hidden>
+          <div class="inv-view-head">
+            <div>
+              <h1>Análisis de ventas</h1>
+              <p id="analisisSubtitle">A qué hora se vende, qué días flojean, qué categorías pesan y qué plato se vende en cada sucursal.</p>
+            </div>
+          </div>
+          <div class="inv-panel-grid">
+            <div class="inv-panel">
+              <div class="inv-panel-head"><h2>Por hora del día</h2><span class="inv-panel-note" id="hourNote">Venta neta</span></div>
+              <div class="link-hours" id="hourChart"></div>
+            </div>
+            <div class="inv-panel">
+              <div class="inv-panel-head"><h2>Por día de la semana</h2><span class="inv-panel-note">Promedio de venta por día</span></div>
+              <div class="inv-bars" id="weekdayBars"></div>
+            </div>
+          </div>
+          <div class="inv-panel-grid">
+            <div class="inv-panel">
+              <div class="inv-panel-head"><h2>Por categoría</h2><span class="inv-panel-note" id="categoryNote"></span></div>
+              <div class="inv-bars" id="categoryBars"></div>
+            </div>
+            <div class="inv-panel">
+              <div class="inv-panel-head"><h2>Platos por sucursal</h2><span class="inv-panel-note">Cantidad vendida · los 25 más vendidos</span></div>
+              <div class="link-table-wrap" id="matrixTable"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- Compras y merma ---------- -->
+        <div class="inv-view" id="viewCompras" hidden>
+          <div class="inv-view-head">
+            <div>
+              <h1>Compras y merma</h1>
+              <p id="comprasSubtitle">Lo que entró por cargamentos y lo que se perdió, en plata y contra la venta.</p>
+            </div>
+          </div>
+          <div class="inv-kpi-row" id="comprasKpis"></div>
+          <div class="inv-panel-grid">
+            <div class="inv-panel">
+              <div class="inv-panel-head"><h2>Compras por proveedor</h2><span class="inv-panel-note" id="supplierNote"></span></div>
+              <div class="inv-bars" id="supplierBars"></div>
+            </div>
+            <div class="inv-panel">
+              <div class="inv-panel-head"><h2>Compras por categoría</h2><span class="inv-panel-note">Cantidad × costo unitario</span></div>
+              <div class="inv-bars" id="purchaseCategoryBars"></div>
+            </div>
+          </div>
+          <div class="inv-panel-grid">
+            <div class="inv-panel">
+              <div class="inv-panel-head"><h2>Merma por motivo</h2><span class="inv-panel-note" id="wasteNote"></span></div>
+              <div class="inv-bars" id="wasteReasonBars"></div>
+            </div>
+            <div class="inv-panel">
+              <div class="inv-panel-head"><h2>Merma por categoría</h2><span class="inv-panel-note">En plata</span></div>
+              <div class="inv-bars" id="wasteCategoryBars"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- Cierre de mes ---------- -->
+        <div class="inv-view" id="viewCierre" hidden>
+          <div class="inv-view-head">
+            <div>
+              <h1>Cierre de mes</h1>
+              <p id="cierreSubtitle">Venta, compras, merma, faltantes e incidencias por sucursal, comparado con el mes anterior.</p>
+            </div>
+            <input type="month" class="inv-filter-select" id="monthInput" aria-label="Mes" />
+          </div>
+          <div class="inv-kpi-row" id="cierreKpis"></div>
+          <div class="inv-panel">
+            <div class="inv-panel-head"><h2>Por sucursal</h2><span class="inv-panel-note" id="cierreNote"></span></div>
+            <div class="link-table-wrap" id="cierreTable"></div>
+          </div>
+        </div>
+
         <!-- ---------- Sincronización ---------- -->
         <div class="inv-view" id="viewSincronizacion" hidden>
           <div class="inv-view-head">
@@ -209,6 +308,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/link.js?v=4.7.0"></script>
+  <script src="js/modules/link.js?v=4.8.0"></script>
 </body>
 </html>
