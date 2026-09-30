@@ -73,9 +73,14 @@
     if (url && url.startsWith('/') && url !== location.pathname + location.search) location.href = url;
   });
 
+  // Se activa al abrir cada pantalla con la sesión abierta, apenas se inicia sesión (en el inicio
+  // el login no cambia de página) y al volver a la app. Registrarse de nuevo es inofensivo: el
+  // servidor actualiza el mismo token.
+  let activando = false;
   async function activar() {
-    if (!hasApi()) return;
-    try { await api.get('/auth/me'); } catch (e) { return; }   // solo con la sesión abierta
+    if (!hasApi() || activando) return;
+    activando = true;
+    try { await api.get('/auth/me'); } catch (e) { activando = false; return; }   // solo con la sesión abierta
     try {
       let permiso = await Push.checkPermissions();
       if (permiso.receive === 'prompt' || permiso.receive === 'prompt-with-rationale') {
@@ -85,7 +90,21 @@
       await Push.register();
     } catch (e) {
       console.warn('[App] Avisos no disponibles:', e);
+    } finally {
+      activando = false;
     }
+  }
+
+  if (typeof auth !== 'undefined' && auth && typeof auth.login === 'function') {
+    const loginOriginal = auth.login.bind(auth);
+    auth.login = async function () {
+      const res = await loginOriginal.apply(null, arguments);
+      setTimeout(activar, 800);
+      return res;
+    };
+  }
+  if (App) {
+    App.addListener('resume', () => setTimeout(activar, 800));
   }
 
   // Al cerrar sesión, ese celular deja de recibir los avisos de ese usuario.
