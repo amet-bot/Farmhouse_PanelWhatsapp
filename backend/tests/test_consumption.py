@@ -78,3 +78,28 @@ def test_con_consumo_a_mano_no_se_estima_por_ventas(db_session, clayton_branch, 
     rec.items.append(ConsumptionItem(inventory_item_id=pollo.id, quantity=Decimal("6"), unit_cost=Decimal("2.5")))
     db_session.add(rec); db_session.commit()
     assert inv._existencia_map(db_session, clayton_branch.id, [pollo.id])[pollo.id] == Decimal("14")   # 20 − 6 a mano, sin los 4 estimados
+
+
+def test_tablero_de_consumo_para_la_tablet(client, db_session, clayton_branch, clayton_agent, clayton_device, pollo):
+    """El tablero trae cada insumo con lo que queda, lo anotado hoy, cuántas veces se anotó y la
+    última cantidad; un insumo sin movimientos en la sucursal viene como 'sin dato', no como cero."""
+    from models.supply import ItemBranchSetting
+    papel = InventoryItem(name="Papel toalla", unit="rollo", category="Limpieza")
+    db_session.add(papel)
+    db_session.add(ItemBranchSetting(inventory_item_id=pollo.id, branch_id=clayton_branch.id, min_quantity=Decimal("18")))
+    db_session.commit()
+    h = auth_headers_for(clayton_agent, clayton_device.device_id)
+    client.post("/api/inventory/consumption", json={"branch_id": clayton_branch.id, "items": [{"inventory_item_id": pollo.id, "quantity": "3"}]}, headers=h)
+    client.post("/api/inventory/consumption", json={"branch_id": clayton_branch.id, "items": [{"inventory_item_id": pollo.id, "quantity": "2"}]}, headers=h)
+
+    d = client.get("/api/inventory/consumption/board", headers=h).json()
+    assert d["branch"]["id"] == clayton_branch.id and d["has_data"] is True and d["categories"] == ["Limpieza", "Proteínas"]
+    por_id = {r["inventory_item_id"]: r for r in d["items"]}
+    p = por_id[pollo.id]
+    assert p["tracked"] is True and float(p["stock"]) == 15.0 and p["below_min"] is True and float(p["min_quantity"]) == 18.0
+    assert float(p["today_qty"]) == 5.0 and p["times_30d"] == 2 and float(p["last_qty"]) == 2.0
+    t = por_id[papel.id]
+    assert t["tracked"] is False and t["stock"] is None and t["below_min"] is False and t["times_30d"] == 0 and t["last_qty"] is None
+
+    # El agente queda encerrado en su sucursal aunque pida otra.
+    assert client.get("/api/inventory/consumption/board?branch_id=999", headers=h).json()["branch"]["id"] == clayton_branch.id

@@ -20,6 +20,10 @@ from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models.consumption import ConsumptionItem, ConsumptionRecord
 from models.inventory_item import InventoryItem
+from models.shipment import Shipment, ShipmentItem
+from models.stock_count import StockCount, StockCountItem
+from models.supply import ItemBranchSetting
+from models.branch import Branch
 from models.user import User
 from routers.inventory import _existencia_map, _last_known_cost, _visible_branch_filter
 from security.access_control import check_target_branch_valid
@@ -173,6 +177,91 @@ def list_consumption(
     if date_to:
         q = q.filter(ConsumptionRecord.occurred_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()) + timedelta(hours=5))
     return [_out(r, current_user) for r in q.order_by(ConsumptionRecord.occurred_at.desc(), ConsumptionRecord.id.desc()).limit(limit).all()]
+
+
+BOARD_DAYS = 30
+
+
+def _inicio_dia_local(now_utc: datetime) -> datetime:
+    """Medianoche de hoy en Panamá (UTC-5), expresada en UTC naive, igual que los filtros por fecha."""
+    hoy = (now_utc - timedelta(hours=5)).date()
+    return datetime.combine(hoy, datetime.min.time()) + timedelta(hours=5)
+
+
+@router.get("/consumption/board")
+def consumption_board(
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Tablero para la tablet de la sucursal: todo el catálogo activo con lo que queda de cada
+    insumo, su mínimo, lo que ya se anotó hoy, cuántas veces se anotó en los últimos 30 días
+    (para poner primero lo frecuente) y la última cantidad que se anotó (para ofrecerla de un
+    toque). `tracked` dice si ese insumo tiene algún movimiento en la sucursal: sin movimientos
+    la existencia no es un cero real, es que nadie la cargó todavía.
+    """
+    efectiva = _visible_branch_filter(current_user, branch_id)
+    if efectiva is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Indica la sucursal.")
+    sucursal = check_target_branch_valid(db, efectiva)
+
+    items = db.query(InventoryItem).filter(InventoryItem.active == True).order_by(InventoryItem.name.asc()).all()
+    ids = [i.id for i in items]
+    stock = _existencia_map(db, efectiva, ids) if ids else {}
+    minimos = {
+        r.inventory_item_id: r.min_quantity
+        for r in db.query(ItemBranchSetting).filter(ItemBranchSetting.branch_id == efectiva, ItemBranchSetting.inventory_item_id.in_(ids or [0])).all()
+    }
+
+    con_movimiento = set()
+    con_movimiento.update(i for (i,) in db.query(ShipmentItem.inventory_item_id).join(Shipment, Shipment.id == ShipmentItem.shipment_id).filter(Shipment.branch_id == efectiva).distinct().all())
+    con_movimiento.update(i for (i,) in db.query(StockCountItem.inventory_item_id).join(StockCount, StockCount.id == StockCountItem.stock_count_id).filter(StockCount.branch_id == efectiva).distinct().all())
+    con_movimiento.update(i for (i,) in db.query(ConsumptionItem.inventory_item_id).join(ConsumptionRecord, ConsumptionRecord.id == ConsumptionItem.consumption_record_id).filter(ConsumptionRecord.branch_id == efectiva).distinct().all())
+
+    ahora = datetime.utcnow()
+    inicio_hoy = _inicio_dia_local(ahora)
+    recientes = (
+        db.query(ConsumptionItem.inventory_item_id, ConsumptionItem.quantity, ConsumptionRecord.occurred_at)
+        .join(ConsumptionRecord, ConsumptionRecord.id == ConsumptionItem.consumption_record_id)
+        .filter(ConsumptionRecord.branch_id == efectiva, ConsumptionRecord.occurred_at >= ahora - timedelta(days=BOARD_DAYS))
+        .order_by(ConsumptionRecord.occurred_at.desc(), ConsumptionItem.id.desc())
+        .all()
+    )
+    veces: dict = {}
+    ultima: dict = {}
+    hoy: dict = {}
+    for item_id, cantidad, cuando in recientes:
+        veces[item_id] = veces.get(item_id, 0) + 1
+        if item_id not in ultima:
+            ultima[item_id] = {"qty": cantidad, "at": cuando}
+        cuando_naive = cuando.replace(tzinfo=None) if cuando.tzinfo else cuando
+        if cuando_naive >= inicio_hoy:
+            hoy[item_id] = hoy.get(item_id, Decimal("0")) + Decimal(cantidad)
+
+    filas = []
+    for it in items:
+        existencia = Decimal(stock.get(it.id, 0))
+        minimo = minimos.get(it.id)
+        filas.append({
+            "inventory_item_id": it.id, "name": it.name, "unit": it.unit, "category": it.category,
+            "tracked": it.id in con_movimiento,
+            "stock": existencia if it.id in con_movimiento else None,
+            "min_quantity": minimo,
+            "below_min": bool(minimo is not None and it.id in con_movimiento and existencia < Decimal(minimo)),
+            "today_qty": hoy.get(it.id, Decimal("0")),
+            "times_30d": veces.get(it.id, 0),
+            "last_qty": ultima[it.id]["qty"] if it.id in ultima else None,
+            "last_at": ultima[it.id]["at"] if it.id in ultima else None,
+        })
+    categorias = sorted({f["category"] for f in filas if f["category"]})
+    return {
+        "branch": {"id": sucursal.id, "name": sucursal.name},
+        "has_data": bool(con_movimiento),
+        "items": filas,
+        "categories": categorias,
+        "days": BOARD_DAYS,
+    }
 
 
 @router.get("/consumption/summary")

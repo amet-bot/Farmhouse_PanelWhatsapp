@@ -7,7 +7,7 @@
     "cleartext": false
   },
   "android": {
-    "appendUserAgent": "FarmhouseLinkApp/1.0",
+    "appendUserAgent": "FarmhouseLinkApp/1.0 FHPush",
     "allowMixedContent": false
   },
   "plugins": {
