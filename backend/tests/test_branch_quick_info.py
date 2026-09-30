@@ -62,7 +62,7 @@ def test_branch_hours_answers_with_branch_info_and_reshows_the_list(client, clay
     info_msgs = [
         m for m in outgoing
         if m.content.startswith("Esto es lo que tenemos de nuestra sucursal")
-        and "Clayton Mall, Local #4" in m.content and "10:30 AM" in m.content
+        and "Clayton Mall, Local #4" in m.content and "8:00 AM" in m.content
     ]
     assert len(info_msgs) == 1, "debería responder con la dirección y el horario de la sucursal"
 
