@@ -372,3 +372,15 @@
   .link-export { margin-left: 0; }
   .link-hours { height: 110px; }
 }
+
+
+/* ---- Administración de inventario ---- */
+.link-stock-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.link-stock-tools .inv-filter-select { max-width: 300px; }
+.link-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--inv-text-muted); }
+.link-table td.neg { color: var(--inv-red, #dc2626); font-weight: 600; }
+.link-status-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.link-status-chip { padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--inv-amber-soft, rgba(245,158,11,.14)); color: var(--inv-amber, #b45309); }
+.link-status-chip.danado, .link-status-chip.equivocado { background: rgba(220,38,38,.12); color: var(--inv-red, #dc2626); }
+.link-ok-banner { display: flex; align-items: center; gap: 8px; padding: 14px; border-radius: 12px; background: var(--inv-green-soft); color: var(--inv-green-soft-text); font-size: 13.5px; font-weight: 600; }
+.link-ok-banner i { width: 18px; height: 18px; }

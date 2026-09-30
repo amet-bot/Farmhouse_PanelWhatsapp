@@ -32,7 +32,7 @@ from models.supplier import Supplier
 from models.user import User
 from models.waste import WasteItem, WasteRecord
 from routers.link import _gerencia, _rango, _sucursal_visible, daily_sales, item_sales
-from routers.inventory import WASTE_REASON_LABELS
+from routers.inventory import WASTE_REASON_LABELS, _existencia_map, _last_costs_map, _reclamo_de_linea
 from services.branch_hours import PANAMA_TZ
 from services.invu_sales_sync import hoy_panama
 
@@ -519,3 +519,201 @@ def export_excel(
     contenido = _workbook(sheets)
     nombre = f"farmhouse-{kind}-{desde}-{hasta}.xlsx"
     return StreamingResponse(io.BytesIO(contenido), media_type=EXCEL_MIME, headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+
+
+# ==========================================================================
+# Administración de inventario: ¿cuánto hay? ¿cuánto se gastó? ¿cuánto llegó? ¿llegó todo?
+# ==========================================================================
+LINE_STATUS_LABELS = {"ok": "Completo", "falto": "Faltó", "sobro": "Sobró", "equivocado": "Equivocado", "danado": "Dañado"}
+
+
+@router.get("/inventory/overview")
+def inventory_overview(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_gerencia),
+):
+    """
+    Las cuatro preguntas de gerencia en una respuesta:
+    - stock: cuánto hay HOY por insumo y sucursal (existencia real: registros menos lo vendido
+      desde el último conteo) y cuánto vale (último costo de compra en esa sucursal, o el de
+      referencia de Invu).
+    - purchases: cuánto se gastó en el período (cargamentos recibidos con costo), por sucursal,
+      comparado con el período anterior de igual largo.
+    - arrived: cuántos cargamentos y qué insumos llegaron en el período.
+    - discrepancies: qué cargamentos no llegaron completos (contra factura), con el reclamo en
+      plata por proveedor.
+    """
+    desde, hasta = _rango(date_from, date_to, por_defecto=30)
+    visible = _sucursal_visible(current_user, branch_id)
+    branches = db.query(Branch).filter(Branch.active == True).order_by(Branch.name).all()  # noqa: E712
+    branches = [b for b in branches if (visible is None and b.code != "CAT") or b.id == visible]
+    items = db.query(InventoryItem).filter(InventoryItem.active == True).all()  # noqa: E712
+    item_ids = [i.id for i in items]
+
+    # ---- ¿Cuánto hay? ----
+    hoy_utc = datetime.utcnow()
+    stock_rows = {i.id: {"id": i.id, "name": i.name, "unit": i.unit, "category": i.category, "total_qty": Decimal("0"), "total_value": Decimal("0"), "by_branch": {}} for i in items}
+    stock_branches = []
+    for b in branches:
+        existencias = _existencia_map(db, b.id, item_ids) if item_ids else {}
+        costos = _last_costs_map(db, b.id)
+        valor = Decimal("0")
+        con_stock = 0
+        for i in items:
+            qty = existencias.get(i.id, Decimal("0"))
+            if not qty:
+                continue
+            costo = costos.get(i.id)
+            if costo is None:
+                costo = i.reference_cost
+            val = _q(Decimal(qty) * Decimal(costo)) if costo is not None else None
+            r = stock_rows[i.id]
+            r["by_branch"][str(b.id)] = {"qty": _q(qty), "value": val}
+            r["total_qty"] += _q(qty)
+            if val is not None:
+                r["total_value"] += val
+                valor += val
+            if qty > 0:
+                con_stock += 1
+        ultimo = db.query(func.max(StockCount.counted_at)).filter(StockCount.branch_id == b.id).scalar()
+        stock_branches.append({
+            "id": b.id, "code": b.code, "name": b.name, "stock_value": valor, "items_with_stock": con_stock,
+            "days_since_count": max(0, (hoy_utc - ultimo).days) if ultimo else None,
+        })
+    stock_items = sorted((r for r in stock_rows.values() if r["by_branch"]), key=lambda r: (-r["total_value"], r["name"]))
+
+    # ---- ¿Cuánto se gastó? y ¿cuánto llegó? ----
+    def resumen_compras(lines):
+        por_sucursal = {b.id: {"id": b.id, "code": b.code, "name": b.name, "amount": Decimal("0"), "shipments": set(), "lines": 0, "lines_without_cost": 0} for b in branches}
+        total = Decimal("0")
+        for li in lines:
+            f = por_sucursal.get(li.shipment.branch_id)
+            if f is None:
+                continue
+            f["shipments"].add(li.shipment.id)
+            f["lines"] += 1
+            if li.unit_cost is None:
+                f["lines_without_cost"] += 1
+                continue
+            monto = _q(Decimal(li.quantity) * Decimal(li.unit_cost))
+            f["amount"] += monto
+            total += monto
+        for f in por_sucursal.values():
+            f["shipments"] = len(f["shipments"])
+        return total, sorted(por_sucursal.values(), key=lambda f: -f["amount"])
+
+    lines = _purchase_lines(db, desde, hasta, visible)
+    largo = (hasta - desde).days + 1
+    prev_lines = _purchase_lines(db, desde - timedelta(days=largo), desde - timedelta(days=1), visible)
+    total_compras, compras_sucursal = resumen_compras(lines)
+    total_prev, _ = resumen_compras(prev_lines)
+    sin_costo = sum(f["lines_without_cost"] for f in compras_sucursal)
+
+    llegado: dict = {}
+    envios = {}
+    for li in lines:
+        sh = li.shipment
+        envios[sh.id] = sh
+        item = li.inventory_item
+        key = li.inventory_item_id
+        r = llegado.setdefault(key, {"id": key, "name": item.name if item else f"#{key}", "unit": item.unit if item else "", "category": item.category if item else None, "qty": Decimal("0"), "amount": Decimal("0"), "shipments": set()})
+        r["qty"] += _q(li.quantity)
+        r["shipments"].add(sh.id)
+        if li.unit_cost is not None:
+            r["amount"] += _q(Decimal(li.quantity) * Decimal(li.unit_cost))
+    top_llegado = sorted(llegado.values(), key=lambda r: (-r["amount"], -r["qty"]))[:20]
+    for r in top_llegado:
+        r["shipments"] = len(r["shipments"])
+
+    # ---- ¿Llegó todo? ----
+    con_diferencias = []
+    reclamo_total = Decimal("0")
+    por_proveedor: dict = {}
+    for sh in envios.values():
+        estados = {k: 0 for k in LINE_STATUS_LABELS}
+        reclamo = Decimal("0")
+        for li in sh.items:
+            estados[li.line_status or "ok"] = estados.get(li.line_status or "ok", 0) + 1
+            rec = _reclamo_de_linea(li)
+            if rec:
+                reclamo += rec
+        problemas = sum(v for k, v in estados.items() if k != "ok")
+        nombre = sh.supplier.name if sh.supplier else "Sin proveedor"
+        p = por_proveedor.setdefault(nombre, {"supplier": nombre, "shipments": 0, "with_issues": 0, "claim": Decimal("0")})
+        p["shipments"] += 1
+        if problemas or sh.has_issues:
+            p["with_issues"] += 1
+            p["claim"] += reclamo
+            reclamo_total += reclamo
+            con_diferencias.append({
+                "id": sh.id, "branch_id": sh.branch_id, "branch_name": sh.branch.name if sh.branch else "", "supplier": nombre,
+                "invoice_number": sh.invoice_number, "received_at": sh.received_at, "received_by": sh.received_by_user.name if sh.received_by_user else "",
+                "lines": len(sh.items), "statuses": {k: v for k, v in estados.items() if v and k != "ok"}, "claim": reclamo, "incident_id": sh.incident_id,
+            })
+    con_diferencias.sort(key=lambda r: (-r["claim"], r["received_at"] or datetime.min), reverse=False)
+    proveedores = sorted(por_proveedor.values(), key=lambda p: (-p["with_issues"], -p["claim"]))
+
+    # ---- ¿Cuánto se gastó? Consumo por insumo: lo registrado a mano + lo estimado por ventas × recetas ----
+    from models.consumption import ConsumptionItem, ConsumptionRecord
+    from routers.inventory import _recetas_de_sucursal, _uso_por_ventas
+    start, end = _utc_bounds(desde, hasta)
+    ids_visibles = [b.id for b in branches]
+    consumo_rows: dict = {}
+    manual_registros = 0
+    if ids_visibles:
+        manual_registros = db.query(func.count(ConsumptionRecord.id)).filter(
+            ConsumptionRecord.branch_id.in_(ids_visibles), ConsumptionRecord.occurred_at >= start, ConsumptionRecord.occurred_at < end,
+        ).scalar() or 0
+        for iid, qty, cost in db.query(
+            ConsumptionItem.inventory_item_id, func.coalesce(func.sum(ConsumptionItem.quantity), 0),
+            func.coalesce(func.sum(ConsumptionItem.quantity * func.coalesce(ConsumptionItem.unit_cost, 0)), 0),
+        ).join(ConsumptionRecord, ConsumptionRecord.id == ConsumptionItem.consumption_record_id).filter(
+            ConsumptionRecord.branch_id.in_(ids_visibles), ConsumptionRecord.occurred_at >= start, ConsumptionRecord.occurred_at < end,
+        ).group_by(ConsumptionItem.inventory_item_id).all():
+            r = consumo_rows.setdefault(iid, {"manual_qty": Decimal("0"), "manual_cost": Decimal("0"), "theoretical_qty": Decimal("0"), "theoretical_cost": Decimal("0")})
+            r["manual_qty"] += _q(qty)
+            r["manual_cost"] += _q(cost)
+    for b in branches:
+        try:
+            uso = _uso_por_ventas(db, b.id, start, end, recetas_insumos=_recetas_de_sucursal(db, b.id))
+        except Exception:
+            logger.warning("[Reports] No se pudo estimar el uso por ventas de la sucursal %s.", b.id, exc_info=True)
+            uso = {}
+        costos_b = _last_costs_map(db, b.id)
+        for iid, qty in uso.items():
+            if not qty:
+                continue
+            r = consumo_rows.setdefault(iid, {"manual_qty": Decimal("0"), "manual_cost": Decimal("0"), "theoretical_qty": Decimal("0"), "theoretical_cost": Decimal("0")})
+            r["theoretical_qty"] += _q(qty)
+            costo = costos_b.get(iid)
+            if costo is None and iid in stock_rows:
+                item_ref = next((i for i in items if i.id == iid), None)
+                costo = item_ref.reference_cost if item_ref is not None else None
+            if costo is not None:
+                r["theoretical_cost"] += _q(Decimal(qty) * Decimal(costo))
+    por_id = {i.id: i for i in items}
+    consumo_items = []
+    for iid, r in consumo_rows.items():
+        item_ref = por_id.get(iid)
+        consumo_items.append({
+            "id": iid, "name": item_ref.name if item_ref else f"#{iid}", "unit": item_ref.unit if item_ref else "", "category": item_ref.category if item_ref else None,
+            **r, "total_cost": r["manual_cost"] + r["theoretical_cost"],
+        })
+    consumo_items.sort(key=lambda r: (-r["total_cost"], -(r["manual_qty"] + r["theoretical_qty"])))
+    consumption = {
+        "rows": consumo_items[:40], "items": len(consumo_items), "manual_records": int(manual_registros),
+        "manual_cost": sum((r["manual_cost"] for r in consumo_items), Decimal("0")),
+        "theoretical_cost": sum((r["theoretical_cost"] for r in consumo_items), Decimal("0")),
+    }
+
+    return {
+        "date_from": desde, "date_to": hasta,
+        "consumption": consumption,
+        "stock": {"branches": stock_branches, "items": stock_items, "total_value": sum((b["stock_value"] for b in stock_branches), Decimal("0"))},
+        "purchases": {"total": total_compras, "previous_total": total_prev, "lines": len(lines), "lines_without_cost": sin_costo, "by_branch": compras_sucursal},
+        "arrived": {"shipments": len(envios), "lines": len(lines), "top_items": top_llegado},
+        "discrepancies": {"shipments": len(envios), "with_issues": len(con_diferencias), "claim_total": reclamo_total, "rows": con_diferencias, "by_supplier": proveedores, "status_labels": LINE_STATUS_LABELS},
+    }

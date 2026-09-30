@@ -18,7 +18,7 @@
   <!-- El armazón (cabecera, rail, fichas, paneles) es el mismo de Inventario: se reusa su hoja
        tal cual y link.css solo agrega lo que Inventario no tiene (gráficos y tablas). -->
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
-  <link rel="stylesheet" href="css/link.css?v=4.7.0">
+  <link rel="stylesheet" href="css/link.css?v=4.8.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -83,6 +83,7 @@
           <button type="button" class="inv-nav-item" data-view="analisis"><i data-lucide="bar-chart-3"></i> <span>Análisis</span></button>
           <button type="button" class="inv-nav-item" data-view="compras"><i data-lucide="shopping-cart"></i> <span>Compras y merma</span></button>
           <button type="button" class="inv-nav-item" data-view="cierre"><i data-lucide="calendar-check"></i> <span>Cierre de mes</span></button>
+          <button type="button" class="inv-nav-item" data-view="inventario"><i data-lucide="warehouse"></i> <span>Inventario</span></button>
           <button type="button" class="inv-nav-item" data-view="sincronizacion"><i data-lucide="refresh-cw"></i> <span>Sincronización</span></button>
         </nav>
         <div class="inv-nav-sep">Próximamente</div>
@@ -276,6 +277,47 @@
           </div>
         </div>
 
+        <!-- ---------- Administración de inventario ---------- -->
+        <div class="inv-view" id="viewInventario" hidden>
+          <div class="inv-view-head">
+            <div>
+              <h1>Administración de inventario</h1>
+              <p id="invSubtitle">Cuánto hay hoy, cuánto se gastó, cuánto llegó y si llegó todo.</p>
+            </div>
+            <a class="inv-secondary-btn" href="/inventario"><i data-lucide="package"></i> Ir a Inventario</a>
+          </div>
+          <div class="inv-kpi-row" id="invKpis"></div>
+
+          <div class="inv-panel">
+            <div class="inv-panel-head">
+              <h2>¿Cuánto hay?</h2>
+              <span class="inv-panel-note" id="stockNote">Existencia de hoy por sucursal · valor al último costo</span>
+            </div>
+            <div class="link-stock-tools">
+              <input type="search" class="inv-filter-select" id="stockSearch" placeholder="Buscar insumo o categoría…" aria-label="Buscar insumo" />
+              <label class="link-check"><input type="checkbox" id="stockOnlyValue" checked /> Solo con valor conocido</label>
+            </div>
+            <div class="link-table-wrap" id="stockTable"></div>
+          </div>
+
+          <div class="inv-panel-grid">
+            <div class="inv-panel">
+              <div class="inv-panel-head"><h2>¿Cuánto se gastó?</h2><span class="inv-panel-note" id="spentNote">Consumo por insumo: lo que registró el equipo y lo estimado por ventas</span></div>
+              <div class="link-table-wrap" id="spentTable"></div>
+              <p class="muted" style="font-size:12px;margin:8px 0 0">El equipo registra el consumo desde la tablet (Operación → Registrar consumo). Lo que no se registra a mano se estima con las ventas de Invu y las recetas.</p>
+            </div>
+            <div class="inv-panel">
+              <div class="inv-panel-head"><h2>¿Cuánto llegó?</h2><span class="inv-panel-note" id="arrivedNote"></span></div>
+              <div class="link-table-wrap" id="arrivedTable"></div>
+            </div>
+          </div>
+
+          <div class="inv-panel">
+            <div class="inv-panel-head"><h2>¿Llegó todo?</h2><span class="inv-panel-note" id="issuesNote"></span></div>
+            <div class="link-table-wrap" id="issuesTable"></div>
+          </div>
+        </div>
+
         <!-- ---------- Sincronización ---------- -->
         <div class="inv-view" id="viewSincronizacion" hidden>
           <div class="inv-view-head">
@@ -308,6 +350,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/link.js?v=4.8.0"></script>
+  <script src="js/modules/link.js?v=4.9.0"></script>
 </body>
 </html>

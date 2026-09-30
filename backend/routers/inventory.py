@@ -22,6 +22,7 @@ from models.waste import WasteRecord, WasteItem, WastePhoto
 from models.stock_count import StockCount, StockCountItem
 from models.inventory_movement import InventoryMovement
 from models.transfer import Transfer, TransferItem
+from models.consumption import ConsumptionRecord, ConsumptionItem
 from schemas.inventory import (
     InventoryItemCreate, InventoryItemPieceSize, InventoryItemResponse,
     InvuStatusResponse, InvuSyncResult,
@@ -751,8 +752,21 @@ def _transfer_net_map(db: Session, branch_id: Optional[int], item_ids: Optional[
     return neto
 
 
+def _consumo_map(db: Session, branch_id: int, item_ids: List[int]) -> dict:
+    """Lo que el equipo registró como consumido (routers/consumption.py), por insumo, en esa sucursal."""
+    if not item_ids:
+        return {}
+    return dict(
+        db.query(ConsumptionItem.inventory_item_id, func.coalesce(func.sum(ConsumptionItem.quantity), 0))
+        .join(ConsumptionRecord, ConsumptionRecord.id == ConsumptionItem.consumption_record_id)
+        .filter(ConsumptionRecord.branch_id == branch_id, ConsumptionItem.inventory_item_id.in_(item_ids))
+        .group_by(ConsumptionItem.inventory_item_id)
+        .all()
+    )
+
+
 def _on_hand_map(db: Session, branch_id: int, item_ids: List[int]) -> dict:
-    """Existencia actual (entradas - mermas + diferencias de conteo ± traslados) de esos insumos en esa sucursal."""
+    """Existencia actual (entradas - mermas - consumo registrado + diferencias de conteo ± traslados) de esos insumos en esa sucursal."""
     if not item_ids:
         return {}
 
@@ -778,9 +792,10 @@ def _on_hand_map(db: Session, branch_id: int, item_ids: List[int]) -> dict:
         .all()
     )
     traslados = _transfer_net_map(db, branch_id, item_ids)
+    consumo = _consumo_map(db, branch_id, item_ids)
     return {
         item_id: (
-            Decimal(entradas.get(item_id, 0)) - Decimal(salidas.get(item_id, 0))
+            Decimal(entradas.get(item_id, 0)) - Decimal(salidas.get(item_id, 0)) - Decimal(consumo.get(item_id, 0))
             + Decimal(ajustes.get(item_id, 0)) + traslados.get(item_id, Decimal("0"))
         )
         for item_id in item_ids
@@ -820,6 +835,17 @@ def _vendido_desde_conteo(db: Session, branch_id: int, item_ids: Optional[List[i
     recetas_insumos = _recetas_de_sucursal(db, branch_id)
     vendido: dict = {}
     for contado, ids in grupos.items():
+        # Si el equipo registró consumo a mano de un insumo desde ese conteo, ese registro manda
+        # y no se le estima además el uso por ventas (se descontaría dos veces).
+        con_manual = {
+            r[0] for r in db.query(ConsumptionItem.inventory_item_id)
+            .join(ConsumptionRecord, ConsumptionRecord.id == ConsumptionItem.consumption_record_id)
+            .filter(ConsumptionRecord.branch_id == branch_id, ConsumptionItem.inventory_item_id.in_(ids), ConsumptionRecord.occurred_at > contado)
+            .distinct().all()
+        }
+        ids = [i for i in ids if i not in con_manual]
+        if not ids:
+            continue
         uso = _uso_por_ventas(db, branch_id, contado, ahora, recetas_insumos=recetas_insumos)
         for item_id in ids:
             if uso.get(item_id):

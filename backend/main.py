@@ -20,6 +20,7 @@ from routers import (
     orders,
     bot_stats,
     reports,
+    consumption,
     media,
     websocket,
     webhooks,
@@ -191,6 +192,7 @@ app.include_router(webhooks.router)
 app.include_router(bot_flows.router, prefix=settings.API_V1_STR)
 app.include_router(bot_stats.router, prefix=settings.API_V1_STR)
 app.include_router(reports.router, prefix=settings.API_V1_STR)
+app.include_router(consumption.router, prefix=settings.API_V1_STR)
 app.include_router(inventory.router, prefix=settings.API_V1_STR)
 app.include_router(receiving.router, prefix=settings.API_V1_STR)
 app.include_router(internal_chat.router, prefix=settings.API_V1_STR)
@@ -273,6 +275,11 @@ if frontend_dir.exists():
         @app.get("/operacion", include_in_schema=False)
         def serve_tablet():
             return FileResponse(str(frontend_dir / "tablet.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+    if (frontend_dir / "consumo.html").exists():
+        @app.get("/consumo", include_in_schema=False)
+        def serve_consumo():
+            return FileResponse(str(frontend_dir / "consumo.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     if (frontend_dir / "gestion.html").exists():
         @app.get("/gestion", include_in_schema=False)

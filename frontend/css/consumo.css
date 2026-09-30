@@ -1,0 +1,36 @@
+/* Registrar consumo (consumo.html): una tarjeta para anotar lo usado y el historial reciente. */
+.con-body { padding: 16px 20px 40px; max-width: 900px; margin: 0 auto; display: grid; gap: 16px; }
+.con-form-card, .con-history { background: var(--bg-surface, #fff); border: 1px solid var(--line, #e5e7eb); border-radius: 14px; padding: 16px 18px; }
+.con-form-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.con-form-head h2 { margin: 0 0 2px; font-size: 17px; }
+.con-form-head p { margin: 0; font-size: 12.5px; color: var(--text-muted, #6b7280); }
+.con-form-head .inv-filter-select { max-width: 220px; }
+.con-picker { grid-template-columns: 1fr 110px auto; }
+.con-picker .modal-input { height: 42px; font-size: 15px; }
+.con-hint { margin: 6px 0 0; font-size: 12.5px; color: var(--text-secondary, #4b5563); }
+.con-lines { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.con-lines li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg-hover, rgba(0,0,0,.04)); font-size: 14px; }
+.con-lines li strong { font-size: 15px; }
+.con-lines li small { color: var(--text-muted, #6b7280); }
+.con-lines li input { width: 90px; height: 36px; text-align: right; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line, #e5e7eb); font: inherit; font-size: 15px; background: var(--bg-surface, #fff); color: var(--text-primary, #111827); }
+.con-lines li button { border: 0; background: transparent; color: #dc2626; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; }
+.con-empty { margin-top: 12px; }
+.con-footer { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 14px; }
+.con-save { height: 44px; font-size: 15px; }
+.con-save:disabled { opacity: .5; cursor: default; }
+.con-record { padding: 12px 0; border-top: 1px solid var(--line, #e5e7eb); }
+.con-record:first-child { border-top: 0; padding-top: 4px; }
+.con-record-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--text-muted, #6b7280); }
+.con-record-head strong { color: var(--text-primary, #111827); }
+.con-record-items { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.con-record-items li { padding: 3px 9px; border-radius: 999px; background: var(--bg-hover, rgba(0,0,0,.05)); font-size: 12.5px; }
+.con-record-items li small { color: var(--text-muted, #6b7280); }
+.con-record-items li.neg { background: rgba(220,38,38,.1); color: #b91c1c; }
+@media (max-width: 640px) {
+  .con-body { padding: 12px 12px 32px; }
+  .con-picker { grid-template-columns: 1fr 90px; }
+  .con-picker .inv-primary-btn { grid-column: 1 / -1; }
+  .con-footer { grid-template-columns: 1fr; }
+  .con-lines li { grid-template-columns: 1fr auto; }
+  .con-lines li button { grid-column: 1 / -1; text-align: right; }
+}

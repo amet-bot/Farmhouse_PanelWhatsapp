@@ -180,3 +180,29 @@ def test_resumen_semanal_solo_los_lunes_y_una_vez(db_session, ventas, admin_user
     # La misma semana no se manda dos veces.
     assert weekly_digest.send_if_due(now=lunes_21 + timedelta(hours=3), db=db_session) is False
     assert len(enviados) == 1
+
+
+def test_administracion_de_inventario(client, db_session, compras_y_merma, admin_user, clayton_branch, obarrio_branch):
+    # Una línea llegó incompleta contra la factura: 12 facturados, 10 recibidos, $2.50 c/u.
+    from models.shipment import ShipmentItem
+    li = db_session.query(ShipmentItem).filter(ShipmentItem.unit_cost.isnot(None)).first()
+    li.invoiced_quantity = Decimal("12"); li.line_status = "falto"
+    db_session.commit()
+
+    r = client.get(f"/api/reports/inventory/overview?date_from={DIA}&date_to={DIA}", headers=_h(admin_user))
+    assert r.status_code == 200, r.text
+    d = r.json()
+    # ¿Cuánto hay? Clayton recibió 10 kg de tomate a $2.50 y 5 kg de pollo sin costo.
+    cly = next(b for b in d["stock"]["branches"] if b["code"] == "CLY")
+    assert cly["items_with_stock"] == 2 and float(cly["stock_value"]) == 25.0
+    tomate = next(i for i in d["stock"]["items"] if i["name"] == "Tomate")
+    assert float(tomate["by_branch"][str(clayton_branch.id)]["qty"]) == 10.0 and float(tomate["total_value"]) == 25.0
+    assert str(obarrio_branch.id) not in tomate["by_branch"] or float(tomate["by_branch"][str(obarrio_branch.id)]["qty"]) <= 0
+    # ¿Cuánto se gastó? ¿Cuánto llegó?
+    assert float(d["purchases"]["total"]) == 25.0 and d["purchases"]["lines_without_cost"] == 1
+    assert d["arrived"]["shipments"] == 1 and d["arrived"]["top_items"][0]["name"] == "Tomate"
+    # ¿Llegó todo? No: faltaron 2 kg de tomate, reclamo $5.00.
+    disc = d["discrepancies"]
+    assert disc["with_issues"] == 1 and float(disc["claim_total"]) == 5.0
+    assert disc["rows"][0]["supplier"] == "PriceSmart" and disc["rows"][0]["statuses"] == {"falto": 1}
+    assert disc["by_supplier"][0]["with_issues"] == 1

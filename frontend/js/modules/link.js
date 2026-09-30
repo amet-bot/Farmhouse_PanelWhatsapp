@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Vistas
   // ==========================================================================
-  const VIEWS = { ventas: 'viewVentas', analisis: 'viewAnalisis', compras: 'viewCompras', cierre: 'viewCierre', sincronizacion: 'viewSincronizacion' };
+  const VIEWS = { ventas: 'viewVentas', analisis: 'viewAnalisis', compras: 'viewCompras', cierre: 'viewCierre', inventario: 'viewInventario', sincronizacion: 'viewSincronizacion' };
 
   function setView(view) {
     if (!VIEWS[view]) view = 'ventas';
@@ -98,6 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (view === 'analisis') loadAnalisis();
     if (view === 'compras') loadCompras();
     if (view === 'cierre') loadCierre();
+    if (view === 'inventario') loadInventario();
   }
 
   /** Recarga lo que esté a la vista (los filtros cambiaron). */
@@ -106,6 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     else if (state.view === 'analisis') loadAnalisis();
     else if (state.view === 'compras') loadCompras();
     else if (state.view === 'cierre') loadCierre();
+    else if (state.view === 'inventario') loadInventario();
   }
   document.querySelectorAll('#linkNav .inv-nav-item').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
 
@@ -882,6 +884,117 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (seq !== comprasSeq) return;
       utils.showToast(err.message || 'No se pudieron cargar compras y merma.', 'error');
       ['supplierBars', 'purchaseCategoryBars', 'wasteReasonBars', 'wasteCategoryBars'].forEach((id) => { $(id).innerHTML = emptyHtml('No se pudo cargar', 'Probá de nuevo en unos segundos.'); });
+    }
+  }
+
+  // ==========================================================================
+  // Administración de inventario: ¿cuánto hay? ¿cuánto se gastó? ¿cuánto llegó? ¿llegó todo?
+  // ==========================================================================
+  let invSeq = 0;
+  let invData = null;
+
+  function renderStockTable() {
+    if (!invData) return;
+    const q = $('stockSearch').value.trim().toLowerCase();
+    const soloValor = $('stockOnlyValue').checked;
+    const branches = invData.stock.branches;
+    let rows = invData.stock.items;
+    if (q) rows = rows.filter((r) => `${r.name} ${r.category || ''}`.toLowerCase().includes(q));
+    if (soloValor) rows = rows.filter((r) => Number(r.total_value) > 0);
+    const visibles = rows.slice(0, 300);
+    if (!visibles.length) { $('stockTable').innerHTML = emptyHtml('Sin existencias', q ? 'Ningún insumo coincide con la búsqueda.' : 'No hay registros de inventario todavía.'); return; }
+    $('stockTable').innerHTML = `
+      <table class="link-table">
+        <thead><tr><th>Insumo</th><th class="hide-sm">Categoría</th>${branches.map((b) => `<th class="num"><span class="link-legend-swatch" style="background:${branchColorVar(b.id)}"></span>${esc(b.code)}</th>`).join('')}<th class="num">Total</th><th class="num">Valor</th></tr></thead>
+        <tbody>${visibles.map((r) => `
+          <tr>
+            <td><span class="link-item-name">${esc(r.name)}</span> <small class="muted">${esc(r.unit)}</small></td>
+            <td class="hide-sm muted">${esc(r.category || '')}</td>
+            ${branches.map((b) => { const c = r.by_branch[String(b.id)]; const qty = c ? Number(c.qty) : 0; return `<td class="num ${qty < 0 ? 'neg' : ''}" title="${esc(b.name)}${c && c.value != null ? `: ${money(c.value)}` : ''}">${c ? num(qty) : '·'}</td>`; }).join('')}
+            <td class="num strong">${num(r.total_qty)}</td>
+            <td class="num">${Number(r.total_value) ? money(r.total_value) : '<span class="muted">sin costo</span>'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>${rows.length > 300 ? `<p class="muted" style="font-size:12px;margin:8px 0 0">Se muestran 300 de ${num(rows.length)} insumos; afina la búsqueda para ver el resto.</p>` : ''}`;
+  }
+  $('stockSearch').addEventListener('input', renderStockTable);
+  $('stockOnlyValue').addEventListener('change', renderStockTable);
+
+  async function loadInventario() {
+    const seq = ++invSeq;
+    const [from, to] = rangeDates(state.range);
+    $('invKpis').innerHTML = '';
+    ['stockTable', 'spentTable', 'arrivedTable', 'issuesTable'].forEach((id) => { $(id).innerHTML = '<div class="inv-skeleton-row"></div>'; });
+    try {
+      const d = await api.get(`/reports/inventory/overview?${query(from, to)}`);
+      if (seq !== invSeq) return;
+      invData = d;
+      d.stock.branches.forEach((b) => branchCodes.set(b.id, b.code));
+      const sinConteo = d.stock.branches.filter((b) => b.days_since_count == null || b.days_since_count > 7);
+      const kpis = [
+        { icon: 'warehouse', label: 'Valor en existencia', value: money(d.stock.total_value), sub: sinConteo.length ? `${sinConteo.map((b) => b.name).join(', ')}: conteo de hace más de 7 días o sin conteo` : 'Todas las sucursales con conteo reciente' },
+        { icon: 'flame', label: 'Consumo del período', value: money(Number(d.consumption.manual_cost) + Number(d.consumption.theoretical_cost)), sub: `${num(d.consumption.manual_records)} registro${d.consumption.manual_records === 1 ? '' : 's'} del equipo · ${num(d.consumption.items)} insumo${d.consumption.items === 1 ? '' : 's'}` },
+        { icon: 'truck', label: 'Cargamentos recibidos', value: num(d.arrived.shipments), sub: `${money(d.purchases.total)} en compras ${delta(Number(d.purchases.total), Number(d.purchases.previous_total)) || ''}${d.purchases.lines_without_cost ? ` · ${num(d.purchases.lines_without_cost)} línea${d.purchases.lines_without_cost === 1 ? '' : 's'} sin costo` : ''}` },
+        { icon: d.discrepancies.with_issues ? 'alert-triangle' : 'check-circle-2', label: '¿Llegó todo?', value: d.discrepancies.with_issues ? `${num(d.discrepancies.with_issues)} con diferencias` : 'Sí', sub: d.discrepancies.with_issues ? `Reclamo a proveedores: ${money(d.discrepancies.claim_total)}` : `${num(d.discrepancies.shipments)} cargamento${d.discrepancies.shipments === 1 ? '' : 's'} completos` },
+      ];
+      $('invKpis').innerHTML = kpis.map((k) => `
+        <div class="inv-kpi">
+          <span class="inv-kpi-label"><i data-lucide="${k.icon}"></i> ${esc(k.label)}</span>
+          <span class="inv-kpi-value">${esc(k.value)}</span>
+          <span class="inv-kpi-sub">${k.sub}</span>
+        </div>`).join('');
+
+      renderStockTable();
+
+      const cons = d.consumption;
+      $('spentNote').textContent = cons.rows.length ? `Registrado ${money(cons.manual_cost)} · estimado por ventas ${money(cons.theoretical_cost)}` : 'Sin consumo en el período';
+      $('spentTable').innerHTML = cons.rows.length ? `
+        <table class="link-table">
+          <thead><tr><th>Insumo</th><th class="num">Registrado</th><th class="num hide-sm">Estimado por ventas</th><th class="num">Valor</th></tr></thead>
+          <tbody>${cons.rows.map((r) => `
+            <tr>
+              <td><span class="link-item-name">${esc(r.name)}</span> <small class="muted">${esc(r.category || '')}</small></td>
+              <td class="num ${Number(r.manual_qty) ? 'strong' : 'muted'}">${Number(r.manual_qty) ? `${num(r.manual_qty)} ${esc(r.unit)}` : '—'}</td>
+              <td class="num hide-sm ${Number(r.theoretical_qty) ? '' : 'muted'}">${Number(r.theoretical_qty) ? `${num(r.theoretical_qty)} ${esc(r.unit)}` : '—'}</td>
+              <td class="num">${Number(r.total_cost) ? money(r.total_cost) : '<span class="muted">sin costo</span>'}</td>
+            </tr>`).join('')}</tbody>
+        </table>` : emptyHtml('Sin consumo', 'Nadie registró consumo y no hay ventas con receta en este período.');
+
+      $('arrivedNote').textContent = d.arrived.top_items.length ? 'Insumos que más entraron, por valor' : '';
+      $('arrivedTable').innerHTML = d.arrived.top_items.length ? `
+        <table class="link-table">
+          <thead><tr><th>Insumo</th><th class="num">Cantidad</th><th class="num">Valor</th><th class="num hide-sm">Cargamentos</th></tr></thead>
+          <tbody>${d.arrived.top_items.map((r) => `<tr><td><span class="link-item-name">${esc(r.name)}</span> <small class="muted">${esc(r.category || '')}</small></td><td class="num strong">${num(r.qty)} ${esc(r.unit)}</td><td class="num">${Number(r.amount) ? money(r.amount) : '<span class="muted">sin costo</span>'}</td><td class="num hide-sm">${num(r.shipments)}</td></tr>`).join('')}</tbody>
+        </table>` : emptyHtml('Nada recibido', 'No hubo cargamentos en este período.');
+
+      const disc = d.discrepancies;
+      $('issuesNote').textContent = disc.shipments ? `${num(disc.with_issues)} de ${num(disc.shipments)} cargamentos con diferencias` : '';
+      if (!disc.shipments) {
+        $('issuesTable').innerHTML = emptyHtml('Sin cargamentos', 'No hubo recepciones en este período.');
+      } else if (!disc.with_issues) {
+        $('issuesTable').innerHTML = `<div class="link-ok-banner"><i data-lucide="check-circle-2"></i> Todo llegó completo: ${num(disc.shipments)} cargamento${disc.shipments === 1 ? '' : 's'} sin diferencias contra factura.</div>`;
+      } else {
+        const chips = (st) => `<span class="link-status-chips">${Object.entries(st).map(([k, v]) => `<span class="link-status-chip ${k}">${esc(disc.status_labels[k] || k)} ×${v}</span>`).join('')}</span>`;
+        $('issuesTable').innerHTML = `
+          <table class="link-table">
+            <thead><tr><th>Cargamento</th><th>Sucursal</th><th>Proveedor</th><th>Qué pasó</th><th class="num">Reclamo</th><th></th></tr></thead>
+            <tbody>${disc.rows.map((r) => `
+              <tr>
+                <td><span class="link-item-name">#${r.id}${r.invoice_number ? ` · Fact. ${esc(r.invoice_number)}` : ''}</span><br><small class="muted">${esc(fmtDateTime(r.received_at))} · ${esc(r.received_by)}</small></td>
+                <td>${esc(r.branch_name)}</td>
+                <td>${esc(r.supplier)}</td>
+                <td>${chips(r.statuses)}</td>
+                <td class="num ${Number(r.claim) ? 'strong' : 'muted'}">${Number(r.claim) ? money(r.claim) : '—'}</td>
+                <td class="num"><a class="link-text-btn" href="/inventario?view=cargamentos&shipment=${r.id}">Ver</a></td>
+              </tr>`).join('')}</tbody>
+          </table>
+          ${disc.by_supplier.filter((p) => p.with_issues).length ? `<p class="muted" style="font-size:12.5px;margin:10px 0 0">Por proveedor: ${disc.by_supplier.filter((p) => p.with_issues).map((p) => `${esc(p.supplier)} ${num(p.with_issues)}/${num(p.shipments)}${Number(p.claim) ? ` (${money(p.claim)})` : ''}`).join(' · ')}</p>` : ''}`;
+      }
+      utils.renderIcons();
+    } catch (err) {
+      if (seq !== invSeq) return;
+      utils.showToast(err.message || 'No se pudo cargar el inventario.', 'error');
+      ['stockTable', 'spentBars', 'arrivedTable', 'issuesTable'].forEach((id) => { $(id).innerHTML = emptyHtml('No se pudo cargar', 'Probá de nuevo en unos segundos.'); });
     }
   }
 
