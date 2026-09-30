@@ -1383,3 +1383,198 @@ body {
 @media (max-width: 767px) {
   .hub-topbar { margin: 0; top: 0; border-radius: 0; border-width: 0 0 1px; box-shadow: none; }
 }
+
+/* ============================================================================
+   MODO OSCURO PREMIUM — paleta y acabado (solo colores, bordes y sombras).
+   Jerarquía, de más oscuro a más claro:
+     #071510 fondo → #0A1D16 barra lateral → #10271E superficies → #17382B tarjetas →
+     #1D4636 tarjeta en hover · #34C98B acción principal · #D4AD4B detalles premium.
+   Los tokens de arriba (--fh-*, --sb-*) se redefinen aquí para que todo lo que ya los usa
+   (actividad, pendientes, hojas del perfil, celular) tome la paleta sin reglas repetidas.
+   ============================================================================ */
+[data-theme="dark"] {
+  --background: #071510;
+  --sidebar: #0A1D16;
+  --surface: #10271E;
+  --card: #17382B;
+  --card-hover: #1D4636;
+  --border: #315447;
+  --primary: #34C98B;
+  --primary-hover: #4DDB9D;
+  --accent-gold: #D4AD4B;
+  --text-primary: #F3F5EE;
+  --text-secondary: #A8B9B0;
+  --text-muted: #708279;
+  --badge-bg: #0D2119;
+  --badge-border: #29483C;
+  --badge-text: #B8C9C0;
+  --badge-hover: #163327;
+  --badge-active-bg: #214C3A;
+  --badge-active-text: #7BE0B3;
+  --icon-sage: #7F978B;
+  --warm-white: #FFFBF1;
+
+  --fh-bg: var(--background);
+  --fh-panel: var(--surface);
+  --fh-border: var(--border);
+  --fh-border-hover: #3E6857;
+  --fh-text: var(--text-primary);
+  --fh-muted: var(--text-secondary);
+  --fh-green: var(--primary);
+  --fh-green-strong: var(--badge-active-text);
+  --fh-green-soft: rgba(52, 201, 139, .20);
+  --fh-shadow: 0 8px 24px rgba(0, 0, 0, .15);
+  --fh-shadow-hover: 0 12px 28px rgba(0, 0, 0, .22);
+  /* Ilustración: verdes oscuros y oliva que se funden con el fondo. */
+  --fh-art-1: #12301F;
+  --fh-art-2: #1A3D2A;
+  --fh-art-3: #3E6B48;
+  --fh-art-4: #56794A;
+
+  --sb-bg: var(--sidebar);
+  --sb-text: var(--text-secondary);
+  --sb-muted: var(--icon-sage);
+  --sb-hover: rgba(52, 201, 139, .08);
+  --sb-hover-text: var(--text-primary);
+  --sb-border: rgba(49, 84, 71, .55);
+  --sb-soft: var(--surface);
+  --glow-a: var(--primary);
+  --glow-b: var(--primary);
+  --glow-shadow: 0 6px 16px -8px rgba(52, 201, 139, .45);
+  --glow-ring: 0 0 0 3px rgba(52, 201, 139, .14);
+  --card-glow: 0 12px 28px rgba(0, 0, 0, .22);
+}
+
+/* ---- Barra lateral: un escalón sobre el fondo, separada con borde y sombra muy suaves ---- */
+[data-theme="dark"] .hub-sidebar { box-shadow: 1px 0 0 rgba(0, 0, 0, .25), 6px 0 24px -12px rgba(0, 0, 0, .45); }
+[data-theme="dark"] .hub-nav-item,
+[data-theme="dark"] .hub-appnav-item { color: var(--text-secondary); }
+[data-theme="dark"] .hub-nav-item svg,
+[data-theme="dark"] .hub-appnav-item svg { color: var(--icon-sage); }
+[data-theme="dark"] .hub-nav-item:hover,
+[data-theme="dark"] .hub-appnav-item:hover { color: var(--text-primary); }
+[data-theme="dark"] .hub-nav-item:hover svg,
+[data-theme="dark"] .hub-appnav-item:hover svg { color: var(--badge-active-text); }
+/* Activo: emerald sólido, sin neón (degradado casi imperceptible). */
+[data-theme="dark"] .hub-nav-item.active,
+[data-theme="dark"] .hub-appnav-item.active,
+[data-theme="dark"] .hub-switch-item.active {
+  background: linear-gradient(180deg, #38CD8F 0%, var(--primary) 100%);
+  color: var(--warm-white);
+  box-shadow: var(--glow-shadow), inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+[data-theme="dark"] .hub-nav-item.active svg,
+[data-theme="dark"] .hub-appnav-item.active svg { color: var(--warm-white); }
+[data-theme="dark"] .hub-nav-item.active:hover,
+[data-theme="dark"] .hub-appnav-item.active:hover { background: var(--primary-hover); }
+[data-theme="dark"] .hub-sidebar-brand-text strong { color: var(--text-primary); }
+[data-theme="dark"] .hub-sidebar-brand-text small { color: var(--text-muted); }
+[data-theme="dark"] .hub-sidebar-card { background: linear-gradient(160deg, var(--surface), var(--sidebar)); border-color: var(--sb-border); }
+[data-theme="dark"] .hub-sidebar-card p { color: var(--text-secondary); }
+[data-theme="dark"] .hub-sidebar-card-bar { background: var(--accent-gold); box-shadow: none; }
+
+/* ---- Barra superior y buscador ---- */
+[data-theme="dark"] .hub-topbar {
+  background: var(--surface);
+  border-color: rgba(49, 84, 71, .7);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}
+[data-theme="dark"] .hub-search { background: #0B1F17; border-color: var(--border); }
+[data-theme="dark"] .hub-search:focus-within { background: #0B1F17; border-color: var(--primary); }
+[data-theme="dark"] .hub-search input { color: var(--text-primary); }
+[data-theme="dark"] .hub-search input::placeholder,
+[data-theme="dark"] .hub-search > svg { color: var(--text-muted); }
+[data-theme="dark"] .hub-search-kbd { background: var(--badge-bg); border-color: var(--badge-border); color: var(--text-muted); }
+[data-theme="dark"] .hub-icon-btn { background: var(--badge-bg); border-color: var(--badge-border); color: var(--text-secondary); }
+[data-theme="dark"] .hub-icon-btn:hover { background: var(--badge-hover); color: var(--text-primary); box-shadow: none; }
+
+/* ---- Tarjetas de módulos (escritorio y celular) ---- */
+[data-theme="dark"] :is(.hub-module-card, .hub-m-card) {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .15);
+  transition: transform .2s ease, background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+[data-theme="dark"] .hub-module-card:hover {
+  transform: translateY(-2px);
+  background: var(--card-hover);
+  border-color: #3E6857;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .22);
+}
+[data-theme="dark"] .hub-m-card:active { background: var(--card-hover); border-color: #3E6857; }
+[data-theme="dark"] .hub-module-title,
+[data-theme="dark"] .hub-m-card strong { color: var(--text-primary); }
+[data-theme="dark"] .hub-module-desc,
+[data-theme="dark"] .hub-m-card small { color: var(--text-secondary); }
+
+/* Íconos: emerald oscuro y elevado, sin textura ni neón. */
+[data-theme="dark"] :is(.hub-module-card, .hub-m-card) .hub-module-icon {
+  background: rgba(52, 201, 139, .20);
+  background-image: none;
+  color: var(--badge-active-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+[data-theme="dark"] :is(.hub-module-card, .hub-m-card) .hub-module-icon svg :is(path, rect, circle, ellipse, polygon) { fill-opacity: .12; }
+[data-theme="dark"] .hub-module-card:hover .hub-module-icon { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
+
+/* Flecha circular: más definida; en hover, emerald oscuro. */
+[data-theme="dark"] :is(.hub-module-arrow, .hub-m-card-arrow) {
+  background: rgba(7, 21, 16, .40);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  box-shadow: none;
+}
+[data-theme="dark"] .hub-module-card:hover .hub-module-arrow {
+  background: var(--badge-active-bg);
+  border-color: #3E6857;
+  color: var(--badge-active-text);
+  box-shadow: none;
+}
+
+/* ---- Chips / badges ---- */
+[data-theme="dark"] .hub-tag {
+  background: var(--badge-bg);
+  border: 1px solid var(--badge-border);
+  color: var(--badge-text);
+  border-radius: 999px;
+  transition: background-color .15s ease;
+}
+[data-theme="dark"] .hub-module-card:hover .hub-tag { background: var(--badge-hover); }
+[data-theme="dark"] .tone-green.hub-badge { background: var(--badge-active-bg); color: var(--badge-active-text); }
+
+/* ---- Tipografía y detalles ---- */
+[data-theme="dark"] .hub-hero h1,
+[data-theme="dark"] .hub-m-welcome h1 { color: var(--text-primary); }
+[data-theme="dark"] .hub-hero p,
+[data-theme="dark"] .hub-m-sub { color: var(--text-secondary); }
+[data-theme="dark"] .hub-eyebrow { color: var(--accent-gold); }
+[data-theme="dark"] .hub-link-btn { color: var(--primary); }
+[data-theme="dark"] .hub-link-btn:hover { color: var(--primary-hover); text-shadow: none; }
+[data-theme="dark"] .hub-bottom-item.active svg { color: var(--primary); filter: none; }
+
+/* ---- Ilustración: oliva, emerald suave, crema, dorado y techo terracota ---- */
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) { opacity: .92; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-sun { fill: var(--accent-gold); opacity: .9; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-roof { fill: #B5553C; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-wall { fill: #E9DFC7; stroke: #B79E6E; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-door { fill: #7A5436; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-field path { stroke: rgba(212, 173, 75, .55); }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-trees ellipse { fill: #3E6B48; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-trees ellipse:nth-of-type(2),
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-trees ellipse:nth-of-type(3) { fill: #2F8A62; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-trees ellipse:nth-of-type(1) { fill: #B8923E; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-trees ellipse:nth-of-type(4) { fill: #A5603A; }
+[data-theme="dark"] :is(.hub-hero-art, .hub-m-hero-art) .art-trees rect { fill: #56794A; }
+
+/* ---- Banner inferior ---- */
+[data-theme="dark"] .hub-brand-card {
+  background: linear-gradient(135deg, var(--surface) 0%, var(--card) 100%);
+  border-color: var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .15);
+}
+[data-theme="dark"] .hub-brand-card p { color: var(--text-primary); }
+[data-theme="dark"] .hub-brand-bar { background: var(--accent-gold); }
+[data-theme="dark"] .hub-brand-art .art-leaf { fill: #2F8A62; }
+[data-theme="dark"] .hub-brand-art .art-leaf-2 { fill: #3E6B48; }
+[data-theme="dark"] .hub-brand-art .art-leaf-3 { fill: #245A40; }
+[data-theme="dark"] .hub-brand-art .art-stem { stroke: #56794A; }
