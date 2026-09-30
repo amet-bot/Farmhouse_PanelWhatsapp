@@ -16,6 +16,10 @@
 .cie-row-name { font-size: 16px; font-weight: 700; color: var(--text-primary, #111827); line-height: 1.25; }
 .cie-row-prev { display: block; margin-top: 3px; font-size: 12.5px; color: var(--text-muted, #6b7280); }
 .cie-row-prev .in { color: var(--green, #15803d); font-weight: 600; }
+.cie-row-prev .used { color: var(--text-secondary, #4b5563); font-weight: 600; }
+.cie-row-now { display: block; margin-top: 4px; font-size: 13px; color: var(--text-secondary, #4b5563); }
+.cie-row-now:empty { display: none; }
+.cie-row-now strong { color: #b45309; }
 .cie-field { position: relative; display: flex; align-items: center; }
 .cie-field input { width: 100%; height: 54px; padding: 0 58px 0 12px; border-radius: 12px; border: 2px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--text-primary, #111827); font: inherit; font-size: 22px; font-weight: 700; text-align: right; -moz-appearance: textfield; }
 .cie-field input::-webkit-outer-spin-button, .cie-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

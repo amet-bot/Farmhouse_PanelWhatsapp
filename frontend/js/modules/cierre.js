@@ -102,12 +102,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="cie-rows">
           ${g.items.map((it) => {
             const prev = it.last_counted_qty != null
-              ? `Última vez: ${num(it.last_counted_qty)} ${esc(it.unit)} (${esc(whenLabel(it.last_counted_at))})${Number(it.received_since) > 0 ? ` · <span class="in">llegaron ${num(it.received_since)}</span>` : ''}`
+              ? `Última vez: ${num(it.last_counted_qty)} ${esc(it.unit)} (${esc(whenLabel(it.last_counted_at))})${Number(it.received_since) > 0 ? ` · <span class="in">llegaron ${num(it.received_since)}</span>` : ''}${it.last_used != null && Number(it.last_used) > 0 ? ` · <span class="used">se usaron ${num(it.last_used)}</span>` : ''}`
               : 'Primera vez que se cuenta';
             const v = state.values.get(it.inventory_item_id);
             return `
               <label class="cie-row ${v != null ? 'filled' : ''}" data-id="${it.inventory_item_id}">
-                <span><span class="cie-row-name">${esc(it.name)}</span><span class="cie-row-prev">${prev}</span></span>
+                <span><span class="cie-row-name">${esc(it.name)}</span><span class="cie-row-prev">${prev}</span><span class="cie-row-now" data-now="${it.inventory_item_id}">${usedNow(it, v)}</span></span>
                 <span class="cie-field">
                   <input type="number" min="0" step="0.001" inputmode="decimal" placeholder="¿cuánto?" value="${v != null ? v : ''}" data-id="${it.inventory_item_id}" aria-label="Cuánto queda de ${esc(it.name)}" />
                   <span>${esc(it.unit)}</span>
@@ -119,6 +119,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('bar').hidden = false;
     updateBar();
     utils.renderIcons();
+  }
+
+  // Mientras escriben cuánto queda: cuántas unidades se usaron desde la última vez.
+  function usedNow(it, v) {
+    if (v == null || it.last_counted_qty == null) return '';
+    const used = Number(it.last_counted_qty) + Number(it.received_since || 0) - Number(v);
+    if (used > 0) return `Se usaron <strong>${num(used)} ${esc(it.unit)}</strong>`;
+    if (used < 0) return `Hay <strong>${num(-used)} ${esc(it.unit)}</strong> más que la última vez`;
+    return 'Sin cambio desde la última vez';
   }
 
   function updateBar() {
@@ -136,6 +145,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const v = raw === '' ? null : Number(raw);
     if (v == null || Number.isNaN(v) || v < 0) state.values.delete(id); else state.values.set(id, v);
     inp.closest('.cie-row').classList.toggle('filled', state.values.has(id));
+    const it = state.sheet.items.find((i) => i.inventory_item_id === id);
+    const now = inp.closest('.cie-row').querySelector('[data-now]');
+    if (it && now) now.innerHTML = usedNow(it, state.values.get(id));
     updateBar();
   });
   // Enter salta al siguiente renglón: se llena de arriba a abajo sin tocar la pantalla.

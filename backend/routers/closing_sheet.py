@@ -94,16 +94,22 @@ def _last_counts(db: Session, branch_id: int, item_ids: List[int]) -> dict:
     if not ultimos:
         return {}
     filas = (
-        db.query(StockCountItem.inventory_item_id, StockCountItem.counted_quantity, StockCount.counted_at)
+        db.query(StockCountItem.inventory_item_id, StockCountItem.counted_quantity, StockCountItem.difference, StockCount.counted_at)
         .join(StockCount, StockCount.id == StockCountItem.stock_count_id)
         .filter(StockCount.branch_id == branch_id, StockCountItem.inventory_item_id.in_(list(ultimos)))
         .order_by(StockCount.counted_at.desc(), StockCountItem.id.desc())
         .all()
     )
     out: dict = {}
-    for item_id, cantidad, cuando in filas:
+    veces: dict = {}
+    for item_id, cantidad, diferencia, cuando in filas:
+        veces[item_id] = veces.get(item_id, 0) + 1
         if item_id not in out and cuando == ultimos[item_id]:
-            out[item_id] = {"qty": cantidad, "at": cuando}
+            out[item_id] = {"qty": cantidad, "at": cuando, "used": -Decimal(diferencia)}
+    # El primer conteo de un insumo no dice cuánto se usó: su diferencia es la existencia de arranque.
+    for item_id, info in out.items():
+        if veces.get(item_id, 0) < 2:
+            info["used"] = None
     return out
 
 
@@ -163,6 +169,8 @@ def get_sheet(
             "position": a.sheet_position,
             "last_counted_qty": u["qty"] if u else None,
             "last_counted_at": u["at"] if u else None,
+            # Lo que se usó entre el penúltimo y el último conteo (None si solo se contó una vez).
+            "last_used": (u["used"] if u else None),
             "received_since": llegaron.get(it.id, Decimal("0")),
         })
     from models.branch import Branch

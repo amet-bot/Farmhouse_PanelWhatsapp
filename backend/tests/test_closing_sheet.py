@@ -86,10 +86,13 @@ def test_cerrar_turno_calcula_lo_gastado_y_fija_la_existencia(client, db_session
     hoja = client.get("/api/inventory/closing-sheet", headers=ha).json()
     p = next(i for i in hoja["items"] if i["inventory_item_id"] == pollo.id)
     assert float(p["last_counted_qty"]) == 15.5 and float(p["received_since"]) == 10 and hoja["last_closing"]["items"] == 2 and hoja["last_closing"]["by"] == clayton_agent.name
+    assert p["last_used"] is None   # primer conteo: su diferencia es el arranque, no un gasto
 
     # Segundo cierre: 15.5 + 10 llegados − 22 contados = 3.5 gastados. Aparece en el historial.
     r2 = client.post("/api/inventory/closing-sheet", json={"branch_id": clayton_branch.id, "lines": [{"inventory_item_id": pollo.id, "counted_quantity": "22"}]}, headers=ha).json()
     assert float(r2["lines"][0]["used"]) == 3.5 and r2["is_first_count"] is False
+    p2 = next(i for i in client.get("/api/inventory/closing-sheet", headers=ha).json()["items"] if i["inventory_item_id"] == pollo.id)
+    assert float(p2["last_used"]) == 3.5 and float(p2["last_counted_qty"]) == 22
     hist = client.get("/api/inventory/closing-sheet/history", headers=ha).json()
     assert len(hist) == 2 and float(hist[0]["lines"][0]["used"]) == 3.5
 
