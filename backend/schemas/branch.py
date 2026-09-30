@@ -11,6 +11,9 @@ class BranchBase(BaseModel):
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
     accepts_delivery: bool = True
+    # Horario de atención "HH:MM" (hora de Panamá); vacío = horario general 10:30 a 21:30.
+    opens_at: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    closes_at: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
 
 class BranchCreate(BranchBase):
     pass
@@ -23,6 +26,8 @@ class BranchUpdate(BaseModel):
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
     accepts_delivery: Optional[bool] = None
+    opens_at: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    closes_at: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
 
 class BranchResponse(BranchBase):
     id: int

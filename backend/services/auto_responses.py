@@ -315,6 +315,13 @@ CANCEL_MESSAGE = "Listo, dejé a un lado esa selección. ¿Qué te gustaría hac
 CHANGE_ORDER_TYPE_MESSAGE = "Sin problema. ¿Cómo prefieres recibir el pedido?"
 CHANGE_BRANCH_MESSAGE = "Claro, puedes elegir otra sucursal."
 
+def get_chat_order_context_line(description: Optional[str]) -> Optional[str]:
+    """Línea del resumen interno del handoff con lo que el cliente pidió por chat (recortado)."""
+    text = " ".join((description or "").split())
+    if not text:
+        return None
+    return f"• Pedido por chat: {text[:300]}{'…' if len(text) > 300 else ''}"
+
 def get_human_handoff_message(branch_name: Optional[str] = None, db: "Optional[Session]" = None) -> str:
     place = f" de *{branch_name}*" if branch_name and branch_name != "Farmhouse" else ""
     fallback = (
@@ -360,6 +367,28 @@ YAPPY_PAYMENT_MESSAGE = (
     "un botón con el monto exacto. Solo tendrás que abrirlo y aprobar la solicitud en tu aplicación Yappy. "
     "Nunca te pediremos tu PIN ni contraseña. 😊"
 )
+
+# Sucursal cerrada en este momento (ver services/branch_hours.py): se manda justo antes del
+# enlace del Menú Digital en delivery/retiro, para que el cliente no arme un pedido esperando
+# que salga ya. El menú permite programarlo para cuando abra (fulfillment_type "scheduled").
+CLOSED_NOW_MESSAGE = (
+    "Ahora mismo estamos cerrados 🌙 Abrimos a las {abre}. Igual puedes armar tu pedido desde el "
+    "menú y programarlo para cuando abramos, y te lo tendremos listo a esa hora."
+)
+
+# Cliente esperando a una persona (ver services/bot_followup.py): si tras el handoff nadie del
+# equipo le responde en HANDOFF_ESCALATION_MINUTES, el bot le manda esto UNA vez y avisa por
+# push a los encargados. No repite el resumen ni vuelve a preguntar nada.
+HANDOFF_WAIT_MESSAGE = (
+    "Seguimos contigo 🙏 En este momento el equipo está ocupado, pero ya les avisé y una persona "
+    "te responde por aquí en cuanto se desocupe. Gracias por la paciencia."
+)
+
+# Sesión del bot (ver _step_expire_stale_session en routers/webhooks.py): si el cliente vuelve a
+# escribir después de esta cantidad de horas sin mensajes, la conversación arranca de cero
+# (saludo, sin sucursal ni tipo de entrega viejos, y el bot vuelve a atender aunque hubiera
+# quedado pausado por un handoff anterior).
+BOT_SESSION_TIMEOUT_HOURS = 12
 
 # Seguimiento automático (ver services/bot_followup.py): único mensaje que manda el bot si el
 # cliente se queda callado 5+ minutos después de que el bot le habló, para no dejarlo pensando

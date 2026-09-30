@@ -16,6 +16,11 @@ class Branch(Base):
     latitude = Column(Numeric(10, 7), nullable=True)
     longitude = Column(Numeric(10, 7), nullable=True)
     accepts_delivery = Column(Boolean, default=True, nullable=False)
+    # Horario de atención ("HH:MM", hora de Panamá). Con esto el bot sabe si la sucursal está
+    # cerrada en este momento y se lo dice al cliente antes de mandarle el menú (ver
+    # services/branch_hours.py). Vacío = se asume el horario general (10:30 a 21:30).
+    opens_at = Column(String(5), nullable=True)
+    closes_at = Column(String(5), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relaciones

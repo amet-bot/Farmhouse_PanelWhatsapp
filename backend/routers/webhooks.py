@@ -45,8 +45,10 @@ from services.auto_responses import (
     CHAT_ORDER_INTRO_QUESTION, CHAT_ORDER_PAYMENT_QUESTION, CHAT_ORDER_PAYMENT_ROWS,
     RESTART_MESSAGE, CANCEL_MESSAGE,
     CHANGE_ORDER_TYPE_MESSAGE, CHANGE_BRANCH_MESSAGE, get_human_handoff_message,
-    get_customer_first_name
+    get_customer_first_name, get_chat_order_context_line,
+    CLOSED_NOW_MESSAGE, BOT_SESSION_TIMEOUT_HOURS,
 )
+from services.branch_hours import is_branch_open, branch_opening_label
 from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKER
 from services.branch_matcher import match_branch_by_text
 from services.order_flow_matcher import (
@@ -250,6 +252,7 @@ async def _reset_bot_context(db: Session, conv: Conversation, *, clear_branch: b
     conv.corporate_intake_step = None
     conv.corporate_intake_notes = None
     conv.awaiting_chat_order_description = None
+    conv.chat_order_description = None
     if clear_branch:
         conv.branch_id = None
         conv.assigned_user_id = None
@@ -380,6 +383,9 @@ def _conversation_context_summary(conv: Conversation) -> str:
     lines.append(f"• Sucursal: {conv.branch.name if conv.branch else 'Aún no definida'}")
     if conv.payment_method:
         lines.append(f"• Pago: {payment_labels.get(conv.payment_method, conv.payment_method)}")
+    chat_order_line = get_chat_order_context_line(conv.chat_order_description)
+    if chat_order_line:
+        lines.append(chat_order_line)
     if conv.corporate_intake_notes:
         lines.append(f"• Evento/empresa:\n{conv.corporate_intake_notes}")
     return "\n".join(lines)
@@ -401,6 +407,7 @@ async def _handoff_to_human(db: Session, wa_service, conv: Conversation, contact
     )
     db.add(summary_msg)
     conv.automation_paused = True
+    conv.bot_handoff_at = datetime.utcnow()   # naive UTC, como el resto de fechas que compara bot_followup
     conv.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(summary_msg)
@@ -443,6 +450,7 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
         pickup_info_text = get_branch_pickup_info_message(branch_code, branch_name, db=db)
         await _send_plain_text_message(db, wa_service, conv, contact, phone, pickup_info_text)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        await _send_closed_now_notice(db, wa_service, conv, contact, phone)
         await _send_digital_menu_link(db, wa_service, conv, contact, phone)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_after_menu_help_prompt(db, wa_service, conv, contact, phone)
@@ -452,6 +460,7 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
         delivery_info_text = get_branch_delivery_info_message(branch_code, branch_name, db=db)
         await _send_plain_text_message(db, wa_service, conv, contact, phone, delivery_info_text)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        await _send_closed_now_notice(db, wa_service, conv, contact, phone)
         await _send_digital_menu_link(db, wa_service, conv, contact, phone)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_after_menu_help_prompt(db, wa_service, conv, contact, phone)
@@ -462,6 +471,16 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
     await _send_digital_menu_link(db, wa_service, conv, contact, phone)
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
     await _send_after_menu_help_prompt(db, wa_service, conv, contact, phone)
+
+async def _send_closed_now_notice(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Si la sucursal está cerrada en este momento (hora de Panamá, ver services/branch_hours.py),
+    se lo dice al cliente antes de mandarle el menú, con la hora a la que abre. Abierta: nada."""
+    if not conv.branch or is_branch_open(conv.branch):
+        return
+    abre = branch_opening_label(conv.branch)
+    text = get_node_text(db, "closed_now_message", CLOSED_NOW_MESSAGE.format(abre=abre), abre=abre)
+    await _send_plain_text_message(db, wa_service, conv, contact, phone, text)
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
 
 def _after_menu_help_rows(db: Session) -> list:
     titles = get_node_options(db, "after_menu_help_question", [b["title"] for b in AFTER_MENU_HELP_BUTTONS])
@@ -712,6 +731,42 @@ async def _handle_corporate_intake_step(db: Session, wa_service, conv: Conversat
 # _send_*/return, o una condición trivial) se dejaron inline a propósito: envolverlos en una
 # función no habría hecho más legible nada.
 
+async def _step_expire_stale_session(db: Session, conv: Conversation, incoming_msg: Optional[Message]) -> None:
+    """Bloque -1: sesión del bot. Si entre el mensaje visible anterior y este pasaron más de
+    BOT_SESSION_TIMEOUT_HOURS, la conversación arranca de nuevo: se limpia el contexto del bot
+    (sucursal, tipo de entrega, pago, pedido por chat), se vuelve a mostrar el portón de
+    entrada y el bot vuelve a atender aunque hubiera quedado pausado por un handoff anterior.
+    Un pedido del menú web o "hablar con alguien" de hace días ya no debe dejar mudo al bot
+    cuando el cliente escribe "hola, quiero pedir". Deja una nota interna para el panel."""
+    if incoming_msg is None:
+        return
+    previous = db.query(Message).filter(
+        Message.conversation_id == conv.id,
+        Message.deleted_at.is_(None),
+        Message.is_internal == False,  # noqa: E712
+        Message.id != incoming_msg.id,
+        Message.created_at <= incoming_msg.created_at,
+    ).order_by(Message.created_at.desc(), Message.id.desc()).first()
+    if previous is None:
+        return
+    gap = incoming_msg.created_at - previous.created_at
+    if gap.total_seconds() < BOT_SESSION_TIMEOUT_HOURS * 3600:
+        return
+    horas = int(gap.total_seconds() // 3600)
+    logger.info(f"[BotSession] Conv {conv.id}: {horas} h sin mensajes, se reinicia la sesión del bot.")
+    await _reset_bot_context(db, conv)
+    conv.automation_paused = False
+    conv.bot_handoff_at = None
+    conv.handoff_escalated_at = None
+    conv.last_branch_prompt_at = None   # el portón de entrada se vuelve a mostrar
+    db.add(Message(
+        conversation_id=conv.id, direction="outgoing", sender_type="system",
+        content=f"🕒 Nueva sesión: el cliente volvió a escribir tras {horas} h sin mensajes. El asistente retoma desde el inicio.",
+        is_internal=True, status="sent",
+    ))
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
 async def _step_confirm_web_menu_order(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, text: str) -> None:
     """Bloque 0: pedido estructurado enviado desde la Web App de Menú (/menu). Ya trae
     sucursal, entrega y pago resueltos (ver POST /api/orders/public); responde con un mensaje
@@ -761,6 +816,7 @@ async def _step_confirm_web_menu_order(db: Session, wa_service, conv: Conversati
     # en el mismo objeto conv, ambos cambios quedan en ese mismo commit — el estado final
     # es idéntico a cuando esto se escribía en un bloque aparte.
     conv.automation_paused = True
+    conv.bot_handoff_at = datetime.utcnow()
     await _send_plain_text_message(db, wa_service, conv, contact, phone, confirmation_text)
 
 async def _step_download_pending_media(db: Session, wa_service, conv: Conversation, message_type: str, msg_data: Dict[str, Any], incoming_msg: Optional[Message]) -> None:
@@ -895,10 +951,11 @@ async def _step_start_chat_order(db: Session, wa_service, conv: Conversation, co
     db.commit()
     await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "chat_order_intro_question", CHAT_ORDER_INTRO_QUESTION))
 
-async def _step_handle_chat_order_description(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
-    """Bloque 2.55 (continuación): ya llegó la descripción del pedido por chat, ahora se
-    resuelve el método de pago con una lista tocable."""
+async def _step_handle_chat_order_description(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, text: str = "") -> None:
+    """Bloque 2.55 (continuación): ya llegó la descripción del pedido por chat; se guarda (va
+    en el resumen interno del handoff) y se resuelve el método de pago con una lista tocable."""
     conv.awaiting_chat_order_description = False
+    conv.chat_order_description = (text or "").strip()[:2000] or None
     conv.updated_at = datetime.now(timezone.utc)
     db.commit()
     payment_rows = list(CHAT_ORDER_PAYMENT_ROWS) + [NAV_RESTART_ROW]
@@ -999,7 +1056,11 @@ async def _step_prompt_entry_when_context_missing(db: Session, wa_service, conv:
     should_prompt = True
     if conv.last_branch_prompt_at:
         elapsed = (now - conv.last_branch_prompt_at.replace(tzinfo=timezone.utc)).total_seconds() if conv.last_branch_prompt_at.tzinfo else (datetime.utcnow() - conv.last_branch_prompt_at).total_seconds()
-        if elapsed < 180 and not (message_type == "text" and any(k in text.lower() for k in ["hola", "menu", "opciones", "buenas", "ayuda", "1", "2", "3", "4"])):
+        # Los números cuentan solo como respuesta suelta ("2", "opción 3"), no como cualquier
+        # dígito dentro de una frase ("quiero 12 bowls") — eso reabría el menú sin motivo.
+        lowered = text.lower() if message_type == "text" else ""
+        wants_menu = any(k in lowered for k in ["hola", "menu", "opciones", "buenas", "ayuda"]) or lowered.strip() in {"1", "2", "3", "4"}
+        if elapsed < 180 and not wants_menu:
             should_prompt = False
 
     if should_prompt:
@@ -1133,6 +1194,11 @@ async def _process_auto_flow_background_locked(conv_id: int, contact_id: int, ph
         if not conv:
             return
 
+        # -1. Sesión vencida: si el cliente vuelve después de BOT_SESSION_TIMEOUT_HOURS sin
+        #     mensajes, se parte de cero (ver _step_expire_stale_session). Va antes de todo:
+        #     un "hola" dos semanas después no debe caer en la sucursal ni en el pedido viejo.
+        await _step_expire_stale_session(db, conv, incoming_msg)
+
         # 0. Pedido estructurado enviado desde la Web App de Menú (/menu). Ya trae sucursal,
         #    entrega y pago resueltos (ver POST /api/orders/public), así que respondemos con un mensaje
         #    cálido y empático según el tipo de entrega (Delivery o Retiro) y pausamos el bot para que
@@ -1199,7 +1265,7 @@ async def _process_auto_flow_background_locked(conv_id: int, contact_id: int, ph
             return
 
         if conv.awaiting_chat_order_description and message_type == "text" and text.strip():
-            await _step_handle_chat_order_description(db, wa_service, conv, contact, phone)
+            await _step_handle_chat_order_description(db, wa_service, conv, contact, phone, text)
             return
 
         # 2.65 "Ver horarios" / "Ver ubicación" desde la lista "¿algo más?" tras el Menú Digital.
@@ -1314,7 +1380,7 @@ async def _process_auto_flow_background_locked(conv_id: int, contact_id: int, ph
         # libre (nunca un botón sin coincidencia) y solo si el respaldo está encendido y sabe
         # responder con certeza; si no, cae exactamente igual que antes al bloque 9.
         if message_type == "text" and text.strip():
-            faq_answer = await answer_faq(text)
+            faq_answer = await answer_faq(text, db=db)
             if faq_answer:
                 await _send_plain_text_message(db, wa_service, conv, contact, phone, faq_answer)
                 return

@@ -18,6 +18,7 @@ from routers import (
     conversations,
     messages,
     orders,
+    bot_stats,
     media,
     websocket,
     webhooks,
@@ -182,6 +183,7 @@ app.include_router(payments.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router, prefix=settings.API_V1_STR)
 app.include_router(webhooks.router)
 app.include_router(bot_flows.router, prefix=settings.API_V1_STR)
+app.include_router(bot_stats.router, prefix=settings.API_V1_STR)
 app.include_router(inventory.router, prefix=settings.API_V1_STR)
 app.include_router(receiving.router, prefix=settings.API_V1_STR)
 app.include_router(internal_chat.router, prefix=settings.API_V1_STR)

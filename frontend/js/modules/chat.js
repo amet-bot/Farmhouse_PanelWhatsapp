@@ -566,6 +566,7 @@ const chatModule = {
 
   renderOrderPanel() {
     if (!this.currentConversation) return;
+    this.refreshYappyAction();
 
     const conv = this.currentConversation;
     const contact = conv.contact || {};
@@ -661,13 +662,19 @@ const chatModule = {
     if (orderBranch) orderBranch.textContent = branch.name || '-';
     if (orderType) {
       const source = itemsData && itemsData.source;
-      orderType.textContent = (source && String(source).startsWith('menu_web')) ? '🌐 Menú Digital' : '💬 WhatsApp';
+      orderType.textContent = (source && String(source).startsWith('menu_web')) ? '🌐 Menú Digital' : (source === 'chat' ? '💬 Pedido por chat' : '💬 WhatsApp');
     }
     if (orderStatus) orderStatus.textContent = STATUS_LABELS[current.status] || current.status;
 
     const items = (itemsData && itemsData.items) || [];
     if (orderItemsWrap && orderItemsCount && orderItemsList) {
-      if (items.length > 0) {
+      if (items.length === 0 && itemsData && itemsData.description) {
+        // Pedido armado por chat ("Cobrar con Yappy"): no hay ítems del catálogo, solo lo que
+        // pidió el cliente en sus palabras.
+        orderItemsWrap.hidden = false;
+        orderItemsCount.textContent = 'Pedido por chat';
+        orderItemsList.innerHTML = `<div class="order-item-row"><div class="order-item-addons">${utils.escapeHtml(itemsData.description)}</div></div>`;
+      } else if (items.length > 0) {
         orderItemsWrap.hidden = false;
         orderItemsCount.textContent = `${items.length} producto${items.length === 1 ? '' : 's'}`;
         orderItemsList.innerHTML = items.map((it) => `
@@ -985,6 +992,62 @@ const chatModule = {
   openTransferModal() {
     if (!this.currentConversation) return;
     document.getElementById('modalTransferBranch').classList.add('active');
+  },
+
+  // "Cobrar con Yappy": para los pedidos que el cliente describe por chat. La persona pone el
+  // total, se crea el pedido y el cliente recibe el mismo botón de pago que en el menú web.
+  // El botón solo se muestra si Yappy está activo (GET /payments/yappy/config), una vez.
+  async refreshYappyAction() {
+    const btn = document.getElementById('btnActionYappy');
+    if (!btn) return;
+    if (this._yappyEnabled === undefined) {
+      try {
+        const cfg = await fetch('/api/payments/yappy/config').then((r) => r.json());
+        this._yappyEnabled = !!(cfg && cfg.enabled);
+      } catch (e) { this._yappyEnabled = false; }
+    }
+    btn.hidden = !this._yappyEnabled;
+  },
+
+  openYappyChargeModal() {
+    if (!this.currentConversation) return;
+    const conv = this.currentConversation;
+    if (!conv.branch_id) {
+      utils.showToast('Asigna primero una sucursal a la conversación.', 'info');
+      return;
+    }
+    document.getElementById('yappyChargeTotal').value = '';
+    document.getElementById('yappyChargeDescription').value = conv.chat_order_description || '';
+    document.getElementById('modalYappyCharge').classList.add('active');
+    setTimeout(() => document.getElementById('yappyChargeTotal').focus(), 50);
+  },
+
+  async confirmYappyCharge() {
+    if (!this.currentConversation) return;
+    const total = parseFloat(document.getElementById('yappyChargeTotal').value);
+    const description = document.getElementById('yappyChargeDescription').value.trim();
+    if (!(total > 0)) {
+      utils.showToast('Escribe el total a cobrar.', 'error');
+      return;
+    }
+    const btn = document.getElementById('btnConfirmYappyCharge');
+    btn.disabled = true;
+    try {
+      const res = await api.post('/payments/yappy/charge', {
+        conversation_id: this.currentConversation.id, total: total.toFixed(2), description,
+      });
+      document.getElementById('modalYappyCharge').classList.remove('active');
+      if (res.message_status === 'failed') {
+        utils.showToast(`Pedido ${res.order_code} creado, pero el botón no se pudo enviar por WhatsApp.`, 'error');
+      } else {
+        utils.showToast(`✓ Botón de Yappy enviado (pedido ${res.order_code}, $${res.total}).`, 'success');
+      }
+      await this.loadConversation(this.currentConversation.id);
+    } catch (e) {
+      utils.showToast(`No se pudo cobrar con Yappy: ${e.message}`, 'error');
+    } finally {
+      btn.disabled = false;
+    }
   },
 
   async confirmTransfer() {

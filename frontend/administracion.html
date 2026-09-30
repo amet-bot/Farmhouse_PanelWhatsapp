@@ -113,7 +113,7 @@
         <div class="device-table-wrap">
           <table class="device-table">
             <thead>
-              <tr><th>Nombre</th><th>Código</th><th>Dirección</th><th>Delivery</th><th>Estado</th><th>Acción</th></tr>
+              <tr><th>Nombre</th><th>Código</th><th>Dirección</th><th>Delivery</th><th>Horario</th><th>Estado</th><th>Acción</th></tr>
             </thead>
             <tbody id="branchTableBody"></tbody>
           </table>
@@ -375,6 +375,10 @@
             <input id="addBranchColor" type="color" class="modal-input" value="#16a34a" style="height:42px;padding:4px" />
           </div>
           <div class="admin-checkbox-row">
+            <div class="form-row" style="display:flex;gap:12px">
+              <div class="form-group" style="flex:1"><label for="addBranchOpens">Abre</label><input type="time" id="addBranchOpens" placeholder="10:30" /></div>
+              <div class="form-group" style="flex:1"><label for="addBranchCloses">Cierra</label><input type="time" id="addBranchCloses" placeholder="21:30" /></div>
+            </div>
             <label><input type="checkbox" id="addBranchDelivery" checked /> Acepta delivery</label>
           </div>
           <div id="addBranchError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
@@ -415,6 +419,10 @@
             <input id="editBranchColor" type="color" class="modal-input" style="height:42px;padding:4px" />
           </div>
           <div class="admin-checkbox-row">
+            <div class="form-row" style="display:flex;gap:12px">
+              <div class="form-group" style="flex:1"><label for="editBranchOpens">Abre</label><input type="time" id="editBranchOpens" placeholder="10:30" /></div>
+              <div class="form-group" style="flex:1"><label for="editBranchCloses">Cierra</label><input type="time" id="editBranchCloses" placeholder="21:30" /></div>
+            </div>
             <label><input type="checkbox" id="editBranchDelivery" /> Acepta delivery</label>
           </div>
           <div id="editBranchError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
@@ -437,6 +445,6 @@
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
   <script src="js/modules/users.js?v=4.0.1"></script>
-  <script src="js/modules/administracion.js?v=4.0.1"></script>
+  <script src="js/modules/administracion.js?v=4.0.2"></script>
 </body>
 </html>

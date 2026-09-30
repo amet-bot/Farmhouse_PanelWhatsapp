@@ -16,7 +16,7 @@
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
   <!-- Componente propio de la pestaña "Flujo visual" (contenido real + mapa parcial del bot). -->
-  <link rel="stylesheet" href="css/flow-editor.css?v=4.0.2">
+  <link rel="stylesheet" href="css/flow-editor.css?v=4.1.0">
   <!-- Tipografía de marca (ABC Ginto / PP Eiko), después de style.css para ganarle en cascada
        sin tocar esa regla compartida por el resto de la suite. Ver el comentario del archivo. -->
   <link rel="stylesheet" href="css/chat-brand-fonts.css?v=1.0.0">
@@ -330,6 +330,7 @@
               <button class="btn-quick-act" id="btnActionMenu"><i data-lucide="book-open"></i> Enviar menú digital</button>
               <button class="btn-quick-act" id="btnActionStatus"><i data-lucide="check-square"></i> Consulta de pedido</button>
               <button class="btn-quick-act" id="btnActionTransfer"><i data-lucide="repeat"></i> Transferir conversación</button>
+              <button class="btn-quick-act" id="btnActionYappy" hidden><i data-lucide="smartphone"></i> Cobrar con Yappy</button>
             </div>
           </div>
         </aside>
@@ -803,6 +804,30 @@
     </div>
   </div>
 
+  <!-- Modal: Cobrar con Yappy (pedidos por chat): crea el pedido y manda el botón de pago -->
+  <div class="modal-backdrop" id="modalYappyCharge">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="smartphone"></i> Cobrar con Yappy</h3>
+          <span class="modal-subtitle">Se crea el pedido y el cliente recibe el botón de pago por WhatsApp</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalYappyCharge" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label class="modal-label" for="yappyChargeTotal">Total a cobrar (con delivery si aplica):</label>
+        <input id="yappyChargeTotal" class="modal-input" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Ej: 18.50" />
+        <label class="modal-label" style="margin-top:10px" for="yappyChargeDescription">Qué pidió (queda en el pedido):</label>
+        <input id="yappyChargeDescription" class="modal-input" maxlength="500" placeholder="Ej: 2 bowls de pollo, 1 smoothie" />
+        <p style="font-size:12px;color:var(--text-muted);margin:10px 0 0">El pedido se marca como pagado solo cuando Yappy confirma el pago.</p>
+      </div>
+      <div class="modal-footer" style="display:flex;gap:10px">
+        <button type="button" class="btn-cancel" id="btnCancelYappyCharge" style="flex:1">Cancelar</button>
+        <button type="button" class="btn-primary" id="btnConfirmYappyCharge" style="flex:1">Enviar botón de pago</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 9. Modal: Dispositivo No Autorizado (Bloqueo 403) -->
   <div class="modal-backdrop" id="modalDeviceForbidden">
     <div class="modal-card modal-sm">
@@ -860,10 +885,10 @@
   <script src="js/modules/devices.js?v=4.0.1"></script>
   <script src="js/modules/contacts.js?v=1.0.0"></script>
   <script src="js/modules/conversations.js?v=4.5.0"></script>
-  <script src="js/modules/chat.js?v=4.2.1"></script>
+  <script src="js/modules/chat.js?v=4.3.0"></script>
   <script src="js/modules/push.js?v=4.0.0"></script>
   <script src="js/modules/notifications.js?v=4.0.0"></script>
-  <script src="js/modules/flow_editor.js?v=4.0.0"></script>
+  <script src="js/modules/flow_editor.js?v=4.1.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
   <script src="js/app.js?v=4.1.2"></script>

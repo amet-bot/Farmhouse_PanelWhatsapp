@@ -3,6 +3,10 @@ from typing import List, Optional
 from services.branch_matcher import normalize_text
 
 DELIVERY_KEYWORDS = ["delivery", "domicilio", "envio", "traer", "llevar", "a mi casa"]
+# En Panamá "para llevar" es comida para retirar en el local (takeout), NO delivery. Como
+# "llevar" también aparece en las palabras de delivery ("me lo pueden llevar"), estas frases se
+# revisan ANTES que las de delivery en las dos funciones de abajo.
+TAKEOUT_PHRASES = ["para llevar", "pa llevar", "pa' llevar", "para recoger", "para retirar"]
 PICKUP_KEYWORDS = [
     "retiro",
     "recoger",
@@ -29,6 +33,8 @@ def match_delivery_type_text(customer_text: str) -> Optional[str]:
     if not customer_text:
         return None
     normalized = normalize_text(customer_text)
+    if any(kw in normalized for kw in TAKEOUT_PHRASES):
+        return "pickup"
     if any(kw in normalized for kw in DELIVERY_KEYWORDS):
         return "delivery"
     if any(kw in normalized for kw in PICKUP_KEYWORDS):
@@ -142,6 +148,15 @@ def match_main_option(customer_text: str) -> Optional[str]:
 
     if any(kw in normalized for kw in MAIN_OPTION_CORPORATE_KEYWORDS if kw != "4"):
         return "corporate"
+    # "para llevar" gana antes que cualquier otra cosa (ver TAKEOUT_PHRASES).
+    if any(kw in normalized for kw in TAKEOUT_PHRASES):
+        return "pickup"
+    # "¿cuál es el horario de delivery?" pregunta por delivery, no por visitar la sucursal: si
+    # el mensaje nombra delivery o retiro, esa intención manda sobre las palabras de "visitar"
+    # (horario, ubicación...), que solo aplican cuando no se dijo cómo se quiere el pedido.
+    delivery_or_pickup = match_delivery_type_text(normalized)
+    if delivery_or_pickup and any(kw in normalized for kw in ("horario", "ubicacion", "direccion", "donde")):
+        return delivery_or_pickup
     if any(kw in normalized for kw in MAIN_OPTION_VISIT_KEYWORDS if kw != "1"):
         return "visit"
     if any(kw in normalized for kw in MAIN_OPTION_PICKUP_KEYWORDS if kw != "3"):

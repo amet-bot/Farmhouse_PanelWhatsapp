@@ -203,6 +203,25 @@ const flowEditorModule = (function () {
     '</svg>';
 
   function nodeById(id) { return graph.nodes.find(function (n) { return n.id === id; }) || null; }
+
+  // Embudo de los últimos 30 días (GET /bot/funnel): se muestra en la barra del editor para
+  // ver en qué paso se pierden los clientes antes de decidir qué texto o ruta cambiar.
+  async function loadFunnel() {
+    const el = document.getElementById('flowFunnel');
+    if (!el) return;
+    try {
+      const f = await api.get('/bot/funnel?days=30');
+      const steps = [
+        ['conversaciones', f.started], ['eligieron', f.chose_option], ['sucursal', f.with_branch],
+        ['menú', f.menu_sent], ['pedidos', f.orders], ['pagados', f.paid], ['a persona', f.handoffs],
+      ];
+      el.innerHTML = '<span class="flow-funnel-label">30 días</span>' + steps.map(function (s) {
+        return '<span><b>' + Number(s[1] || 0) + '</b> ' + s[0] + '</span>';
+      }).join('<i>›</i>');
+    } catch (e) {
+      el.innerHTML = '';
+    }
+  }
   function connsFrom(id, port) { return graph.conns.filter(function (c) { return c.from === id && (port === undefined || c.fromPort === port); }); }
 
   // ---------------------------------------------------------------- montaje del shell (una sola vez)
@@ -212,6 +231,7 @@ const flowEditorModule = (function () {
     root.innerHTML =
       '<div class="flow-toolbar">' +
         '<span class="flow-stats"><span><b id="flowStatNodes">0</b> nodos</span><span><b id="flowStatConns">0</b> conexiones</span></span>' +
+        '<span class="flow-funnel" id="flowFunnel" title="Embudo del bot en los últimos 30 días: cuántas conversaciones entran y hasta dónde llegan"></span>' +
         '<span class="flow-dirty-flag" id="flowDirtyFlag"><span class="dot"></span>Sin guardar</span>' +
         '<span class="flow-layout-group" role="group" aria-label="Organizar el diagrama">' +
           '<button type="button" class="btn-flow-layout" id="btnLayoutVertical" title="Organizar en vertical: de arriba hacia abajo">' +
@@ -386,6 +406,7 @@ const flowEditorModule = (function () {
 
     try {
       const data = await api.get(`/bot-flows/${key}`);
+      loadFunnel();
       graph = data.graph && Array.isArray(data.graph.nodes) ? data.graph : { nodes: [], conns: [] };
       originalGraphJson = JSON.stringify(graph);
       const subtitle = document.getElementById('flowEditorSubtitle');

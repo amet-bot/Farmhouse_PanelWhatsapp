@@ -38,6 +38,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnActionTransfer')?.addEventListener('click', () => {
     if (requireOpenConversation()) chatModule.openTransferModal();
   });
+  document.getElementById('btnActionYappy')?.addEventListener('click', () => {
+    if (requireOpenConversation()) chatModule.openYappyChargeModal();
+  });
+  const closeYappy = () => document.getElementById('modalYappyCharge')?.classList.remove('active');
+  document.getElementById('closeModalYappyCharge')?.addEventListener('click', closeYappy);
+  document.getElementById('btnCancelYappyCharge')?.addEventListener('click', closeYappy);
+  document.getElementById('btnConfirmYappyCharge')?.addEventListener('click', () => chatModule.confirmYappyCharge());
 
   // 2.1 Menú lateral como panel deslizante en celular (hamburguesa + fondo + botón cerrar)
   const sidebarEl = document.querySelector('.sidebar');

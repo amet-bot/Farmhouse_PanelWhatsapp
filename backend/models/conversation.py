@@ -45,6 +45,16 @@ class Conversation(Base):
     # pantalla). Junto con needs_reminder, permite avisarle al panel "recuerda responder" si
     # el último mensaje es del cliente y nadie la ha abierto desde que llegó.
     last_opened_at = Column(DateTime, nullable=True)
+    # Última vez que el bot le pasó esta conversación a una persona (pidió hablar con alguien,
+    # eligió pago, mandó un pedido del menú web...). Con handoff_escalated_at permite avisar a
+    # los encargados si nadie le respondió al cliente en HANDOFF_ESCALATION_MINUTES (ver
+    # services/bot_followup.py). Un agente que contesta lo "apaga" solo: se compara contra el
+    # último mensaje de agente.
+    bot_handoff_at = Column(DateTime, nullable=True)
+    handoff_escalated_at = Column(DateTime, nullable=True)
+    # Lo que el cliente escribió al "Pedir y pagar por chat", para que la persona que continúa
+    # lo vea en el resumen del handoff sin tener que buscarlo en el historial.
+    chat_order_description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
     deleted_at = Column(DateTime, nullable=True)

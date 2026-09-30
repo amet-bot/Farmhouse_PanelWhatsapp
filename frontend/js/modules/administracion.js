@@ -297,7 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderBranchTable() {
     const tbody = $('branchTableBody');
     if (!branchesList.length) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">No hay sucursales registradas.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">No hay sucursales registradas.</td></tr>`;
       return;
     }
     tbody.innerHTML = branchesList.map((b) => {
@@ -308,6 +308,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td><span class="tag-type">${esc(b.code)}</span></td>
           <td>${esc(b.address || '-')}</td>
           <td>${b.accepts_delivery ? 'Sí' : 'No'}</td>
+          <td>${esc(b.opens_at || '10:30')} – ${esc(b.closes_at || '21:30')}</td>
           <td>${statusBadge}</td>
           <td style="white-space:nowrap">
             <button class="btn-sm-action" onclick="adminModule.openEditBranch(${b.id})" title="Editar"><i data-lucide="pencil"></i> Editar</button>
@@ -328,6 +329,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('editBranchAddress').value = b.address || '';
     $('editBranchColor').value = b.color || '#16a34a';
     $('editBranchDelivery').checked = !!b.accepts_delivery;
+    $('editBranchOpens').value = b.opens_at || '';
+    $('editBranchCloses').value = b.closes_at || '';
     $('editBranchError').style.display = 'none';
     $('modalEditBranch').classList.add('active');
   };
@@ -361,6 +364,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       address: $('addBranchAddress').value.trim() || null,
       color: $('addBranchColor').value,
       accepts_delivery: $('addBranchDelivery').checked,
+      opens_at: $('addBranchOpens').value || null,
+      closes_at: $('addBranchCloses').value || null,
     };
     await withSubmitBusy(e.target, async () => {
       try {
@@ -386,6 +391,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       address: $('editBranchAddress').value.trim() || null,
       color: $('editBranchColor').value,
       accepts_delivery: $('editBranchDelivery').checked,
+      opens_at: $('editBranchOpens').value || null,
+      closes_at: $('editBranchCloses').value || null,
     };
     await withSubmitBusy(e.target, async () => {
       try {

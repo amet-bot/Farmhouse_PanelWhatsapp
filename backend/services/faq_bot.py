@@ -34,9 +34,17 @@ _BRANCH_LINES = "\n".join(
     for info in BRANCH_VISIT_INFO.values()
 )
 
-# TODO(Sol/equipo Farmhouse): agregar aquí info adicional que el bot deba conocer para
-# preguntas frecuentes (platillos con alérgenos, política de cancelación, si aceptan mascotas,
-# wifi, parqueo, etc.). Todo lo que NO esté escrito aquí, el bot debe responder que no sabe.
+# La información adicional (alérgenos, parqueo, mascotas, wifi, política de cancelación...) NO
+# vive aquí: se edita desde el panel, en Flujo Visual -> tarjeta "Datos para preguntas
+# frecuentes (IA)" (nodo `faq_context`, ver migración 053). Lo que no esté escrito ni aquí ni
+# ahí, el bot responde que no sabe.
+FAQ_CONTEXT_NODE_ID = "faq_context"
+FAQ_CONTEXT_DEFAULT = (
+    "Escribe aquí, en frases cortas, lo que el bot puede responder por su cuenta. Ejemplos:\n"
+    "- Parqueo: ...\n- Wifi: ...\n- Mascotas: ...\n- Alérgenos / opciones veganas: ...\n"
+    "- Política de cancelación: ...\n- Reservas: ..."
+)
+
 RESTAURANT_CONTEXT = f"""Eres el asistente de WhatsApp de Farmhouse, un restaurante en Panamá con estas sucursales:
 {_BRANCH_LINES}
 
@@ -45,7 +53,16 @@ Formas de pago: ACH/Transferencia, Tarjeta, Yappy.
 El menú completo se comparte por un enlace del Menú Digital dentro del chat, no lo describas de memoria.
 """
 
-SYSTEM_PROMPT = f"""{RESTAURANT_CONTEXT}
+def build_system_prompt(extra_context: str = "") -> str:
+    extra = (extra_context or "").strip()
+    # El texto de ejemplo de la tarjeta no es información real: se ignora hasta que lo editen.
+    if extra == FAQ_CONTEXT_DEFAULT.strip() or extra.startswith("Escribe aquí"):
+        extra = ""
+    context = RESTAURANT_CONTEXT + (f"\nInformación adicional del restaurante:\n{extra}\n" if extra else "")
+    return SYSTEM_PROMPT_TEMPLATE.replace("{CONTEXT}", context)
+
+
+SYSTEM_PROMPT_TEMPLATE = f"""{{CONTEXT}}
 Un cliente te escribió una pregunta por WhatsApp que no coincidió con ninguna opción de botón del bot. Respóndela SOLO si la puedes contestar con la información de arriba.
 
 Reglas estrictas:
@@ -54,8 +71,10 @@ Reglas estrictas:
 - Si respondes, hazlo en 1-3 frases cortas, en español de Panamá, tono cálido y directo, sin encabezados ni markdown (es un mensaje de WhatsApp).
 - No repitas el menú de opciones del bot ni pidas que elija un botón."""
 
+SYSTEM_PROMPT = build_system_prompt()
 
-async def answer_faq(question: str) -> Optional[str]:
+
+async def answer_faq(question: str, db=None) -> Optional[str]:
     """
     Intenta responder `question` con la info de RESTAURANT_CONTEXT vía la API de Claude.
     Devuelve el texto de la respuesta, o None si: el respaldo está apagado (FAQ_BOT_ENABLED),
@@ -71,6 +90,15 @@ async def answer_faq(question: str) -> Optional[str]:
     if not question:
         return None
 
+    extra = ""
+    if db is not None:
+        try:
+            from services.flow_content import get_node_text
+            extra = get_node_text(db, FAQ_CONTEXT_NODE_ID, "")
+        except Exception:
+            extra = ""
+    system_prompt = build_system_prompt(extra)
+
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
             response = await client.post(
@@ -83,7 +111,7 @@ async def answer_faq(question: str) -> Optional[str]:
                 json={
                     "model": settings.ANTHROPIC_MODEL,
                     "max_tokens": 300,
-                    "system": SYSTEM_PROMPT,
+                    "system": system_prompt,
                     "messages": [{"role": "user", "content": question}],
                 },
             )
