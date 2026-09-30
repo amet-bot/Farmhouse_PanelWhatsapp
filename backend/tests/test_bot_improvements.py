@@ -105,7 +105,7 @@ def test_aviso_de_cerrado_antes_del_menu(client, clayton_branch, db_session, mon
     cerrado = next((i for i, c in enumerate(contenidos) if "estamos cerrados" in c), None)
     menu = next((i for i, c in enumerate(contenidos) if "/menu?" in c), None)
     assert cerrado is not None and menu is not None and cerrado < menu
-    assert "10:30 AM" in contenidos[cerrado]
+    assert "8:00 AM" in contenidos[cerrado]
 
 
 def test_sucursal_con_horario_propio_y_horas_de_corte():

@@ -345,7 +345,7 @@ const chatModule = {
       // sesión del bot (el pedido se asocia por teléfono).
       menu: `Claro, te comparto nuestro menú para que veas todos los productos disponibles 😊\n${window.location.origin}/menu`,
       order: '¿Me confirmas tu nombre o número de pedido para revisar el estado?',
-      hours: 'Nuestro horario es de Lunes a Domingo, 10:30 AM a 9:30 PM. ¿Te comparto la dirección de la sucursal más cercana?',
+      hours: 'Nuestro horario es de Lunes a Domingo, 8:00 AM a 9:30 PM (Vía Porras y Obarrio abren desde las 6:00 AM). ¿Te comparto la dirección de la sucursal más cercana?',
       human: 'Con gusto te comunico con un asesor para que te ayude personalmente.',
     };
     const text = templates[kind];

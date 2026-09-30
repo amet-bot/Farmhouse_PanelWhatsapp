@@ -11,6 +11,7 @@ constante de módulo más abajo.
 from typing import Optional, TYPE_CHECKING
 
 from services.flow_content import get_node_text
+from services.branch_hours import hours_label
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -206,31 +207,31 @@ BRANCH_VISIT_INFO = {
     "CDE": {
         "name": "Costa del Este",
         "address": "Torre MMG, Planta Baja, Costa del Este",
-        "hours": "Lunes a Domingo: 10:30 AM - 9:30 PM",
+        "hours": "Lunes a Domingo: 8:00 AM - 9:30 PM",
         "maps_url": "https://maps.google.com/?q=9.0083064,-79.4773394"
     },
     "SF": {
         "name": "San Francisco",
         "address": "Plaza 76, San Francisco",
-        "hours": "Lunes a Domingo: 10:30 AM - 9:30 PM",
+        "hours": "Lunes a Domingo: 8:00 AM - 9:30 PM",
         "maps_url": "https://maps.google.com/?q=8.9912804,-79.5031756"
     },
     "CLY": {
         "name": "Clayton",
         "address": "Clayton Mall, Local #4",
-        "hours": "Lunes a Domingo: 10:30 AM - 9:30 PM",
+        "hours": "Lunes a Domingo: 8:00 AM - 9:30 PM",
         "maps_url": "https://maps.google.com/?q=9.003859,-79.573043"
     },
     "OBR": {
         "name": "Obarrio",
         "address": "Adison House, Calle Abel Bravo, Obarrio",
-        "hours": "Lunes a Domingo: 10:30 AM - 9:30 PM",
+        "hours": "Lunes a Domingo: 6:00 AM - 9:30 PM",
         "maps_url": "https://maps.google.com/?q=8.9863531,-79.5196357"
     },
     "VP": {
         "name": "Vía Porras",
         "address": "Vía Porras, Parque Omar",
-        "hours": "Lunes a Domingo: 10:30 AM - 9:30 PM",
+        "hours": "Lunes a Domingo: 6:00 AM - 9:30 PM",
         "maps_url": "https://maps.google.com/?q=8.9967623,-79.5065669"
     }
 }
@@ -242,42 +243,49 @@ MANAGER_HELP_BUTTONS = [
     {"id": "manager_no", "title": "Nos vemos pronto"},
 ]
 
-def get_branch_info_message(branch_name: str, branch_code: str, opening_line: str) -> str:
-    """Arma un único mensaje con la dirección, el horario y el link de Maps de una sucursal (Punto de venta físico)."""
-    info = BRANCH_VISIT_INFO.get(branch_code)
+def get_branch_info_message(branch_name: str, branch_code: str, opening_line: str, branch=None) -> str:
+    """Arma un único mensaje con la dirección, el horario y el link de Maps de una sucursal.
+    Con `branch` (fila de la tabla) el horario sale de ahí (editable en Administración); la
+    dirección y el mapa siguen viniendo de BRANCH_VISIT_INFO, o de la tabla si no está aquí."""
+    info = BRANCH_VISIT_INFO.get(branch_code) or {}
     lines = [opening_line]
-    if info:
-        if info.get("address"):
-            lines.append(f"📍 {info['address']}")
-        if info.get("hours"):
-            lines.append(f"🕒 {info['hours']}")
-        if info.get("maps_url"):
-            lines.append(f"🗺️ Ubícanos en Google Maps: {info['maps_url']}")
+    address = info.get("address") or (getattr(branch, "address", None) if branch is not None else None)
+    if address:
+        lines.append(f"📍 {address}")
+    if branch is not None:
+        lines.append(f"🕒 {hours_label(branch)}")
+    elif info.get("hours"):
+        lines.append(f"🕒 {info['hours']}")
+    maps_url = info.get("maps_url")
+    if not maps_url and branch is not None and getattr(branch, "latitude", None) and getattr(branch, "longitude", None):
+        maps_url = f"https://maps.google.com/?q={float(branch.latitude)},{float(branch.longitude)}"
+    if maps_url:
+        lines.append(f"🗺️ Ubícanos en Google Maps: {maps_url}")
     return "\n".join(lines)
 
-def get_branch_visit_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None) -> str:
+def get_branch_visit_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None, branch=None) -> str:
     fallback_opening = f"¡Excelente! Te esperamos en la sucursal de *{branch_name}*."
     opening = get_node_text(db, "branch_visit_opening", fallback_opening, sucursal=branch_name)
-    return get_branch_info_message(branch_name, branch_code, opening)
+    return get_branch_info_message(branch_name, branch_code, opening, branch=branch)
 
-def get_branch_pickup_info_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None) -> str:
+def get_branch_pickup_info_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None, branch=None) -> str:
     fallback_opening = f"¡Perfecto! 🛍️ Retirarás tu pedido en nuestra sucursal de *{branch_name}*."
     opening = get_node_text(db, "branch_pickup_opening", fallback_opening, sucursal=branch_name)
-    return get_branch_info_message(branch_name, branch_code, opening)
+    return get_branch_info_message(branch_name, branch_code, opening, branch=branch)
 
-def get_branch_delivery_info_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None) -> str:
+def get_branch_delivery_info_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None, branch=None) -> str:
     fallback_opening = f"¡Excelente! 🛵 Tu pedido a domicilio saldrá de nuestra sucursal de *{branch_name}*."
     opening = get_node_text(db, "branch_delivery_opening", fallback_opening, sucursal=branch_name)
-    return get_branch_info_message(branch_name, branch_code, opening)
+    return get_branch_info_message(branch_name, branch_code, opening, branch=branch)
 
 # Respuesta a "Ver horarios" / "Ver ubicación" en la lista "¿algo más?" tras el Menú Digital:
 # mismo contenido para ambas preguntas (dirección + horario + maps ya vienen juntos), con una
 # apertura neutral en vez de las de arriba (que dan por hecho que el cliente ya va a visitar o
 # retirar en ese momento).
-def get_branch_quick_info_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None) -> str:
+def get_branch_quick_info_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None, branch=None) -> str:
     fallback_opening = f"Esto es lo que tenemos de nuestra sucursal de *{branch_name}*:"
     opening = get_node_text(db, "branch_quick_info_opening", fallback_opening, sucursal=branch_name)
-    return get_branch_info_message(branch_name, branch_code, opening)
+    return get_branch_info_message(branch_name, branch_code, opening, branch=branch)
 
 # Cierre cálido tras mandar el botón del Menú Digital en delivery/pickup: deja la puerta abierta
 # sin forzar otra decisión de botones (el bot ya detecta por texto libre si piden un humano).
@@ -385,6 +393,40 @@ DELIVERY_OUT_OF_RANGE_MESSAGE = (
     "llega hasta {max_km} km 😔 Si quieres, puedes pedir para retirar en la sucursal que te "
     "quede mejor:"
 )
+
+# Datos de entrega tras la ubicación (ver _handle_delivery_intake_step en routers/webhooks.py):
+# la ubicación en palabras (calle y barrio, por OpenStreetMap), y dos preguntas: qué tipo de
+# lugar es (PH, casa o local) y el nombre/referencia. Al motorizado le sirve más "PH Torre Mar,
+# apto 5B, Calle 50" que un pin suelto.
+LOCATION_DESCRIBED_MESSAGE = "Te ubico en *{lugar}* 🗺️"
+DELIVERY_PLACE_QUESTION = "Para que el motorizado llegue sin vueltas, ¿a qué tipo de lugar te llevamos el pedido?"
+DELIVERY_PLACE_ROWS = [
+    {"id": "place_ph", "title": "PH / edificio"},
+    {"id": "place_casa", "title": "Casa"},
+    {"id": "place_local", "title": "Local / oficina"},
+]
+DELIVERY_PLACE_LABELS = {"ph": "PH / edificio", "casa": "Casa", "local": "Local / oficina"}
+DELIVERY_REFERENCE_QUESTIONS = {
+    "ph": "¿Cómo se llama el PH y cuál es el apartamento? Por ejemplo: PH Torre Mar, apto 5B.",
+    "casa": "¿Número de casa y alguna referencia? Por ejemplo: casa 12, portón negro, frente al parque.",
+    "local": "¿Cómo se llama el local u oficina y en qué piso está? Por ejemplo: Oficinas Delta, piso 3.",
+}
+DELIVERY_DETAILS_SAVED_MESSAGE = "¡Anotado! 📝 {tipo}: {referencia}. Ahora sí, arma tu pedido:"
+
+
+def match_delivery_place(text: Optional[str]) -> Optional[str]:
+    """"ph" / "casa" / "local" a partir de texto libre; None si no se entiende."""
+    from services.branch_matcher import normalize_text
+    t = normalize_text(text or "")
+    if not t:
+        return None
+    if any(k in t for k in ("ph", "edificio", "torre", "apartamento", "apto", "piso", "condominio")):
+        return "ph"
+    if any(k in t for k in ("casa", "duplex", "residencia")):
+        return "casa"
+    if any(k in t for k in ("local", "oficina", "empresa", "negocio", "plaza", "tienda")):
+        return "local"
+    return None
 
 # Sucursal cerrada en este momento (ver services/branch_hours.py): se manda justo antes del
 # enlace del Menú Digital en delivery/retiro, para que el cliente no arme un pedido esperando

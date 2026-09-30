@@ -55,6 +55,12 @@ class Conversation(Base):
     # Lo que el cliente escribió al "Pedir y pagar por chat", para que la persona que continúa
     # lo vea en el resumen del handoff sin tener que buscarlo en el historial.
     chat_order_description = Column(Text, nullable=True)
+    # Datos de entrega que el bot pregunta tras la ubicación: paso pendiente (1 = tipo de lugar,
+    # 2 = referencia), tipo ("ph"/"casa"/"local") y la referencia escrita por el cliente. Van al
+    # resumen del handoff y se copian al contacto para la próxima vez.
+    delivery_intake_step = Column(Integer, nullable=True)
+    delivery_place_type = Column(String(20), nullable=True)
+    delivery_reference = Column(String(300), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
     deleted_at = Column(DateTime, nullable=True)

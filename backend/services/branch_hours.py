@@ -11,7 +11,9 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 PANAMA_TZ = ZoneInfo("America/Panama")
-DEFAULT_OPENS_AT = "10:30"
+# Horario general de Farmhouse. Vía Porras y Obarrio abren a las 6:00 AM: eso va en la tabla
+# de sucursales (opens_at), no aquí.
+DEFAULT_OPENS_AT = "08:00"
 DEFAULT_CLOSES_AT = "21:30"
 
 
@@ -46,6 +48,12 @@ def is_branch_open(branch, now: Optional[datetime] = None) -> bool:
     if opens <= closes:
         return opens <= current < closes
     return current >= opens or current < closes
+
+
+def hours_label(branch) -> str:
+    """"Lunes a Domingo: 8:00 AM - 9:30 PM", con el horario propio de la sucursal si lo tiene."""
+    opens, closes = branch_schedule(branch)
+    return f"Lunes a Domingo: {format_12h(opens)} - {format_12h(closes)}"
 
 
 def branch_opening_label(branch) -> str:

@@ -26,6 +26,10 @@ def _env(monkeypatch):
     monkeypatch.setattr("routers.webhooks.SessionLocal", TestingSessionLocal)
     monkeypatch.setattr("routers.webhooks.notify_branch_new_message", lambda *a, **k: None)
     monkeypatch.setattr("routers.webhooks.is_branch_open", lambda branch: True)
+    # Sin red en los tests: la ubicación en palabras se simula.
+    async def _fake_geocode(lat, lng):
+        return {"street": "Calle 50", "area": "Obarrio", "place": "", "label": "Calle 50, Obarrio"}
+    monkeypatch.setattr("routers.webhooks.reverse_geocode", _fake_geocode)
 
 
 def _post_location(client, phone, wamid, lat, lng, name=None):
@@ -75,11 +79,23 @@ def test_la_ubicacion_asigna_la_sucursal_mas_cercana_y_sigue_con_el_menu(client,
     conv = _conv(db_session)
     assert conv.branch_id == clayton_branch.id
     contenidos = _outgoing(db_session, conv.id)
-    assert any("Tu sucursal más cercana es *Clayton*" in c and " km" in c for c in contenidos)
+    assert any("Tu sucursal más cercana es *Clayton*" in c and " km" in c and "Calle 50, Obarrio" in c for c in contenidos)
+    assert "¿a qué tipo de lugar" in contenidos[-1]
+    assert conv.delivery_intake_step == 1
+    # Contesta PH y la referencia: recién ahí llega el menú.
+    _post_bot_message(client, PHONE, "wamid.L3b", button_id="place_ph")
+    _post_bot_message(client, PHONE, "wamid.L3c", text="PH Torre Mar, apto 5B")
+    db_session.expire_all()
+    conv = _conv(db_session)
+    assert conv.delivery_intake_step is None and conv.delivery_place_type == "ph" and conv.delivery_reference == "PH Torre Mar, apto 5B"
+    contenidos = _outgoing(db_session, conv.id)
+    assert any("¿Cómo se llama el PH" in c for c in contenidos)
+    assert any("PH / edificio: PH Torre Mar, apto 5B" in c for c in contenidos)
     assert any("/menu?" in c and "branch=CLY" in c for c in contenidos)
     contacto = db_session.query(Contact).filter(Contact.phone == f"+{PHONE}").one()
     assert (float(contacto.latitude), float(contacto.longitude)) == CERCA_DE_CLAYTON
-    entrante = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "incoming").order_by(Message.id.desc()).first()
+    assert (contacto.address, contacto.building_or_house, contacto.address_reference) == ("Calle 50, Obarrio", "PH / edificio", "PH Torre Mar, apto 5B")
+    entrante = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "incoming", Message.content.like("%Ubicaci%")).first()
     assert "maps.google.com" in entrante.content and entrante.media_type is None
 
 

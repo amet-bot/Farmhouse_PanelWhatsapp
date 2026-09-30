@@ -308,7 +308,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td><span class="tag-type">${esc(b.code)}</span></td>
           <td>${esc(b.address || '-')}</td>
           <td>${b.accepts_delivery ? 'Sí' : 'No'}</td>
-          <td>${esc(b.opens_at || '10:30')} – ${esc(b.closes_at || '21:30')}</td>
+          <td>${esc(b.opens_at || '08:00')} – ${esc(b.closes_at || '21:30')}</td>
           <td>${statusBadge}</td>
           <td style="white-space:nowrap">
             <button class="btn-sm-action" onclick="adminModule.openEditBranch(${b.id})" title="Editar"><i data-lucide="pencil"></i> Editar</button>
