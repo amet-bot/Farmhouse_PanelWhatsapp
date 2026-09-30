@@ -27,7 +27,8 @@ def _delivery_payload(**overrides):
 
 def test_delivery_fee_ranges_are_deterministic():
     assert fee_for_distance(Decimal("1.99")) == Decimal("5.00")
-    assert fee_for_distance(Decimal("2.00")) == Decimal("10.00")
+    assert fee_for_distance(Decimal("3.00")) == Decimal("5.00")
+    assert fee_for_distance(Decimal("3.01")) == Decimal("10.00")
     assert fee_for_distance(Decimal("5.00")) == Decimal("10.00")
     assert fee_for_distance(Decimal("5.01")) == Decimal("15.00")
     assert distance_km(9.003859, -79.573043, 9.005, -79.565) < Decimal("2.00")

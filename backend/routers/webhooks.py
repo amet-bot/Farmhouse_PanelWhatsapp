@@ -50,7 +50,9 @@ from services.auto_responses import (
     DELIVERY_LOCATION_REQUEST_BODY, NEAREST_BRANCH_MESSAGE, DELIVERY_MAX_KM, DELIVERY_OUT_OF_RANGE_MESSAGE,
     LOCATION_DESCRIBED_MESSAGE, DELIVERY_PLACE_QUESTION, DELIVERY_PLACE_ROWS, DELIVERY_PLACE_LABELS,
     DELIVERY_REFERENCE_QUESTIONS, DELIVERY_DETAILS_SAVED_MESSAGE, match_delivery_place,
+    DELIVERY_FEE_MESSAGE, PICKUP_LOCATION_REQUEST_BODY, NEAREST_BRANCH_PICKUP_MESSAGE, BRANCH_NEAREST_ROW,
 )
+from services.delivery_geo import fee_for_distance
 from services.geocoding import reverse_geocode
 from services.branch_hours import is_branch_open, branch_opening_label
 from services.delivery_geo import distance_km
@@ -279,7 +281,7 @@ _BRANCH_PROMPT_NODES = {
     "menu_direct": ("branch_selection_menu_direct_body", BRANCH_SELECTION_MENU_DIRECT_BODY),
 }
 
-async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, intro_text: Optional[str] = None, prompt_body: Optional[str] = None, prompt_key: Optional[str] = None) -> None:
+async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, intro_text: Optional[str] = None, prompt_body: Optional[str] = None, prompt_key: Optional[str] = None, origin: Optional[tuple] = None) -> None:
     """Envía (opcionalmente) un mensaje introductorio y luego la lista interactiva de sucursales activas.
     `prompt_key` resuelve el cuerpo del mensaje contra el nodo editable correspondiente (ver
     _BRANCH_PROMPT_NODES); `prompt_body` sigue existiendo para un texto ya resuelto/puntual."""
@@ -296,11 +298,22 @@ async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversatio
     active_branches = db.query(Branch).filter(Branch.active == True).order_by(Branch.name).all()
     if not active_branches:
         return
-    # Se topa a 9 sucursales (no 10) para dejarle siempre un lugar a la fila de "empezar de
-    # nuevo" sin violar el máximo de 10 filas que permite Meta.
-    rows = [{"id": f"branch_{b.id}", "title": b.name[:24], "description": f"Sucursal {b.name}"[:72]} for b in active_branches if b.code != "CAT"][:9]
-    if not rows:
-        rows = [{"id": f"branch_{b.id}", "title": b.name[:24]} for b in active_branches[:9]]
+    # Meta permite 10 filas: se reservan "empezar de nuevo" y, cuando aplica, "la más cercana".
+    candidates = [b for b in active_branches if b.code != "CAT"] or list(active_branches)
+    if origin is not None:
+        # El cliente compartió su ubicación: las sucursales van de la más cercana a la más lejana,
+        # con la distancia a la vista, y él elige (retiro/visita). Sin coordenadas, al final.
+        def _km(b):
+            if b.latitude is None or b.longitude is None or (float(b.latitude) == 0 and float(b.longitude) == 0):
+                return None
+            return float(distance_km(origin[0], origin[1], float(b.latitude), float(b.longitude)))
+        with_km = sorted(((b, _km(b)) for b in candidates), key=lambda t: (t[1] is None, t[1] or 0))
+        rows = [{"id": f"branch_{b.id}", "title": b.name[:24],
+                 "description": (f"A {km:.1f} km de ti" if km is not None else f"Sucursal {b.name}")[:72]} for b, km in with_km][:9]
+    else:
+        rows = [{"id": f"branch_{b.id}", "title": b.name[:24], "description": f"Sucursal {b.name}"[:72]} for b in candidates][:8]
+        if conv.delivery_type in ("delivery", "pickup", "visit"):
+            rows = [dict(BRANCH_NEAREST_ROW)] + rows
     rows = rows + [NAV_RESTART_ROW]
 
     await _send_and_log(
@@ -517,7 +530,10 @@ async def _send_closed_now_notice(db: Session, wa_service, conv: Conversation, c
 async def _send_location_request(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
     """Pide la ubicación con el botón nativo de WhatsApp para recomendar la sucursal más
     cercana (delivery). En el historial queda el texto con un 📍 delante."""
-    body = get_node_text(db, "delivery_location_request", DELIVERY_LOCATION_REQUEST_BODY)
+    if conv.delivery_type == "delivery":
+        body = get_node_text(db, "delivery_location_request", DELIVERY_LOCATION_REQUEST_BODY)
+    else:
+        body = get_node_text(db, "pickup_location_request", PICKUP_LOCATION_REQUEST_BODY)
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
     await _send_and_log(db, wa_service, conv, contact, phone, wa_service.send_location_request(phone, body), f"📍 {body}")
     logger.info(f"[Location] Pedido de ubicación enviado a {mask_phone(phone)} para Conv ID {conv.id}.")
@@ -567,9 +583,20 @@ async def _step_handle_shared_location(db: Session, wa_service, conv: Conversati
         await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key="pickup")
         return
 
+    if not es_delivery:
+        # Retiro o visita: se le dice cuál queda más cerca y elige de la lista, ordenada por
+        # distancia. No se asigna sola: a lo mejor prefiere la que le queda camino al trabajo.
+        fallback = NEAREST_BRANCH_PICKUP_MESSAGE.format(sucursal=branch.name, km=km_text)
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "nearest_branch_pickup_message", fallback, sucursal=branch.name, km=km_text))
+        await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=conv.delivery_type, origin=(latitude, longitude))
+        return
+
     await _assign_conversation_branch(db, conv, branch, f"el cliente compartió su ubicación ({km_text} km)")
     fallback = NEAREST_BRANCH_MESSAGE.format(sucursal=branch.name, km=km_text)
     text = get_node_text(db, "nearest_branch_message", fallback, sucursal=branch.name, km=km_text)
+    tarifa = f"{fee_for_distance(km):.2f}"
+    text += "\n" + get_node_text(db, "delivery_fee_message", DELIVERY_FEE_MESSAGE.format(tarifa=tarifa, km=km_text), tarifa=tarifa, km=km_text)
     # La sucursal se contesta de una; la ubicación en palabras tarda unos segundos (dos
     # consultas a OpenStreetMap) y va en la burbuja siguiente cuando llega.
     await _send_plain_text_message(db, wa_service, conv, contact, phone, text)
@@ -596,9 +623,6 @@ async def _step_handle_shared_location(db: Session, wa_service, conv: Conversati
         await _send_plain_text_message(db, wa_service, conv, contact, phone, text)
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
 
-    if not es_delivery:
-        await _send_branch_welcome_and_menu(db, wa_service, conv, contact, phone)
-        return
     # Delivery: antes del menú, ¿PH, casa o local? y la referencia (ver _handle_delivery_intake_step).
     conv.delivery_intake_step = 1
     conv.updated_at = datetime.now(timezone.utc)
@@ -1435,6 +1459,11 @@ async def _process_auto_flow_background_locked(conv_id: int, contact_id: int, ph
         # "main_human" que acaba de atenderse aquí arriba.)
         if interactive_id == "entry_gate_bot":
             await _send_main_welcome_menu(db, wa_service, conv, contact, phone)
+            return
+
+        # "📍 La más cercana a mí" en la lista de sucursales: se pide la ubicación.
+        if interactive_id == "branch_nearest":
+            await _send_location_request(db, wa_service, conv, contact, phone)
             return
 
         navigation_intent = match_navigation_intent(text) if message_type == "text" else None

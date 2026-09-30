@@ -255,7 +255,7 @@
   }
 
   function feeForDistance(km) {
-    if (km < 2) return 5;
+    if (km <= 3) return 5;
     if (km <= 5) return 10;
     return 15;
   }

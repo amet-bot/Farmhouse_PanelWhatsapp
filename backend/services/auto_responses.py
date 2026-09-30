@@ -385,6 +385,17 @@ DELIVERY_LOCATION_REQUEST_BODY = (
     "sucursal más cercana. Si prefieres, escríbeme el nombre de la sucursal."
 )
 NEAREST_BRANCH_MESSAGE = "Tu sucursal más cercana es *{sucursal}*, a {km} km 📍 Desde ahí te llevamos el pedido."
+# Tarifa por distancia (ver services/delivery_geo.fee_for_distance), dicha apenas se sabe la
+# sucursal: el cliente decide con el costo a la vista, no en el checkout.
+DELIVERY_FEE_MESSAGE = "El delivery hasta tu ubicación cuesta *${tarifa}* 🛵"
+# Retiro o visita: la ubicación solo sirve para saber cuál queda más cerca; el cliente elige.
+PICKUP_LOCATION_REQUEST_BODY = (
+    "Compárteme tu ubicación con el botón de abajo y te digo cuál sucursal te queda más cerca 📍 "
+    "Si prefieres, escríbeme el nombre de la sucursal."
+)
+NEAREST_BRANCH_PICKUP_MESSAGE = "Te queda más cerca *{sucursal}*, a {km} km 📍 Elige dónde prefieres:"
+# Fila que se agrega a la lista de sucursales (retiro, delivery, visita) para pedir la ubicación.
+BRANCH_NEAREST_ROW = {"id": "branch_nearest", "title": "📍 La más cercana a mí", "description": "Compárteme tu ubicación y te digo cuál"}
 # Más lejos que esto de la sucursal más cercana no se hace delivery (el menú web cobra hasta
 # 15 km; aquí se corta antes para no prometer lo que la cocina no va a poder cumplir).
 DELIVERY_MAX_KM = 12

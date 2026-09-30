@@ -34,8 +34,10 @@ def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
+# Tarifa de delivery por distancia a la sucursal (la misma en el bot y en el Menú Digital):
+# de 0 a 3 km $5, de 3 a 5 km $10, más de 5 km $15.
 def fee_for_distance(distance: Decimal) -> Decimal:
-    if distance < Decimal("2.00"):
+    if distance <= Decimal("3.00"):
         return Decimal("5.00")
     if distance <= Decimal("5.00"):
         return Decimal("10.00")
