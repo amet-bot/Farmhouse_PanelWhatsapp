@@ -20,7 +20,9 @@ WasteRecord y WasteItem.
 class SupplyRequest(Base):
     __tablename__ = "supply_requests"
 
-    STATUSES = ("open", "fulfilled", "cancelled")
+    # open -> approved (un encargado la aprueba) -> fulfilled (llegó); cancelled desde open/approved.
+    # "approved" es opcional: un encargado puede marcarla entregada directo.
+    STATUSES = ("open", "approved", "fulfilled", "cancelled")
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
@@ -30,11 +32,14 @@ class SupplyRequest(Base):
     notes = Column(Text, nullable=True)
     status = Column(String(20), nullable=False, default="open")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    approved_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
     resolved_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     resolved_at = Column(DateTime, nullable=True)
 
     branch = relationship("Branch")
     requested_by_user = relationship("User", foreign_keys=[requested_by_user_id])
+    approved_by_user = relationship("User", foreign_keys=[approved_by_user_id])
     resolved_by_user = relationship("User", foreign_keys=[resolved_by_user_id])
 
     __table_args__ = (
@@ -55,6 +60,8 @@ class Incident(Base):
     description = Column(Text, nullable=True)
     severity = Column(String(20), nullable=False, default="media")
     status = Column(String(20), nullable=False, default="abierta")
+    # Quién la tiene a cargo (encargado de la sucursal, mantenimiento, logística...). Opcional.
+    assigned_to_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     resolved_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     resolved_at = Column(DateTime, nullable=True)
@@ -62,6 +69,7 @@ class Incident(Base):
 
     branch = relationship("Branch")
     reported_by_user = relationship("User", foreign_keys=[reported_by_user_id])
+    assigned_to_user = relationship("User", foreign_keys=[assigned_to_user_id])
     resolved_by_user = relationship("User", foreign_keys=[resolved_by_user_id])
 
     __table_args__ = (

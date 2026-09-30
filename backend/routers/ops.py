@@ -1,29 +1,58 @@
+"""
+Operación de sucursal: solicitudes de insumos, incidencias y tareas, más el resumen del Centro
+de operación (GET /ops/overview) que junta lo pendiente de todas las sucursales para quien
+las maneja desde una sola pantalla (encargado de logística, gerencia).
+
+Reglas de acceso, iguales al resto del sistema: admin y supervisor sin sucursal ("global")
+ven y actúan sobre cualquier sucursal; el resto solo sobre la suya. Aprobar o dar por
+entregada una solicitud es de encargados (permiso purchasing.approve: supervisor y admin).
+Todo cambio deja rastro en la auditoría y avisa por push a quien corresponde.
+"""
+import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import get_db
+from models.branch import Branch
+from models.conversation import Conversation
 from models.ops import SupplyRequest, Incident, Task
+from models.prep import PrepTemplate, PrepCheck
+from models.shipment import ExpectedShipment
+from models.stock_count import StockCount
+from models.transfer import Transfer
 from models.user import User
 from schemas.ops import (
     SupplyRequestCreate, SupplyRequestResponse,
-    IncidentCreate, IncidentStatusUpdate, IncidentResponse,
-    TaskCreate, TaskStatusUpdate, TaskResponse,
+    IncidentCreate, IncidentStatusUpdate, IncidentAssign, IncidentResponse,
+    TaskCreate, TaskUpdate, TaskStatusUpdate, TaskResponse,
+    TeamMember, BranchOverview, OpsOverviewResponse,
 )
 from security.auth import get_current_authorized_user
 from security.access_control import check_target_branch_valid
+from security.permissions import has_permission
+from services.audit import log_audit_event
+from services.branch_hours import PANAMA_TZ
+from services.push_service import notify_branch_staff, notify_users
 
 logger = logging.getLogger("farmhouse.ops")
 
 router = APIRouter(prefix="/ops", tags=["Operación de Sucursal"])
 
+OPS_URL = "/gestion"
+
+
+def _is_global(current_user: User) -> bool:
+    return current_user.role == "admin" or (current_user.role == "supervisor" and current_user.branch_id is None)
+
 
 def _visible_branch_filter(current_user: User, branch_id: Optional[int]):
     """Mismo criterio que el resto de inventario: admin/supervisor global eligen o ven todo, el resto queda en la suya."""
-    if current_user.role == "admin" or (current_user.role == "supervisor" and current_user.branch_id is None):
+    if _is_global(current_user):
         return branch_id
     if current_user.branch_id is None:
         # Sin sucursal (dato inválido) no significa "todas": falla cerrado.
@@ -32,9 +61,96 @@ def _visible_branch_filter(current_user: User, branch_id: Optional[int]):
 
 
 def _require_own_branch_or_admin(current_user: User, branch_id: int, detail: str):
-    is_global = current_user.role == "admin" or (current_user.role == "supervisor" and current_user.branch_id is None)
-    if not is_global and current_user.branch_id != branch_id:
+    if not _is_global(current_user) and current_user.branch_id != branch_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+
+def _require_manager(current_user: User, detail: str):
+    if not has_permission(current_user, "purchasing.approve"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+
+def _assignee_or_400(db: Session, user_id: Optional[int], branch_id: int) -> Optional[User]:
+    """La persona asignada tiene que existir, estar activa y ser de esa sucursal (o global)."""
+    if user_id is None:
+        return None
+    assignee = db.query(User).filter(User.id == user_id).first()
+    if not assignee or not assignee.active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El usuario asignado no existe o está inactivo.")
+    if assignee.branch_id is not None and assignee.branch_id != branch_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Esa persona es de otra sucursal.")
+    return assignee
+
+
+def _notify_safely(fn, *args, **kwargs) -> None:
+    """Un aviso que falla nunca tumba la operación que lo originó."""
+    try:
+        fn(*args, **kwargs)
+    except Exception:
+        logger.warning("[Ops] No se pudo mandar el aviso push.", exc_info=True)
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _naive(value: Optional[datetime]) -> Optional[datetime]:
+    """Las columnas DATETIME de MySQL vuelven sin zona; para comparar se usa UTC naive."""
+    if value is None:
+        return None
+    return value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
+
+
+# ---- serializadores ----------------------------------------------------------
+
+def _request_out(r: SupplyRequest) -> SupplyRequestResponse:
+    return SupplyRequestResponse(
+        id=r.id, branch_id=r.branch_id, branch_name=r.branch.name,
+        requested_by_user_id=r.requested_by_user_id, requested_by_name=r.requested_by_user.name,
+        item_name=r.item_name, quantity_hint=r.quantity_hint, notes=r.notes,
+        status=r.status, created_at=r.created_at,
+        approved_by_user_id=r.approved_by_user_id,
+        approved_by_name=r.approved_by_user.name if r.approved_by_user else None,
+        approved_at=r.approved_at,
+        resolved_by_user_id=r.resolved_by_user_id,
+        resolved_by_name=r.resolved_by_user.name if r.resolved_by_user else None,
+        resolved_at=r.resolved_at,
+    )
+
+
+def _incident_out(i: Incident) -> IncidentResponse:
+    hours_open = None
+    if i.status != "resuelta" and i.created_at:
+        hours_open = round((datetime.utcnow() - _naive(i.created_at)).total_seconds() / 3600, 1)
+    return IncidentResponse(
+        id=i.id, branch_id=i.branch_id, branch_name=i.branch.name,
+        reported_by_user_id=i.reported_by_user_id, reported_by_name=i.reported_by_user.name,
+        assigned_to_user_id=i.assigned_to_user_id,
+        assigned_to_name=i.assigned_to_user.name if i.assigned_to_user else None,
+        title=i.title, description=i.description, severity=i.severity,
+        status=i.status, created_at=i.created_at,
+        resolved_by_user_id=i.resolved_by_user_id,
+        resolved_by_name=i.resolved_by_user.name if i.resolved_by_user else None,
+        resolved_at=i.resolved_at, resolution_notes=i.resolution_notes,
+        hours_open=hours_open,
+    )
+
+
+def _task_overdue(t: Task) -> bool:
+    due = _naive(t.due_date)
+    return bool(due and t.status in ("pendiente", "en_proceso") and due < datetime.utcnow())
+
+
+def _task_out(t: Task) -> TaskResponse:
+    return TaskResponse(
+        id=t.id, branch_id=t.branch_id, branch_name=t.branch.name,
+        created_by_user_id=t.created_by_user_id, created_by_name=t.created_by_user.name,
+        assigned_to_user_id=t.assigned_to_user_id,
+        assigned_to_name=t.assigned_to_user.name if t.assigned_to_user else None,
+        title=t.title, description=t.description, status=t.status,
+        due_date=t.due_date, overdue=_task_overdue(t),
+        created_at=t.created_at, completed_at=t.completed_at,
+    )
 
 
 # ==========================================================================
@@ -47,7 +163,7 @@ def create_supply_request(
     current_user: User = Depends(get_current_authorized_user),
 ):
     _require_own_branch_or_admin(current_user, request_in.branch_id, "No tienes permiso para pedir insumos en otra sucursal.")
-    check_target_branch_valid(db, request_in.branch_id)
+    branch = check_target_branch_valid(db, request_in.branch_id)
 
     req = SupplyRequest(
         branch_id=request_in.branch_id,
@@ -57,16 +173,18 @@ def create_supply_request(
         notes=request_in.notes,
     )
     db.add(req)
+    db.flush()
+    log_audit_event(db, current_user.id, req.branch_id, "supply_request.create", "supply_request", req.id, {"item_name": req.item_name})
     db.commit()
     db.refresh(req)
     logger.info(f"Solicitud #{req.id} ({req.item_name}) en sucursal {req.branch_id} por {current_user.name}")
-    return SupplyRequestResponse(
-        id=req.id, branch_id=req.branch_id, branch_name=req.branch.name,
-        requested_by_user_id=req.requested_by_user_id, requested_by_name=req.requested_by_user.name,
-        item_name=req.item_name, quantity_hint=req.quantity_hint, notes=req.notes,
-        status=req.status, created_at=req.created_at,
-        resolved_by_user_id=req.resolved_by_user_id, resolved_at=req.resolved_at,
+    _notify_safely(
+        notify_branch_staff, db, req.branch_id,
+        f"Solicitud de insumos · {branch.name}",
+        f"{current_user.name} pide {req.item_name}" + (f" ({req.quantity_hint})" if req.quantity_hint else ""),
+        f"{OPS_URL}?tab=solicitudes&branch={req.branch_id}", tag=f"fh-request-{req.id}", managers_only=True,
     )
+    return _request_out(req)
 
 
 @router.get("/requests", response_model=List[SupplyRequestResponse])
@@ -83,17 +201,13 @@ def list_supply_requests(
     if efectiva is not None:
         query = query.filter(SupplyRequest.branch_id == efectiva)
     if status_filter:
-        query = query.filter(SupplyRequest.status == status_filter)
+        # "pendientes" = todo lo que todavía no se resolvió (open + approved).
+        if status_filter == "pendientes":
+            query = query.filter(SupplyRequest.status.in_(["open", "approved"]))
+        else:
+            query = query.filter(SupplyRequest.status == status_filter)
     reqs = query.order_by(SupplyRequest.created_at.desc()).offset(offset).limit(limit).all()
-    return [
-        SupplyRequestResponse(
-            id=r.id, branch_id=r.branch_id, branch_name=r.branch.name,
-            requested_by_user_id=r.requested_by_user_id, requested_by_name=r.requested_by_user.name,
-            item_name=r.item_name, quantity_hint=r.quantity_hint, notes=r.notes,
-            status=r.status, created_at=r.created_at,
-            resolved_by_user_id=r.resolved_by_user_id, resolved_at=r.resolved_at,
-        ) for r in reqs
-    ]
+    return [_request_out(r) for r in reqs]
 
 
 @router.post("/requests/{request_id}/status", response_model=SupplyRequestResponse)
@@ -109,20 +223,36 @@ def update_supply_request_status(
     _require_own_branch_or_admin(current_user, req.branch_id, "No tienes permiso para modificar esta solicitud.")
     if new_status not in SupplyRequest.STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Estado no válido.")
+    if req.status in ("fulfilled", "cancelled"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta solicitud ya está cerrada.")
 
+    if new_status in ("approved", "fulfilled"):
+        _require_manager(current_user, "Solo un encargado puede aprobar o dar por entregada una solicitud.")
+    elif new_status == "cancelled":
+        if current_user.id != req.requested_by_user_id and not has_permission(current_user, "purchasing.approve"):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo quien la pidió o un encargado puede cancelarla.")
+    elif new_status == "open":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Una solicitud no vuelve a 'abierta'.")
+
+    anterior = req.status
     req.status = new_status
+    if new_status == "approved":
+        req.approved_by_user_id = current_user.id
+        req.approved_at = _now()
     if new_status in ("fulfilled", "cancelled"):
         req.resolved_by_user_id = current_user.id
-        req.resolved_at = datetime.now(timezone.utc)
+        req.resolved_at = _now()
+    log_audit_event(db, current_user.id, req.branch_id, f"supply_request.{new_status}", "supply_request", req.id, {"from": anterior})
     db.commit()
     db.refresh(req)
-    return SupplyRequestResponse(
-        id=req.id, branch_id=req.branch_id, branch_name=req.branch.name,
-        requested_by_user_id=req.requested_by_user_id, requested_by_name=req.requested_by_user.name,
-        item_name=req.item_name, quantity_hint=req.quantity_hint, notes=req.notes,
-        status=req.status, created_at=req.created_at,
-        resolved_by_user_id=req.resolved_by_user_id, resolved_at=req.resolved_at,
-    )
+    if new_status in ("approved", "fulfilled", "cancelled") and req.requested_by_user_id != current_user.id:
+        etiqueta = {"approved": "aprobada", "fulfilled": "entregada", "cancelled": "cancelada"}[new_status]
+        _notify_safely(
+            notify_users, db, [req.requested_by_user_id],
+            f"Solicitud {etiqueta}: {req.item_name}", f"{current_user.name} · {req.branch.name}",
+            f"{OPS_URL}?tab=solicitudes&branch={req.branch_id}", tag=f"fh-request-{req.id}",
+        )
+    return _request_out(req)
 
 
 # ==========================================================================
@@ -135,7 +265,7 @@ def create_incident(
     current_user: User = Depends(get_current_authorized_user),
 ):
     _require_own_branch_or_admin(current_user, incident_in.branch_id, "No tienes permiso para reportar incidencias en otra sucursal.")
-    check_target_branch_valid(db, incident_in.branch_id)
+    branch = check_target_branch_valid(db, incident_in.branch_id)
     if incident_in.severity not in Incident.SEVERITIES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Severidad no válida.")
 
@@ -147,23 +277,26 @@ def create_incident(
         severity=incident_in.severity,
     )
     db.add(incident)
+    db.flush()
+    log_audit_event(db, current_user.id, incident.branch_id, "incident.create", "incident", incident.id, {"severity": incident.severity, "title": incident.title})
     db.commit()
     db.refresh(incident)
     logger.info(f"Incidencia #{incident.id} ({incident.severity}) en sucursal {incident.branch_id} por {current_user.name}")
-    return IncidentResponse(
-        id=incident.id, branch_id=incident.branch_id, branch_name=incident.branch.name,
-        reported_by_user_id=incident.reported_by_user_id, reported_by_name=incident.reported_by_user.name,
-        title=incident.title, description=incident.description, severity=incident.severity,
-        status=incident.status, created_at=incident.created_at,
-        resolved_by_user_id=incident.resolved_by_user_id, resolved_at=incident.resolved_at,
-        resolution_notes=incident.resolution_notes,
+    # Toda incidencia avisa a los encargados; una grave lo dice en el título para que se note.
+    prefijo = "Incidencia GRAVE" if incident.severity == "alta" else "Incidencia"
+    _notify_safely(
+        notify_branch_staff, db, incident.branch_id,
+        f"{prefijo} · {branch.name}", f"{incident.title} · reportada por {current_user.name}",
+        f"{OPS_URL}?tab=incidencias&branch={incident.branch_id}", tag=f"fh-incident-{incident.id}", managers_only=True,
     )
+    return _incident_out(incident)
 
 
 @router.get("/incidents", response_model=List[IncidentResponse])
 def list_incidents(
     branch_id: Optional[int] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
+    severity: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -174,18 +307,14 @@ def list_incidents(
     if efectiva is not None:
         query = query.filter(Incident.branch_id == efectiva)
     if status_filter:
-        query = query.filter(Incident.status == status_filter)
+        if status_filter == "pendientes":
+            query = query.filter(Incident.status != "resuelta")
+        else:
+            query = query.filter(Incident.status == status_filter)
+    if severity:
+        query = query.filter(Incident.severity == severity)
     incidents = query.order_by(Incident.created_at.desc()).offset(offset).limit(limit).all()
-    return [
-        IncidentResponse(
-            id=i.id, branch_id=i.branch_id, branch_name=i.branch.name,
-            reported_by_user_id=i.reported_by_user_id, reported_by_name=i.reported_by_user.name,
-            title=i.title, description=i.description, severity=i.severity,
-            status=i.status, created_at=i.created_at,
-            resolved_by_user_id=i.resolved_by_user_id, resolved_at=i.resolved_at,
-            resolution_notes=i.resolution_notes,
-        ) for i in incidents
-    ]
+    return [_incident_out(i) for i in incidents]
 
 
 @router.post("/incidents/{incident_id}/status", response_model=IncidentResponse)
@@ -202,22 +331,55 @@ def update_incident_status(
     if update.status not in Incident.STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Estado no válido.")
 
+    anterior = incident.status
     incident.status = update.status
     if update.resolution_notes:
         incident.resolution_notes = update.resolution_notes
     if update.status == "resuelta":
         incident.resolved_by_user_id = current_user.id
-        incident.resolved_at = datetime.now(timezone.utc)
+        incident.resolved_at = _now()
+    else:
+        # Reabierta (o vuelta a "en proceso"): ya no está resuelta, así que la fecha y la persona
+        # que la cerró dejan de valer. Antes quedaban colgadas y la incidencia parecía cerrada.
+        incident.resolved_by_user_id = None
+        incident.resolved_at = None
+    log_audit_event(db, current_user.id, incident.branch_id, f"incident.{update.status}", "incident", incident.id, {"from": anterior})
     db.commit()
     db.refresh(incident)
-    return IncidentResponse(
-        id=incident.id, branch_id=incident.branch_id, branch_name=incident.branch.name,
-        reported_by_user_id=incident.reported_by_user_id, reported_by_name=incident.reported_by_user.name,
-        title=incident.title, description=incident.description, severity=incident.severity,
-        status=incident.status, created_at=incident.created_at,
-        resolved_by_user_id=incident.resolved_by_user_id, resolved_at=incident.resolved_at,
-        resolution_notes=incident.resolution_notes,
-    )
+    if update.status == "resuelta" and incident.reported_by_user_id != current_user.id:
+        _notify_safely(
+            notify_users, db, [incident.reported_by_user_id],
+            f"Incidencia resuelta: {incident.title}", f"{current_user.name} · {incident.branch.name}",
+            f"{OPS_URL}?tab=incidencias&branch={incident.branch_id}", tag=f"fh-incident-{incident.id}",
+        )
+    return _incident_out(incident)
+
+
+@router.post("/incidents/{incident_id}/assign", response_model=IncidentResponse)
+def assign_incident(
+    incident_id: int,
+    payload: IncidentAssign,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    incident = db.query(Incident).filter(Incident.id == incident_id).first()
+    if not incident:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada.")
+    _require_own_branch_or_admin(current_user, incident.branch_id, "No tienes permiso para modificar esta incidencia.")
+    assignee = _assignee_or_400(db, payload.user_id, incident.branch_id)
+    incident.assigned_to_user_id = assignee.id if assignee else None
+    if assignee and incident.status == "abierta":
+        incident.status = "en_proceso"
+    log_audit_event(db, current_user.id, incident.branch_id, "incident.assign", "incident", incident.id, {"user_id": payload.user_id})
+    db.commit()
+    db.refresh(incident)
+    if assignee and assignee.id != current_user.id:
+        _notify_safely(
+            notify_users, db, [assignee.id],
+            f"Te asignaron una incidencia · {incident.branch.name}", incident.title,
+            f"{OPS_URL}?tab=incidencias&branch={incident.branch_id}", tag=f"fh-incident-{incident.id}",
+        )
+    return _incident_out(incident)
 
 
 # ==========================================================================
@@ -231,32 +393,29 @@ def create_task(
 ):
     _require_own_branch_or_admin(current_user, task_in.branch_id, "No tienes permiso para crear tareas en otra sucursal.")
     check_target_branch_valid(db, task_in.branch_id)
-
-    if task_in.assigned_to_user_id is not None:
-        assignee = db.query(User).filter(User.id == task_in.assigned_to_user_id).first()
-        if not assignee:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El usuario asignado no existe.")
+    assignee = _assignee_or_400(db, task_in.assigned_to_user_id, task_in.branch_id)
 
     task = Task(
         branch_id=task_in.branch_id,
         created_by_user_id=current_user.id,
-        assigned_to_user_id=task_in.assigned_to_user_id,
+        assigned_to_user_id=assignee.id if assignee else None,
         title=task_in.title,
         description=task_in.description,
         due_date=task_in.due_date,
     )
     db.add(task)
+    db.flush()
+    log_audit_event(db, current_user.id, task.branch_id, "task.create", "task", task.id, {"title": task.title, "assigned_to_user_id": task.assigned_to_user_id})
     db.commit()
     db.refresh(task)
     logger.info(f"Tarea #{task.id} en sucursal {task.branch_id} creada por {current_user.name}")
-    return TaskResponse(
-        id=task.id, branch_id=task.branch_id, branch_name=task.branch.name,
-        created_by_user_id=task.created_by_user_id, created_by_name=task.created_by_user.name,
-        assigned_to_user_id=task.assigned_to_user_id,
-        assigned_to_name=task.assigned_to_user.name if task.assigned_to_user else None,
-        title=task.title, description=task.description, status=task.status,
-        due_date=task.due_date, created_at=task.created_at, completed_at=task.completed_at,
-    )
+    if assignee and assignee.id != current_user.id:
+        _notify_safely(
+            notify_users, db, [assignee.id],
+            f"Tarea nueva · {task.branch.name}", task.title + (f" · vence {task.due_date:%d/%m %H:%M}" if task.due_date else ""),
+            f"{OPS_URL}?tab=tareas&branch={task.branch_id}", tag=f"fh-task-{task.id}",
+        )
+    return _task_out(task)
 
 
 @router.get("/tasks", response_model=List[TaskResponse])
@@ -264,6 +423,7 @@ def list_tasks(
     branch_id: Optional[int] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
     assigned_to_user_id: Optional[int] = Query(None),
+    overdue: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -274,20 +434,63 @@ def list_tasks(
     if efectiva is not None:
         query = query.filter(Task.branch_id == efectiva)
     if status_filter:
-        query = query.filter(Task.status == status_filter)
+        if status_filter == "pendientes":
+            query = query.filter(Task.status.in_(["pendiente", "en_proceso"]))
+        else:
+            query = query.filter(Task.status == status_filter)
     if assigned_to_user_id is not None:
         query = query.filter(Task.assigned_to_user_id == assigned_to_user_id)
-    tasks = query.order_by(Task.created_at.desc()).offset(offset).limit(limit).all()
-    return [
-        TaskResponse(
-            id=t.id, branch_id=t.branch_id, branch_name=t.branch.name,
-            created_by_user_id=t.created_by_user_id, created_by_name=t.created_by_user.name,
-            assigned_to_user_id=t.assigned_to_user_id,
-            assigned_to_name=t.assigned_to_user.name if t.assigned_to_user else None,
-            title=t.title, description=t.description, status=t.status,
-            due_date=t.due_date, created_at=t.created_at, completed_at=t.completed_at,
-        ) for t in tasks
-    ]
+    if overdue:
+        query = query.filter(Task.status.in_(["pendiente", "en_proceso"]), Task.due_date < datetime.utcnow())
+    # Lo que vence primero arriba; sin fecha, al final; lo más nuevo antes entre iguales.
+    tasks = query.order_by(Task.due_date.is_(None), Task.due_date.asc(), Task.created_at.desc()).offset(offset).limit(limit).all()
+    return [_task_out(t) for t in tasks]
+
+
+@router.patch("/tasks/{task_id}", response_model=TaskResponse)
+def update_task(
+    task_id: int,
+    update: TaskUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarea no encontrada.")
+    _require_own_branch_or_admin(current_user, task.branch_id, "No tienes permiso para modificar esta tarea.")
+    if task.status in ("hecha", "cancelada"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta tarea ya está cerrada.")
+
+    cambios = {}
+    nuevo_asignado = None
+    if update.title is not None:
+        task.title = update.title
+        cambios["title"] = update.title
+    if update.description is not None:
+        task.description = update.description
+    if update.clear_assignee:
+        task.assigned_to_user_id = None
+        cambios["assigned_to_user_id"] = None
+    elif update.assigned_to_user_id is not None and update.assigned_to_user_id != task.assigned_to_user_id:
+        nuevo_asignado = _assignee_or_400(db, update.assigned_to_user_id, task.branch_id)
+        task.assigned_to_user_id = nuevo_asignado.id
+        cambios["assigned_to_user_id"] = nuevo_asignado.id
+    if update.clear_due_date:
+        task.due_date = None
+        cambios["due_date"] = None
+    elif update.due_date is not None:
+        task.due_date = update.due_date
+        cambios["due_date"] = update.due_date.isoformat()
+    log_audit_event(db, current_user.id, task.branch_id, "task.update", "task", task.id, cambios)
+    db.commit()
+    db.refresh(task)
+    if nuevo_asignado and nuevo_asignado.id != current_user.id:
+        _notify_safely(
+            notify_users, db, [nuevo_asignado.id],
+            f"Te asignaron una tarea · {task.branch.name}", task.title,
+            f"{OPS_URL}?tab=tareas&branch={task.branch_id}", tag=f"fh-task-{task.id}",
+        )
+    return _task_out(task)
 
 
 @router.post("/tasks/{task_id}/status", response_model=TaskResponse)
@@ -304,15 +507,115 @@ def update_task_status(
     if update.status not in Task.STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Estado no válido.")
 
+    anterior = task.status
     task.status = update.status
-    task.completed_at = datetime.now(timezone.utc) if update.status == "hecha" else None
+    task.completed_at = _now() if update.status == "hecha" else None
+    log_audit_event(db, current_user.id, task.branch_id, f"task.{update.status}", "task", task.id, {"from": anterior})
     db.commit()
     db.refresh(task)
-    return TaskResponse(
-        id=task.id, branch_id=task.branch_id, branch_name=task.branch.name,
-        created_by_user_id=task.created_by_user_id, created_by_name=task.created_by_user.name,
-        assigned_to_user_id=task.assigned_to_user_id,
-        assigned_to_name=task.assigned_to_user.name if task.assigned_to_user else None,
-        title=task.title, description=task.description, status=task.status,
-        due_date=task.due_date, created_at=task.created_at, completed_at=task.completed_at,
+    if update.status == "hecha" and task.created_by_user_id != current_user.id:
+        _notify_safely(
+            notify_users, db, [task.created_by_user_id],
+            f"Tarea hecha: {task.title}", f"{current_user.name} · {task.branch.name}",
+            f"{OPS_URL}?tab=tareas&branch={task.branch_id}", tag=f"fh-task-{task.id}",
+        )
+    return _task_out(task)
+
+
+# ==========================================================================
+# Centro de operación
+# ==========================================================================
+@router.get("/team", response_model=List[TeamMember])
+def list_team(
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """A quién se le puede asignar algo en una sucursal: su gente activa más los usuarios
+    globales (admin, supervisor sin sucursal). Cualquier usuario puede consultarlo para su
+    propia sucursal; no expone contraseñas ni datos de contacto."""
+    efectiva = _visible_branch_filter(current_user, branch_id)
+    query = db.query(User).filter(User.active == True)  # noqa: E712
+    if efectiva is not None:
+        query = query.filter((User.branch_id == efectiva) | (User.branch_id.is_(None)))
+    users = query.order_by(User.branch_id.is_(None), User.name).all()
+    return [TeamMember(id=u.id, name=u.name, role=u.role, branch_id=u.branch_id) for u in users]
+
+
+def _branch_overview(db: Session, b: Branch, now_utc: datetime, today) -> BranchOverview:
+    def count(q):
+        return int(q.count() or 0)
+
+    o = BranchOverview(branch_id=b.id, branch_name=b.name, branch_code=b.code)
+    abiertas = db.query(Incident).filter(Incident.branch_id == b.id, Incident.status != "resuelta")
+    o.incidents_open = count(abiertas)
+    o.incidents_alta = count(abiertas.filter(Incident.severity == "alta"))
+
+    pendientes = db.query(Task).filter(Task.branch_id == b.id, Task.status.in_(["pendiente", "en_proceso"]))
+    o.tasks_pending = count(pendientes)
+    o.tasks_overdue = count(pendientes.filter(Task.due_date < now_utc))
+
+    o.requests_open = count(db.query(SupplyRequest).filter(SupplyRequest.branch_id == b.id, SupplyRequest.status == "open"))
+    o.requests_approved = count(db.query(SupplyRequest).filter(SupplyRequest.branch_id == b.id, SupplyRequest.status == "approved"))
+
+    o.transfers_to_approve = count(db.query(Transfer).filter(Transfer.from_branch_id == b.id, Transfer.status == "requested"))
+    o.transfers_to_dispatch = count(db.query(Transfer).filter(Transfer.from_branch_id == b.id, Transfer.status == "approved"))
+    o.transfers_to_receive = count(db.query(Transfer).filter(Transfer.to_branch_id == b.id, Transfer.status == "dispatched"))
+
+    esperados = db.query(ExpectedShipment).filter(ExpectedShipment.branch_id == b.id, ExpectedShipment.status == "pendiente")
+    o.expected_today = count(esperados.filter(ExpectedShipment.expected_date == today))
+    o.expected_overdue = count(esperados.filter(ExpectedShipment.expected_date < today))
+
+    checkpoints = 0
+    for t in db.query(PrepTemplate).filter(PrepTemplate.branch_id == b.id, PrepTemplate.active == "Y").all():
+        try:
+            checkpoints += len(json.loads(t.checkpoints_json or "[]"))
+        except (TypeError, ValueError):
+            pass
+    o.prep_checkpoints_today = checkpoints
+    o.prep_filled_today = count(db.query(PrepCheck).filter(PrepCheck.branch_id == b.id, PrepCheck.check_date == today))
+
+    ultimo = db.query(func.max(StockCount.counted_at)).filter(StockCount.branch_id == b.id).scalar()
+    if ultimo:
+        o.days_since_count = max(0, (now_utc - _naive(ultimo)).days)
+
+    o.unassigned_conversations = count(db.query(Conversation).filter(
+        Conversation.branch_id == b.id, Conversation.status == "unassigned", Conversation.deleted_at.is_(None),
+    ))
+
+    o.attention = (
+        o.incidents_alta * 3 + (o.incidents_open - o.incidents_alta) + o.tasks_overdue * 2 + o.expected_overdue * 2
+        + o.transfers_to_receive + o.transfers_to_approve + o.requests_open
+        + (2 if o.days_since_count is not None and o.days_since_count > 7 else 0)
     )
+    return o
+
+
+@router.get("/overview", response_model=OpsOverviewResponse)
+def ops_overview(
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """Lo pendiente de cada sucursal en una sola respuesta: incidencias, tareas, solicitudes,
+    traslados, cargamentos esperados, prep del día, días desde el último conteo y chats sin
+    asignar. Ordenado por `attention` (lo grave y lo vencido primero)."""
+    efectiva = _visible_branch_filter(current_user, branch_id)
+    query = db.query(Branch).filter(Branch.active == True)  # noqa: E712
+    if efectiva is not None:
+        query = query.filter(Branch.id == efectiva)
+    branches = [b for b in query.order_by(Branch.name).all() if b.code != "CAT" or efectiva is not None]
+
+    now_utc = datetime.utcnow()
+    today = datetime.now(PANAMA_TZ).date()
+    rows = [_branch_overview(db, b, now_utc, today) for b in branches]
+    rows.sort(key=lambda r: (-r.attention, r.branch_name))
+
+    totals = BranchOverview(branch_id=0, branch_name="Todas", branch_code="ALL")
+    for r in rows:
+        for campo in ("incidents_open", "incidents_alta", "tasks_pending", "tasks_overdue", "requests_open",
+                      "requests_approved", "transfers_to_approve", "transfers_to_dispatch", "transfers_to_receive",
+                      "expected_today", "expected_overdue", "prep_checkpoints_today", "prep_filled_today",
+                      "unassigned_conversations", "attention"):
+            setattr(totals, campo, getattr(totals, campo) + getattr(r, campo))
+    return OpsOverviewResponse(generated_at=_now(), branches=rows, totals=totals)

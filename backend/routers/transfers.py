@@ -16,8 +16,26 @@ from schemas.transfer import (
 from security.auth import get_current_authorized_user
 from security.access_control import check_target_branch_valid
 from services.audit import log_audit_event
+from services.push_service import notify_branch_staff
 
 logger = logging.getLogger("farmhouse.transfers")
+
+OPS_URL = "/gestion?tab=traslados"
+
+
+def _avisar(db: Session, branch_id: int, title: str, body: str, transfer_id: int, managers_only: bool = True) -> None:
+    """Push a la sucursal que tiene que actuar. Un aviso que falla nunca tumba el traslado."""
+    try:
+        notify_branch_staff(db, branch_id, title, body, OPS_URL, tag=f"fh-transfer-{transfer_id}", managers_only=managers_only)
+    except Exception:
+        logger.warning("[Transfers] No se pudo mandar el aviso push.", exc_info=True)
+
+
+def _resumen_items(transfer: Transfer) -> str:
+    partes = [f"{line.quantity:g} {line.inventory_item.unit or ''} {line.inventory_item.name}".strip() for line in transfer.items[:3]]
+    if len(transfer.items) > 3:
+        partes.append(f"y {len(transfer.items) - 3} más")
+    return ", ".join(partes)
 
 router = APIRouter(prefix="/transfers", tags=["Transferencias"])
 
@@ -162,6 +180,9 @@ def create_transfer(
     db.commit()
     db.refresh(transfer)
     logger.info(f"Traslado #{transfer.id} solicitado de sucursal {transfer.from_branch_id} a {transfer.to_branch_id} por {current_user.name}")
+    # Quien tiene que aprobar es la sucursal de origen (la que manda el insumo).
+    _avisar(db, transfer.from_branch_id, f"Traslado pedido por {transfer.to_branch.name}",
+            f"{_resumen_items(transfer)} · aprobar o rechazar", transfer.id)
     return _serialize(transfer)
 
 
@@ -231,6 +252,8 @@ def approve_transfer(
     log_audit_event(db, current_user.id, transfer.from_branch_id, "transfer.approve", "transfer", transfer.id)
     db.commit()
     db.refresh(transfer)
+    _avisar(db, transfer.to_branch_id, f"Traslado aprobado por {transfer.from_branch.name}",
+            f"{_resumen_items(transfer)} · sale pronto", transfer.id)
     return _serialize(transfer)
 
 
@@ -266,6 +289,9 @@ def dispatch_transfer(
     db.commit()
     db.refresh(transfer)
     logger.info(f"Traslado #{transfer.id} despachado de sucursal {transfer.from_branch_id} por {current_user.name}")
+    # Al destino le avisa toda la sucursal: quien reciba en la puerta tiene que saberlo.
+    _avisar(db, transfer.to_branch_id, f"Traslado en camino desde {transfer.from_branch.name}",
+            f"{_resumen_items(transfer)} · recibir al llegar", transfer.id, managers_only=False)
     return _serialize(transfer)
 
 
@@ -303,6 +329,8 @@ def receive_transfer(
     db.commit()
     db.refresh(transfer)
     logger.info(f"Traslado #{transfer.id} recibido en sucursal {transfer.to_branch_id} por {current_user.name}")
+    _avisar(db, transfer.from_branch_id, f"Traslado recibido en {transfer.to_branch.name}",
+            _resumen_items(transfer), transfer.id)
     return _serialize(transfer)
 
 
@@ -325,6 +353,8 @@ def reject_transfer(
     log_audit_event(db, current_user.id, transfer.from_branch_id, "transfer.reject", "transfer", transfer.id)
     db.commit()
     db.refresh(transfer)
+    _avisar(db, transfer.to_branch_id, f"Traslado rechazado por {transfer.from_branch.name}",
+            (action.notes or _resumen_items(transfer)), transfer.id)
     return _serialize(transfer)
 
 

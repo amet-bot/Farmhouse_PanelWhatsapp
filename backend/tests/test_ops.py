@@ -35,7 +35,7 @@ def test_agent_cannot_request_supplies_for_another_branch(client, clayton_agent,
     assert res.status_code == 403
 
 
-def test_supply_request_status_transition_sets_resolved_fields(client, clayton_branch, clayton_agent, clayton_device):
+def test_supply_request_status_transition_sets_resolved_fields(client, clayton_branch, clayton_agent, clayton_device, supervisor_user):
     headers = auth_headers_for(clayton_agent, clayton_device.device_id)
     created = client.post(
         "/api/ops/requests",
@@ -43,6 +43,8 @@ def test_supply_request_status_transition_sets_resolved_fields(client, clayton_b
         headers=headers,
     ).json()
 
+    # Darla por entregada es de encargados (purchasing.approve), no del agente que la pidió.
+    headers = auth_headers_for(supervisor_user, clayton_device.device_id)
     res = client.post(f"/api/ops/requests/{created['id']}/status?status=fulfilled", headers=headers)
     assert res.status_code == 200, res.text
     body = res.json()

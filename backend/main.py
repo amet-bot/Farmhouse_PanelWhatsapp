@@ -267,6 +267,11 @@ if frontend_dir.exists():
         def serve_tablet():
             return FileResponse(str(frontend_dir / "tablet.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
+    if (frontend_dir / "gestion.html").exists():
+        @app.get("/gestion", include_in_schema=False)
+        def serve_gestion():
+            return FileResponse(str(frontend_dir / "gestion.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
     if (frontend_dir / "prep.html").exists():
         @app.get("/prep", include_in_schema=False)
         def serve_prep():

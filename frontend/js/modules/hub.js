@@ -43,6 +43,13 @@ const HUB_MODULES = [
     tags: ['Stock', 'Sucursales', 'Abastecimiento'], icon: 'package', route: '/inventario',
   },
   {
+    id: 'gestion', name: 'Centro de operación', shortName: 'Operación',
+    description: 'Incidencias, tareas, solicitudes, traslados y cargamentos de todas las sucursales, con sus acciones.',
+    shortDescription: 'Pendientes de todas las sucursales',
+    tags: ['Incidencias', 'Tareas', 'Traslados'], icon: 'layout-grid', route: '/gestion',
+    requiredPermission: 'purchasing.approve',
+  },
+  {
     id: 'equipo', name: 'Equipo', shortName: 'Equipo',
     description: 'Comunicación interna entre el personal de todas las sucursales.',
     shortDescription: 'Mensajes y canales del equipo',
@@ -69,6 +76,7 @@ const HUB_SIDEBAR = [
   { id: 'inicio', label: 'Inicio', icon: 'house', route: '/hub' },
   { id: 'whatsapp', label: 'WhatsApp', title: 'Centro WhatsApp', icon: 'message-square', route: '/app' },
   { id: 'operacion', label: 'Operación', title: 'Operación de Sucursal', icon: 'clipboard-list', route: '/operacion' },
+  { id: 'gestion', label: 'Centro', title: 'Centro de operación', icon: 'layout-grid', route: '/gestion', requiredPermission: 'purchasing.approve' },
   { id: 'inventario', label: 'Inventario', title: 'Inventario', icon: 'package', route: '/inventario' },
   { id: 'reportes', label: 'Reportes', title: 'Reportes de ventas', icon: 'line-chart', route: '/link', requiredPermission: 'reports.view' },
   { id: 'equipo', label: 'Equipo', title: 'Comunicación Interna', icon: 'users', route: '/interno' },
@@ -189,7 +197,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     utils.renderIcons();
   }
 
+  let hubUser = null;   // quien inició sesión: renderPending decide con sus permisos a dónde llevar cada pendiente
   function showHub(user) {
+    hubUser = user;
     screenBoot.hidden = true;
     screenLogin.hidden = true;
     screenMain.hidden = false;
@@ -777,13 +787,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       rows.push({ icon: 'message-square', tone: 'green', route: '/app',
         title: plural(counts.no_asignadas, 'conversación nueva', 'conversaciones nuevas'), subtitle: 'En Centro WhatsApp' });
     }
+    const gestor = (hubUser?.permissions || []).includes('purchasing.approve');
     if (Array.isArray(tasks) && tasks.length) {
-      rows.push({ icon: 'clipboard-list', tone: 'orange', route: '/operacion',
-        title: plural(tasks.length, 'tarea por completar', 'tareas por completar'), subtitle: 'En Operación de Sucursal' });
+      rows.push({ icon: 'clipboard-list', tone: 'orange', route: gestor ? '/gestion?tab=tareas' : '/operacion',
+        title: plural(tasks.length, 'tarea por completar', 'tareas por completar'), subtitle: gestor ? 'En el Centro de operación' : 'En Operación de Sucursal' });
     }
     if (Array.isArray(requests) && requests.length) {
-      rows.push({ icon: 'package', tone: 'blue', route: '/operacion',
-        title: plural(requests.length, 'solicitud de insumos', 'solicitudes de insumos'), subtitle: 'Pendiente de revisión' });
+      rows.push({ icon: 'package', tone: 'blue', route: gestor ? '/gestion?tab=solicitudes' : '/operacion',
+        title: plural(requests.length, 'solicitud de insumos', 'solicitudes de insumos'), subtitle: gestor ? 'Aprobar en el Centro de operación' : 'Pendiente de revisión' });
     }
     $('hubPendingList').innerHTML = rows.length
       ? rows.map(C.pendingRow).join('')

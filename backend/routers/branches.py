@@ -52,6 +52,8 @@ def create_branch(
         latitude=branch_in.latitude,
         longitude=branch_in.longitude,
         accepts_delivery=branch_in.accepts_delivery,
+        opens_at=branch_in.opens_at,
+        closes_at=branch_in.closes_at,
     )
     db.add(branch)
     db.commit()

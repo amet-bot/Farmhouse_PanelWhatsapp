@@ -170,6 +170,17 @@ def notify_internal_message(
     _deliver(db, list(recipient_user_ids), payload)
 
 
+def notify_users(db: Session, user_ids: list, title: str, body: str, url: str, tag: Optional[str] = None) -> int:
+    """Aviso directo a personas concretas (ej. a quien le asignaron una tarea o incidencia)."""
+    if not user_ids or not any_channel_configured():
+        return 0
+    activos = [u.id for u in db.query(User.id).filter(User.id.in_(user_ids), User.active == True).all()]  # noqa: E712
+    payload = {"title": title, "body": (body or "")[:140], "url": url}
+    if tag:
+        payload["tag"] = tag
+    return _deliver(db, activos, payload)
+
+
 def notify_branch_staff(
     db: Session,
     branch_id: int,

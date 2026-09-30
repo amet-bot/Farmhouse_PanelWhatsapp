@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>Centro de operación — Farmhouse Link</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
+  <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
+  <!-- Mismo armazón (cabecera, gate de sesión, botones) que Inventario y Prep. -->
+  <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
+  <link rel="stylesheet" href="css/gestion.css?v=1.0.0">
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+
+  <div class="inv-gate" id="opsGate">
+    <span class="inv-gate-spinner" aria-hidden="true"></span>
+    <p>Verificando sesión...</p>
+  </div>
+
+  <div class="inv-app" id="opsMain" hidden>
+
+    <header class="inv-header">
+      <a class="inv-back" href="/hub" title="Volver al inicio">
+        <i data-lucide="arrow-left"></i>
+        <span>Inicio</span>
+      </a>
+      <div class="inv-header-titles">
+        <p class="inv-title">Centro de operación</p>
+        <span class="inv-subtitle" id="opsHeaderScope">Todas las sucursales</span>
+      </div>
+      <div class="inv-header-actions">
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="opsAgentAvatar">AD</div>
+          <div>
+            <strong id="opsAgentName">Administrador</strong>
+            <small id="opsAgentRole">ADMIN</small>
+          </div>
+        </div>
+        <button class="inv-logout-btn" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="ops-body">
+
+      <div class="ops-toolbar">
+        <select class="inv-filter-select" id="branchSelect" aria-label="Sucursal"></select>
+        <nav class="ops-tabs" id="opsTabs" aria-label="Secciones">
+          <button type="button" class="ops-tab active" data-tab="resumen"><i data-lucide="layout-grid"></i> Resumen</button>
+          <button type="button" class="ops-tab" data-tab="incidencias"><i data-lucide="alert-triangle"></i> Incidencias <span class="ops-tab-count" id="countIncidencias" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="tareas"><i data-lucide="clipboard-list"></i> Tareas <span class="ops-tab-count" id="countTareas" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="solicitudes"><i data-lucide="package-plus"></i> Solicitudes <span class="ops-tab-count" id="countSolicitudes" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="traslados"><i data-lucide="repeat"></i> Traslados <span class="ops-tab-count" id="countTraslados" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="cargamentos"><i data-lucide="truck"></i> Cargamentos <span class="ops-tab-count" id="countCargamentos" hidden></span></button>
+        </nav>
+        <button type="button" class="inv-secondary-btn ops-refresh" id="btnRefresh" title="Actualizar"><i data-lucide="refresh-cw"></i></button>
+      </div>
+
+      <!-- ---------- Resumen ---------- -->
+      <section class="ops-view" id="viewResumen">
+        <div class="ops-totals" id="opsTotals"></div>
+        <div class="ops-branch-grid" id="opsBranchGrid"></div>
+        <p class="ops-updated" id="opsUpdated"></p>
+      </section>
+
+      <!-- ---------- Incidencias ---------- -->
+      <section class="ops-view" id="viewIncidencias" hidden>
+        <div class="ops-filters">
+          <select class="inv-filter-select" id="incStatus">
+            <option value="pendientes">Pendientes</option>
+            <option value="abierta">Abiertas</option>
+            <option value="en_proceso">En proceso</option>
+            <option value="resuelta">Resueltas</option>
+            <option value="">Todas</option>
+          </select>
+          <select class="inv-filter-select" id="incSeverity">
+            <option value="">Toda severidad</option>
+            <option value="alta">Alta</option>
+            <option value="media">Media</option>
+            <option value="baja">Baja</option>
+          </select>
+          <button type="button" class="inv-primary-btn" id="btnNewIncident"><i data-lucide="plus"></i> Reportar incidencia</button>
+        </div>
+        <div id="incList"></div>
+      </section>
+
+      <!-- ---------- Tareas ---------- -->
+      <section class="ops-view" id="viewTareas" hidden>
+        <div class="ops-filters">
+          <select class="inv-filter-select" id="taskStatus">
+            <option value="pendientes">Pendientes</option>
+            <option value="hecha">Hechas</option>
+            <option value="cancelada">Canceladas</option>
+            <option value="">Todas</option>
+          </select>
+          <label class="ops-check"><input type="checkbox" id="taskOverdue" /> Solo vencidas</label>
+          <button type="button" class="inv-primary-btn" id="btnNewTask"><i data-lucide="plus"></i> Nueva tarea</button>
+        </div>
+        <div id="taskList"></div>
+      </section>
+
+      <!-- ---------- Solicitudes ---------- -->
+      <section class="ops-view" id="viewSolicitudes" hidden>
+        <div class="ops-filters">
+          <select class="inv-filter-select" id="reqStatus">
+            <option value="pendientes">Pendientes</option>
+            <option value="open">Sin aprobar</option>
+            <option value="approved">Aprobadas</option>
+            <option value="fulfilled">Entregadas</option>
+            <option value="cancelled">Canceladas</option>
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div id="reqList"></div>
+      </section>
+
+      <!-- ---------- Traslados ---------- -->
+      <section class="ops-view" id="viewTraslados" hidden>
+        <div class="ops-filters">
+          <select class="inv-filter-select" id="trfStatus">
+            <option value="activos">Activos</option>
+            <option value="requested">Por aprobar</option>
+            <option value="approved">Por despachar</option>
+            <option value="dispatched">En camino</option>
+            <option value="received">Recibidos</option>
+            <option value="">Todos</option>
+          </select>
+          <button type="button" class="inv-primary-btn" id="btnNewTransfer"><i data-lucide="plus"></i> Nuevo traslado</button>
+        </div>
+        <div id="trfList"></div>
+      </section>
+
+      <!-- ---------- Cargamentos esperados ---------- -->
+      <section class="ops-view" id="viewCargamentos" hidden>
+        <div class="ops-filters">
+          <span class="ops-hint">Cargamentos programados y pendientes de recibir. Se reciben contra factura en Inventario.</span>
+          <a class="inv-secondary-btn" href="/inventario?view=cargamentos"><i data-lucide="truck"></i> Ir a recepción</a>
+        </div>
+        <div id="expList"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal: nueva tarea -->
+  <div class="modal-backdrop" id="modalTask">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div><h3><i data-lucide="clipboard-list"></i> Nueva tarea</h3><span class="modal-subtitle">Queda visible para la sucursal y avisa a quien la tenga asignada</span></div>
+        <button class="modal-close-btn" type="button" data-close="modalTask" aria-label="Cerrar">&times;</button>
+      </div>
+      <form id="taskForm">
+        <div class="modal-body">
+          <label class="modal-label" for="taskBranch">Sucursal</label>
+          <select class="modal-select" id="taskBranch" required></select>
+          <label class="modal-label" for="taskTitle" style="margin-top:10px">Qué hay que hacer</label>
+          <input class="modal-input" id="taskTitle" maxlength="150" required placeholder="Ej: Limpiar campana extractora" />
+          <label class="modal-label" for="taskDescription" style="margin-top:10px">Detalle (opcional)</label>
+          <textarea class="modal-input" id="taskDescription" rows="2"></textarea>
+          <label class="modal-label" for="taskAssignee" style="margin-top:10px">Asignar a</label>
+          <select class="modal-select" id="taskAssignee"><option value="">Sin asignar</option></select>
+          <label class="modal-label" for="taskDue" style="margin-top:10px">Vence (opcional)</label>
+          <input class="modal-input" id="taskDue" type="datetime-local" />
+          <p class="ops-form-error" id="taskError" hidden></p>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:10px">
+          <button type="button" class="btn-cancel" data-close="modalTask" style="flex:1">Cancelar</button>
+          <button type="submit" class="btn-primary" style="flex:1">Crear tarea</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: reportar incidencia -->
+  <div class="modal-backdrop" id="modalIncident">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div><h3><i data-lucide="alert-triangle"></i> Reportar incidencia</h3><span class="modal-subtitle">Avisa a los encargados de la sucursal</span></div>
+        <button class="modal-close-btn" type="button" data-close="modalIncident" aria-label="Cerrar">&times;</button>
+      </div>
+      <form id="incidentForm">
+        <div class="modal-body">
+          <label class="modal-label" for="incBranch">Sucursal</label>
+          <select class="modal-select" id="incBranch" required></select>
+          <label class="modal-label" for="incTitle" style="margin-top:10px">Qué pasó</label>
+          <input class="modal-input" id="incTitle" maxlength="150" required placeholder="Ej: Se dañó el refrigerador de bebidas" />
+          <label class="modal-label" for="incSev" style="margin-top:10px">Severidad</label>
+          <select class="modal-select" id="incSev">
+            <option value="baja">Baja</option>
+            <option value="media" selected>Media</option>
+            <option value="alta">Alta (grave)</option>
+          </select>
+          <label class="modal-label" for="incDesc" style="margin-top:10px">Detalle (opcional)</label>
+          <textarea class="modal-input" id="incDesc" rows="2"></textarea>
+          <p class="ops-form-error" id="incError" hidden></p>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:10px">
+          <button type="button" class="btn-cancel" data-close="modalIncident" style="flex:1">Cancelar</button>
+          <button type="submit" class="btn-primary" style="flex:1">Reportar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: resolver incidencia -->
+  <div class="modal-backdrop" id="modalResolve">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div><h3><i data-lucide="check-circle"></i> Resolver incidencia</h3><span class="modal-subtitle" id="resolveSubtitle"></span></div>
+        <button class="modal-close-btn" type="button" data-close="modalResolve" aria-label="Cerrar">&times;</button>
+      </div>
+      <form id="resolveForm">
+        <div class="modal-body">
+          <label class="modal-label" for="resolveNotes">Cómo se resolvió</label>
+          <textarea class="modal-input" id="resolveNotes" rows="3" placeholder="Ej: Vino el técnico y cambió el compresor."></textarea>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:10px">
+          <button type="button" class="btn-cancel" data-close="modalResolve" style="flex:1">Cancelar</button>
+          <button type="submit" class="btn-primary" style="flex:1">Marcar resuelta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: nuevo traslado -->
+  <div class="modal-backdrop" id="modalTransfer">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div><h3><i data-lucide="repeat"></i> Nuevo traslado</h3><span class="modal-subtitle">La sucursal de origen lo aprueba y despacha; la de destino lo recibe</span></div>
+        <button class="modal-close-btn" type="button" data-close="modalTransfer" aria-label="Cerrar">&times;</button>
+      </div>
+      <form id="transferForm">
+        <div class="modal-body">
+          <div class="ops-two-cols">
+            <div><label class="modal-label" for="trfFrom">Sale de</label><select class="modal-select" id="trfFrom" required></select></div>
+            <div><label class="modal-label" for="trfTo">Llega a</label><select class="modal-select" id="trfTo" required></select></div>
+          </div>
+          <label class="modal-label" for="trfItemSearch" style="margin-top:10px">Insumos</label>
+          <div class="ops-item-picker">
+            <input class="modal-input" id="trfItemSearch" placeholder="Buscar insumo..." autocomplete="off" />
+            <input class="modal-input ops-qty" id="trfItemQty" type="number" min="0.01" step="0.01" placeholder="Cant." />
+            <button type="button" class="inv-secondary-btn" id="btnAddTrfItem">Agregar</button>
+            <div class="ops-autocomplete" id="trfItemResults" hidden></div>
+          </div>
+          <ul class="ops-item-list" id="trfItems"></ul>
+          <label class="modal-label" for="trfNotes" style="margin-top:10px">Nota (opcional)</label>
+          <input class="modal-input" id="trfNotes" maxlength="300" />
+          <p class="ops-form-error" id="trfError" hidden></p>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:10px">
+          <button type="button" class="btn-cancel" data-close="modalTransfer" style="flex:1">Cancelar</button>
+          <button type="submit" class="btn-primary" style="flex:1">Pedir traslado</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/utils.js?v=3.5.0"></script>
+  <script src="js/api.js?v=4.0.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/shared/shell.js?v=4.2.0"></script>
+  <script src="js/shared/native-app.js?v=1.1.0"></script>
+  <script src="js/modules/gestion.js?v=1.0.0"></script>
+</body>
+</html>
