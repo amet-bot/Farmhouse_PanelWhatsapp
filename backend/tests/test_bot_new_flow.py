@@ -7,7 +7,7 @@ from models.message import Message
 from models.branch import Branch
 from services.auto_responses import (
     MAIN_WELCOME_BODY, ENTRY_GATE_BODY, CORPORATE_INTAKE_CLOSING_MESSAGE,
-    MANAGER_HELP_QUESTION, MENU_LINK_WARM_CLOSING
+    MANAGER_HELP_QUESTION, MENU_LINK_WARM_CLOSING, MENU_DIRECT_DELIVERY_TYPE_QUESTION
 )
 
 @pytest.fixture(autouse=True)
@@ -197,9 +197,9 @@ def test_main_order_button_reshows_main_menu(client, clayton_branch, db_session)
     assert any("Delivery, entendido" in msg.content for msg in outgoing)
 
 
-def test_direct_to_menu_option_skips_delivery_type_question(client, clayton_branch, db_session):
-    # Cliente que ya sabe qué quiere: toca "Ver el menú y pedir" en el menú principal y solo
-    # debe pasar por la elección de sucursal, sin la pregunta de Delivery/Retiro/Evento.
+def test_direct_to_menu_option_asks_delivery_or_pickup_first(client, clayton_branch, db_session):
+    # "Ver el menú y pedir" ya no salta directo a la sucursal: primero pregunta cómo quiere
+    # recibirlo, porque de eso depende si hace falta su ubicación (delivery) o no (retiro).
     phone = "50769990013"
     assert _post_bot_message(
         client, phone, "wamid.DIRECT01", button_id="main_menu_direct", button_title="Ver el menú y pedir"
@@ -211,32 +211,39 @@ def test_direct_to_menu_option_skips_delivery_type_question(client, clayton_bran
     outgoing = db_session.query(Message).filter(
         Message.conversation_id == conv.id, Message.direction == "outgoing"
     ).all()
-    assert any("¿Desde cuál sucursal te gustaría pedir?" in msg.content for msg in outgoing)
-    assert not any("¿Cómo quieres recibir tu pedido?" in msg.content for msg in outgoing)
+    assert any(MENU_DIRECT_DELIVERY_TYPE_QUESTION in msg.content for msg in outgoing)
+    assert not any("¿Desde cuál sucursal te gustaría pedir?" in msg.content for msg in outgoing)
+
+    # Rama de retiro: de ahí en adelante es el camino de siempre (sucursal y luego el menú).
+    assert _post_bot_message(
+        client, phone, "wamid.DIRECT02", button_id="menu_direct_pickup", button_title="Retiro en local"
+    ).status_code == 200
+    db_session.refresh(conv)
+    assert conv.delivery_type == "pickup"
 
     assert _post_bot_message(
-        client, phone, "wamid.DIRECT02", button_id=f"branch_{clayton_branch.id}", button_title="Clayton"
+        client, phone, "wamid.DIRECT03", button_id=f"branch_{clayton_branch.id}", button_title="Clayton"
     ).status_code == 200
     db_session.refresh(conv)
     assert conv.branch_id == clayton_branch.id
-    assert conv.delivery_type is None
     outgoing = db_session.query(Message).filter(
         Message.conversation_id == conv.id, Message.direction == "outgoing"
     ).all()
-    assert any("Menú Digital de Farmhouse" in msg.content for msg in outgoing)
+    assert any("Menú Digital" in msg.content for msg in outgoing)
 
 
 def test_customer_can_type_menu_request_directly(client, clayton_branch, db_session):
+    # Escribirlo con sus palabras entra por el mismo camino que tocar la fila del menú.
     phone = "50769990014"
     assert _post_bot_message(
-        client, phone, "wamid.DIRECT03", text="quiero ver el menu"
+        client, phone, "wamid.DIRECT04", text="quiero ver el menu"
     ).status_code == 200
     contact = db_session.query(Contact).filter(Contact.phone.contains("69990014")).first()
     conv = db_session.query(Conversation).filter(Conversation.customer_id == contact.id).first()
     outgoing = db_session.query(Message).filter(
         Message.conversation_id == conv.id, Message.direction == "outgoing"
     ).all()
-    assert any("¿Desde cuál sucursal te gustaría pedir?" in msg.content for msg in outgoing)
+    assert any(MENU_DIRECT_DELIVERY_TYPE_QUESTION in msg.content for msg in outgoing)
 
 
 def test_customer_can_change_branch_in_natural_language(client, clayton_branch, db_session):

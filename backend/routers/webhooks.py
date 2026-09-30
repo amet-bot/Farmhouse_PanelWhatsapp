@@ -578,6 +578,13 @@ async def _step_handle_shared_location(db: Session, wa_service, conv: Conversati
     contact.longitude = longitude
     if conv.delivery_type is None:
         conv.delivery_type = "delivery"   # compartir la ubicación sin más solo tiene sentido para delivery
+    # La bandera del flujo menu_direct se consume aquí, al entrar, y no en la rama que la usa:
+    # esta función tiene varias salidas tempranas (fuera de rango, sin sucursales) y si la
+    # bandera sobreviviera a una de ellas, el siguiente delivery de esa misma conversación se
+    # saltaría las preguntas de PH/apto y referencia, y el motorizado se quedaría sin ellas.
+    es_menu_directo = conv.delivery_intake_step == 0
+    if es_menu_directo:
+        conv.delivery_intake_step = None
     conv.updated_at = datetime.now(timezone.utc)
     db.commit()
 
@@ -639,10 +646,14 @@ async def _step_handle_shared_location(db: Session, wa_service, conv: Conversati
         await _send_plain_text_message(db, wa_service, conv, contact, phone, text)
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
 
-    # Delivery: flujo normal pregunta por tipo de lugar (PH, casa, local) y referencia.
-    # Flujo menu_direct (delivery_intake_step==0) va directo al menú digital sin esas preguntas.
-    if conv.delivery_intake_step == 0:
+    if es_menu_directo:
+        # "Ver el menú y pedir": va directo al menú, sin las preguntas de PH/apto y referencia.
+        # Pero sí conserva el aviso de sucursal cerrada (si no, se arma un pedido que nadie
+        # recibe) y el prompt de cierre (si no, el chat queda sin salida tras el link).
+        await _send_closed_now_notice(db, wa_service, conv, contact, phone)
         await _send_digital_menu_link(db, wa_service, conv, contact, phone)
+        await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        await _send_after_menu_help_prompt(db, wa_service, conv, contact, phone)
     else:
         # Antes del menú, ¿PH, casa o local? y la referencia (ver _handle_delivery_intake_step).
         conv.delivery_intake_step = 1

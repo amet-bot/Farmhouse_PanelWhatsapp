@@ -145,3 +145,40 @@ def test_ubicacion_sin_sucursales_con_coordenadas_cae_a_la_lista(client, db_sess
     conv = _conv(db_session)
     assert conv.branch_id is None
     assert "¿Desde cuál sucursal" in _outgoing(db_session, conv.id)[-1]
+
+
+def test_menu_directo_con_delivery_va_de_la_ubicacion_al_menu_sin_preguntas(client, clayton_branch, obarrio_branch, db_session):
+    # "Ver el menú y pedir" + delivery: la ubicación tiene que bastar para llegar al menú.
+    # Se le dice cuánto cuesta el envío, pero no se le piden PH/apto ni referencia.
+    _post_bot_message(client, PHONE, "wamid.MD1", button_id="main_menu_direct", button_title="Ver el menú y pedir")
+    _post_bot_message(client, PHONE, "wamid.MD2", button_id="menu_direct_delivery", button_title="Delivery")
+    _post_location(client, PHONE, "wamid.MD3", *CERCA_DE_CLAYTON, name="Mi casa")
+    db_session.expire_all()
+    conv = _conv(db_session)
+    assert conv.branch_id == clayton_branch.id and conv.delivery_type == "delivery"
+    contenidos = _outgoing(db_session, conv.id)
+    assert any("Tu sucursal más cercana es *Clayton*" in c for c in contenidos)
+    assert any("El delivery hasta tu ubicación cuesta" in c for c in contenidos)   # el monto
+    assert any("/menu?" in c and "branch=CLY" in c for c in contenidos)
+    assert not any("¿a qué tipo de lugar" in c for c in contenidos)
+    # El chat no queda sin salida: tras el link siguen ofreciéndose opciones.
+    assert "algo más en lo que pueda ayudarte" in contenidos[-1]
+
+
+def test_el_menu_directo_no_deja_al_delivery_siguiente_sin_preguntas(client, clayton_branch, obarrio_branch, db_session):
+    # La bandera del menú directo se consume al usarla. Si sobreviviera, el próximo delivery de
+    # esta misma conversación se saltaría PH/apto y referencia, y el motorizado se quedaría sin
+    # ellas: por eso este caso se prueba aparte del feliz.
+    _post_bot_message(client, PHONE, "wamid.MD4", button_id="main_menu_direct", button_title="Ver el menú y pedir")
+    _post_bot_message(client, PHONE, "wamid.MD5", button_id="menu_direct_delivery", button_title="Delivery")
+    _post_location(client, PHONE, "wamid.MD6", *CERCA_DE_CLAYTON)
+    db_session.expire_all()
+    assert _conv(db_session).delivery_intake_step is None
+
+    # Ahora un delivery normal: acá sí tienen que volver las preguntas de entrega.
+    _post_bot_message(client, PHONE, "wamid.MD7", text="delivery")
+    _post_location(client, PHONE, "wamid.MD8", *CERCA_DE_CLAYTON)
+    db_session.expire_all()
+    conv = _conv(db_session)
+    assert conv.delivery_intake_step == 1
+    assert "¿a qué tipo de lugar" in _outgoing(db_session, conv.id)[-1]
