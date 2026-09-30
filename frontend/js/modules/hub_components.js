@@ -56,7 +56,7 @@
 
   function mobileModuleCard(m) {
     return `
-      <a class="hub-m-card" href="${esc(m.route)}">
+      <a class="hub-m-card" href="${esc(m.route)}" data-module-id="${esc(m.id)}">
         <span class="hub-m-card-top">
           <span class="hub-module-icon hub-module-icon-lg">${icon(m.icon)}</span>
           <span class="hub-m-card-arrow">${icon('chevron-right')}</span>
