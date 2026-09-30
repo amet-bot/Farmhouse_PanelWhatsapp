@@ -79,7 +79,8 @@ def test_la_ubicacion_asigna_la_sucursal_mas_cercana_y_sigue_con_el_menu(client,
     conv = _conv(db_session)
     assert conv.branch_id == clayton_branch.id
     contenidos = _outgoing(db_session, conv.id)
-    assert any("Tu sucursal más cercana es *Clayton*" in c and " km" in c and "Calle 50, Obarrio" in c for c in contenidos)
+    assert any("Tu sucursal más cercana es *Clayton*" in c and " km" in c for c in contenidos)
+    assert any("Te ubico en *Calle 50, Obarrio*" in c for c in contenidos)
     assert "¿a qué tipo de lugar" in contenidos[-1]
     assert conv.delivery_intake_step == 1
     # Contesta PH y la referencia: recién ahí llega el menú.

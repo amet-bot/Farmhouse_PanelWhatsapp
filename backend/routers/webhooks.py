@@ -570,15 +570,30 @@ async def _step_handle_shared_location(db: Session, wa_service, conv: Conversati
     await _assign_conversation_branch(db, conv, branch, f"el cliente compartió su ubicación ({km_text} km)")
     fallback = NEAREST_BRANCH_MESSAGE.format(sucursal=branch.name, km=km_text)
     text = get_node_text(db, "nearest_branch_message", fallback, sucursal=branch.name, km=km_text)
+    # La sucursal se contesta de una; la ubicación en palabras tarda unos segundos (dos
+    # consultas a OpenStreetMap) y va en la burbuja siguiente cuando llega.
+    await _send_plain_text_message(db, wa_service, conv, contact, phone, text)
+    text = ""
 
-    # La ubicación en palabras (calle y barrio). Se guarda en el contacto para el panel y el
-    # resumen; si el servicio de mapas no responde, se sigue sin ella.
+    # La ubicación en palabras (lugar, calle más cercana, referencia). Se guarda en el contacto
+    # y en una nota interna; si el servicio de mapas no responde, se sigue sin ella.
     described = await reverse_geocode(latitude, longitude) if es_delivery else None
     if described:
         contact.address = (described.get("full_address") or described["label"])[:500]
+        # Nota interna para el panel (no le llega al cliente): lugar, calle más cercana,
+        # referencia, dirección en formato de buscador y el pin exacto, apenas llega la ubicación.
+        nota = [f"📍 Ubicación del cliente: {described['label']}"]
+        if described.get("landmark_text"):
+            nota.append(f"• Referencia cercana: {described['landmark_text']}")
+        if described.get("full_address"):
+            nota.append(f"• Dirección para PedidosYa: {described['full_address']}")
+        nota.append(f"• Pin exacto: {latitude:.6f}, {longitude:.6f} · https://maps.google.com/?q={latitude},{longitude}")
+        db.add(Message(conversation_id=conv.id, direction="outgoing", sender_type="system",
+                       content="\n".join(nota), is_internal=True, status="sent"))
         db.commit()
-        text += "\n" + get_node_text(db, "location_described", LOCATION_DESCRIBED_MESSAGE.format(lugar=described["label"]), lugar=described["label"])
-    await _send_plain_text_message(db, wa_service, conv, contact, phone, text)
+        text = get_node_text(db, "location_described", LOCATION_DESCRIBED_MESSAGE.format(lugar=described["label"]), lugar=described["label"])
+    if text:
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, text)
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
 
     if not es_delivery:

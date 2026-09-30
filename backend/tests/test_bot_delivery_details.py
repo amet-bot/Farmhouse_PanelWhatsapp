@@ -26,8 +26,11 @@ def _env(monkeypatch):
     monkeypatch.setattr("routers.webhooks.is_branch_open", lambda branch: True)
 
     async def _fake_geocode(lat, lng):
-        return {"street": "Avenida Samuel Lewis", "area": "Obarrio", "place": "", "label": "Avenida Samuel Lewis, Obarrio",
-                "full_address": "Avenida Samuel Lewis, Obarrio, Bella Vista, Ciudad de Panamá"}
+        return {"street": "Avenida Samuel Lewis", "area": "Obarrio", "place": "",
+                "label": "Obarrio, Avenida Samuel Lewis, cerca de Parque Harry Strunz",
+                "full_address": "Avenida Samuel Lewis, Obarrio, Bella Vista, Ciudad de Panamá",
+                "landmark": {"name": "Parque Harry Strunz", "kind": "parque", "distance_m": 90},
+                "landmark_text": "Parque Harry Strunz (parque, a 90 m)"}
     monkeypatch.setattr("routers.webhooks.reverse_geocode", _fake_geocode)
 
 
@@ -45,13 +48,37 @@ def _start_delivery_with_location(client):
     _post_location(client, PHONE, "wamid.D2", *CERCA_DE_CLAYTON)
 
 
-def test_describe_arma_la_frase_con_lugar_calle_y_barrio():
+def test_describe_arma_la_frase_lugar_calle_y_referencia():
     d = geocoding.describe({"road": "Avenida Samuel Lewis", "neighbourhood": "Obarrio", "suburb": "Bella Vista", "county": "Distrito de Panamá", "shop": "La Cuisine"}, "La Cuisine", "shop")
-    assert d["label"] == "La Cuisine, Avenida Samuel Lewis, Obarrio" and d["place"] == "La Cuisine"
+    assert d["label"] == "Obarrio, Avenida Samuel Lewis, en La Cuisine" and d["place"] == "La Cuisine"
     assert d["full_address"] == "Avenida Samuel Lewis, Obarrio, Bella Vista, Ciudad de Panamá"
     d = geocoding.describe({"road": "Calle 50", "house_number": "12", "suburb": "Bella Vista"}, "Calle 50", "highway")
-    assert d["label"] == "Calle 50 12, Bella Vista" and d["place"] == ""
+    assert d["label"] == "Bella Vista, Calle 50 12" and d["place"] == ""
     assert geocoding.describe({}, None, None)["label"] == ""
+
+
+def _way(name, pts, **tags):
+    return {"type": "way", "tags": {"name": name, **tags}, "geometry": [{"lat": a, "lon": b} for a, b in pts]}
+
+
+def test_la_calle_mas_cercana_es_la_del_pin_no_la_del_edificio():
+    lat, lng = 9.0000, -79.5000
+    # Calle E pasa a ~20 m al norte del pin; Calle H a ~150 m (fuera del radio).
+    elements = [
+        _way("Calle H", [(lat + 0.00135, lng - 0.001), (lat + 0.00135, lng + 0.001)], highway="residential"),
+        _way("Calle E", [(lat + 0.00018, lng - 0.001), (lat + 0.00018, lng + 0.001)], highway="residential"),
+        {"type": "node", "lat": lat + 0.0008, "lon": lng, "tags": {"name": "Escuela Paraíso", "amenity": "school"}},
+        {"type": "node", "lat": lat + 0.0002, "lon": lng + 0.0002, "tags": {"name": "Banco X", "amenity": "bank"}},
+    ]
+    street = geocoding.nearest_street(elements, lat, lng)
+    assert street["name"] == "Calle E" and street["distance_m"] <= 25
+    landmark = geocoding.nearest_landmark(elements, lat, lng)
+    # El banco está más cerca, pero la escuela orienta más (prioridad) y sigue a menos de 100 m.
+    assert landmark["name"] == "Escuela Paraíso" and landmark["kind"] == "escuela"
+    d = geocoding.compose({"road": "Calle H", "neighbourhood": "Paraíso", "suburb": "San Miguelito", "city": "Panamá"}, None, None, street=street, landmark=landmark)
+    assert d["label"] == "Paraíso, Calle E, cerca de Escuela Paraíso"
+    assert d["full_address"] == "Calle E, Paraíso, San Miguelito, Ciudad de Panamá"
+    assert d["landmark_text"].startswith("Escuela Paraíso (escuela, a ")
 
 
 def test_match_delivery_place():
@@ -93,6 +120,11 @@ def test_el_resumen_del_handoff_trae_la_entrega_completa(client, clayton_branch,
     conv = _conv(db_session)
     resumen = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.is_internal == True).order_by(Message.id.desc()).first()  # noqa: E712
     assert "• Entrega: Local / oficina · Oficinas Delta, piso 3" in resumen.content
+    nota = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.is_internal == True, Message.content.like("📍 Ubicación del cliente%")).one()  # noqa: E712
+    assert "Obarrio, Avenida Samuel Lewis, cerca de Parque Harry Strunz" in nota.content
+    assert "• Referencia cercana: Parque Harry Strunz (parque, a 90 m)" in nota.content
+    assert "• Dirección para PedidosYa: Avenida Samuel Lewis, Obarrio, Bella Vista, Ciudad de Panamá" in nota.content
+    assert "• Pin exacto: 9.005000, -79.570000" in nota.content
     assert "• Dirección para PedidosYa: Avenida Samuel Lewis, Obarrio, Bella Vista, Ciudad de Panamá" in resumen.content
     assert "• Pin exacto: 9.005000, -79.570000 · https://maps.google.com/?q=9.005,-79.57" in resumen.content
 
