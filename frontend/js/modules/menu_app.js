@@ -175,10 +175,34 @@
       applyCustomerInfoUI();
       renderCategoryPills();
       renderProducts();
+      prefillFromWhatsApp();
     } catch (err) {
       el("productsGrid").innerHTML = `<div class="menu-loading">No pudimos cargar el menú. Por favor recarga la página.</div>`;
       console.error("[menu_app] Error cargando el menú:", err);
     }
+  }
+
+  // Si el cliente ya compartió su ubicación por WhatsApp (y dijo si es PH, casa o local), el
+  // menú abre con el pin, la dirección y la referencia puestos. Puede mover el pin igual.
+  async function prefillFromWhatsApp() {
+    if (!state.sessionToken || state.deliveryLatitude != null) return;
+    try {
+      const res = await fetch(`/api/orders/public/prefill?session=${encodeURIComponent(state.sessionToken)}`);
+      if (!res.ok) return;
+      const p = await res.json();
+      if (p.delivery_type !== "delivery" || p.latitude == null || p.longitude == null) return;
+      setDeliveryPin(p.latitude, p.longitude, !p.address, { silent: true });
+      if (p.address && el("deliveryAddress")) el("deliveryAddress").value = p.address;
+      const ref = [p.building, p.reference].filter(Boolean).join(", ");
+      if (ref && el("deliveryReference") && !el("deliveryReference").value) el("deliveryReference").value = ref;
+      const hint = el("deliveryGpsHint");
+      if (hint) {
+        hint.innerHTML = "📍 Usamos la ubicación que compartiste por WhatsApp. Si no es exacta, mueve el pin.";
+        hint.className = "delivery-gps-hint";
+        hint.hidden = false;
+      }
+      updateCheckoutStatus();
+    } catch (e) { /* sin datos previos: el cliente marca el pin como siempre */ }
   }
 
   function applyInitialBranch() {
@@ -299,7 +323,7 @@
     state.map.on("click", (event) => setDeliveryPin(event.latlng.lat, event.latlng.lng, true));
   }
 
-  function setDeliveryPin(lat, lng, reverseAddress) {
+  function setDeliveryPin(lat, lng, reverseAddress, { silent = false } = {}) {
     state.deliveryLatitude = Number(lat);
     state.deliveryLongitude = Number(lng);
     state.deliveryInCity = isInPanamaCity(state.deliveryLatitude, state.deliveryLongitude);
@@ -317,7 +341,7 @@
     if (state.customerMarker) state.customerMarker.bindPopup("<strong>Tu ubicación de entrega</strong>").openPopup();
     if (state.map) state.map.panTo([lat, lng]);
     updateDeliveryQuote();
-    openCheckoutStep(2);
+    if (!silent) openCheckoutStep(2);   // al abrir con la ubicación de WhatsApp no se salta al checkout
     if (reverseAddress) reverseGeocodePin(lat, lng);
     scheduleCartSync();
   }

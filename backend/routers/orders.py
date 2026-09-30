@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import datetime, timezone
 from typing import List, Optional
 from urllib.parse import quote
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from config import get_all_official_whatsapp_numbers, get_whatsapp_number_for_branch
@@ -164,6 +164,32 @@ async def _send_delayed_yappy_button(
         db.commit()
     finally:
         db.close()
+
+
+@router.get("/public/prefill")
+def public_order_prefill(session: str = Query(..., min_length=10), db: Session = Depends(get_db)):
+    """
+    Lo que el bot ya sabe del cliente para que el Menú Digital abra con la entrega lista: si
+    compartió su ubicación por WhatsApp, el pin, la dirección en palabras y la referencia
+    (PH, casa o local). Solo con el token de sesión firmado que el bot puso en el enlace del
+    menú (ver _send_digital_menu_link): sin él no se devuelve nada de nadie.
+    """
+    session_data = decode_menu_session_token(session)
+    if not session_data:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión del menú inválida o vencida.")
+    conv = db.query(Conversation).filter(Conversation.id == session_data["conv"], Conversation.deleted_at.is_(None)).first()
+    if not conv or not conv.contact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversación no encontrada.")
+    contact = conv.contact
+    return {
+        "delivery_type": conv.delivery_type,
+        "latitude": float(contact.latitude) if contact.latitude is not None else None,
+        "longitude": float(contact.longitude) if contact.longitude is not None else None,
+        "address": contact.address,
+        "building": contact.building_or_house,
+        "reference": contact.address_reference,
+        "place_type": conv.delivery_place_type,
+    }
 
 
 @router.post("/public", response_model=PublicOrderResponse)
