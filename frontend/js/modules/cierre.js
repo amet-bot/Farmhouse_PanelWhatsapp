@@ -26,6 +26,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const state = { branchId: user.branch_id || null, branches: [], sheet: null, values: new Map(), catalog: [], chosen: new Set() };
   const numFmt = new Intl.NumberFormat('es-PA', { maximumFractionDigits: 3 });
   const num = (n) => numFmt.format(Number(n) || 0);
+  const SHORT_UNITS = { gramos: 'g', gramo: 'g', kilogramo: 'kg', kilogramos: 'kg', kilo: 'kg', kilos: 'kg', mililitros: 'ml', mililitro: 'ml', litro: 'L', litros: 'L', unidad: 'u', unidades: 'u', libra: 'lb', libras: 'lb' };
+  const shortUnit = (u) => SHORT_UNITS[norm(u)] || String(u || '').slice(0, 5);
   const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
   // ---- sucursal ----
@@ -104,15 +106,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             const prev = it.last_counted_qty != null
               ? `Última vez: ${num(it.last_counted_qty)} ${esc(it.unit)} (${esc(whenLabel(it.last_counted_at))})${Number(it.received_since) > 0 ? ` · <span class="in">llegaron ${num(it.received_since)}</span>` : ''}${it.last_used != null && Number(it.last_used) > 0 ? ` · <span class="used">se usaron ${num(it.last_used)}</span>` : ''}`
               : 'Primera vez que se cuenta';
-            const v = state.values.get(it.inventory_item_id);
+            const v = state.values.get(it.inventory_item_id) || {};
+            const fmt = (n) => (n == null ? '' : Number(Number(n).toFixed(3)));
             return `
-              <label class="cie-row ${v != null ? 'filled' : ''}" data-id="${it.inventory_item_id}">
-                <span><span class="cie-row-name">${esc(it.name)}</span><span class="cie-row-prev">${prev}</span><span class="cie-row-now" data-now="${it.inventory_item_id}">${usedNow(it, v)}</span></span>
-                <span class="cie-field">
-                  <input type="number" min="0" step="0.001" inputmode="decimal" placeholder="¿cuánto?" value="${v != null ? v : ''}" data-id="${it.inventory_item_id}" aria-label="Cuánto queda de ${esc(it.name)}" />
-                  <span>${esc(it.unit)}</span>
+              <div class="cie-row ${rowClass(v)}" data-id="${it.inventory_item_id}">
+                <span><span class="cie-row-name">${esc(it.name)}</span><span class="cie-row-prev">${prev}</span><span class="cie-row-now" data-now="${it.inventory_item_id}">${rowNote(it, v)}</span></span>
+                <span class="cie-fields">
+                  <span class="cie-field">
+                    <span class="cie-field-label">Queda</span>
+                    <input type="number" min="0" step="0.001" inputmode="decimal" value="${fmt(v.left)}" data-id="${it.inventory_item_id}" data-kind="left" class="${v.source === 'used' ? 'derived' : ''}" aria-label="Cuánto queda de ${esc(it.name)}" />
+                    <span class="cie-unit">${esc(shortUnit(it.unit))}</span>
+                  </span>
+                  <span class="cie-field">
+                    <span class="cie-field-label">Se usó <small>(opcional)</small></span>
+                    <input type="number" min="0" step="0.001" inputmode="decimal" value="${fmt(v.used == null || v.used < 0 ? null : v.used)}" data-id="${it.inventory_item_id}" data-kind="used" class="${v.source === 'left' ? 'derived' : ''}" aria-label="Cuánto se usó de ${esc(it.name)}" />
+                    <span class="cie-unit">${esc(shortUnit(it.unit))}</span>
+                  </span>
                 </span>
-              </label>`;
+              </div>`;
           }).join('')}
         </div>
       </div>`).join('');
@@ -121,18 +132,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     utils.renderIcons();
   }
 
-  // Mientras escriben cuánto queda: cuántas unidades se usaron desde la última vez.
-  function usedNow(it, v) {
-    if (v == null || it.last_counted_qty == null) return '';
-    const used = Number(it.last_counted_qty) + Number(it.received_since || 0) - Number(v);
-    if (used > 0) return `Se usaron <strong>${num(used)} ${esc(it.unit)}</strong>`;
-    if (used < 0) return `Hay <strong>${num(-used)} ${esc(it.unit)}</strong> más que la última vez`;
+  // Lo que había antes de este cierre: la última vez más lo que llegó. Null si nunca se contó.
+  const baseOf = (it) => (it.last_counted_qty == null ? null : Number(it.last_counted_qty) + Number(it.received_since || 0));
+  const rowClass = (v) => (v.error ? 'invalid' : (v.left != null ? 'filled' : ''));
+  // El renglón se puede llenar por cualquiera de los dos lados; el otro se calcula solo.
+  function resolve(it, kind, n) {
+    const base = baseOf(it);
+    if (n == null) return null;
+    if (kind === 'left') return { left: n, used: base == null ? null : Number((base - n).toFixed(3)), source: 'left' };
+    if (base == null) return { left: null, used: n, source: 'used', error: 'first' };
+    const left = Number((base - n).toFixed(3));
+    return left < 0 ? { left: null, used: n, source: 'used', error: 'over' } : { left, used: n, source: 'used' };
+  }
+  function rowNote(it, v) {
+    if (v.error === 'first') return 'Como es la primera vez, escribe cuánto queda.';
+    if (v.error === 'over') return `Se usó más de lo que había (${num(baseOf(it))} ${esc(it.unit)}). Revisa el número.`;
+    if (v.left == null || v.used == null) return '';
+    if (v.used > 0) return `Se usaron <strong>${num(v.used)} ${esc(it.unit)}</strong>${v.source === 'used' ? ` · quedan ${num(v.left)}` : ''}`;
+    if (v.used < 0) return `Hay <strong>${num(-v.used)} ${esc(it.unit)}</strong> más que la última vez`;
     return 'Sin cambio desde la última vez';
   }
 
   function updateBar() {
     const total = state.sheet ? state.sheet.items.length : 0;
-    const done = state.values.size;
+    const done = [...state.values.values()].filter((v) => v.left != null).length;
     $('barCount').textContent = `${done} de ${total}`;
     $('barFill').style.width = total ? `${Math.round((done / total) * 100)}%` : '0%';
     $('btnSubmit').disabled = !done;
@@ -141,13 +164,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const inp = e.target.closest('input[data-id]');
     if (!inp) return;
     const id = Number(inp.dataset.id);
-    const raw = inp.value.trim();
-    const v = raw === '' ? null : Number(raw);
-    if (v == null || Number.isNaN(v) || v < 0) state.values.delete(id); else state.values.set(id, v);
-    inp.closest('.cie-row').classList.toggle('filled', state.values.has(id));
     const it = state.sheet.items.find((i) => i.inventory_item_id === id);
-    const now = inp.closest('.cie-row').querySelector('[data-now]');
-    if (it && now) now.innerHTML = usedNow(it, state.values.get(id));
+    const raw = inp.value.trim();
+    const n = raw === '' || Number.isNaN(Number(raw)) || Number(raw) < 0 ? null : Number(raw);
+    const v = resolve(it, inp.dataset.kind, n);
+    if (v) state.values.set(id, v); else state.values.delete(id);
+    const row = inp.closest('.cie-row');
+    const other = row.querySelector(`input[data-kind="${inp.dataset.kind === 'left' ? 'used' : 'left'}"]`);
+    let otherVal = v ? (inp.dataset.kind === 'left' ? v.used : v.left) : null;
+    if (inp.dataset.kind === 'left' && otherVal != null && otherVal < 0) otherVal = null;
+    other.value = otherVal == null ? '' : Number(otherVal.toFixed(3));
+    other.classList.toggle('derived', otherVal != null);
+    inp.classList.remove('derived');
+    row.className = `cie-row ${rowClass(v || {})}`;
+    row.querySelector('[data-now]').innerHTML = rowNote(it, v || {});
     updateBar();
   });
   // Enter salta al siguiente renglón: se llena de arriba a abajo sin tocar la pantalla.
@@ -156,7 +186,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const inp = e.target.closest('input[data-id]');
     if (!inp) return;
     e.preventDefault();
-    const all = [...$('sheetBox').querySelectorAll('input[data-id]')];
+    // Enter baja al mismo campo (Queda o Se usó) del siguiente renglón.
+    const all = [...$('sheetBox').querySelectorAll(`input[data-kind="${inp.dataset.kind}"]`)];
     const next = all[all.indexOf(inp) + 1];
     if (next) { next.focus(); next.select(); } else inp.blur();
   });
@@ -165,14 +196,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---- cerrar turno ----
   $('btnSubmit').addEventListener('click', async () => {
     const total = state.sheet.items.length;
-    const faltan = total - state.values.size;
+    const listos = [...state.values.entries()].filter(([, v]) => v.left != null);
+    const conError = [...state.values.values()].filter((v) => v.error).length;
+    if (conError) { utils.showToast(`Hay ${conError} renglón${conError === 1 ? '' : 'es'} con un número que no cuadra. Revísalo o déjalo vacío.`, 'error'); return; }
+    const faltan = total - listos.length;
     if (faltan > 0 && !confirm(`Faltan ${faltan} insumo${faltan === 1 ? '' : 's'} sin anotar. Los que quedan vacíos no se tocan. ¿Cerrar igual?`)) return;
     const btn = $('btnSubmit');
     btn.disabled = true;
     try {
       const res = await api.post('/inventory/closing-sheet', {
         branch_id: Number(state.branchId), notes: $('notes').value.trim() || null,
-        lines: [...state.values.entries()].map(([id, qty]) => ({ inventory_item_id: id, counted_quantity: String(qty) })),
+        lines: listos.map(([id, v]) => ({ inventory_item_id: id, counted_quantity: String(v.left) })),
       });
       state.values.clear();
       $('notes').value = '';

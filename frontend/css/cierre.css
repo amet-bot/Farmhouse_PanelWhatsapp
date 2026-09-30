@@ -11,8 +11,13 @@
 .cie-group { margin-top: 14px; }
 .cie-group-title { margin: 0 0 6px 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted, #6b7280); }
 .cie-rows { display: grid; gap: 8px; }
-.cie-row { display: grid; grid-template-columns: 1fr 150px; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); transition: border-color .12s ease, background .12s ease; }
+.cie-row { display: grid; grid-template-columns: 1fr 270px; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); transition: border-color .12s ease, background .12s ease; }
 .cie-row.filled { border-color: var(--green-border, #16a34a); background: rgba(22,163,74,.05); }
+.cie-row.invalid { border-color: #dc2626; background: rgba(220,38,38,.05); }
+.cie-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 6px; }
+.cie-field-label { position: absolute; top: -8px; left: 10px; padding: 0 5px; border-radius: 6px; background: var(--bg-surface, #fff); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted, #6b7280); line-height: 1.4; white-space: nowrap; }
+.cie-field-label small { font-weight: 500; text-transform: none; letter-spacing: 0; }
+.cie-field input.derived { color: var(--text-muted, #6b7280); font-weight: 600; border-style: dashed; }
 .cie-row-name { font-size: 16px; font-weight: 700; color: var(--text-primary, #111827); line-height: 1.25; }
 .cie-row-prev { display: block; margin-top: 3px; font-size: 12.5px; color: var(--text-muted, #6b7280); }
 .cie-row-prev .in { color: var(--green, #15803d); font-weight: 600; }
@@ -21,11 +26,12 @@
 .cie-row-now:empty { display: none; }
 .cie-row-now strong { color: #b45309; }
 .cie-field { position: relative; display: flex; align-items: center; }
-.cie-field input { width: 100%; height: 54px; padding: 0 58px 0 12px; border-radius: 12px; border: 2px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--text-primary, #111827); font: inherit; font-size: 22px; font-weight: 700; text-align: right; -moz-appearance: textfield; }
+.cie-field input { width: 100%; height: 54px; padding: 0 50px 0 10px; border-radius: 12px; border: 2px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--text-primary, #111827); font: inherit; font-size: 22px; font-weight: 700; text-align: right; -moz-appearance: textfield; }
 .cie-field input::-webkit-outer-spin-button, .cie-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .cie-field input:focus { outline: none; border-color: var(--green, #16a34a); box-shadow: 0 0 0 3px rgba(22,163,74,.15); }
 .cie-field input::placeholder { color: var(--text-muted, #9ca3af); font-weight: 500; }
-.cie-field span { position: absolute; right: 12px; max-width: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--text-muted, #6b7280); pointer-events: none; }
+.inv-header #branchSelect { max-width: 170px; height: 38px; }
+.cie-field .cie-unit { position: absolute; right: 10px; max-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--text-muted, #6b7280); pointer-events: none; }
 .cie-foot { margin: 8px 0 0; font-size: 13px; color: var(--text-muted, #6b7280); }
 .cie-foot a { color: var(--green, #15803d); font-weight: 600; }
 
@@ -84,7 +90,10 @@
 @media (max-width: 640px) {
   .cie-body { padding: 12px 12px 190px; }
   .cie-intro { flex-direction: column; }
-  .cie-row { grid-template-columns: 1fr 128px; gap: 8px; padding: 10px 12px; }
+  .cie-row { grid-template-columns: 1fr; gap: 8px; padding: 10px 12px; }
+  .cie-fields { padding-top: 8px; }
+  .inv-header #branchSelect { max-width: 120px; font-size: 13px; }
+  .cie-field input { height: 50px; font-size: 20px; }
   .cie-row-name { font-size: 15px; }
   .cie-field input { height: 50px; font-size: 20px; }
   .cie-bar { grid-template-columns: 1fr auto; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); }
