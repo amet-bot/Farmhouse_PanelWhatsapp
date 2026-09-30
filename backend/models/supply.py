@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Numeric, DateTime, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import Boolean, Column, Integer, Numeric, DateTime, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from database import Base
@@ -20,6 +20,10 @@ class ItemBranchSetting(Base):
     par_quantity = Column(Numeric(10, 3), nullable=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True)
     lead_days = Column(Integer, nullable=True)
+    # Hoja de cierre: si el insumo se cuenta al cerrar el turno en esta sucursal, y en qué orden
+    # aparece (migración 060). Es lo que el operario ve como "la lista de siempre".
+    on_closing_sheet = Column(Boolean, nullable=False, default=False, server_default="0")
+    sheet_position = Column(Integer, nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
     updated_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 

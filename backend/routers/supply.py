@@ -24,7 +24,7 @@ from models.consumption import ConsumptionItem, ConsumptionRecord
 from models.inventory_item import InventoryItem
 from models.ops import SupplyRequest
 from models.shipment import ExpectedShipment, Shipment, ShipmentItem
-from models.stock_count import StockCount
+from models.stock_count import StockCount, StockCountItem
 from models.supplier import Supplier
 from models.supply import ExpectedShipmentItem, ItemBranchSetting
 from models.user import User
@@ -68,7 +68,9 @@ def _branch_or_403(db: Session, current_user: User, branch_id: Optional[int]) ->
 # ==========================================================================
 def usage_per_day(db: Session, branch_id: int, item_ids: List[int], days: int = USAGE_DAYS) -> dict:
     """Cuánto sale por día de cada insumo en esa sucursal, según los últimos `days` días: el
-    consumo registrado a mano (y si no hay, el estimado por ventas × recetas), más la merma.
+    consumo registrado a mano; si no hay, lo que revelaron las hojas de cierre (conteos
+    kind='closing': lo que faltó entre un cierre y el siguiente es lo que se gastó); y si tampoco,
+    el estimado por ventas × recetas. Más la merma en todos los casos.
     Mismo criterio que la existencia: lo registrado a mano manda sobre lo estimado."""
     if not item_ids:
         return {}
@@ -80,6 +82,15 @@ def usage_per_day(db: Session, branch_id: int, item_ids: List[int], days: int = 
         .filter(ConsumptionRecord.branch_id == branch_id, ConsumptionRecord.occurred_at >= desde, ConsumptionItem.inventory_item_id.in_(item_ids))
         .group_by(ConsumptionItem.inventory_item_id).all()
     )
+    cierres: dict = {}
+    for iid, dif in (
+        db.query(StockCountItem.inventory_item_id, StockCountItem.difference)
+        .join(StockCount, StockCount.id == StockCountItem.stock_count_id)
+        .filter(StockCount.branch_id == branch_id, StockCount.kind == "closing", StockCount.counted_at >= desde, StockCountItem.inventory_item_id.in_(item_ids))
+        .all()
+    ):
+        if dif is not None and Decimal(dif) < 0:
+            cierres[iid] = cierres.get(iid, Decimal("0")) - Decimal(dif)
     merma = dict(
         db.query(WasteItem.inventory_item_id, func.coalesce(func.sum(WasteItem.quantity), 0))
         .join(WasteRecord, WasteRecord.id == WasteItem.waste_record_id)
@@ -93,7 +104,12 @@ def usage_per_day(db: Session, branch_id: int, item_ids: List[int], days: int = 
         teorico = {}
     rate = {}
     for iid in item_ids:
-        base = Decimal(manual[iid]) if iid in manual else Decimal(teorico.get(iid, 0) or 0)
+        if iid in manual:
+            base = Decimal(manual[iid])
+        elif iid in cierres:
+            base = cierres[iid]
+        else:
+            base = Decimal(teorico.get(iid, 0) or 0)
         total = base + Decimal(merma.get(iid, 0) or 0)
         if total > 0:
             rate[iid] = total / Decimal(days)

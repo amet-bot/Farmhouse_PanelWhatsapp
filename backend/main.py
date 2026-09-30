@@ -36,6 +36,7 @@ from routers import (
     ops,
     prep,
     supply,
+    closing_sheet,
 )
 from services.bot_followup import run_followup_sweep_loop
 from services import invu_recipes_sync, invu_sync, invu_sales_sync, supply_alerts, weekly_digest
@@ -207,6 +208,7 @@ app.include_router(transfers.router, prefix=settings.API_V1_STR)
 app.include_router(ops.router, prefix=settings.API_V1_STR)
 app.include_router(prep.router, prefix=settings.API_V1_STR)
 app.include_router(supply.router, prefix=settings.API_V1_STR)
+app.include_router(closing_sheet.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)
 
 # -----------------------------------------------------------------------------
@@ -289,6 +291,11 @@ if frontend_dir.exists():
         @app.get("/consumo", include_in_schema=False)
         def serve_consumo():
             return FileResponse(str(frontend_dir / "consumo.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+    if (frontend_dir / "consumo_libre.html").exists():
+        @app.get("/consumo/libre", include_in_schema=False)
+        def serve_consumo_libre():
+            return FileResponse(str(frontend_dir / "consumo_libre.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     if (frontend_dir / "gestion.html").exists():
         @app.get("/gestion", include_in_schema=False)

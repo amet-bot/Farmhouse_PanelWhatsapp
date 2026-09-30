@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <title>Consumo — Farmhouse Link</title>
+  <title>Cierre de turno — Farmhouse Link</title>
   <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#16a34a">
@@ -15,17 +15,17 @@
   <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
   <link rel="stylesheet" href="css/gestion.css?v=1.0.0">
-  <link rel="stylesheet" href="css/consumo.css?v=2.0.1">
+  <link rel="stylesheet" href="css/cierre.css?v=1.0.0">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 
-  <div class="inv-gate" id="conGate">
+  <div class="inv-gate" id="cieGate">
     <span class="inv-gate-spinner" aria-hidden="true"></span>
     <p>Verificando sesión...</p>
   </div>
 
-  <div class="inv-app" id="conMain" hidden>
+  <div class="inv-app" id="cieMain" hidden>
 
     <header class="inv-header">
       <a class="inv-back" href="/operacion" title="Volver a Operación de Sucursal">
@@ -33,19 +33,20 @@
         <span>Operación de Sucursal</span>
       </a>
       <div class="inv-header-titles">
-        <p class="inv-title">Registrar consumo</p>
-        <span class="inv-subtitle" id="conHeaderScope">—</span>
+        <p class="inv-title">Cierre de turno</p>
+        <span class="inv-subtitle" id="cieHeaderScope">—</span>
       </div>
       <div class="inv-header-actions">
+        <select class="inv-filter-select" id="branchSelect" aria-label="Sucursal" hidden></select>
         <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
           <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
           <span class="theme-label">Oscuro</span>
         </button>
         <div class="user-profile">
-          <div class="profile-avatar" id="conAgentAvatar">AD</div>
+          <div class="profile-avatar" id="cieAgentAvatar">AD</div>
           <div>
-            <strong id="conAgentName">Usuario</strong>
-            <small id="conAgentRole">AGENTE</small>
+            <strong id="cieAgentName">Usuario</strong>
+            <small id="cieAgentRole">AGENTE</small>
           </div>
         </div>
         <button class="inv-logout-btn" id="btnLogout">
@@ -55,67 +56,72 @@
       </div>
     </header>
 
-    <main class="con-body">
+    <main class="cie-body">
 
-      <section class="con-toolbar">
-        <div class="con-search">
-          <i data-lucide="search"></i>
-          <input id="itemSearch" placeholder="Buscar insumo… (pollo, papel, aceite)" autocomplete="off" />
-          <button type="button" class="con-search-clear" id="btnClearSearch" hidden aria-label="Limpiar búsqueda"><i data-lucide="x"></i></button>
-        </div>
-        <select class="inv-filter-select" id="branchSelect" aria-label="Sucursal" hidden></select>
-        <p class="con-hint">Toca un insumo, escribe cuánto se gastó y guarda. La existencia se descuenta al momento y también se ve en Abastecimiento.</p>
-        <div class="con-chips" id="chips"></div>
-      </section>
-
-      <section class="con-board-wrap">
-        <div class="con-board" id="board"><div class="ops-loading">Cargando insumos…</div></div>
-      </section>
-
-      <section class="con-history">
-        <div class="con-form-head">
+      <!-- Vista: la hoja -->
+      <section id="viewSheet">
+        <div class="cie-intro">
           <div>
-            <h2>Registrado hoy y ayer</h2>
-            <p>Un registro se puede borrar dentro de las 24 horas; después, solo un encargado.</p>
+            <h2 id="cieTitle">¿Cuánto queda de cada cosa?</h2>
+            <p>Mira el estante y escribe lo que hay. El sistema calcula solo lo que se gastó.</p>
+            <p class="cie-last" id="cieLast"></p>
+          </div>
+          <button type="button" class="inv-secondary-btn" id="btnConfig" hidden><i data-lucide="list-checks"></i> Elegir insumos</button>
+        </div>
+        <div id="sheetBox"><div class="ops-loading">Cargando la hoja…</div></div>
+        <p class="cie-foot" id="cieFoot" hidden>¿Se gastó algo que no está en la hoja? <a href="/consumo/libre" id="linkLibre">Anótalo aquí</a>.</p>
+      </section>
+
+      <!-- Vista: resultado -->
+      <section id="viewDone" hidden>
+        <div class="cie-done">
+          <div class="cie-done-icon"><i data-lucide="check"></i></div>
+          <h2>Cierre guardado</h2>
+          <p id="doneSummary"></p>
+          <div class="cie-done-list" id="doneList"></div>
+          <div class="cie-done-actions">
+            <a class="inv-primary-btn" href="/operacion"><i data-lucide="arrow-left"></i> Volver a Operación</a>
+            <button type="button" class="inv-secondary-btn" id="btnBackToSheet">Ver la hoja</button>
           </div>
         </div>
+      </section>
+
+      <section class="cie-history" id="historyWrap" hidden>
+        <h3>Últimos cierres</h3>
         <div id="history"></div>
       </section>
     </main>
 
-    <!-- Barra de lo que está por guardar -->
-    <div class="con-cart" id="cart" hidden>
-      <div class="con-cart-lines" id="cartLines"></div>
-      <div class="con-cart-actions">
-        <input class="modal-input con-cart-notes" id="notes" maxlength="500" placeholder="Nota (opcional)" />
-        <button type="button" class="inv-secondary-btn" id="btnClearCart">Vaciar</button>
-        <button type="button" class="inv-primary-btn con-save" id="btnSave"><i data-lucide="check"></i> <span id="btnSaveLabel">Guardar</span></button>
+    <!-- Barra fija: progreso + cerrar -->
+    <div class="cie-bar" id="bar" hidden>
+      <div class="cie-bar-progress">
+        <strong id="barCount">0 de 0</strong>
+        <span>insumos anotados</span>
+        <div class="cie-bar-track"><div class="cie-bar-fill" id="barFill"></div></div>
       </div>
+      <input class="modal-input cie-bar-notes" id="notes" maxlength="500" placeholder="Nota (opcional)" />
+      <button type="button" class="inv-primary-btn cie-submit" id="btnSubmit" disabled><i data-lucide="check"></i> Cerrar turno</button>
     </div>
 
-    <!-- Hoja de cantidad -->
-    <div class="modal-backdrop con-sheet-backdrop" id="sheet">
-      <div class="modal-card con-sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
-        <div class="con-sheet-head">
-          <div>
-            <h3 id="sheetTitle">Insumo</h3>
-            <p id="sheetStock">—</p>
-          </div>
-          <button type="button" class="modal-close-btn" id="btnSheetClose" aria-label="Cerrar"><i data-lucide="x"></i></button>
+    <!-- Modal: elegir insumos de la hoja (encargados) -->
+    <div class="modal-backdrop" id="modalConfig">
+      <div class="modal-card modal-lg cie-config" role="dialog" aria-modal="true" aria-labelledby="configTitle">
+        <div class="modal-header">
+          <h3 id="configTitle">Insumos de la hoja de cierre</h3>
+          <button type="button" class="modal-close-btn" id="btnConfigClose" aria-label="Cerrar"><i data-lucide="x"></i></button>
         </div>
-        <div class="con-qty-row">
-          <button type="button" class="con-qty-step" id="btnMinus" aria-label="Menos">−</button>
-          <div class="con-qty-field">
-            <input id="sheetQty" type="number" min="0.001" step="0.001" inputmode="decimal" placeholder="0" />
-            <span id="sheetUnit">kg</span>
+        <div class="modal-body cie-config-body">
+          <p class="ops-hint">Marca lo que la sucursal debe contar al cerrar cada turno. Conviene que sean 15 a 25 cosas: las que más se gastan o más cuestan. Se muestran agrupadas por categoría, en este orden.</p>
+          <div class="cie-config-tools">
+            <input class="modal-input" id="configSearch" placeholder="Buscar insumo…" autocomplete="off" />
+            <span class="cie-config-count" id="configCount">0 marcados</span>
           </div>
-          <button type="button" class="con-qty-step" id="btnPlus" aria-label="Más">+</button>
+          <div class="cie-config-list" id="configList"></div>
+          <p class="ops-form-error" id="configError" hidden></p>
         </div>
-        <div class="con-presets" id="presets"></div>
-        <p class="con-sheet-after" id="sheetAfter"></p>
-        <div class="con-sheet-actions">
-          <button type="button" class="inv-secondary-btn" id="btnSheetCancel">Cancelar</button>
-          <button type="button" class="inv-primary-btn" id="btnSheetAdd"><i data-lucide="plus"></i> Agregar</button>
+        <div class="modal-footer">
+          <button type="button" class="inv-secondary-btn" id="btnConfigCancel">Cancelar</button>
+          <button type="button" class="inv-primary-btn" id="btnConfigSave"><i data-lucide="save"></i> Guardar hoja</button>
         </div>
       </div>
     </div>
@@ -126,6 +132,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/consumo.js?v=2.0.0"></script>
+  <script src="js/modules/cierre.js?v=1.0.1"></script>
 </body>
 </html>

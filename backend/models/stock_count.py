@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Numeric, DateTime, ForeignKey, Text, Index
+from sqlalchemy import Column, Integer, Numeric, DateTime, ForeignKey, Text, Index, String
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from database import Base
@@ -30,6 +30,9 @@ class StockCount(Base):
     counted_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     counted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     notes = Column(Text, nullable=True)
+    # 'closing' cuando vino de la hoja de cierre de turno (routers/closing_sheet.py); NULL es un
+    # conteo normal. Los cierres son diarios y parciales, y sirven para medir el ritmo de uso.
+    kind = Column(String(20), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     branch = relationship("Branch")
