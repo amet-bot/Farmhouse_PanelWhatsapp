@@ -368,6 +368,24 @@ YAPPY_PAYMENT_MESSAGE = (
     "Nunca te pediremos tu PIN ni contraseña. 😊"
 )
 
+# Delivery por ubicación (ver _step_handle_shared_location en routers/webhooks.py): al elegir
+# delivery, en vez de la lista de sucursales el bot pide la ubicación con el botón nativo de
+# WhatsApp y recomienda la sucursal más cercana. Escribir el nombre de una sucursal sigue
+# funcionando igual que siempre.
+DELIVERY_LOCATION_REQUEST_BODY = (
+    "Delivery, entendido 🛵 Compárteme tu ubicación con el botón de abajo y te recomiendo la "
+    "sucursal más cercana. Si prefieres, escríbeme el nombre de la sucursal."
+)
+NEAREST_BRANCH_MESSAGE = "Tu sucursal más cercana es *{sucursal}*, a {km} km 📍 Desde ahí te llevamos el pedido."
+# Más lejos que esto de la sucursal más cercana no se hace delivery (el menú web cobra hasta
+# 15 km; aquí se corta antes para no prometer lo que la cocina no va a poder cumplir).
+DELIVERY_MAX_KM = 12
+DELIVERY_OUT_OF_RANGE_MESSAGE = (
+    "Estás a {km} km de nuestra sucursal más cercana (*{sucursal}*) y por ahora el delivery "
+    "llega hasta {max_km} km 😔 Si quieres, puedes pedir para retirar en la sucursal que te "
+    "quede mejor:"
+)
+
 # Sucursal cerrada en este momento (ver services/branch_hours.py): se manda justo antes del
 # enlace del Menú Digital en delivery/retiro, para que el cliente no arme un pedido esperando
 # que salga ya. El menú permite programarlo para cuando abra (fulfillment_type "scheduled").

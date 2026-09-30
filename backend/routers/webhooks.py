@@ -47,8 +47,10 @@ from services.auto_responses import (
     CHANGE_ORDER_TYPE_MESSAGE, CHANGE_BRANCH_MESSAGE, get_human_handoff_message,
     get_customer_first_name, get_chat_order_context_line,
     CLOSED_NOW_MESSAGE, BOT_SESSION_TIMEOUT_HOURS,
+    DELIVERY_LOCATION_REQUEST_BODY, NEAREST_BRANCH_MESSAGE, DELIVERY_MAX_KM, DELIVERY_OUT_OF_RANGE_MESSAGE,
 )
 from services.branch_hours import is_branch_open, branch_opening_label
+from services.delivery_geo import distance_km
 from services.media_storage import save_media_bytes, MEDIA_DOWNLOAD_FAILED_MARKER
 from services.branch_matcher import match_branch_by_text
 from services.order_flow_matcher import (
@@ -481,6 +483,65 @@ async def _send_closed_now_notice(db: Session, wa_service, conv: Conversation, c
     text = get_node_text(db, "closed_now_message", CLOSED_NOW_MESSAGE.format(abre=abre), abre=abre)
     await _send_plain_text_message(db, wa_service, conv, contact, phone, text)
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+
+async def _send_location_request(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Pide la ubicación con el botón nativo de WhatsApp para recomendar la sucursal más
+    cercana (delivery). En el historial queda el texto con un 📍 delante."""
+    body = get_node_text(db, "delivery_location_request", DELIVERY_LOCATION_REQUEST_BODY)
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+    await _send_and_log(db, wa_service, conv, contact, phone, wa_service.send_location_request(phone, body), f"📍 {body}")
+    logger.info(f"[Location] Pedido de ubicación enviado a {mask_phone(phone)} para Conv ID {conv.id}.")
+
+def _nearest_branch(db: Session, latitude: float, longitude: float, delivery_only: bool):
+    """(sucursal, km) más cercana con coordenadas cargadas; None si ninguna las tiene."""
+    query = db.query(Branch).filter(Branch.active == True, Branch.latitude.isnot(None), Branch.longitude.isnot(None))  # noqa: E712
+    if delivery_only:
+        query = query.filter(Branch.accepts_delivery == True)  # noqa: E712
+    best = None
+    for b in query.all():
+        lat, lng = float(b.latitude), float(b.longitude)
+        if b.code == "CAT" or (lat == 0 and lng == 0):
+            continue   # catering no atiende clientes; (0,0) es "sin cargar"
+        km = distance_km(latitude, longitude, lat, lng)
+        if best is None or km < best[1]:
+            best = (b, km)
+    return best
+
+async def _step_handle_shared_location(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, location: dict) -> None:
+    """El cliente compartió su ubicación: se guarda en el contacto, se busca la sucursal más
+    cercana (solo las que hacen delivery, si es delivery) y se sigue el flujo normal de esa
+    sucursal. Muy lejos de todas: se ofrece retirar en vez de prometer un delivery que no llega."""
+    latitude, longitude = float(location["latitude"]), float(location["longitude"])
+    contact.latitude = latitude
+    contact.longitude = longitude
+    if conv.delivery_type is None:
+        conv.delivery_type = "delivery"   # compartir la ubicación sin más solo tiene sentido para delivery
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    es_delivery = conv.delivery_type == "delivery"
+    best = _nearest_branch(db, latitude, longitude, delivery_only=es_delivery)
+    if best is None:
+        await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=conv.delivery_type)
+        return
+    branch, km = best
+    km_text = f"{float(km):.1f}"
+    if es_delivery and float(km) > DELIVERY_MAX_KM:
+        logger.info(f"[Location] Conv {conv.id}: a {km_text} km de {branch.name}, fuera del alcance de delivery.")
+        conv.delivery_type = "pickup"
+        db.commit()
+        fallback = DELIVERY_OUT_OF_RANGE_MESSAGE.format(sucursal=branch.name, km=km_text, max_km=DELIVERY_MAX_KM)
+        text = get_node_text(db, "delivery_out_of_range_message", fallback, sucursal=branch.name, km=km_text, max_km=DELIVERY_MAX_KM)
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, text)
+        await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+        await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key="pickup")
+        return
+
+    await _assign_conversation_branch(db, conv, branch, f"el cliente compartió su ubicación ({km_text} km)")
+    fallback = NEAREST_BRANCH_MESSAGE.format(sucursal=branch.name, km=km_text)
+    await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "nearest_branch_message", fallback, sucursal=branch.name, km=km_text))
+    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
+    await _send_branch_welcome_and_menu(db, wa_service, conv, contact, phone)
 
 def _after_menu_help_rows(db: Session) -> list:
     titles = get_node_options(db, "after_menu_help_question", [b["title"] for b in AFTER_MENU_HELP_BUTTONS])
@@ -924,7 +985,10 @@ async def _step_handle_change_order_type_or_back(db: Session, wa_service, conv: 
     if desired_type:
         conv.delivery_type = desired_type
         db.commit()
-        await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=desired_type)
+        if desired_type == "delivery":
+            await _send_location_request(db, wa_service, conv, contact, phone)
+        else:
+            await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=desired_type)
     else:
         await _send_plain_text_message(db, wa_service, conv, contact, phone, get_node_text(db, "change_order_type_message", CHANGE_ORDER_TYPE_MESSAGE))
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
@@ -1256,6 +1320,12 @@ async def _process_auto_flow_background_locked(conv_id: int, contact_id: int, ph
             await _step_handle_change_order_type_or_back(db, wa_service, conv, contact, phone, navigation_intent, text, message_type)
             return
 
+        # 2.5 El cliente compartió su ubicación (botón nativo de WhatsApp o por su cuenta): se
+        #     recomienda y asigna la sucursal más cercana y sigue el flujo normal de esa sucursal.
+        if message_type == "location" and msg_data.get("location"):
+            await _step_handle_shared_location(db, wa_service, conv, contact, phone, msg_data["location"])
+            return
+
         # 2.55 "Pedir y pagar por chat": alternativa al Menú Digital web para quien ya sabe
         # exactamente qué quiere. Solo pide describir el pedido (texto libre, inevitable aquí)
         # y luego resuelve el pago con una lista tocable en vez de depender de que escriba la
@@ -1348,7 +1418,12 @@ async def _process_auto_flow_background_locked(conv_id: int, contact_id: int, ph
 
         # 5. Si se seleccionó o tiene delivery_type (visit, delivery, pickup) pero falta sucursal:
         if conv.delivery_type in ["visit", "delivery", "pickup"] and conv.branch_id is None:
-            await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=conv.delivery_type)
+            if conv.delivery_type == "delivery" and main_option_matched == "delivery":
+                # Recién eligió delivery: se pide la ubicación para recomendar la sucursal más
+                # cercana. Si después escribe otra cosa, cae a la lista de sucursales de siempre.
+                await _send_location_request(db, wa_service, conv, contact, phone)
+            else:
+                await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key=conv.delivery_type)
             return
 
         # 6. Si la sucursal fue elegida en este turno o acaba de completar delivery_type + sucursal:
@@ -1518,9 +1593,12 @@ async def receive_webhook(
         "audio": "🎤 Audio",
         "document": "📄 Documento",
         "sticker": "🩹 Sticker",
+        "location": "📍 Ubicación",
     }
     if message_type in ("text", "interactive"):
         text = msg_data["text"]
+    elif message_type == "location":
+        text = msg_data.get("text") or type_labels["location"]
     else:
         caption = msg_data.get("caption")
         text = caption if caption else type_labels.get(message_type, f"[{message_type}]")

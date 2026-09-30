@@ -69,6 +69,13 @@ class WhatsAppService(ABC):
         pass
 
     @abstractmethod
+    async def send_location_request(self, to_phone: str, body_text: str) -> Dict[str, Any]:
+        """Pide la ubicación del cliente con el botón nativo de WhatsApp "Enviar ubicación"
+        (interactive/location_request_message). La respuesta llega como un mensaje de tipo
+        "location" con latitud y longitud (ver parse_incoming_message)."""
+        pass
+
+    @abstractmethod
     async def send_typing_indicator(self, wamid: str) -> None:
         """Marca el mensaje entrante como leído y muestra el indicador "escribiendo..." en el
         chat del cliente (dura hasta 25s o hasta que llegue el próximo mensaje nuestro, lo que
@@ -138,6 +145,11 @@ class MockWhatsAppService(WhatsAppService):
         logger.info(f"[MockWhatsAppService] Botón CTA '{button_text}' -> {url} enviado a {to_phone} (WAMID: {wamid})")
         return {"messaging_product": "whatsapp", "messages": [{"id": wamid}]}
 
+    async def send_location_request(self, to_phone: str, body_text: str) -> Dict[str, Any]:
+        wamid = f"wamid.HBgL{uuid.uuid4().hex[:16].upper()}"
+        logger.info(f"[MockWhatsAppService] Pedido de ubicación enviado a {to_phone}: '{body_text[:60]}' (WAMID: {wamid})")
+        return {"messaging_product": "whatsapp", "messages": [{"id": wamid}]}
+
     async def send_typing_indicator(self, wamid: str) -> None:
         logger.info(f"[MockWhatsAppService] Simulando 'escribiendo...' para wamid={wamid}")
 
@@ -170,6 +182,7 @@ class MockWhatsAppService(WhatsAppService):
                 "caption": None,
                 "interactive_id": None,
                 "interactive_title": None,
+                "location": None,
                 "recipient_phone_number_id": metadata.get("phone_number_id"),
                 "recipient_display_phone_number": metadata.get("display_phone_number"),
             }
@@ -190,6 +203,20 @@ class MockWhatsAppService(WhatsAppService):
                 result["interactive_id"] = reply_obj.get("id")
                 result["interactive_title"] = reply_obj.get("title")
                 result["text"] = reply_obj.get("title", "")
+            elif msg_type == "location":
+                # El cliente tocó "Enviar ubicación" (o la compartió por su cuenta). Se guarda
+                # como texto un enlace de Maps, que es lo útil para quien atiende en el panel.
+                loc = msg.get("location") or {}
+                try:
+                    lat, lng = float(loc.get("latitude")), float(loc.get("longitude"))
+                except (TypeError, ValueError):
+                    lat = lng = None
+                if lat is not None:
+                    result["location"] = {"latitude": lat, "longitude": lng, "name": loc.get("name"), "address": loc.get("address")}
+                    detalle = " · ".join(p for p in (loc.get("name"), loc.get("address")) if p)
+                    result["text"] = f"📍 Ubicación compartida{(': ' + detalle) if detalle else ''}\nhttps://maps.google.com/?q={lat},{lng}"
+                else:
+                    result["text"] = "📍 Ubicación compartida (sin coordenadas)"
             else:
                 result["text"] = f"[Mensaje de tipo '{msg_type}' no soportado todavía]"
 
@@ -515,6 +542,30 @@ class MetaWhatsAppService(WhatsAppService):
                 return response.json()
             except httpx.HTTPStatusError as e:
                 logger.error(f"[MetaWhatsAppService] Error HTTP {e.response.status_code} de Meta al enviar botón CTA URL a '{to_phone_clean}': {e.response.text}")
+                raise e
+
+    async def send_location_request(self, to_phone: str, body_text: str) -> Dict[str, Any]:
+        url_endpoint = f"{self.api_url}/{self.phone_number_id}/messages"
+        to_phone_clean = "".join(c for c in str(to_phone) if c.isdigit())
+        headers = {"Authorization": f"Bearer {self.access_token}", "Content-Type": "application/json"}
+        data = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to_phone_clean,
+            "type": "interactive",
+            "interactive": {
+                "type": "location_request_message",
+                "body": {"text": body_text[:1024]},
+                "action": {"name": "send_location"},
+            },
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(url_endpoint, headers=headers, json=data, timeout=10.0)
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"[MetaWhatsAppService] Error HTTP {e.response.status_code} de Meta al pedir la ubicación a '{to_phone_clean}': {e.response.text}")
                 raise e
 
     async def send_typing_indicator(self, wamid: str) -> None:
