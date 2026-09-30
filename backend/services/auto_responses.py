@@ -99,6 +99,12 @@ NAV_RESTART_ROW = {"id": "nav_restart", "title": "🔄 Empezar de nuevo", "descr
 
 BRANCH_SELECTION_MENU_DIRECT_BODY = "¡Perfecto! 🍽️ ¿Desde cuál sucursal te gustaría pedir?"
 
+MENU_DIRECT_DELIVERY_TYPE_QUESTION = "¿Cómo te gustaría recibir tu pedido?"
+MENU_DIRECT_DELIVERY_TYPE_BUTTONS = [
+    {"id": "menu_direct_delivery", "title": "🛵 Delivery"},
+    {"id": "menu_direct_pickup", "title": "🛍️ Retiro en local"},
+]
+
 BRANCH_SELECTION_BODY = "¿Cuál de nuestras sucursales te gustaría contactar?"
 BRANCH_SELECTION_VISIT_BODY = "¿Cuál sucursal quieres consultar? Te mostraré su dirección y horario."
 BRANCH_SELECTION_DELIVERY_BODY = "Delivery, entendido 🛵 ¿Desde cuál sucursal deseas pedir?"

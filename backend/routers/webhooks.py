@@ -25,6 +25,7 @@ from services.auto_responses import (
     ENTRY_GATE_BUTTONS, get_entry_gate_body,
     BRANCH_SELECTION_BODY, BRANCH_SELECTION_VISIT_BODY, BRANCH_SELECTION_DELIVERY_BODY,
     BRANCH_SELECTION_PICKUP_BODY, BRANCH_SELECTION_BUTTON, BRANCH_SELECTION_MENU_DIRECT_BODY,
+    MENU_DIRECT_DELIVERY_TYPE_QUESTION, MENU_DIRECT_DELIVERY_TYPE_BUTTONS,
     CORPORATE_INTAKE_ENABLED, CORPORATE_CATERING_HANDOFF, CATERING_PHONE_DISPLAY,
     CORPORATE_INTAKE_INTRO, CORPORATE_EVENT_TYPE_QUESTION, CORPORATE_EVENT_TYPE_BUTTONS,
     CORPORATE_EVENT_TYPE_LABELS, CORPORATE_HEADCOUNT_QUESTION, CORPORATE_HEADCOUNT_RETRY,
@@ -348,6 +349,18 @@ async def _send_manager_help_prompt(db: Session, wa_service, conv: Conversation,
         _manager_help_rows(db), section_title="¿Algo más?",
     )
 
+def _menu_direct_choice_rows(db: Session) -> list:
+    titles = get_node_options(db, "menu_direct_delivery_type_question", [b["title"] for b in MENU_DIRECT_DELIVERY_TYPE_BUTTONS])
+    return [{"id": b["id"], "title": t} for b, t in zip(MENU_DIRECT_DELIVERY_TYPE_BUTTONS, titles)] + [NAV_RESTART_ROW]
+
+async def _send_menu_direct_choice_prompt(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    """Cuando selecciona 'Ver el menú y pedir', pregunta si quiere Delivery o Retiro."""
+    question_text = get_node_text(db, "menu_direct_delivery_type_question", MENU_DIRECT_DELIVERY_TYPE_QUESTION)
+    await _send_interactive_list_message(
+        db, wa_service, conv, contact, phone, question_text, "Elegir opción",
+        _menu_direct_choice_rows(db), section_title="Tipo de entrega",
+    )
+
 async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
     """Envía el enlace personalizado al Menú Digital (/menu), con copy según el tipo de atención."""
     branch_name = conv.branch.name if conv.branch else "Farmhouse"
@@ -556,7 +569,10 @@ def _nearest_branch(db: Session, latitude: float, longitude: float, delivery_onl
 async def _step_handle_shared_location(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, location: dict) -> None:
     """El cliente compartió su ubicación: se guarda en el contacto, se busca la sucursal más
     cercana (solo las que hacen delivery, si es delivery) y se sigue el flujo normal de esa
-    sucursal. Muy lejos de todas: se ofrece retirar en vez de prometer un delivery que no llega."""
+    sucursal. Muy lejos de todas: se ofrece retirar en vez de prometer un delivery que no llega.
+
+    Si viene del flujo menu_direct (delivery_intake_step==0), va directo al menú digital sin
+    preguntar tipo de lugar ni referencia de entrega."""
     latitude, longitude = float(location["latitude"]), float(location["longitude"])
     contact.latitude = latitude
     contact.longitude = longitude
@@ -623,11 +639,16 @@ async def _step_handle_shared_location(db: Session, wa_service, conv: Conversati
         await _send_plain_text_message(db, wa_service, conv, contact, phone, text)
     await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
 
-    # Delivery: antes del menú, ¿PH, casa o local? y la referencia (ver _handle_delivery_intake_step).
-    conv.delivery_intake_step = 1
-    conv.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    await _send_delivery_place_question(db, wa_service, conv, contact, phone)
+    # Delivery: flujo normal pregunta por tipo de lugar (PH, casa, local) y referencia.
+    # Flujo menu_direct (delivery_intake_step==0) va directo al menú digital sin esas preguntas.
+    if conv.delivery_intake_step == 0:
+        await _send_digital_menu_link(db, wa_service, conv, contact, phone)
+    else:
+        # Antes del menú, ¿PH, casa o local? y la referencia (ver _handle_delivery_intake_step).
+        conv.delivery_intake_step = 1
+        conv.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        await _send_delivery_place_question(db, wa_service, conv, contact, phone)
 
 def _delivery_place_rows(db: Session) -> list:
     titles = get_node_options(db, "delivery_place_question", [r["title"] for r in DELIVERY_PLACE_ROWS])
@@ -1574,12 +1595,28 @@ async def _process_auto_flow_background_locked(conv_id: int, contact_id: int, ph
 
         entry_intent = match_entry_intent(text) if message_type == "text" else None
 
-        # 2.9 Cliente que ya sabe qué quiere y pide el menú directo: nos saltamos la pregunta
-        # de Delivery/Retiro/Evento y solo pedimos la sucursal para armar el link del menú.
+        # 2.8 Cliente selecciona Delivery en el flujo menu_direct: pedir ubicación para buscar
+        # sucursal más cercana y calcular delivery fee.
+        if interactive_id == "menu_direct_delivery":
+            conv.delivery_type = "delivery"
+            conv.delivery_intake_step = 0  # Marca que es menu_direct para skip preguntas después
+            conv.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            await _send_location_request(db, wa_service, conv, contact, phone)
+            return
+
+        # 2.8b Cliente selecciona Retiro en el flujo menu_direct: ir directo a seleccionar sucursal.
+        if interactive_id == "menu_direct_pickup":
+            conv.delivery_type = "pickup"
+            conv.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            await _send_branch_selection_menu(db, wa_service, conv, contact, phone, prompt_key="pickup")
+            return
+
+        # 2.9 Cliente que ya sabe qué quiere y pide el menú directo: pregunta si quiere Delivery
+        # o Retiro, luego sigue el flujo correspondiente.
         if interactive_id == "main_menu_direct" or entry_intent == "menu_direct":
-            await _send_branch_selection_menu(
-                db, wa_service, conv, contact, phone, prompt_key="menu_direct"
-            )
+            await _send_menu_direct_choice_prompt(db, wa_service, conv, contact, phone)
             return
 
         main_option_matched = None
