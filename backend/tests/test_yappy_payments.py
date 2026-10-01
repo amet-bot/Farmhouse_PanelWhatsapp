@@ -179,7 +179,7 @@ def test_ipn_paid_notifies_the_customer_by_whatsapp(client, clayton_branch, db_s
     messages_to_customer = db_session.query(Message).filter(
         Message.conversation_id == created["conversation_id"], Message.direction == "outgoing",
     ).all()
-    success_msgs = [m for m in messages_to_customer if "Pago recibido con éxito" in m.content]
+    success_msgs = [m for m in messages_to_customer if "Pago recibido" in m.content]
     assert len(success_msgs) == 1
     assert created["order_code"] in success_msgs[0].content
 
@@ -211,7 +211,7 @@ def test_ipn_does_not_notify_twice_for_the_same_payment(client, clayton_branch, 
     messages_to_customer = db_session.query(Message).filter(
         Message.conversation_id == created["conversation_id"],
     ).all()
-    success_msgs = [m for m in messages_to_customer if "Pago recibido con éxito" in m.content]
+    success_msgs = [m for m in messages_to_customer if "Pago recibido" in m.content]
     assert len(success_msgs) == 1
 
 
@@ -231,7 +231,7 @@ def _post_mi_pedido_farmhouse_text(client, phone_digits, wamid):
 
 
 def test_confirmation_mentions_the_yappy_button_when_yappy_is_configured(client, clayton_branch, db_session, monkeypatch):
-    """Antes de esto, el texto siempre decía 'coordinará el pago contigo' sin importar si ya
+    """Antes de esto, el texto siempre decía 'coordinamos el pago contigo' sin importar si ya
     se había mandado un botón real de Yappy — quedaba engañoso una vez Yappy esté activo."""
     _enable_yappy(monkeypatch)
     monkeypatch.setattr("routers.webhooks.SessionLocal", TestingSessionLocal)
@@ -248,7 +248,7 @@ def test_confirmation_mentions_the_yappy_button_when_yappy_is_configured(client,
         Message.conversation_id == created["conversation_id"], Message.direction == "outgoing",
     ).order_by(Message.created_at.desc(), Message.id.desc()).first()
     assert "botón para pagar con Yappy" in reply.content
-    assert "coordinará el pago contigo" not in reply.content
+    assert "coordinamos el pago contigo" not in reply.content
     # El respaldo (delay 0 en tests) ya había mandado el botón: el bot no lo repite.
     botones = db_session.query(Message).filter(Message.conversation_id == created["conversation_id"], Message.content.contains("pago-yappy?order=")).all()
     assert len(botones) == 1 and "Arriba te dejamos" in reply.content
@@ -292,7 +292,7 @@ def test_confirmation_stays_generic_when_yappy_is_not_configured(client, clayton
     reply = db_session.query(Message).filter(
         Message.conversation_id == created["conversation_id"], Message.direction == "outgoing",
     ).order_by(Message.created_at.desc(), Message.id.desc()).first()
-    assert "coordinará el pago contigo" in reply.content
+    assert "coordinamos el pago contigo" in reply.content
     assert "botón para pagar con Yappy" not in reply.content
 
 

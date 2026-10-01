@@ -54,7 +54,7 @@ def _outgoing(db_session, conv_id):
 def test_la_lista_de_sucursales_de_retiro_ofrece_la_mas_cercana(client, clayton_branch, obarrio_branch, db_session, listas):
     _post_bot_message(client, PHONE, "wamid.N1", text="retiro")
     lista = listas[-1]
-    assert "¿En cuál sucursal?" in lista["body"]
+    assert "¿En cuál sucursal retiras?" in lista["body"]
     ids = [r["id"] for r in lista["rows"]]
     assert ids[0] == "branch_nearest" and ids[-1] == "nav_restart"
     assert f"branch_{clayton_branch.id}" in ids and f"branch_{obarrio_branch.id}" in ids

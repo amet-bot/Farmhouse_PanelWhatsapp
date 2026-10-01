@@ -130,7 +130,7 @@ def test_entry_gate_human_button_hands_off_without_menu(client, clayton_branch, 
     outgoing = db_session.query(Message).filter(
         Message.conversation_id == conv.id, Message.direction == "outgoing"
     ).all()
-    assert any("Ya compartí tu solicitud con nuestro equipo" in m.content for m in outgoing)
+    assert any("Ya avisé al equipo" in m.content for m in outgoing)
     assert any(m.is_internal and "Contexto recopilado" in m.content for m in outgoing)
     assert not any(MAIN_WELCOME_BODY in m.content for m in outgoing)
 
@@ -166,7 +166,7 @@ def test_entry_gate_does_not_block_customer_who_already_knows_what_they_want(cli
         Message.conversation_id == conv.id, Message.direction == "outgoing"
     ).all()
     assert not any(ENTRY_GATE_BODY in m.content for m in outgoing)
-    assert any("Delivery, entendido" in m.content for m in outgoing)
+    assert any("Comparte tu ubicación" in m.content for m in outgoing)
 
 
 def test_main_order_button_reshows_main_menu(client, clayton_branch, db_session):
@@ -194,7 +194,7 @@ def test_main_order_button_reshows_main_menu(client, clayton_branch, db_session)
     outgoing = db_session.query(Message).filter(
         Message.conversation_id == conv.id, Message.direction == "outgoing"
     ).all()
-    assert any("Delivery, entendido" in msg.content for msg in outgoing)
+    assert any("Comparte tu ubicación" in msg.content for msg in outgoing)
 
 
 def test_direct_to_menu_option_asks_delivery_or_pickup_first(client, clayton_branch, db_session):
@@ -264,8 +264,8 @@ def test_customer_can_change_branch_in_natural_language(client, clayton_branch, 
     outgoing = db_session.query(Message).filter(
         Message.conversation_id == conv.id, Message.direction == "outgoing"
     ).all()
-    assert any("puedes elegir otra sucursal" in msg.content for msg in outgoing)
-    assert any("¿Desde cuál sucursal deseas pedir?" in msg.content for msg in outgoing)
+    assert any("elige otra sucursal" in msg.content for msg in outgoing)
+    assert any("¿Desde cuál sucursal pedimos?" in msg.content for msg in outgoing)
 
 
 def test_unknown_message_after_menu_never_leaves_customer_without_answer(client, clayton_branch, db_session):
@@ -284,7 +284,7 @@ def test_unknown_message_after_menu_never_leaves_customer_without_answer(client,
     outgoing = db_session.query(Message).filter(
         Message.conversation_id == conv.id, Message.direction == "outgoing"
     ).all()
-    assert any("Mientras ves el menú" in msg.content for msg in outgoing)
+    assert any("algo más en lo que pueda ayudarte" in msg.content for msg in outgoing)
 
 
 def test_human_handoff_adds_internal_context_summary(client, clayton_branch, db_session):
@@ -331,7 +331,7 @@ def test_corporate_customer_can_answer_people_and_date_in_one_message(client, cl
         Message.conversation_id == conv.id, Message.direction == "outgoing"
     ).all()
     # El agradecimiento y la última pregunta van fusionados en un solo mensaje (no dos).
-    assert any("¡Genial, gracias!" in msg.content and "¿dónde te gustaría recibir" in msg.content for msg in outgoing)
+    assert any("¡Gracias!" in msg.content and "¿dónde recibes el pedido" in msg.content for msg in outgoing)
 
 
 def test_typing_indicator_shown_before_bot_responds(client, clayton_branch, db_session, monkeypatch):
@@ -404,7 +404,7 @@ def test_option_1_visit_branches_and_manager_yes_flow(client, clayton_branch, db
     assert conv.branch_id == clayton_branch.id
 
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
-    assert any("Te esperamos en la sucursal de *Clayton*" in m.content for m in msgs)
+    assert any("Te esperamos en *Clayton*" in m.content for m in msgs)
     assert any("maps.google.com" in m.content for m in msgs)
     assert any(MANAGER_HELP_QUESTION in m.content for m in msgs)
 
@@ -428,7 +428,7 @@ def test_option_1_visit_branches_and_manager_yes_flow(client, clayton_branch, db
     assert conv.automation_paused is True
 
     msgs_after = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
-    assert any("gerente de nuestra sucursal de *Clayton*" in m.content for m in msgs_after)
+    assert any("gerente de *Clayton*" in m.content for m in msgs_after)
 
 
 def test_option_1_visit_branches_and_manager_no_flow(client, clayton_branch, db_session):
@@ -459,7 +459,7 @@ def test_option_1_visit_branches_and_manager_no_flow(client, clayton_branch, db_
     assert conv.automation_paused is False
 
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
-    assert any("Que tengas un excelente día" in m.content for m in msgs)
+    assert any("Te esperamos pronto en Farmhouse" in m.content for m in msgs)
 
 
 def test_option_2_delivery_flow(client, clayton_branch, db_session):
@@ -502,7 +502,7 @@ def test_option_2_delivery_flow(client, clayton_branch, db_session):
     assert conv.branch_id == clayton_branch.id
 
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
-    assert any("Tu pedido a domicilio saldrá de nuestra sucursal de *Clayton*" in m.content for m in msgs)
+    assert any("Tu pedido sale de *Clayton*" in m.content for m in msgs)
     assert any("maps.google.com" in m.content for m in msgs)
     assert any("/menu?" in m.content for m in msgs)
     assert any(MENU_LINK_WARM_CLOSING in m.content for m in msgs)
@@ -548,7 +548,7 @@ def test_option_3_pickup_flow(client, obarrio_branch, db_session):
     assert conv.branch_id == obarrio_branch.id
 
     msgs = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.direction == "outgoing").all()
-    assert any("Retirarás tu pedido en nuestra sucursal de *Obarrio*" in m.content for m in msgs)
+    assert any("Retiras en *Obarrio*" in m.content for m in msgs)
     assert any("maps.google.com" in m.content for m in msgs)
     assert any("/menu?" in m.content for m in msgs)
     assert any(MENU_LINK_WARM_CLOSING in m.content for m in msgs)

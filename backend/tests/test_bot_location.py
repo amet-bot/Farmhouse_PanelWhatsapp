@@ -93,7 +93,7 @@ def test_la_ubicacion_asigna_la_sucursal_mas_cercana_y_sigue_con_el_menu(client,
     assert not any("¿Cómo se llama el PH" in c for c in contenidos)
     anotado = next(c for c in contenidos if "PH / edificio: PH Torre Mar, apto 5B" in c)
     # La confirmación y la info de la sucursal van en la misma burbuja, no en dos aparte.
-    assert "Tu pedido a domicilio saldrá de nuestra sucursal de *Clayton*" in anotado
+    assert "Tu pedido sale de *Clayton*" in anotado
     assert any("/menu?" in c and "branch=CLY" in c for c in contenidos)
     contacto = db_session.query(Contact).filter(Contact.phone == f"+{PHONE}").one()
     assert (float(contacto.latitude), float(contacto.longitude)) == CERCA_DE_CLAYTON
@@ -117,7 +117,7 @@ def test_muy_lejos_ofrece_retirar_en_vez_de_delivery(client, clayton_branch, oba
     assert conv.branch_id is None and conv.delivery_type == "pickup"
     contenidos = _outgoing(db_session, conv.id)
     assert any(f"llega hasta {DELIVERY_MAX_KM} km" in c for c in contenidos)
-    assert "retirar" in contenidos[-1]   # lista de sucursales para retiro
+    assert "retiras" in contenidos[-1]   # lista de sucursales para retiro
 
 
 def test_escribir_la_sucursal_sigue_funcionando_tras_pedir_la_ubicacion(client, clayton_branch, obarrio_branch, db_session):

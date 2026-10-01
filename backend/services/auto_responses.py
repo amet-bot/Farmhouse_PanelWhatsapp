@@ -35,7 +35,7 @@ def get_main_welcome_body(customer_name: Optional[str] = None, db: "Optional[Ses
     name = (customer_name or "").strip()
     first_name = get_customer_first_name(name)
     saludo = f"¡Hola, {first_name}! 👋" if first_name else "¡Hola! 👋"
-    fallback = f"{saludo} Soy el asistente de Farmhouse 🌿\n\n¿Qué te gustaría hacer hoy? También puedes escribirme con tus propias palabras."
+    fallback = f"{saludo} Soy el asistente de Farmhouse 🌿\n¿Qué te gustaría hacer?"
     return get_node_text(db, "main_welcome", fallback, saludo=saludo)
 
 
@@ -70,8 +70,8 @@ def get_entry_gate_body(customer_name: Optional[str] = None, db: "Optional[Sessi
     first_name = get_customer_first_name(customer_name)
     saludo = f"¡Hola, {first_name}! 👋" if first_name else "¡Hola! 👋"
     fallback = (
-        f"{saludo} Soy el asistente de Farmhouse 🌿\n\n"
-        "¿Quieres que te ayude yo con tu pedido, o prefieres hablar de una vez con alguien del equipo?"
+        f"{saludo} Soy el asistente de Farmhouse 🌿\n"
+        "¿Te ayudo yo, o prefieres hablar con alguien del equipo?"
     )
     return get_node_text(db, "entry_gate", fallback, saludo=saludo)
 
@@ -97,18 +97,18 @@ MAIN_MENU_LIST_ROWS = [
 # de nuevo" nunca dependa de que el cliente recuerde escribir "cancelar" o "menú principal".
 NAV_RESTART_ROW = {"id": "nav_restart", "title": "🔄 Empezar de nuevo", "description": "Cancela y vuelve al menú principal"}
 
-BRANCH_SELECTION_MENU_DIRECT_BODY = "¡Perfecto! 🍽️ ¿Desde cuál sucursal te gustaría pedir?"
+BRANCH_SELECTION_MENU_DIRECT_BODY = "🍽️ ¿Desde cuál sucursal pedimos?"
 
-MENU_DIRECT_DELIVERY_TYPE_QUESTION = "¿Cómo te gustaría recibir tu pedido?"
+MENU_DIRECT_DELIVERY_TYPE_QUESTION = "¿Cómo prefieres recibir tu pedido?"
 MENU_DIRECT_DELIVERY_TYPE_BUTTONS = [
     {"id": "menu_direct_delivery", "title": "🛵 Delivery"},
     {"id": "menu_direct_pickup", "title": "🛍️ Retiro en local"},
 ]
 
-BRANCH_SELECTION_BODY = "¿Cuál de nuestras sucursales te gustaría contactar?"
-BRANCH_SELECTION_VISIT_BODY = "¿Cuál sucursal quieres consultar? Te mostraré su dirección y horario."
-BRANCH_SELECTION_DELIVERY_BODY = "Delivery, entendido 🛵 ¿Desde cuál sucursal deseas pedir?"
-BRANCH_SELECTION_PICKUP_BODY = "Listo, sería para retirar 🛍️ ¿En cuál sucursal?"
+BRANCH_SELECTION_BODY = "¿Cuál sucursal te gustaría contactar?"
+BRANCH_SELECTION_VISIT_BODY = "¿Cuál sucursal? Te paso dirección y horario."
+BRANCH_SELECTION_DELIVERY_BODY = "🛵 ¿Desde cuál sucursal pedimos?"
+BRANCH_SELECTION_PICKUP_BODY = "🛍️ ¿En cuál sucursal retiras?"
 BRANCH_SELECTION_BUTTON = "Ver sucursales"
 
 # --------------------------------------------------------------------------------------------
@@ -128,15 +128,14 @@ CATERING_PHONE_WA_LINK = "https://wa.me/50763644572"
 # Se manda como texto normal a propósito, no dentro de un mensaje con botones: en WhatsApp, el
 # número y el enlace solo quedan tocables cuando van en un mensaje de texto común.
 CORPORATE_CATERING_HANDOFF = (
-    "¡Perfecto! 🎉 Los pedidos para eventos y empresas los coordina directamente nuestro equipo "
-    "de catering, que es quien trabaja con Sol para armarte la propuesta.\n\n"
-    f"Escríbeles por aquí y te atienden de una vez 👇\n📞 {CATERING_PHONE_DISPLAY}\n{CATERING_PHONE_WA_LINK}\n\n"
-    "¡Gracias por pensar en Farmhouse para tu evento! 😊"
+    "🎉 Los eventos y pedidos corporativos los coordina nuestro equipo de catering.\n\n"
+    f"Escríbeles aquí 👇\n📞 {CATERING_PHONE_DISPLAY}\n{CATERING_PHONE_WA_LINK}\n\n"
+    "¡Gracias por pensar en Farmhouse! 😊"
 )
 
 CORPORATE_INTAKE_INTRO = (
-    "¡Qué gran noticia! 🎉 En Farmhouse nos encanta atender pedidos corporativos, reuniones de oficina, catering y eventos especiales.\n\n"
-    "Para armarte la mejor propuesta, te hago unas preguntas rápidas antes de comunicarte con Sol, nuestra encargada de eventos y cuentas corporativas 😊"
+    "🎉 ¡Nos encantan los eventos y pedidos corporativos! Te hago unas preguntas rápidas "
+    "y te comunico con Sol, nuestra encargada de eventos 😊"
 )
 
 CORPORATE_EVENT_TYPE_QUESTION = "¿Qué tipo de evento tienes en mente?"
@@ -152,11 +151,10 @@ CORPORATE_EVENT_TYPE_LABELS = {
 }
 
 CORPORATE_HEADCOUNT_QUESTION = (
-    "Cuéntame un poco más: ¿para cuántas personas sería y qué fecha/hora tienes en mente? "
-    "Elige un rango aquí abajo, o si prefieres, respóndeme todo junto por escrito, por ejemplo: "
-    "“25 personas, viernes 12 al mediodía”."
+    "¿Para cuántas personas y qué fecha/hora tienes en mente? "
+    "Puedes responder todo junto, ej: “25 personas, viernes 12 al mediodía”."
 )
-CORPORATE_HEADCOUNT_RETRY = "¿Me confirmas para cuántas personas sería, aproximadamente?"
+CORPORATE_HEADCOUNT_RETRY = "¿Para cuántas personas, aproximadamente?"
 
 # Rangos rápidos para no obligar a escribir un número exacto: Sol siempre confirma el dato
 # preciso por humano al recibir el intake, así que un rango aproximado alcanza en este paso.
@@ -169,8 +167,8 @@ CORPORATE_HEADCOUNT_RANGE_ROWS = [
 ]
 CORPORATE_HEADCOUNT_RANGE_LABELS = {row["id"]: row["title"] for row in CORPORATE_HEADCOUNT_RANGE_ROWS if row["id"] != "hc_type_exact"}
 
-CORPORATE_DATE_QUESTION = "¡Genial! ¿Tienes fecha y hora en mente?"
-CORPORATE_DATE_RETRY = "¿Me compartes la fecha y hora que tienes en mente?"
+CORPORATE_DATE_QUESTION = "¿Qué fecha y hora tienes en mente?"
+CORPORATE_DATE_RETRY = "¿Me dices la fecha y hora?"
 
 CORPORATE_DATE_QUICK_ROWS = [
     {"id": "date_today", "title": "Hoy"},
@@ -181,12 +179,12 @@ CORPORATE_DATE_QUICK_ROWS = [
 ]
 CORPORATE_DATE_QUICK_LABELS = {row["id"]: row["title"] for row in CORPORATE_DATE_QUICK_ROWS if row["id"] != "date_type_exact"}
 
-CORPORATE_LOCATION_QUESTION = "Última pregunta: ¿dónde te gustaría recibir el pedido?"
+CORPORATE_LOCATION_QUESTION = "Última pregunta: ¿dónde recibes el pedido?"
 
 # Variante para cuando el cliente ya dio cantidad y fecha/hora juntas en una sola respuesta:
 # fusiona el agradecimiento con la última pregunta en una sola burbuja, en vez de dos.
 CORPORATE_LOCATION_QUESTION_AFTER_COMBINED_ANSWER = (
-    "¡Genial, gracias! Última pregunta: ¿dónde te gustaría recibir el pedido?"
+    "¡Gracias! Última pregunta: ¿dónde recibes el pedido?"
 )
 CORPORATE_LOCATION_BUTTONS = [
     {"id": "event_loc_pickup", "title": "Retiro en sucursal"},
@@ -202,8 +200,7 @@ CORPORATE_LOCATION_LABELS = {
 CORPORATE_INVALID_OPTION_RETRY = "No entendí bien, ¿me eliges una de estas opciones?"
 
 CORPORATE_INTAKE_CLOSING_MESSAGE = (
-    "¡Listo! 🎉 Ya tengo todo lo que Sol necesita para armarte una propuesta. En un momento te comunico con ella por este mismo chat. "
-    "¡Gracias por pensar en Farmhouse para tu evento! 😊"
+    "🎉 Ya tengo todo para Sol. Te comunico con ella por aquí en un momento. ¡Gracias por pensar en Farmhouse!"
 )
 
 def get_corporate_intake_summary(notes: str) -> str:
@@ -270,17 +267,17 @@ def get_branch_info_message(branch_name: str, branch_code: str, opening_line: st
     return "\n".join(lines)
 
 def get_branch_visit_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None, branch=None) -> str:
-    fallback_opening = f"¡Excelente! Te esperamos en la sucursal de *{branch_name}*."
+    fallback_opening = f"Te esperamos en *{branch_name}*."
     opening = get_node_text(db, "branch_visit_opening", fallback_opening, sucursal=branch_name)
     return get_branch_info_message(branch_name, branch_code, opening, branch=branch)
 
 def get_branch_pickup_info_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None, branch=None) -> str:
-    fallback_opening = f"¡Perfecto! 🛍️ Retirarás tu pedido en nuestra sucursal de *{branch_name}*."
+    fallback_opening = f"🛍️ Retiras en *{branch_name}*."
     opening = get_node_text(db, "branch_pickup_opening", fallback_opening, sucursal=branch_name)
     return get_branch_info_message(branch_name, branch_code, opening, branch=branch)
 
 def get_branch_delivery_info_message(branch_code: str, branch_name: str, db: "Optional[Session]" = None, branch=None) -> str:
-    fallback_opening = f"¡Excelente! 🛵 Tu pedido a domicilio saldrá de nuestra sucursal de *{branch_name}*."
+    fallback_opening = f"🛵 Tu pedido sale de *{branch_name}*."
     opening = get_node_text(db, "branch_delivery_opening", fallback_opening, sucursal=branch_name)
     return get_branch_info_message(branch_name, branch_code, opening, branch=branch)
 
@@ -295,12 +292,12 @@ def get_branch_quick_info_message(branch_code: str, branch_name: str, db: "Optio
 
 # Cierre cálido tras mandar el botón del Menú Digital en delivery/pickup: deja la puerta abierta
 # sin forzar otra decisión de botones (el bot ya detecta por texto libre si piden un humano).
-MENU_LINK_WARM_CLOSING = "Cualquier duda que tengas mientras armas tu pedido, aquí estamos para ayudarte con todo gusto 😊"
+MENU_LINK_WARM_CLOSING = "Cualquier duda, aquí estamos 😊"
 
 # Recuperación contextual: evita silencios cuando una frase no coincide con una palabra clave.
-UNKNOWN_MAIN_MESSAGE = "No estoy completamente seguro de haber entendido 😅 ¿Cuál de estas opciones se parece más a lo que necesitas?"
-UNKNOWN_BRANCH_MESSAGE = "No logré identificar la sucursal. Elígela aquí o escríbeme su nombre."
-AFTER_MENU_HELP_QUESTION = "Mientras ves el menú, ¿hay algo más en lo que pueda ayudarte?"
+UNKNOWN_MAIN_MESSAGE = "No estoy seguro de haber entendido 😅 ¿Cuál opción se parece a lo que buscas?"
+UNKNOWN_BRANCH_MESSAGE = "No identifiqué la sucursal. Elígela aquí o escríbeme su nombre."
+AFTER_MENU_HELP_QUESTION = "¿Hay algo más en lo que pueda ayudarte?"
 # "Abrir el menú" se quitó de acá: justo se le mandó el botón del Menú Digital en este mismo
 # turno, así que repetirlo de inmediato se sentía redundante. En su lugar van las dos preguntas
 # más comunes según el negocio (horario y ubicación) — las dos mandan la misma info de la
@@ -315,7 +312,7 @@ AFTER_MENU_HELP_BUTTONS = [
 # chat para pedir/pagar (en vez de usar el Menú Digital web).
 CHAT_ORDER_ROW = {"id": "chat_order_start", "title": "Pedir y pagar por chat", "description": "Sin salir de WhatsApp"}
 
-CHAT_ORDER_INTRO_QUESTION = "¡Perfecto! Cuéntame qué te gustaría pedir (platillos y cantidades) y lo dejamos listo para el pago 😊"
+CHAT_ORDER_INTRO_QUESTION = "¿Qué te gustaría pedir? (platillos y cantidades) 😊"
 CHAT_ORDER_PAYMENT_QUESTION = "¡Anotado! ¿Cómo prefieres pagar?"
 # "Tarjeta" (Tilopay) se saca de acá a propósito: Farmhouse todavía no está afiliado con Tilopay.
 # Ver también menu.html (botón con `hidden`) y _step_handle_payment_selection en webhooks.py.
@@ -324,10 +321,10 @@ CHAT_ORDER_PAYMENT_ROWS = [
     {"id": "pay_yappy", "title": "Yappy"},
 ]
 
-RESTART_MESSAGE = "Claro, empezamos de nuevo. No pasa nada 😊"
-CANCEL_MESSAGE = "Listo, dejé a un lado esa selección. ¿Qué te gustaría hacer ahora?"
-CHANGE_ORDER_TYPE_MESSAGE = "Sin problema. ¿Cómo prefieres recibir el pedido?"
-CHANGE_BRANCH_MESSAGE = "Claro, puedes elegir otra sucursal."
+RESTART_MESSAGE = "Listo, empezamos de nuevo 😊"
+CANCEL_MESSAGE = "Listo, cancelado. ¿Qué te gustaría hacer?"
+CHANGE_ORDER_TYPE_MESSAGE = "¿Cómo prefieres recibir el pedido?"
+CHANGE_BRANCH_MESSAGE = "Claro, elige otra sucursal."
 
 def get_chat_order_context_line(description: Optional[str]) -> Optional[str]:
     """Línea del resumen interno del handoff con lo que el cliente pidió por chat (recortado)."""
@@ -339,41 +336,33 @@ def get_chat_order_context_line(description: Optional[str]) -> Optional[str]:
 def get_human_handoff_message(branch_name: Optional[str] = None, db: "Optional[Session]" = None) -> str:
     place = f" de *{branch_name}*" if branch_name and branch_name != "Farmhouse" else ""
     fallback = (
-        f"Claro 🤝 Ya compartí tu solicitud con nuestro equipo{place}. "
-        "Una persona continuará contigo por este mismo chat y podrá ver lo que ya conversamos, "
-        "así que no tendrás que repetirlo."
+        f"Claro 🤝 Ya avisé al equipo{place}. Alguien sigue contigo por aquí mismo, sin que repitas nada."
     )
     return get_node_text(db, "human_handoff_message", fallback, lugar=place)
 
 def get_manager_assigned_message(branch_name: str, db: "Optional[Session]" = None) -> str:
     fallback = (
-        f"¡Con mucho gusto! 🤝 Te comunicamos de inmediato con el gerente de nuestra sucursal de *{branch_name}*.\n\n"
-        f"En un momento te estará atendiendo personalmente por aquí. ¡Muchas gracias por tu paciencia! 😊"
+        f"🤝 Te comunico con el gerente de *{branch_name}*. En un momento te atiende por aquí 😊"
     )
     return get_node_text(db, "manager_assigned_message", fallback, sucursal=branch_name)
 
 def get_manager_declined_message(branch_name: str, db: "Optional[Session]" = None) -> str:
     fallback = (
-        f"¡Perfecto! Muchas gracias por escribirnos. ¡Te esperamos pronto en Farmhouse *{branch_name}*! "
-        f"Que tengas un excelente día 🌿✨"
+        f"¡Gracias por escribirnos! Te esperamos pronto en Farmhouse *{branch_name}* 🌿✨"
     )
     return get_node_text(db, "manager_declined_message", fallback, sucursal=branch_name)
 
 ACH_PAYMENT_INSTRUCTIONS = (
-    "¡Perfecto! 🏦 Estos son los datos de nuestra cuenta para pagar por ACH:\n\n"
+    "🏦 Datos para tu transferencia ACH:\n\n"
     "Banco: Banco General\n"
     "Tipo de cuenta: Cuenta corriente\n"
     "Nombre de cuenta: Grupo Col Rizado\n"
     "Número de cuenta: 03-01-01-1480750\n\n"
-    "En cuanto nuestro equipo te confirme el total de tu pedido, puedes hacer la transferencia a esta cuenta. "
-    "Cuando la hagas, ¿me regalas una foto del comprobante de pago? Así agilizamos tu pedido muchísimo más rápido. "
-    "¡Muchas gracias por tu paciencia! 😊"
+    "Te confirmamos el total y, al transferir, ¿nos mandas foto del comprobante? Así agilizamos tu pedido 😊"
 )
 
 CARD_PAYMENT_MESSAGE = (
-    "¡Perfecto! 💳 Como seleccionaste pago con tarjeta, en un momento nuestro agente de turno te enviará "
-    "por este chat el enlace de pago seguro para que puedas completar tu compra cómodamente con tu tarjeta de crédito o débito.\n\n"
-    "Por favor regálanos unos breves minutos mientras lo generamos para ti. ¡Muchas gracias por tu paciencia y preferencia! 😊✨"
+    "💳 En un momento te enviamos el enlace de pago seguro para tu tarjeta. Dame unos minutos 😊"
 )
 
 # Mensaje del botón de pago (CTA "Pagar con Yappy") para un pedido ya creado. Lo manda el bot
@@ -385,9 +374,8 @@ YAPPY_BUTTON_MESSAGE = (
 )
 
 YAPPY_PAYMENT_MESSAGE = (
-    "¡Perfecto! 📱 Elegiste pagar con Yappy. Cuando confirmes el pedido te enviaremos por este mismo chat "
-    "un botón con el monto exacto. Solo tendrás que abrirlo y aprobar la solicitud en tu aplicación Yappy. "
-    "Nunca te pediremos tu PIN ni contraseña. 😊"
+    "📱 Pago con Yappy: al confirmar tu pedido te mando un botón con el monto exacto para aprobar "
+    "en la app. Nunca te pediremos tu PIN. 😊"
 )
 
 # Delivery por ubicación (ver _step_handle_shared_location en routers/webhooks.py): al elegir
@@ -395,8 +383,7 @@ YAPPY_PAYMENT_MESSAGE = (
 # WhatsApp y recomienda la sucursal más cercana. Escribir el nombre de una sucursal sigue
 # funcionando igual que siempre.
 DELIVERY_LOCATION_REQUEST_BODY = (
-    "Delivery, entendido 🛵 Compárteme tu ubicación con el botón de abajo y te recomiendo la "
-    "sucursal más cercana. Si prefieres, escríbeme el nombre de la sucursal."
+    "🛵 Comparte tu ubicación y te digo la sucursal más cercana (o escríbeme el nombre)."
 )
 NEAREST_BRANCH_MESSAGE = "Tu sucursal más cercana es *{sucursal}*, a {km} km 📍 Desde ahí te llevamos el pedido."
 # Tarifa por distancia (ver services/delivery_geo.fee_for_distance), dicha apenas se sabe la
@@ -404,8 +391,7 @@ NEAREST_BRANCH_MESSAGE = "Tu sucursal más cercana es *{sucursal}*, a {km} km �
 DELIVERY_FEE_MESSAGE = "El delivery hasta tu ubicación cuesta *${tarifa}* 🛵"
 # Retiro o visita: la ubicación solo sirve para saber cuál queda más cerca; el cliente elige.
 PICKUP_LOCATION_REQUEST_BODY = (
-    "Compárteme tu ubicación con el botón de abajo y te digo cuál sucursal te queda más cerca 📍 "
-    "Si prefieres, escríbeme el nombre de la sucursal."
+    "📍 Comparte tu ubicación y te digo cuál sucursal te queda más cerca (o escríbeme el nombre)."
 )
 NEAREST_BRANCH_PICKUP_MESSAGE = "Te queda más cerca *{sucursal}*, a {km} km 📍 Elige dónde prefieres:"
 # Fila que se agrega a la lista de sucursales (retiro, delivery, visita) para pedir la ubicación.
@@ -414,9 +400,8 @@ BRANCH_NEAREST_ROW = {"id": "branch_nearest", "title": "📍 La más cercana a m
 # 15 km; aquí se corta antes para no prometer lo que la cocina no va a poder cumplir).
 DELIVERY_MAX_KM = 12
 DELIVERY_OUT_OF_RANGE_MESSAGE = (
-    "Estás a {km} km de nuestra sucursal más cercana (*{sucursal}*) y por ahora el delivery "
-    "llega hasta {max_km} km 😔 Si quieres, puedes pedir para retirar en la sucursal que te "
-    "quede mejor:"
+    "Estás a {km} km de *{sucursal}* y el delivery llega hasta {max_km} km 😔 "
+    "¿Prefieres retirar en otra sucursal?"
 )
 
 # Datos de entrega tras la ubicación (ver _handle_delivery_intake_step en routers/webhooks.py):
@@ -428,17 +413,17 @@ DELIVERY_OUT_OF_RANGE_MESSAGE = (
 # para la etiqueta del resumen interno, nunca se vuelve a preguntar aparte.
 LOCATION_DESCRIBED_MESSAGE = "Te ubico en *{lugar}* 🗺️"
 DELIVERY_ADDRESS_QUESTION = (
-    "Para que el motorizado llegue sin vueltas, cuéntame tu dirección completa (si es PH/edificio, "
-    "casa o local, y alguna referencia). Por ejemplo: \"PH Torre Mar, apto 5B\" o \"casa 12, portón negro, frente al parque\"."
+    "¿Cuál es tu dirección completa? (PH/edificio, casa o local + alguna referencia). "
+    "Ej: \"PH Torre Mar, apto 5B\" o \"casa 12, portón negro\"."
 )
 DELIVERY_PLACE_LABELS = {"ph": "PH / edificio", "casa": "Casa", "local": "Local / oficina"}
 # Preguntas de respaldo para conversaciones que ya tenían en pantalla la lista tocable de antes
 # de este cambio (ver el bloque "place_*" en _handle_delivery_intake_step); una vez que esas
 # queden atrás, estas tres ya no se usan para nadie nuevo.
 DELIVERY_REFERENCE_QUESTIONS = {
-    "ph": "¿Cómo se llama el PH y cuál es el apartamento? Por ejemplo: PH Torre Mar, apto 5B.",
-    "casa": "¿Número de casa y alguna referencia? Por ejemplo: casa 12, portón negro, frente al parque.",
-    "local": "¿Cómo se llama el local u oficina y en qué piso está? Por ejemplo: Oficinas Delta, piso 3.",
+    "ph": "¿Nombre del PH y apartamento? Ej: PH Torre Mar, apto 5B.",
+    "casa": "¿Número de casa y una referencia? Ej: casa 12, portón negro.",
+    "local": "¿Nombre del local/oficina y piso? Ej: Oficinas Delta, piso 3.",
 }
 DELIVERY_DETAILS_SAVED_MESSAGE = "¡Anotado! 📝 {tipo}: {referencia}."
 
@@ -461,16 +446,15 @@ def match_delivery_place(text: Optional[str]) -> Optional[str]:
 # enlace del Menú Digital en delivery/retiro, para que el cliente no arme un pedido esperando
 # que salga ya. El menú permite programarlo para cuando abra (fulfillment_type "scheduled").
 CLOSED_NOW_MESSAGE = (
-    "Ahora mismo estamos cerrados 🌙 Abrimos a las {abre}. Igual puedes armar tu pedido desde el "
-    "menú y programarlo para cuando abramos, y te lo tendremos listo a esa hora."
+    "Ahora mismo estamos cerrados 🌙 Abrimos a las {abre}. Puedes programar tu pedido desde el "
+    "menú para esa hora."
 )
 
 # Cliente esperando a una persona (ver services/bot_followup.py): si tras el handoff nadie del
 # equipo le responde en HANDOFF_ESCALATION_MINUTES, el bot le manda esto UNA vez y avisa por
 # push a los encargados. No repite el resumen ni vuelve a preguntar nada.
 HANDOFF_WAIT_MESSAGE = (
-    "Seguimos contigo 🙏 En este momento el equipo está ocupado, pero ya les avisé y una persona "
-    "te responde por aquí en cuanto se desocupe. Gracias por la paciencia."
+    "Seguimos contigo 🙏 El equipo está ocupado, ya les avisé — te responden apenas se desocupen."
 )
 
 # Sesión del bot (ver _step_expire_stale_session en routers/webhooks.py): si el cliente vuelve a
@@ -489,14 +473,11 @@ BOT_SESSION_TIMEOUT_HOURS = 12
 # se pone en False y el loop de bot_followup.py deja de mandar nada, sin esperar un deploy —
 # solo hace falta editar este archivo y reiniciar.
 BOT_FOLLOWUP_ENABLED = True
-BOT_FOLLOWUP_MESSAGE = "¿Sigues ahí? 😊 Cuando quieras seguimos justo donde lo dejamos — cualquier cosa, escríbeme."
+BOT_FOLLOWUP_MESSAGE = "¿Sigues ahí? 😊 Seguimos cuando quieras."
 
 # Confirmación al cliente cuando Yappy avisa (por el IPN real, con firma verificada — nunca por
 # suposición) que el pago de su pedido se completó. Ver routers/payments.yappy_ipn: se manda
 # UNA sola vez, justo cuando payment_status pasa a "paid" por primera vez.
 def get_yappy_payment_success_message(order_code: str, db: "Optional[Session]" = None) -> str:
-    fallback = (
-        f"¡Pago recibido con éxito! ✅ Tu pedido *{order_code}* ya está confirmado y en preparación. "
-        f"¡Gracias por tu compra! 🌿"
-    )
+    fallback = f"✅ Pago recibido. Tu pedido *{order_code}* está confirmado y en preparación 🌿"
     return get_node_text(db, "yappy_payment_success_message", fallback, pedido=order_code)

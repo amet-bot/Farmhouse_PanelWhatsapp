@@ -377,24 +377,24 @@ async def _send_digital_menu_link(db: Session, wa_service, conv: Conversation, c
 
     if conv.delivery_type == "delivery":
         fallback_body = (
-            f"🍽️ Aquí tienes nuestro Menú Digital para armar tu pedido a domicilio desde Farmhouse *{{sucursal}}*.\n\n"
-            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos, ingresa tu dirección y envíanos tu orden en 1 clic._\n\n"
+            f"🍽️ Aquí tienes el Menú Digital de Farmhouse *{{sucursal}}*.\n\n"
+            f"_Elige tus platillos, confirma tu dirección y listo._\n\n"
             f"{MENU_LINK_WARM_CLOSING}"
         )
         body_text = get_node_text(db, "menu_link_delivery_body", fallback_body, sucursal=branch_name)
         button_text = "Ver menú y pedir"
     elif conv.delivery_type == "pickup":
         fallback_body = (
-            f"🍽️ Échale un vistazo a nuestro Menú Digital y arma tu pedido para retirar en Farmhouse *{{sucursal}}*.\n\n"
-            f"_Elige tus Bowls, Ensaladas, Toasties o Smoothies favoritos y te lo tendremos fresco y listo cuando pases a retirarlo._\n\n"
+            f"🍽️ Aquí tienes el Menú Digital para tu retiro en Farmhouse *{{sucursal}}*.\n\n"
+            f"_Elige tus platillos y te lo dejamos listo fresco._\n\n"
             f"{MENU_LINK_WARM_CLOSING}"
         )
         body_text = get_node_text(db, "menu_link_pickup_body", fallback_body, sucursal=branch_name)
         button_text = "Ver menú y pedir"
     else:
         fallback_body = (
-            "🍽️ Aquí tienes nuestro Menú Digital de Farmhouse *{sucursal}*.\n\n"
-            "_Así vas viendo qué se te antoja antes de llegar, o si prefieres, también puedes hacer tu pedido desde aquí mismo._"
+            "🍽️ Aquí tienes el Menú Digital de Farmhouse *{sucursal}*.\n\n"
+            "_Mira qué se te antoja, o pide directo desde aquí._"
         )
         body_text = get_node_text(db, "menu_link_generic_body", fallback_body, sucursal=branch_name)
         button_text = "Ver menú"
@@ -1057,17 +1057,14 @@ async def _step_confirm_web_menu_order(db: Session, wa_service, conv: Conversati
     delivery_label = "Delivery" if is_delivery else "Retiro en sucursal"
     if is_yappy_active:
         donde = "Arriba te dejamos" if yappy_boton_ya_enviado else "Aquí abajo te dejamos"
-        next_step = (
-            f"{donde} el botón para pagar con Yappy 📱 En cuanto completes el pago, "
-            "te confirmamos aquí mismo — no hace falta que hagas nada más."
-        )
+        next_step = f"{donde} el botón para pagar con Yappy 📱 Al completar el pago, te confirmamos aquí."
     else:
         next_step = (
-            "El equipo revisará tu dirección, te confirmará el costo de entrega"
-            + (" y te enviará el enlace de pago seguro." if is_card else " y coordinará el pago contigo.")
+            "Te confirmamos el costo de entrega"
+            + (" y el enlace de pago." if is_card else " y coordinamos el pago contigo.")
             if is_delivery else
-            ("El equipo te enviará el enlace de pago y confirmará cuándo estará listo."
-             if is_card else "El equipo te confirmará cuándo estará listo para retirar.")
+            ("Te enviamos el enlace de pago y la hora en que está listo."
+             if is_card else "Te confirmamos cuándo está listo para retirar.")
         )
     confirmation_text = (
         f"{greeting} Ya lo tenemos registrado 🌿\n\n"
@@ -1076,7 +1073,7 @@ async def _step_confirm_web_menu_order(db: Session, wa_service, conv: Conversati
         f"• Farmhouse {branch_name}\n"
         f"• Pago: {payment_label}\n\n"
         f"{next_step}\n\n"
-        "Si ves algo que quieras corregir, escríbelo aquí; la persona que continúe contigo podrá ver todo este contexto."
+        "¿Algo que corregir? Escríbelo aquí, quien te atienda ya lo verá."
     )
 
     # automation_paused se marca ANTES de mandar el mensaje, no después: _send_and_log
@@ -1695,7 +1692,7 @@ async def _process_auto_flow_background_locked(conv_id: int, contact_id: int, ph
         if message_type not in ("text", "interactive"):
             await _handoff_to_human(
                 db, wa_service, conv, contact, phone,
-                get_node_text(db, "attachment_received_message", "Recibí tu archivo, gracias 📎 Ya se lo compartí al equipo para que lo revise y continúe contigo por aquí."),
+                get_node_text(db, "attachment_received_message", "Recibido 📎 Ya se lo pasé al equipo, en un momento te escriben."),
             )
             return
 
