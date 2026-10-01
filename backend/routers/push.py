@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -119,18 +119,23 @@ def native_unregister(
 
 @router.post("/native/test")
 def native_test(
+    channel: str = Query("avisos", pattern="^(avisos|tareas)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Manda una notificación de prueba a los celulares de quien la pide: para comprobar que llegan."""
+    """Manda una notificación de prueba a los celulares de quien la pide: para comprobar que
+    llegan. `channel` deja probar el de tareas (sonido distinto) sin tener que crear una tarea de
+    verdad — útil porque crear/recordar una tarea nunca se auto-notifica a quien la dispara."""
     if not fcm_service.is_configured():
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                             detail="Las notificaciones de la app todavía no están configuradas en el servidor (falta Firebase).")
+    canal = fcm_service.CANAL_TAREAS if channel == "tareas" else fcm_service.CANAL_AVISOS
+    cuerpo = "Si suena distinto a un mensaje, el canal de tareas ya funciona." if channel == "tareas" else "¡Listo! Las notificaciones de la app te llegan a este celular."
     enviados = push_service._send_native(db, [current_user.id], {
-        "title": "Farmhouse Link", "body": "¡Listo! Las notificaciones de la app te llegan a este celular.",
-        "url": "/hub", "tag": "fh-test",
+        "title": "Farmhouse Link", "body": cuerpo,
+        "url": "/hub", "tag": "fh-test", "channel": canal,
     })
     if not enviados:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Este usuario no tiene la app registrada en ningún celular.")
-    return {"sent": enviados}
+    return {"sent": enviados, "channel": canal}

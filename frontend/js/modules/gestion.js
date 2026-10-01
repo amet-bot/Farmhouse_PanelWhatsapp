@@ -289,6 +289,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td><div class="ops-actions">
           ${t.status === 'pendiente' ? `<button class="ops-btn" data-task="${t.id}" data-status="en_proceso">En proceso</button>` : ''}
           ${abierta(t) ? `<button class="ops-btn primary" data-task="${t.id}" data-status="hecha">Hecha</button><button class="ops-btn danger" data-task="${t.id}" data-status="cancelada">Cancelar</button>` : ''}
+          ${abierta(t) ? `<button class="ops-btn" data-task-remind="${t.id}" title="Vuelve a avisar por push a quien le toca"><i data-lucide="bell"></i> Recordar</button>` : ''}
           ${user.role === 'admin' ? `<button class="ops-btn danger" data-task-delete="${t.id}">Eliminar</button>` : ''}
         </div></td>
       </tr>`).join('')}</tbody></table>`;
@@ -297,6 +298,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('taskStatus').addEventListener('change', loadTareas);
   $('taskOverdue').addEventListener('change', loadTareas);
   $('taskList').addEventListener('click', (e) => {
+    const remind = e.target.closest('button[data-task-remind]');
+    if (remind) {
+      act(remind, () => api.post(`/ops/tasks/${remind.dataset.taskRemind}/remind`, {}), 'Recordatorio enviado.');
+      return;
+    }
     const del = e.target.closest('button[data-task-delete]');
     if (del) {
       if (!confirm('¿Eliminar esta tarea por completo? No queda ni como cancelada, se borra del historial.')) return;

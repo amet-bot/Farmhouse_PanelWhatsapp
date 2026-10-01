@@ -56,8 +56,13 @@ def test_notificacion_de_prueba(client, supervisor_user, clayton_device, fcm):
     h = _h(supervisor_user, clayton_device)
     assert client.post("/api/push/native/test", headers=h).status_code == 404   # todavía sin celular
     client.post("/api/push/native/register", json={"token": TOKEN}, headers=h)
-    assert client.post("/api/push/native/test", headers=h).json() == {"sent": 1}
-    assert fcm[0]["token"] == TOKEN and fcm[0]["url"] == "/hub"
+    assert client.post("/api/push/native/test", headers=h).json() == {"sent": 1, "channel": "avisos"}
+    assert fcm[0]["token"] == TOKEN and fcm[0]["url"] == "/hub" and fcm[0]["channel"] == "avisos"
+
+    # channel=tareas prueba el otro sonido, sin tener que crear una tarea de verdad.
+    fcm.clear()
+    assert client.post("/api/push/native/test?channel=tareas", headers=h).json() == {"sent": 1, "channel": "tareas"}
+    assert fcm[0]["channel"] == "tareas"
 
 
 def test_los_avisos_de_la_sucursal_llegan_a_la_app(db_session, clayton_branch, supervisor_user, clayton_agent, fcm):

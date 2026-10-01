@@ -173,6 +173,33 @@ def test_borrar_una_tarea_es_solo_de_admin(client, db_session, clayton_branch, s
     assert client.delete(f"/api/ops/tasks/{t['id']}", headers=ha).status_code == 404
 
 
+def test_recordar_una_tarea_avisa_de_nuevo_a_quien_le_toca(client, db_session, admin_user, clayton_branch, obarrio_branch, clayton_agent, obarrio_agent, supervisor_user, clayton_device, avisos):
+    ha = _h(admin_user)
+
+    # Sin asignar: el recordatorio le llega de nuevo a todo el equipo de esa sucursal, no a otra.
+    sin_asignar = client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Limpiar la campana"}, headers=ha).json()
+    avisos.clear()
+    r = client.post(f"/api/ops/tasks/{sin_asignar['id']}/remind", headers=ha)
+    assert r.status_code == 200, r.text
+    avisados = {uid for a in avisos for uid in a.get("user_ids", [])}
+    assert avisados == {clayton_agent.id, supervisor_user.id} and obarrio_agent.id not in avisados
+    assert all("Recordatorio" in a["title"] for a in avisos)
+    assert db_session.query(AuditEvent).filter(AuditEvent.action == "task.remind", AuditEvent.entity_id == sin_asignar["id"]).count() == 1
+
+    # Asignada: solo le llega a esa persona.
+    asignada = client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Sacar la basura", "assigned_to_user_id": clayton_agent.id}, headers=ha).json()
+    avisos.clear()
+    assert client.post(f"/api/ops/tasks/{asignada['id']}/remind", headers=ha).status_code == 200
+    assert [a["user_ids"] for a in avisos] == [[clayton_agent.id]]
+
+    # Alguien de otra sucursal (ni siquiera encargado) no puede recordar esta tarea de Clayton.
+    assert client.post(f"/api/ops/tasks/{asignada['id']}/remind", headers=_h(obarrio_agent)).status_code == 403
+
+    # Una tarea cerrada no admite recordatorio.
+    client.post(f"/api/ops/tasks/{asignada['id']}/status", json={"status": "hecha"}, headers=_h(clayton_agent, clayton_device))
+    assert client.post(f"/api/ops/tasks/{asignada['id']}/remind", headers=ha).status_code == 409
+
+
 # ---- equipo y resumen ------------------------------------------------------------
 
 def test_equipo_de_la_sucursal_mas_globales(client, clayton_branch, clayton_agent, clayton_device, supervisor_user, admin_user, obarrio_agent):

@@ -556,6 +556,34 @@ def update_task_status(
     return _task_out(task)
 
 
+@router.post("/tasks/{task_id}/remind", response_model=TaskResponse)
+def remind_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """Vuelve a avisar de una tarea que sigue pendiente, a la misma gente que ya la vio (quien
+    esté asignado, o todo el equipo de la sucursal si sigue sin asignar) — para cuando pasó un
+    rato y nadie la tomó. No cambia nada de la tarea, solo repite el aviso push."""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarea no encontrada.")
+    _require_own_branch_or_admin(current_user, task.branch_id, "No tienes permiso para recordar esta tarea.")
+    if task.status in ("hecha", "cancelada"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta tarea ya está cerrada.")
+
+    if task.assigned_to_user_id:
+        destinatarios = [task.assigned_to_user_id] if task.assigned_to_user_id != current_user.id else []
+        titulo = f"Recordatorio: tarea pendiente · {task.branch.name}"
+    else:
+        destinatarios = _branch_team_ids(db, task.branch_id, exclude_user_id=current_user.id)
+        titulo = f"Recordatorio: tarea para {task.branch.name}"
+    _notify_task(db, destinatarios, titulo, task.title, task)
+    log_audit_event(db, current_user.id, task.branch_id, "task.remind", "task", task.id, {})
+    db.commit()
+    return _task_out(task)
+
+
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(
     task_id: int,
