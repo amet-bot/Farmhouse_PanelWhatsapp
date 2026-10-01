@@ -126,4 +126,7 @@ textarea.modal-input { resize: vertical; min-height: 60px; }
   .ops-two-cols { grid-template-columns: 1fr; }
   .ops-item-picker { grid-template-columns: 1fr 80px; }
   .ops-item-picker .inv-secondary-btn { grid-column: 1 / -1; }
+  .ops-subsection-header { flex-direction: column; align-items: stretch; margin: 20px 0 10px; }
+  .ops-subsection-header h3 { font-size: 14px; }
+  .ops-subsection-header .inv-secondary-btn { margin-left: 0; width: 100%; justify-content: center; }
 }
