@@ -6,8 +6,10 @@ JWT con su clave privada, se cambia por un token de acceso de Google (dura una h
 con ese token se manda cada mensaje. Sin la cuenta configurada no se manda nada y el resto del
 sistema sigue igual.
 
-Cada aviso sale por el canal "avisos" de la app (importancia alta, ver MainActivity.java): aparece
-arriba de la pantalla, suena, vibra y se ve en la pantalla de bloqueo.
+Cada aviso sale por un canal de la app (importancia alta, ver MainActivity.java): aparece arriba
+de la pantalla, suena, vibra y se ve en la pantalla de bloqueo. Hay dos canales con distinto
+sonido para que una tarea no se confunda con un mensaje de WhatsApp sin mirar el teléfono:
+"avisos" (mensajes de clientes, el de siempre) y "tareas" (tareas nuevas/reasignadas/hechas).
 """
 import base64
 import json
@@ -25,6 +27,7 @@ logger = logging.getLogger("farmhouse.fcm")
 
 FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 CANAL_AVISOS = "avisos"          # el mismo id que crea la app (MainActivity.CANAL_AVISOS)
+CANAL_TAREAS = "tareas"          # sonido distinto, para no confundirlo con un mensaje de WhatsApp
 ICONO = "ic_stat_farmhouse"      # la hoja blanca de la barra de notificaciones
 COLOR = "#2F8F6A"
 
@@ -73,13 +76,14 @@ def _access_token(cuenta: dict) -> str:
         return _token_cache["value"]
 
 
-def build_message(token: str, title: str, body: str, url: Optional[str] = None, tag: Optional[str] = None) -> dict:
-    """El mensaje de FCM: notificación visible + la ruta a abrir al tocarla (en `data`)."""
+def build_message(token: str, title: str, body: str, url: Optional[str] = None, tag: Optional[str] = None, channel: str = CANAL_AVISOS) -> dict:
+    """El mensaje de FCM: notificación visible + la ruta a abrir al tocarla (en `data`). `channel`
+    decide el sonido (ver MainActivity.java): CANAL_AVISOS (mensajes) o CANAL_TAREAS (tareas)."""
     data = {"url": url or "/hub"}
     if tag:
         data["tag"] = tag
     notificacion = {
-        "channel_id": CANAL_AVISOS, "icon": ICONO, "color": COLOR,
+        "channel_id": channel, "icon": ICONO, "color": COLOR,
         "default_sound": True, "default_vibrate_timings": True,
         "notification_priority": "PRIORITY_HIGH", "visibility": "PUBLIC",
     }
@@ -99,7 +103,7 @@ class TokenInvalido(Exception):
     """El celular desinstaló la app o el token venció: hay que borrarlo."""
 
 
-def send(token: str, title: str, body: str, url: Optional[str] = None, tag: Optional[str] = None) -> None:
+def send(token: str, title: str, body: str, url: Optional[str] = None, tag: Optional[str] = None, channel: str = CANAL_AVISOS) -> None:
     """Manda un aviso a un celular. Levanta TokenInvalido si FCM dice que ese token ya no sirve."""
     cuenta = _cuenta_de_servicio()
     if cuenta is None:
@@ -107,7 +111,7 @@ def send(token: str, title: str, body: str, url: Optional[str] = None, tag: Opti
     res = httpx.post(
         f"https://fcm.googleapis.com/v1/projects/{cuenta['project_id']}/messages:send",
         headers={"Authorization": f"Bearer {_access_token(cuenta)}"},
-        json=build_message(token, title, body, url, tag), timeout=10,
+        json=build_message(token, title, body, url, tag, channel), timeout=10,
     )
     if res.status_code == 200:
         return

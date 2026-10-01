@@ -17,10 +17,10 @@ def fcm(monkeypatch):
     enviados = []
     monkeypatch.setattr(fcm_service, "is_configured", lambda: True)
 
-    def send(token, title, body, url=None, tag=None):
+    def send(token, title, body, url=None, tag=None, channel=fcm_service.CANAL_AVISOS):
         if token.startswith("muerto"):
             raise fcm_service.TokenInvalido("UNREGISTERED")
-        enviados.append({"token": token, "title": title, "body": body, "url": url, "tag": tag})
+        enviados.append({"token": token, "title": title, "body": body, "url": url, "tag": tag, "channel": channel})
 
     monkeypatch.setattr(fcm_service, "send", send)
     return enviados
@@ -93,3 +93,19 @@ def test_el_mensaje_va_por_el_canal_a_la_vista():
     assert (n["channel_id"], n["visibility"], n["notification_priority"]) == ("avisos", "PUBLIC", "PRIORITY_HIGH")
     assert n["icon"] == "ic_stat_farmhouse" and n["tag"] == "fh-waste-3"
     assert m["data"]["url"] == "/inventario?view=merma&waste=3"
+
+
+def test_una_tarea_va_por_el_canal_de_tareas_no_el_de_mensajes(client, db_session, clayton_branch, supervisor_user, clayton_agent, clayton_device, fcm):
+    """Una tarea nueva no debe sonar igual que un mensaje de WhatsApp de un cliente (pedido del
+    2026-10-01): usa el canal "tareas" (otro sonido en el teléfono), no "avisos"."""
+    db_session.add(NativePushToken(user_id=clayton_agent.id, token=TOKEN))
+    db_session.commit()
+    h = _h(supervisor_user, clayton_device)
+    r = client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Limpiar campana", "assigned_to_user_id": clayton_agent.id}, headers=h)
+    assert r.status_code == 201, r.text
+    assert len(fcm) == 1 and fcm[0]["channel"] == fcm_service.CANAL_TAREAS
+
+    # Un aviso de siempre (ej. cargamento con diferencias) sigue sonando como mensaje.
+    fcm.clear()
+    push_service.notify_branch_staff(db_session, clayton_branch.id, "Cargamento con diferencias", "x", "/inventario")
+    assert len(fcm) == 1 and fcm[0]["channel"] == fcm_service.CANAL_AVISOS

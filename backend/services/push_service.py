@@ -37,10 +37,11 @@ def _send_native(db: Session, user_ids: list, payload: dict) -> int:
     if not user_ids or not fcm_service.is_configured():
         return 0
     enviados = 0
+    channel = payload.get("channel") or fcm_service.CANAL_AVISOS
     for t in db.query(NativePushToken).filter(NativePushToken.user_id.in_(user_ids)).all():
         try:
             fcm_service.send(t.token, payload.get("title") or "Farmhouse Link", payload.get("body") or "",
-                             url=payload.get("url"), tag=payload.get("tag"))
+                             url=payload.get("url"), tag=payload.get("tag"), channel=channel)
             enviados += 1
         except fcm_service.TokenInvalido:
             db.query(NativePushToken).filter(NativePushToken.id == t.id).delete()
@@ -170,14 +171,18 @@ def notify_internal_message(
     _deliver(db, list(recipient_user_ids), payload)
 
 
-def notify_users(db: Session, user_ids: list, title: str, body: str, url: str, tag: Optional[str] = None) -> int:
-    """Aviso directo a personas concretas (ej. a quien le asignaron una tarea o incidencia)."""
+def notify_users(db: Session, user_ids: list, title: str, body: str, url: str, tag: Optional[str] = None, channel: Optional[str] = None) -> int:
+    """Aviso directo a personas concretas (ej. a quien le asignaron una tarea o incidencia).
+    `channel` elige el sonido en la app nativa (ver fcm_service.py); sin indicarlo, el de
+    siempre ("avisos"). El navegador (Web Push) no tiene este concepto, así que ahí no cambia nada."""
     if not user_ids or not any_channel_configured():
         return 0
     activos = [u.id for u in db.query(User.id).filter(User.id.in_(user_ids), User.active == True).all()]  # noqa: E712
     payload = {"title": title, "body": (body or "")[:140], "url": url}
     if tag:
         payload["tag"] = tag
+    if channel:
+        payload["channel"] = channel
     return _deliver(db, activos, payload)
 
 
@@ -189,12 +194,14 @@ def notify_branch_staff(
     url: str,
     tag: Optional[str] = None,
     managers_only: bool = False,
+    channel: Optional[str] = None,
 ) -> int:
     """
     Avisa por push a la gente de una sucursal: sus usuarios, los supervisores globales y los
     admins (misma audiencia que notify_branch_new_message). Con `managers_only` quedan fuera los
     agentes: una diferencia en un cargamento la tiene que resolver un supervisor, no la cocina.
-    Devuelve a cuántos navegadores y celulares se mandó (0 si no hay nada configurado).
+    `channel` elige el sonido en la app nativa (ver notify_users). Devuelve a cuántos navegadores
+    y celulares se mandó (0 si no hay nada configurado).
     """
     if not any_channel_configured():
         return 0
@@ -210,4 +217,6 @@ def notify_branch_staff(
     payload = {"title": title, "body": (body or "")[:140], "url": url}
     if tag:
         payload["tag"] = tag
+    if channel:
+        payload["channel"] = channel
     return _deliver(db, user_ids, payload)

@@ -41,6 +41,7 @@ from security.permissions import has_permission
 from services.audit import log_audit_event
 from services.branch_hours import PANAMA_TZ
 from services.push_service import notify_branch_staff, notify_users
+from services import fcm_service
 
 logger = logging.getLogger("farmhouse.ops")
 
@@ -151,14 +152,16 @@ def _task_link(user: User, task: Task) -> str:
 
 
 def _notify_task(db: Session, user_ids: List[int], title: str, body: str, task: Task) -> None:
-    """Manda el aviso de una tarea a esas personas, cada una con el enlace que le sirve."""
+    """Manda el aviso de una tarea a esas personas, cada una con el enlace que le sirve. Por el
+    canal "tareas" en la app nativa (sonido propio, ver fcm_service.py), para que no se confunda
+    con un mensaje de WhatsApp de un cliente sin tener que mirar el teléfono."""
     if not user_ids:
         return
     grupos: dict = {}
     for u in db.query(User).filter(User.id.in_(user_ids), User.active == True).all():  # noqa: E712
         grupos.setdefault(_task_link(u, task), []).append(u.id)
     for url, ids in grupos.items():
-        _notify_safely(notify_users, db, ids, title, body, url, tag=f"fh-task-{task.id}")
+        _notify_safely(notify_users, db, ids, title, body, url, tag=f"fh-task-{task.id}", channel=fcm_service.CANAL_TAREAS)
 
 
 def _branch_team_ids(db: Session, branch_id: int, exclude_user_id: Optional[int] = None) -> List[int]:
