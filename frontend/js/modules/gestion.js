@@ -274,8 +274,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let rows;
     try {
       rows = await api.get(`/ops/tasks?limit=200${bq('&')}${st ? `&status=${st}` : ''}${overdue ? '&overdue=true' : ''}`);
-    } catch (err) { box.innerHTML = empty('No se pudieron cargar las tareas.'); return; }
-    if (!rows.length) { box.innerHTML = empty('No hay tareas con ese filtro.'); return; }
+    } catch (err) { box.innerHTML = empty('No se pudieron cargar las tareas.'); await loadRecurringTasks(); return; }
+    if (!rows.length) { box.innerHTML = empty('No hay tareas con ese filtro.'); await loadRecurringTasks(); return; }
     const teams = {};
     for (const id of new Set(rows.map((r) => r.branch_id))) teams[id] = await team(id);
     const abierta = (t) => t.status === 'pendiente' || t.status === 'en_proceso';
@@ -291,6 +291,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${abierta(t) ? `<button class="ops-btn primary" data-task="${t.id}" data-status="hecha">Hecha</button><button class="ops-btn danger" data-task="${t.id}" data-status="cancelada">Cancelar</button>` : ''}
         </div></td>
       </tr>`).join('')}</tbody></table>`;
+    await loadRecurringTasks();
   }
   $('taskStatus').addEventListener('change', loadTareas);
   $('taskOverdue').addEventListener('change', loadTareas);
@@ -332,6 +333,73 @@ document.addEventListener('DOMContentLoaded', async () => {
         closeModal('modalTask');
       } catch (err) { $('taskError').textContent = err.message; $('taskError').hidden = false; throw err; }
     }, 'Tarea creada.');
+  });
+
+  // ==========================================================================
+  // Tareas recurrentes
+  // ==========================================================================
+  const frequencyLabel = (t) => {
+    const horas = t.times.join(', ');
+    return t.frequency === 'monthly' ? `Día ${t.day_of_month} de cada mes · ${horas}` : `Cada día · ${horas}`;
+  };
+  async function loadRecurringTasks() {
+    const box = $('recurringTaskList');
+    box.innerHTML = loading();
+    let rows;
+    try { rows = await api.get(`/ops/recurring-tasks${bq('?')}`); }
+    catch (err) { box.innerHTML = empty('No se pudieron cargar las tareas recurrentes.'); return; }
+    if (!rows.length) { box.innerHTML = empty('No hay tareas recurrentes todavía.'); return; }
+    box.innerHTML = `<table class="ops-table"><thead><tr><th>Tarea</th><th>Sucursal</th><th>Repite</th><th>Estado</th><th></th></tr></thead><tbody>${rows.map((t) => `
+      <tr>
+        <td><span class="ops-title">${esc(t.title)}</span>${t.description ? `<span class="ops-sub">${esc(t.description)}</span>` : ''}</td>
+        <td>${esc(t.branch_name || 'Todas las sucursales')}</td>
+        <td>${esc(frequencyLabel(t))}</td>
+        <td>${chip(t.active ? 'st-hecha' : 'st-cancelada', t.active ? 'Activa' : 'Pausada')}</td>
+        <td><div class="ops-actions">
+          <button class="ops-btn" data-rt="${t.id}" data-rt-action="toggle" data-rt-active="${t.active}">${t.active ? 'Pausar' : 'Reanudar'}</button>
+          <button class="ops-btn danger" data-rt="${t.id}" data-rt-action="delete">Eliminar</button>
+        </div></td>
+      </tr>`).join('')}</tbody></table>`;
+  }
+  $('recurringTaskList').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-rt]');
+    if (!b) return;
+    const id = b.dataset.rt;
+    if (b.dataset.rtAction === 'toggle') {
+      const active = b.dataset.rtActive === 'true';
+      act(b, () => api.patch(`/ops/recurring-tasks/${id}`, { active: !active }), active ? 'Tarea recurrente pausada.' : 'Tarea recurrente reanudada.');
+    } else if (b.dataset.rtAction === 'delete') {
+      if (!confirm('¿Eliminar esta tarea recurrente? Ya no se va a volver a crear sola.')) return;
+      act(b, () => api.delete(`/ops/recurring-tasks/${id}`), 'Tarea recurrente eliminada.');
+    }
+  });
+  $('btnNewRecurringTask').addEventListener('click', () => {
+    $('recurringTaskForm').reset();
+    $('rtBranch').innerHTML = branchOptions(state.branch || user.branch_id, { includeAll: isGlobal });
+    $('rtBranch').disabled = !isGlobal;
+    $('rtDayOfMonthWrap').hidden = true;
+    $('rtError').hidden = true;
+    openModal('modalRecurringTask');
+  });
+  $('rtFrequency').addEventListener('change', () => {
+    $('rtDayOfMonthWrap').hidden = $('rtFrequency').value !== 'monthly';
+  });
+  $('recurringTaskForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    act(e.submitter, async () => {
+      const frequency = $('rtFrequency').value;
+      const times = $('rtTimes').value.split(',').map((t) => t.trim()).filter(Boolean);
+      const dayOfMonth = frequency === 'monthly' ? Number($('rtDayOfMonth').value) : null;
+      if (frequency === 'monthly' && !dayOfMonth) { $('rtError').textContent = 'Indica el día del mes.'; $('rtError').hidden = false; throw new Error('día del mes'); }
+      try {
+        await api.post('/ops/recurring-tasks', {
+          branch_id: $('rtBranch').value ? Number($('rtBranch').value) : null,
+          title: $('rtTitle').value.trim(), description: $('rtDescription').value.trim() || null,
+          frequency, times, day_of_month: dayOfMonth,
+        });
+        closeModal('modalRecurringTask');
+      } catch (err) { $('rtError').textContent = err.message; $('rtError').hidden = false; throw err; }
+    }, 'Tarea recurrente creada.');
   });
 
   // ==========================================================================

@@ -119,6 +119,41 @@ class TaskResponse(BaseModel):
 
 
 # ==========================================================================
+# Tareas recurrentes
+# ==========================================================================
+class RecurringTaskCreate(BaseModel):
+    branch_id: Optional[int] = None   # None = cada local (todas las sucursales activas)
+    title: str = Field(..., min_length=1, max_length=150)
+    description: Optional[str] = None
+    frequency: str = "daily"
+    times: List[str] = Field(..., min_length=1, max_length=10)   # ["07:00"] o ["08:00","15:00","20:00"]
+    day_of_month: Optional[int] = Field(None, ge=1, le=31)   # requerido si frequency="monthly"
+
+
+class RecurringTaskUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=150)
+    description: Optional[str] = None
+    times: Optional[List[str]] = Field(None, min_length=1, max_length=10)
+    day_of_month: Optional[int] = Field(None, ge=1, le=31)
+    active: Optional[bool] = None
+
+
+class RecurringTaskResponse(BaseModel):
+    id: int
+    branch_id: Optional[int] = None
+    branch_name: Optional[str] = None   # None cuando es "cada local"
+    created_by_user_id: int
+    created_by_name: str
+    title: str
+    description: Optional[str] = None
+    frequency: str
+    times: List[str]
+    day_of_month: Optional[int] = None
+    active: bool
+    created_at: datetime
+
+
+# ==========================================================================
 # Centro de operación
 # ==========================================================================
 class TeamMember(BaseModel):

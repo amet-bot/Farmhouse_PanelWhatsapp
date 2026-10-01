@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
   <!-- Mismo armazón (cabecera, gate de sesión, botones) que Inventario y Prep. -->
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
-  <link rel="stylesheet" href="css/gestion.css?v=1.0.0">
+  <link rel="stylesheet" href="css/gestion.css?v=1.1.0">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -111,6 +111,13 @@
           <button type="button" class="inv-primary-btn" id="btnNewTask"><i data-lucide="plus"></i> Nueva tarea</button>
         </div>
         <div id="taskList"></div>
+
+        <div class="ops-subsection-header">
+          <h3><i data-lucide="repeat"></i> Tareas recurrentes</h3>
+          <span class="ops-hint">Se crean solas a su hora, sin asignar — le llegan a todo el equipo.</span>
+          <button type="button" class="inv-secondary-btn" id="btnNewRecurringTask"><i data-lucide="plus"></i> Nueva tarea recurrente</button>
+        </div>
+        <div id="recurringTaskList"></div>
       </section>
 
       <!-- ---------- Solicitudes ---------- -->
@@ -179,6 +186,45 @@
         <div class="modal-footer" style="display:flex;gap:10px">
           <button type="button" class="btn-cancel" data-close="modalTask" style="flex:1">Cancelar</button>
           <button type="submit" class="btn-primary" style="flex:1">Crear tarea</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: nueva tarea recurrente -->
+  <div class="modal-backdrop" id="modalRecurringTask">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div><h3><i data-lucide="repeat"></i> Nueva tarea recurrente</h3><span class="modal-subtitle">Se crea sola, sin asignar: le llega a todo el equipo de la sucursal cada vez</span></div>
+        <button class="modal-close-btn" type="button" data-close="modalRecurringTask" aria-label="Cerrar">&times;</button>
+      </div>
+      <form id="recurringTaskForm">
+        <div class="modal-body">
+          <!-- Sin "required": un admin/supervisor global puede dejarlo en "Todas las sucursales"
+               (value=""), que es una elección válida ("cada local"), no un campo vacío. -->
+          <label class="modal-label" for="rtBranch">Sucursal</label>
+          <select class="modal-select" id="rtBranch"></select>
+          <label class="modal-label" for="rtTitle" style="margin-top:10px">Qué hay que hacer</label>
+          <input class="modal-input" id="rtTitle" maxlength="150" required placeholder="Ej: Limpieza de la mañana en el área de la línea" />
+          <label class="modal-label" for="rtDescription" style="margin-top:10px">Detalle (opcional)</label>
+          <textarea class="modal-input" id="rtDescription" rows="2"></textarea>
+          <label class="modal-label" for="rtFrequency" style="margin-top:10px">Frecuencia</label>
+          <select class="modal-select" id="rtFrequency">
+            <option value="daily">Cada día</option>
+            <option value="monthly">Un día del mes</option>
+          </select>
+          <div id="rtDayOfMonthWrap" hidden>
+            <label class="modal-label" for="rtDayOfMonth" style="margin-top:10px">Día del mes</label>
+            <input class="modal-input" id="rtDayOfMonth" type="number" min="1" max="31" placeholder="Ej: 30" />
+          </div>
+          <label class="modal-label" for="rtTimes" style="margin-top:10px">Hora(s)</label>
+          <input class="modal-input" id="rtTimes" required placeholder="Ej: 07:00  o  08:00, 15:00, 20:00" />
+          <span class="modal-hint">Una o varias, separadas por coma. Formato 24 horas (HH:MM).</span>
+          <p class="ops-form-error" id="rtError" hidden></p>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:10px">
+          <button type="button" class="btn-cancel" data-close="modalRecurringTask" style="flex:1">Cancelar</button>
+          <button type="submit" class="btn-primary" style="flex:1">Crear tarea recurrente</button>
         </div>
       </form>
     </div>
@@ -269,10 +315,10 @@
   </div>
 
   <script src="js/utils.js?v=3.5.0"></script>
-  <script src="js/api.js?v=4.0.0"></script>
+  <script src="js/api.js?v=4.1.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/gestion.js?v=1.0.0"></script>
+  <script src="js/modules/gestion.js?v=1.1.0"></script>
 </body>
 </html>

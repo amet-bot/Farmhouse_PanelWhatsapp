@@ -178,6 +178,16 @@ const api = {
     });
   },
 
+  // Faltaba: varios módulos (reasignar tarea en gestion.js, pausar/reanudar tarea recurrente)
+  // ya llamaban a `api.patch(...)` sin que este método existiera — fallaba en silencio con
+  // "api.patch is not a function" apenas se usaba.
+  patch(endpoint, body) {
+    return this.request(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(body)
+    });
+  },
+
   delete(endpoint) {
     return this.request(endpoint, { method: 'DELETE' });
   }

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Numeric, String, DateTime, ForeignKey, Text, Index
+from sqlalchemy import Column, Integer, Numeric, String, DateTime, ForeignKey, Text, Index, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from database import Base
@@ -14,6 +14,8 @@ WasteRecord y WasteItem.
 - Incident ("incidencia"): un problema reportado en la sucursal (equipo roto, falta de personal,
   lo que sea) con una severidad y su propio ciclo de vida.
 - Task ("tarea"): un pendiente asignable a alguien de la sucursal, con fecha límite opcional.
+- RecurringTaskTemplate ("tarea recurrente"): la regla que genera Tasks solas, a hora(s) fija(s)
+  cada día o un día fijo del mes (ver services/recurring_tasks.py).
 """
 
 
@@ -104,4 +106,43 @@ class Task(Base):
 
     __table_args__ = (
         Index("ix_task_branch_status", "branch_id", "status"),
+    )
+
+
+class RecurringTaskTemplate(Base):
+    """La regla que crea Tasks solas (ver services/recurring_tasks.py), para encargos que se
+    repiten siempre igual: limpieza de apertura, listas de pares de producción a ciertas horas,
+    el inventario de fin de mes. Cuando toca, crea una Task real SIN ASIGNAR (le llega a todo el
+    equipo de la sucursal, igual que una tarea manual sin asignar) — nunca edita ni reusa la
+    tarea anterior: cada ocurrencia es una Task nueva e independiente, con su propio historial.
+
+    `branch_id` None es "cada local": se crea en todas las sucursales activas (menos Catering,
+    que no tiene equipo de línea/producción que la vea en /tareas).
+    `frequency="daily"` dispara una vez por cada hora en `times_json` (ej. ["07:00"], o varias:
+    ["08:00","15:00","20:00"]). `frequency="monthly"` dispara una vez al mes en `day_of_month`
+    (si ese mes es más corto, cae el último día) a la primera hora de `times_json`.
+    """
+    __tablename__ = "recurring_task_templates"
+
+    FREQUENCIES = ("daily", "monthly")
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    # None = todas las sucursales activas; con sucursal, solo esa.
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String(150), nullable=False)
+    description = Column(Text, nullable=True)
+    frequency = Column(String(20), nullable=False, default="daily")
+    # JSON de horas "HH:MM" en hora de Panamá, ej. '["07:00"]' o '["08:00","15:00","20:00"]'.
+    times_json = Column(Text, nullable=False)
+    # Solo con frequency="monthly": día del mes (1-31).
+    day_of_month = Column(Integer, nullable=True)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    branch = relationship("Branch")
+    created_by_user = relationship("User")
+
+    __table_args__ = (
+        Index("ix_recurring_task_branch_active", "branch_id", "active"),
     )

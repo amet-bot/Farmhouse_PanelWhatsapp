@@ -10,6 +10,7 @@ Todo cambio deja rastro en la auditoría y avisa por push a quien corresponde.
 """
 import json
 import logging
+import re
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
@@ -21,7 +22,7 @@ from database import get_db
 from models.branch import Branch
 from models.conversation import Conversation
 from models.inventory_item import InventoryItem
-from models.ops import SupplyRequest, Incident, Task
+from models.ops import SupplyRequest, Incident, Task, RecurringTaskTemplate
 from models.prep import PrepTemplate, PrepCheck
 from models.shipment import ExpectedShipment
 from models.stock_count import StockCount
@@ -31,6 +32,7 @@ from schemas.ops import (
     SupplyRequestCreate, SupplyRequestResponse,
     IncidentCreate, IncidentStatusUpdate, IncidentAssign, IncidentResponse,
     TaskCreate, TaskUpdate, TaskStatusUpdate, TaskResponse,
+    RecurringTaskCreate, RecurringTaskUpdate, RecurringTaskResponse,
     TeamMember, BranchOverview, OpsOverviewResponse,
 )
 from security.auth import get_current_authorized_user
@@ -549,6 +551,158 @@ def update_task_status(
     if update.status == "hecha" and task.created_by_user_id != current_user.id:
         _notify_task(db, [task.created_by_user_id], f"Tarea hecha: {task.title}", f"{current_user.name} · {task.branch.name}", task)
     return _task_out(task)
+
+
+# ==========================================================================
+# Tareas recurrentes
+# ==========================================================================
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
+
+
+def _validate_times(times: List[str]) -> List[str]:
+    limpias = []
+    for t in times:
+        t = t.strip()
+        if not _TIME_RE.match(t):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Hora inválida: '{t}' (formato HH:MM, 24 horas).")
+        limpias.append(t)
+    if not limpias:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Agrega al menos una hora.")
+    return sorted(set(limpias))
+
+
+def _recurring_task_out(t: RecurringTaskTemplate) -> RecurringTaskResponse:
+    return RecurringTaskResponse(
+        id=t.id, branch_id=t.branch_id, branch_name=t.branch.name if t.branch else None,
+        created_by_user_id=t.created_by_user_id, created_by_name=t.created_by_user.name,
+        title=t.title, description=t.description, frequency=t.frequency,
+        times=json.loads(t.times_json), day_of_month=t.day_of_month,
+        active=t.active, created_at=t.created_at,
+    )
+
+
+@router.post("/recurring-tasks", response_model=RecurringTaskResponse, status_code=status.HTTP_201_CREATED)
+def create_recurring_task(
+    template_in: RecurringTaskCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """Crea la regla; no crea ninguna Task todavía — eso lo hace sola
+    services/recurring_tasks.py cuando toque la hora/día. `branch_id=None` ("cada local") es
+    solo para admin/supervisor global, por ser una política que aplica a todas las sucursales."""
+    if template_in.branch_id is None:
+        if not _is_global(current_user):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un administrador puede crear una tarea recurrente para todas las sucursales.")
+    else:
+        _require_own_branch_or_admin(current_user, template_in.branch_id, "No tienes permiso para crear tareas recurrentes en otra sucursal.")
+        check_target_branch_valid(db, template_in.branch_id)
+    _require_manager(current_user, "Solo un encargado puede crear tareas recurrentes.")
+
+    if template_in.frequency not in RecurringTaskTemplate.FREQUENCIES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Frecuencia no válida.")
+    if template_in.frequency == "monthly" and not template_in.day_of_month:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Indica el día del mes para una tarea mensual.")
+    times = _validate_times(template_in.times)
+
+    template = RecurringTaskTemplate(
+        branch_id=template_in.branch_id,
+        created_by_user_id=current_user.id,
+        title=template_in.title,
+        description=template_in.description,
+        frequency=template_in.frequency,
+        times_json=json.dumps(times),
+        day_of_month=template_in.day_of_month if template_in.frequency == "monthly" else None,
+    )
+    db.add(template)
+    db.flush()
+    log_audit_event(
+        db, current_user.id, template.branch_id, "recurring_task.create", "recurring_task_template", template.id,
+        {"title": template.title, "frequency": template.frequency, "times": times, "day_of_month": template.day_of_month},
+    )
+    db.commit()
+    db.refresh(template)
+    logger.info(f"Tarea recurrente #{template.id} ({template.title}) creada por {current_user.name}.")
+    return _recurring_task_out(template)
+
+
+@router.get("/recurring-tasks", response_model=List[RecurringTaskResponse])
+def list_recurring_tasks(
+    branch_id: Optional[int] = Query(None),
+    active: Optional[bool] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """Lista las reglas visibles: las de su sucursal más las de "cada local" (branch_id NULL),
+    que aplican a todos. Un admin/supervisor global puede filtrar por cualquier sucursal."""
+    query = db.query(RecurringTaskTemplate)
+    efectiva = _visible_branch_filter(current_user, branch_id)
+    if efectiva is not None:
+        query = query.filter((RecurringTaskTemplate.branch_id == efectiva) | (RecurringTaskTemplate.branch_id.is_(None)))
+    if active is not None:
+        query = query.filter(RecurringTaskTemplate.active == active)
+    templates = query.order_by(RecurringTaskTemplate.created_at.desc()).all()
+    return [_recurring_task_out(t) for t in templates]
+
+
+@router.patch("/recurring-tasks/{template_id}", response_model=RecurringTaskResponse)
+def update_recurring_task(
+    template_id: int,
+    update: RecurringTaskUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    template = db.query(RecurringTaskTemplate).filter(RecurringTaskTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarea recurrente no encontrada.")
+    if template.branch_id is None:
+        if not _is_global(current_user):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un administrador puede modificar una tarea recurrente de todas las sucursales.")
+    else:
+        _require_own_branch_or_admin(current_user, template.branch_id, "No tienes permiso para modificar esta tarea recurrente.")
+    _require_manager(current_user, "Solo un encargado puede modificar tareas recurrentes.")
+
+    cambios = {}
+    if update.title is not None:
+        template.title = update.title
+        cambios["title"] = update.title
+    if update.description is not None:
+        template.description = update.description
+    if update.times is not None:
+        times = _validate_times(update.times)
+        template.times_json = json.dumps(times)
+        cambios["times"] = times
+    if update.day_of_month is not None:
+        if template.frequency != "monthly":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El día del mes solo aplica a una tarea mensual.")
+        template.day_of_month = update.day_of_month
+        cambios["day_of_month"] = update.day_of_month
+    if update.active is not None:
+        template.active = update.active
+        cambios["active"] = update.active
+    log_audit_event(db, current_user.id, template.branch_id, "recurring_task.update", "recurring_task_template", template.id, cambios)
+    db.commit()
+    db.refresh(template)
+    return _recurring_task_out(template)
+
+
+@router.delete("/recurring-tasks/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_recurring_task(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    template = db.query(RecurringTaskTemplate).filter(RecurringTaskTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarea recurrente no encontrada.")
+    if template.branch_id is None:
+        if not _is_global(current_user):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un administrador puede eliminar una tarea recurrente de todas las sucursales.")
+    else:
+        _require_own_branch_or_admin(current_user, template.branch_id, "No tienes permiso para eliminar esta tarea recurrente.")
+    _require_manager(current_user, "Solo un encargado puede eliminar tareas recurrentes.")
+    log_audit_event(db, current_user.id, template.branch_id, "recurring_task.delete", "recurring_task_template", template.id, {"title": template.title})
+    db.delete(template)
+    db.commit()
 
 
 # ==========================================================================

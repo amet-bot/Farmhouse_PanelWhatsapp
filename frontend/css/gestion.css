@@ -27,6 +27,13 @@
 .ops-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary, #4b5563); }
 .ops-hint { font-size: 13px; color: var(--text-muted, #6b7280); flex: 1; }
 
+.ops-subsection-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 28px 0 12px; }
+.ops-subsection-header h3 { display: flex; align-items: center; gap: 6px; font-size: 15px; margin: 0; }
+.ops-subsection-header h3 i { width: 16px; height: 16px; }
+.ops-subsection-header .inv-secondary-btn { margin-left: auto; }
+
+.modal-hint { display: block; font-size: 12px; color: var(--text-muted, #6b7280); margin-top: 4px; }
+
 /* ---- resumen ---- */
 .ops-totals { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .ops-total { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 13px;

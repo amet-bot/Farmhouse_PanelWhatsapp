@@ -39,7 +39,7 @@ from routers import (
     closing_sheet,
 )
 from services.bot_followup import run_followup_sweep_loop
-from services import invu_recipes_sync, invu_sync, invu_sales_sync, supply_alerts, weekly_digest
+from services import invu_recipes_sync, invu_sync, invu_sales_sync, supply_alerts, weekly_digest, recurring_tasks
 
 logging.basicConfig(
     level=logging.INFO,
@@ -107,9 +107,15 @@ async def lifespan(app: FastAPI):
     if "PYTEST_CURRENT_TEST" not in os.environ:
         lowstock_task = asyncio.create_task(supply_alerts.run_low_stock_loop())
 
+    # Séptimo loop: tareas recurrentes (limpieza, pares de producción, inventario de fin de mes)
+    # que se crean solas a su hora (ver services/recurring_tasks).
+    recurring_tasks_task = None
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        recurring_tasks_task = asyncio.create_task(recurring_tasks.run_recurring_tasks_loop())
+
     yield
 
-    for task in (followup_task, invu_task, ventas_task, recetas_task, digest_task, lowstock_task):
+    for task in (followup_task, invu_task, ventas_task, recetas_task, digest_task, lowstock_task, recurring_tasks_task):
         if task:
             task.cancel()
             try:
