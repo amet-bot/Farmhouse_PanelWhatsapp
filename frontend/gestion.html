@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
   <!-- Mismo armazón (cabecera, gate de sesión, botones) que Inventario y Prep. -->
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
-  <link rel="stylesheet" href="css/gestion.css?v=1.2.0">
+  <link rel="stylesheet" href="css/gestion.css?v=1.3.0">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -60,12 +60,12 @@
       <div class="ops-toolbar">
         <select class="inv-filter-select" id="branchSelect" aria-label="Sucursal"></select>
         <nav class="ops-tabs" id="opsTabs" aria-label="Secciones">
-          <button type="button" class="ops-tab active" data-tab="resumen"><i data-lucide="layout-grid"></i> Resumen</button>
-          <button type="button" class="ops-tab" data-tab="incidencias"><i data-lucide="alert-triangle"></i> Incidencias <span class="ops-tab-count" id="countIncidencias" hidden></span></button>
-          <button type="button" class="ops-tab" data-tab="tareas"><i data-lucide="clipboard-list"></i> Tareas <span class="ops-tab-count" id="countTareas" hidden></span></button>
-          <button type="button" class="ops-tab" data-tab="solicitudes"><i data-lucide="package-plus"></i> Solicitudes <span class="ops-tab-count" id="countSolicitudes" hidden></span></button>
-          <button type="button" class="ops-tab" data-tab="traslados"><i data-lucide="repeat"></i> Traslados <span class="ops-tab-count" id="countTraslados" hidden></span></button>
-          <button type="button" class="ops-tab" data-tab="cargamentos"><i data-lucide="truck"></i> Cargamentos <span class="ops-tab-count" id="countCargamentos" hidden></span></button>
+          <button type="button" class="ops-tab active" data-tab="resumen"><i data-lucide="layout-grid"></i> <span>Resumen</span></button>
+          <button type="button" class="ops-tab" data-tab="incidencias"><i data-lucide="alert-triangle"></i> <span>Incidencias</span> <span class="ops-tab-count" id="countIncidencias" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="tareas"><i data-lucide="clipboard-list"></i> <span>Tareas</span> <span class="ops-tab-count" id="countTareas" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="solicitudes"><i data-lucide="package-plus"></i> <span>Solicitudes</span> <span class="ops-tab-count" id="countSolicitudes" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="traslados"><i data-lucide="repeat"></i> <span>Traslados</span> <span class="ops-tab-count" id="countTraslados" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="cargamentos"><i data-lucide="truck"></i> <span>Cargamentos</span> <span class="ops-tab-count" id="countCargamentos" hidden></span></button>
         </nav>
         <button type="button" class="inv-secondary-btn ops-refresh" id="btnRefresh" title="Actualizar"><i data-lucide="refresh-cw"></i></button>
       </div>
