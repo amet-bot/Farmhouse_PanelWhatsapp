@@ -289,6 +289,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td><div class="ops-actions">
           ${t.status === 'pendiente' ? `<button class="ops-btn" data-task="${t.id}" data-status="en_proceso">En proceso</button>` : ''}
           ${abierta(t) ? `<button class="ops-btn primary" data-task="${t.id}" data-status="hecha">Hecha</button><button class="ops-btn danger" data-task="${t.id}" data-status="cancelada">Cancelar</button>` : ''}
+          ${user.role === 'admin' ? `<button class="ops-btn danger" data-task-delete="${t.id}">Eliminar</button>` : ''}
         </div></td>
       </tr>`).join('')}</tbody></table>`;
     await loadRecurringTasks();
@@ -296,6 +297,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('taskStatus').addEventListener('change', loadTareas);
   $('taskOverdue').addEventListener('change', loadTareas);
   $('taskList').addEventListener('click', (e) => {
+    const del = e.target.closest('button[data-task-delete]');
+    if (del) {
+      if (!confirm('¿Eliminar esta tarea por completo? No queda ni como cancelada, se borra del historial.')) return;
+      act(del, () => api.delete(`/ops/tasks/${del.dataset.taskDelete}`), 'Tarea eliminada.');
+      return;
+    }
     const b = e.target.closest('button[data-task]');
     if (!b) return;
     if (b.dataset.status === 'cancelada' && !confirm('¿Cancelar esta tarea?')) return;

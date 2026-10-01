@@ -553,6 +553,27 @@ def update_task_status(
     return _task_out(task)
 
 
+@router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """Borra una tarea de verdad (no solo "cancelada"): para limpiar una creada por error o de
+    prueba. A propósito más estricto que el resto de /tasks (ahí alcanza con ser encargado de
+    esa sucursal o admin): una tarea es el único registro de "esto se hizo o no se hizo", así
+    que borrarla de verdad queda reservado a admin. "Cancelarla" (POST /tasks/{id}/status) sigue
+    siendo la forma normal de descartar una tarea sin perder ese historial."""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarea no encontrada.")
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un administrador puede borrar una tarea.")
+    log_audit_event(db, current_user.id, task.branch_id, "task.delete", "task", task.id, {"title": task.title, "status": task.status})
+    db.delete(task)
+    db.commit()
+
+
 # ==========================================================================
 # Tareas recurrentes
 # ==========================================================================

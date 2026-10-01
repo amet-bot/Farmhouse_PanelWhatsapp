@@ -156,6 +156,23 @@ def test_no_se_asigna_a_un_usuario_inactivo(client, clayton_branch, supervisor_u
     assert r.status_code == 404
 
 
+def test_borrar_una_tarea_es_solo_de_admin(client, db_session, clayton_branch, supervisor_user, admin_user, clayton_device, avisos):
+    """Borrar de verdad (no solo cancelar) queda reservado a admin: un encargado local, aunque
+    tenga purchasing.approve, no puede quitar el único registro de si una tarea se hizo."""
+    hs = _h(supervisor_user, clayton_device)
+    t = client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Tarea de prueba"}, headers=hs).json()
+
+    assert client.delete(f"/api/ops/tasks/{t['id']}", headers=hs).status_code == 403
+    assert db_session.query(Task).filter(Task.id == t["id"]).first() is not None
+
+    ha = _h(admin_user)
+    assert client.delete(f"/api/ops/tasks/{t['id']}", headers=ha).status_code == 204
+    assert db_session.query(Task).filter(Task.id == t["id"]).first() is None
+    assert db_session.query(AuditEvent).filter(AuditEvent.action == "task.delete", AuditEvent.entity_id == t["id"]).count() == 1
+
+    assert client.delete(f"/api/ops/tasks/{t['id']}", headers=ha).status_code == 404
+
+
 # ---- equipo y resumen ------------------------------------------------------------
 
 def test_equipo_de_la_sucursal_mas_globales(client, clayton_branch, clayton_agent, clayton_device, supervisor_user, admin_user, obarrio_agent):
