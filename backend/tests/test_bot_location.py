@@ -81,17 +81,19 @@ def test_la_ubicacion_asigna_la_sucursal_mas_cercana_y_sigue_con_el_menu(client,
     contenidos = _outgoing(db_session, conv.id)
     assert any("Tu sucursal más cercana es *Clayton*" in c and " km" in c for c in contenidos)
     assert any("Te ubico en *Calle 50, Obarrio*" in c for c in contenidos)
-    assert "¿a qué tipo de lugar" in contenidos[-1]
+    assert "dirección completa" in contenidos[-1]
     assert conv.delivery_intake_step == 1
-    # Contesta PH y la referencia: recién ahí llega el menú.
-    _post_bot_message(client, PHONE, "wamid.L3b", button_id="place_ph")
-    _post_bot_message(client, PHONE, "wamid.L3c", text="PH Torre Mar, apto 5B")
+    # Responde todo junto (tipo de lugar + referencia, una sola pregunta): recién ahí llega el
+    # menú, sin una segunda pregunta de "¿cuál es la referencia?" de por medio.
+    _post_bot_message(client, PHONE, "wamid.L3b", text="PH Torre Mar, apto 5B")
     db_session.expire_all()
     conv = _conv(db_session)
     assert conv.delivery_intake_step is None and conv.delivery_place_type == "ph" and conv.delivery_reference == "PH Torre Mar, apto 5B"
     contenidos = _outgoing(db_session, conv.id)
-    assert any("¿Cómo se llama el PH" in c for c in contenidos)
-    assert any("PH / edificio: PH Torre Mar, apto 5B" in c for c in contenidos)
+    assert not any("¿Cómo se llama el PH" in c for c in contenidos)
+    anotado = next(c for c in contenidos if "PH / edificio: PH Torre Mar, apto 5B" in c)
+    # La confirmación y la info de la sucursal van en la misma burbuja, no en dos aparte.
+    assert "Tu pedido a domicilio saldrá de nuestra sucursal de *Clayton*" in anotado
     assert any("/menu?" in c and "branch=CLY" in c for c in contenidos)
     contacto = db_session.query(Contact).filter(Contact.phone == f"+{PHONE}").one()
     assert (float(contacto.latitude), float(contacto.longitude)) == CERCA_DE_CLAYTON
@@ -160,7 +162,7 @@ def test_menu_directo_con_delivery_va_de_la_ubicacion_al_menu_sin_preguntas(clie
     assert any("Tu sucursal más cercana es *Clayton*" in c for c in contenidos)
     assert any("El delivery hasta tu ubicación cuesta" in c for c in contenidos)   # el monto
     assert any("/menu?" in c and "branch=CLY" in c for c in contenidos)
-    assert not any("¿a qué tipo de lugar" in c for c in contenidos)
+    assert not any("dirección completa" in c for c in contenidos)
     # El chat no queda sin salida: tras el link siguen ofreciéndose opciones.
     assert "algo más en lo que pueda ayudarte" in contenidos[-1]
 
@@ -181,4 +183,4 @@ def test_el_menu_directo_no_deja_al_delivery_siguiente_sin_preguntas(client, cla
     db_session.expire_all()
     conv = _conv(db_session)
     assert conv.delivery_intake_step == 1
-    assert "¿a qué tipo de lugar" in _outgoing(db_session, conv.id)[-1]
+    assert "dirección completa" in _outgoing(db_session, conv.id)[-1]

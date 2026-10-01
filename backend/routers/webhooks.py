@@ -49,7 +49,7 @@ from services.auto_responses import (
     get_customer_first_name, get_chat_order_context_line, YAPPY_BUTTON_MESSAGE,
     CLOSED_NOW_MESSAGE, BOT_SESSION_TIMEOUT_HOURS,
     DELIVERY_LOCATION_REQUEST_BODY, NEAREST_BRANCH_MESSAGE, DELIVERY_MAX_KM, DELIVERY_OUT_OF_RANGE_MESSAGE,
-    LOCATION_DESCRIBED_MESSAGE, DELIVERY_PLACE_QUESTION, DELIVERY_PLACE_ROWS, DELIVERY_PLACE_LABELS,
+    LOCATION_DESCRIBED_MESSAGE, DELIVERY_ADDRESS_QUESTION, DELIVERY_PLACE_LABELS,
     DELIVERY_REFERENCE_QUESTIONS, DELIVERY_DETAILS_SAVED_MESSAGE, match_delivery_place,
     DELIVERY_FEE_MESSAGE, PICKUP_LOCATION_REQUEST_BODY, NEAREST_BRANCH_PICKUP_MESSAGE, BRANCH_NEAREST_ROW,
 )
@@ -492,23 +492,33 @@ def _last_public_bot_text(db: Session, conv_id: int) -> str:
     ).order_by(Message.created_at.desc(), Message.id.desc()).first()
     return msg.content if msg else ""
 
-async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
-    """Envía la información de la sucursal (visita, retiro o domicilio) y/o el enlace del Menú Digital según el tipo de atención."""
+async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, prefix_text: Optional[str] = None) -> None:
+    """Envía la información de la sucursal (visita, retiro o domicilio) y/o el enlace del Menú
+    Digital según el tipo de atención.
+
+    `prefix_text` (ej. la confirmación "¡Anotado! ..." de _finish_delivery_intake) se antepone a
+    la primera burbuja en vez de mandarse aparte, para no acumular mensajes seguidos justo antes
+    del link del menú (ver conversación del 2026-10-01). El aviso de "cerrado ahora" ya NO sale
+    aquí de forma automática: se mudó a _step_handle_branch_info_request ("Ver horarios"), para
+    no interrumpir este tramo con algo que el cliente no pidió — igual puede armar y programar
+    su pedido desde el Menú Digital aunque esté cerrado ahora mismo."""
     branch_name = conv.branch.name if conv.branch else "Farmhouse"
     branch_code = conv.branch.code if conv.branch else ""
 
+    def _with_prefix(text: str) -> str:
+        return f"{prefix_text}\n\n{text}" if prefix_text else text
+
     if conv.delivery_type == "visit":
         visit_text = get_branch_visit_message(branch_code, branch_name, db=db, branch=conv.branch)
-        await _send_plain_text_message(db, wa_service, conv, contact, phone, visit_text)
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, _with_prefix(visit_text))
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_manager_help_prompt(db, wa_service, conv, contact, phone)
         return
 
     if conv.delivery_type == "pickup":
         pickup_info_text = get_branch_pickup_info_message(branch_code, branch_name, db=db, branch=conv.branch)
-        await _send_plain_text_message(db, wa_service, conv, contact, phone, pickup_info_text)
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, _with_prefix(pickup_info_text))
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-        await _send_closed_now_notice(db, wa_service, conv, contact, phone)
         await _send_digital_menu_link(db, wa_service, conv, contact, phone)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_after_menu_help_prompt(db, wa_service, conv, contact, phone)
@@ -516,9 +526,8 @@ async def _send_branch_welcome_and_menu(db: Session, wa_service, conv: Conversat
 
     if conv.delivery_type == "delivery":
         delivery_info_text = get_branch_delivery_info_message(branch_code, branch_name, db=db, branch=conv.branch)
-        await _send_plain_text_message(db, wa_service, conv, contact, phone, delivery_info_text)
+        await _send_plain_text_message(db, wa_service, conv, contact, phone, _with_prefix(delivery_info_text))
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-        await _send_closed_now_notice(db, wa_service, conv, contact, phone)
         await _send_digital_menu_link(db, wa_service, conv, contact, phone)
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_after_menu_help_prompt(db, wa_service, conv, contact, phone)
@@ -655,63 +664,51 @@ async def _step_handle_shared_location(db: Session, wa_service, conv: Conversati
         await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
         await _send_after_menu_help_prompt(db, wa_service, conv, contact, phone)
     else:
-        # Antes del menú, ¿PH, casa o local? y la referencia (ver _handle_delivery_intake_step).
+        # Antes del menú, la dirección completa en una sola pregunta (ver _handle_delivery_intake_step).
         conv.delivery_intake_step = 1
         conv.updated_at = datetime.now(timezone.utc)
         db.commit()
-        await _send_delivery_place_question(db, wa_service, conv, contact, phone)
+        await _send_delivery_address_question(db, wa_service, conv, contact, phone)
 
-def _delivery_place_rows(db: Session) -> list:
-    titles = get_node_options(db, "delivery_place_question", [r["title"] for r in DELIVERY_PLACE_ROWS])
-    return [{"id": r["id"], "title": t} for r, t in zip(DELIVERY_PLACE_ROWS, titles)] + [NAV_RESTART_ROW]
-
-async def _send_delivery_place_question(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
-    await _send_interactive_list_message(
+async def _send_delivery_address_question(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str) -> None:
+    await _send_plain_text_message(
         db, wa_service, conv, contact, phone,
-        get_node_text(db, "delivery_place_question", DELIVERY_PLACE_QUESTION),
-        "Elegir opción", _delivery_place_rows(db), section_title="¿Dónde te entregamos?",
+        get_node_text(db, "delivery_place_question", DELIVERY_ADDRESS_QUESTION),
     )
 
 async def _handle_delivery_intake_step(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, interactive_id: str, message_type: str, text: str) -> None:
-    """Bloque 2.6: preguntas de entrega pendientes tras la ubicación. Paso 1: tipo de lugar (fila
-    tocable o texto: "es un PH"); si escribe directamente una referencia, se toma como tal y no
-    se insiste. Paso 2: la referencia. Al terminar: resumen corto y el menú de siempre."""
-    if conv.delivery_intake_step == 1:
-        place = None
-        if interactive_id.startswith("place_"):
-            candidate = interactive_id.replace("place_", "")
-            place = candidate if candidate in DELIVERY_PLACE_LABELS else None
-        elif message_type == "text":
-            place = match_delivery_place(text)
+    """Bloque 2.6: UNA sola pregunta abierta de dirección completa tras la ubicación (tipo de
+    lugar + referencia en la misma respuesta, ej. "PH Torre Mar, apto 5B" o "casa 12, portón
+    negro"). Antes eran dos preguntas separadas (lista tocable de PH/casa/local, luego la
+    referencia aparte); se unieron en una sola el 2026-10-01 para que la conversación se sienta
+    más directa — match_delivery_place sigue detectando el tipo de lugar del texto libre, solo
+    para la etiqueta del resumen interno (ver _finish_delivery_intake).
+
+    El bloque "place_*" de abajo es compatibilidad con una conversación que, justo al momento de
+    este cambio, todavía tuviera en pantalla la lista tocable de antes: si igual toca una fila,
+    se acepta el tipo y se pregunta la referencia aparte (la única rama que conserva las 2
+    preguntas, y solo para esos mensajes ya enviados antes del cambio)."""
+    if interactive_id.startswith("place_"):
+        candidate = interactive_id.replace("place_", "")
+        place = candidate if candidate in DELIVERY_PLACE_LABELS else None
         if place:
             conv.delivery_place_type = place
-            conv.delivery_intake_step = 2
             conv.updated_at = datetime.now(timezone.utc)
             db.commit()
-            # Si en la misma frase ya vino la referencia ("PH Torre Mar apto 5B"), no se pregunta de nuevo.
-            if message_type == "text" and len((text or "").split()) >= 3:
-                await _finish_delivery_intake(db, wa_service, conv, contact, phone, text)
-                return
             await _send_plain_text_message(
                 db, wa_service, conv, contact, phone,
                 get_node_text(db, f"delivery_reference_question_{place}", DELIVERY_REFERENCE_QUESTIONS[place]),
             )
             return
-        if message_type == "text" and text.strip():
-            # No dijo el tipo pero sí algo útil: se guarda como referencia y se sigue.
-            await _finish_delivery_intake(db, wa_service, conv, contact, phone, text)
-            return
-        await _send_delivery_place_question(db, wa_service, conv, contact, phone)
-        return
 
     if message_type == "text" and text.strip():
+        conv.delivery_place_type = match_delivery_place(text)
+        conv.updated_at = datetime.now(timezone.utc)
+        db.commit()
         await _finish_delivery_intake(db, wa_service, conv, contact, phone, text)
         return
-    place = conv.delivery_place_type or "casa"
-    await _send_plain_text_message(
-        db, wa_service, conv, contact, phone,
-        get_node_text(db, f"delivery_reference_question_{place}", DELIVERY_REFERENCE_QUESTIONS[place]),
-    )
+
+    await _send_delivery_address_question(db, wa_service, conv, contact, phone)
 
 async def _finish_delivery_intake(db: Session, wa_service, conv: Conversation, contact: Contact, phone: str, reference: str) -> None:
     referencia = " ".join((reference or "").split())[:300]
@@ -727,12 +724,10 @@ async def _finish_delivery_intake(db: Session, wa_service, conv: Conversation, c
     db.commit()
     tipo_texto = tipo or "Entrega"
     fallback = DELIVERY_DETAILS_SAVED_MESSAGE.format(tipo=tipo_texto, referencia=referencia or "sin referencia")
-    await _send_plain_text_message(
-        db, wa_service, conv, contact, phone,
-        get_node_text(db, "delivery_details_saved", fallback, tipo=tipo_texto, referencia=referencia or "sin referencia"),
-    )
-    await asyncio.sleep(BUBBLE_PACE_DELAY_SECONDS)
-    await _send_branch_welcome_and_menu(db, wa_service, conv, contact, phone)
+    saved_text = get_node_text(db, "delivery_details_saved", fallback, tipo=tipo_texto, referencia=referencia or "sin referencia")
+    # La confirmación "¡Anotado! ..." ya no es su propia burbuja: se antepone a la primera
+    # burbuja de _send_branch_welcome_and_menu (ver conversación del 2026-10-01).
+    await _send_branch_welcome_and_menu(db, wa_service, conv, contact, phone, prefix_text=saved_text)
 
 def _after_menu_help_rows(db: Session) -> list:
     titles = get_node_options(db, "after_menu_help_question", [b["title"] for b in AFTER_MENU_HELP_BUTTONS])
@@ -1225,6 +1220,9 @@ async def _step_handle_branch_info_request(db: Session, wa_service, conv: Conver
     ninguna opción tocable."""
     branch_name = conv.branch.name if conv.branch else "Farmhouse"
     branch_code = conv.branch.code if conv.branch else ""
+    # El aviso de "cerrado ahora" se reserva para acá (lo pidió explícitamente), no para la
+    # secuencia automática tras elegir sucursal — ver _send_branch_welcome_and_menu.
+    await _send_closed_now_notice(db, wa_service, conv, contact, phone)
     await _send_plain_text_message(
         db, wa_service, conv, contact, phone,
         get_branch_quick_info_message(branch_code, branch_name, db=db, branch=conv.branch),

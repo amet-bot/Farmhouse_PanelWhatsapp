@@ -96,15 +96,28 @@ def test_sin_pausa_larga_no_se_reinicia_nada(client, clayton_branch, db_session)
 
 # ---- sucursal cerrada -----------------------------------------------------------------------
 
-def test_aviso_de_cerrado_antes_del_menu(client, clayton_branch, db_session, monkeypatch):
+def test_cerrado_no_interrumpe_el_camino_directo_al_menu(client, clayton_branch, db_session, monkeypatch):
+    """El aviso de "cerrado" dejó de salir automático pegado al link del menú (conversación del
+    2026-10-01): igual puede armar y programar su pedido desde el Menú Digital. Se reserva para
+    cuando pregunta el horario explícitamente (ver el test de abajo)."""
     monkeypatch.setattr("routers.webhooks.is_branch_open", lambda branch: False)
     _post_bot_message(client, PHONE, "wamid.C1", text="delivery")
     _post_bot_message(client, PHONE, "wamid.C2", text="clayton")
     conv = _conv(db_session)
     contenidos = [m.content for m in _outgoing(db_session, conv.id)]
+    assert not any("estamos cerrados" in c for c in contenidos)
+    assert any("/menu?" in c for c in contenidos)
+
+
+def test_aviso_de_cerrado_al_preguntar_el_horario(client, clayton_branch, db_session, monkeypatch):
+    monkeypatch.setattr("routers.webhooks.is_branch_open", lambda branch: False)
+    _post_bot_message(client, PHONE, "wamid.C3", text="delivery")
+    _post_bot_message(client, PHONE, "wamid.C4", text="clayton")
+    _post_bot_message(client, PHONE, "wamid.C5", button_id="branch_hours")
+    conv = _conv(db_session)
+    contenidos = [m.content for m in _outgoing(db_session, conv.id)]
     cerrado = next((i for i, c in enumerate(contenidos) if "estamos cerrados" in c), None)
-    menu = next((i for i, c in enumerate(contenidos) if "/menu?" in c), None)
-    assert cerrado is not None and menu is not None and cerrado < menu
+    assert cerrado is not None
     assert "8:00 AM" in contenidos[cerrado]
 
 

@@ -114,12 +114,11 @@ def test_referencia_directa_sin_decir_el_tipo_tambien_vale(client, clayton_branc
 
 def test_el_resumen_del_handoff_trae_la_entrega_completa(client, clayton_branch, db_session):
     _start_delivery_with_location(client)
-    _post_bot_message(client, PHONE, "wamid.D5", button_id="place_local")
-    _post_bot_message(client, PHONE, "wamid.D6", text="Oficinas Delta, piso 3")
-    _post_bot_message(client, PHONE, "wamid.D7", text="quiero hablar con alguien")
+    _post_bot_message(client, PHONE, "wamid.D5", text="es un local, Oficinas Delta, frente al banco")
+    _post_bot_message(client, PHONE, "wamid.D6", text="quiero hablar con alguien")
     conv = _conv(db_session)
     resumen = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.is_internal == True).order_by(Message.id.desc()).first()  # noqa: E712
-    assert "• Entrega: Local / oficina · Oficinas Delta, piso 3" in resumen.content
+    assert "• Entrega: Local / oficina · es un local, Oficinas Delta, frente al banco" in resumen.content
     nota = db_session.query(Message).filter(Message.conversation_id == conv.id, Message.is_internal == True, Message.content.like("📍 Ubicación del cliente%")).one()  # noqa: E712
     assert "Obarrio, Avenida Samuel Lewis, cerca de Parque Harry Strunz" in nota.content
     assert "• Referencia cercana: Parque Harry Strunz (parque, a 90 m)" in nota.content
@@ -145,7 +144,7 @@ def test_sin_geocodificacion_igual_pregunta_el_lugar(client, clayton_branch, db_
     conv = _conv(db_session)
     contenidos = _outgoing(db_session, conv.id)
     assert any("Tu sucursal más cercana es *Clayton*" in c and "Te ubico" not in c for c in contenidos)
-    assert "¿a qué tipo de lugar" in contenidos[-1]
+    assert "dirección completa" in contenidos[-1]
 
 
 def test_horario_real_por_sucursal_en_los_mensajes(client, clayton_branch, obarrio_branch, db_session):

@@ -420,23 +420,27 @@ DELIVERY_OUT_OF_RANGE_MESSAGE = (
 )
 
 # Datos de entrega tras la ubicación (ver _handle_delivery_intake_step en routers/webhooks.py):
-# la ubicación en palabras (calle y barrio, por OpenStreetMap), y dos preguntas: qué tipo de
-# lugar es (PH, casa o local) y el nombre/referencia. Al motorizado le sirve más "PH Torre Mar,
-# apto 5B, Calle 50" que un pin suelto.
+# la ubicación en palabras (calle y barrio, por OpenStreetMap) y UNA sola pregunta abierta por
+# la dirección completa (tipo de lugar + referencia en la misma respuesta, ej. "PH Torre Mar,
+# apto 5B"). Antes eran dos preguntas separadas (lista tocable de PH/casa/local, y luego la
+# referencia aparte) — se unieron en una sola el 2026-10-01 para que la conversación se sienta
+# más directa; match_delivery_place sigue detectando el tipo de lugar del texto libre, solo
+# para la etiqueta del resumen interno, nunca se vuelve a preguntar aparte.
 LOCATION_DESCRIBED_MESSAGE = "Te ubico en *{lugar}* 🗺️"
-DELIVERY_PLACE_QUESTION = "Para que el motorizado llegue sin vueltas, ¿a qué tipo de lugar te llevamos el pedido?"
-DELIVERY_PLACE_ROWS = [
-    {"id": "place_ph", "title": "PH / edificio"},
-    {"id": "place_casa", "title": "Casa"},
-    {"id": "place_local", "title": "Local / oficina"},
-]
+DELIVERY_ADDRESS_QUESTION = (
+    "Para que el motorizado llegue sin vueltas, cuéntame tu dirección completa (si es PH/edificio, "
+    "casa o local, y alguna referencia). Por ejemplo: \"PH Torre Mar, apto 5B\" o \"casa 12, portón negro, frente al parque\"."
+)
 DELIVERY_PLACE_LABELS = {"ph": "PH / edificio", "casa": "Casa", "local": "Local / oficina"}
+# Preguntas de respaldo para conversaciones que ya tenían en pantalla la lista tocable de antes
+# de este cambio (ver el bloque "place_*" en _handle_delivery_intake_step); una vez que esas
+# queden atrás, estas tres ya no se usan para nadie nuevo.
 DELIVERY_REFERENCE_QUESTIONS = {
     "ph": "¿Cómo se llama el PH y cuál es el apartamento? Por ejemplo: PH Torre Mar, apto 5B.",
     "casa": "¿Número de casa y alguna referencia? Por ejemplo: casa 12, portón negro, frente al parque.",
     "local": "¿Cómo se llama el local u oficina y en qué piso está? Por ejemplo: Oficinas Delta, piso 3.",
 }
-DELIVERY_DETAILS_SAVED_MESSAGE = "¡Anotado! 📝 {tipo}: {referencia}. Ahora sí, arma tu pedido:"
+DELIVERY_DETAILS_SAVED_MESSAGE = "¡Anotado! 📝 {tipo}: {referencia}."
 
 
 def match_delivery_place(text: Optional[str]) -> Optional[str]:
