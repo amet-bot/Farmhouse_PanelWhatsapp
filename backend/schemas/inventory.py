@@ -637,10 +637,7 @@ class DashboardFigures(BaseModel):
     count_no_recipe: Decimal = Decimal("0")      # faltó en insumos sin receta (puede ser consumo)
     count_surplus: Decimal = Decimal("0")
     counts: int = 0
-    theoretical_cost: Decimal = Decimal("0")     # costo de los ingredientes de lo vendido (recetas)
-    recipe_coverage_pct: Optional[Decimal] = None  # % de platos vendidos que tienen receta en Invu
     waste_pct_sales: Optional[Decimal] = None
-    food_cost_pct: Optional[Decimal] = None      # costo teórico / venta
     purchases_pct_sales: Optional[Decimal] = None
 
 

@@ -789,9 +789,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else if (!t.counts) {
       frases.push('No hubo conteos en este período: sin conteo no se sabe si falta mercadería. Uno por semana alcanza.');
     }
-    if (t.recipe_coverage_pct != null && Number(t.recipe_coverage_pct) < 60) {
-      frases.push(`Solo el ${pctTxt(t.recipe_coverage_pct)} de los platos vendidos tiene receta en Invu: el costo de lo vendido y los conteos son parciales hasta que se carguen más recetas.`);
-    }
     if (t.purchase_lines_without_cost) {
       frases.push(`${pluralize(t.purchase_lines_without_cost, 'línea de cargamento quedó', 'líneas de cargamento quedaron')} sin costo: las compras salen más bajas de lo real.`);
     }
@@ -810,22 +807,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       { label: 'Compras', value: money(t.purchases), sub: t.purchases_pct_sales != null ? `${pctTxt(t.purchases_pct_sales)} de la venta` : 'Cargamentos con costo', delta: dashDelta(t.purchases, p.purchases, false) },
       { label: 'Merma', value: `${t.waste_estimated ? '≈ ' : ''}${money(t.waste)}`, sub: t.waste_pct_sales != null ? `${pctTxt(t.waste_pct_sales)} de la venta` : 'Lo que se botó', delta: dashDelta(t.waste, p.waste, false), bad: true },
       { label: 'Faltó en conteos', value: t.counts ? money(t.count_missing) : '—', sub: t.counts ? pluralize(t.counts, 'conteo', 'conteos') : 'Sin conteos en el período', delta: t.counts ? dashDelta(t.count_missing, p.count_missing, false) : '', bad: true },
-      {
-        label: 'Costo de lo vendido',
-        value: money(t.theoretical_cost),
-        // Con pocas recetas cargadas la cifra sale chica por falta de datos, no porque la comida
-        // cueste poco: se dice que es parcial en vez de mostrar un "0.7% de la venta" engañoso.
-        sub: t.recipe_coverage_pct != null && Number(t.recipe_coverage_pct) < 60
-          ? `Parcial: solo ${pctTxt(t.recipe_coverage_pct)} de lo vendido tiene receta en Invu`
-          : (t.food_cost_pct != null ? `${pctTxt(t.food_cost_pct)} de la venta · recetas de Invu` : 'Según recetas de Invu'),
-        delta: '',
-      },
     ];
 
     const tabla = d.branches.length > 1 ? `
       <div class="inv-dash-table-wrap">
         <table class="inv-dash-table">
-          <thead><tr><th>Sucursal</th><th class="num">Ventas</th><th class="num">Compras</th><th class="num">Merma</th><th class="num">% merma</th><th class="num">Faltó</th><th class="num">Costo vendido</th></tr></thead>
+          <thead><tr><th>Sucursal</th><th class="num">Ventas</th><th class="num">Compras</th><th class="num">Merma</th><th class="num">% merma</th><th class="num">Faltó</th></tr></thead>
           <tbody>${d.branches.map((b) => `
             <tr>
               <td data-label="Sucursal"><strong>${esc(b.branch_name)}</strong></td>
@@ -834,7 +821,6 @@ document.addEventListener('DOMContentLoaded', async () => {
               <td class="num" data-label="Merma">${esc(money(b.waste))}</td>
               <td class="num" data-label="% merma">${esc(pctTxt(b.waste_pct_sales))}</td>
               <td class="num" data-label="Faltó">${b.counts ? esc(money(b.count_missing)) : '—'}</td>
-              <td class="num" data-label="Costo vendido">${esc(money(b.theoretical_cost))}${b.food_cost_pct != null ? ` <small>(${esc(pctTxt(b.food_cost_pct))})</small>` : ''}</td>
             </tr>`).join('')}
           </tbody>
         </table>

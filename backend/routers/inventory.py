@@ -2525,26 +2525,10 @@ def _analizar_conteo(db: Session, record: StockCount) -> StockCountAnalysis:
 
 
 # ==========================================================================
-# Tablero del Resumen: ventas, compras, merma, faltantes y costo de lo vendido
+# Tablero del Resumen: ventas, compras, merma y faltantes
 # ==========================================================================
 def _pct_de(parte: Decimal, total: Optional[Decimal]) -> Optional[Decimal]:
     return (parte / total * 100).quantize(Decimal("0.1")) if total else None
-
-
-def _cobertura_recetas(db: Session, branch_id: int, desde: date, hasta: date) -> Optional[Decimal]:
-    """Qué parte de los platos vendidos (unidades) tiene receta en Invu en esa sucursal."""
-    vendidos = db.query(InvuSaleLine.invu_item_id, func.sum(InvuSaleLine.quantity)).filter(
-        InvuSaleLine.branch_id == branch_id, InvuSaleLine.counted == True,  # noqa: E712
-        InvuSaleLine.business_date >= desde, InvuSaleLine.business_date <= hasta,
-        InvuSaleLine.invu_item_id.isnot(None),
-    ).group_by(InvuSaleLine.invu_item_id).all()
-    total = sum((Decimal(q or 0) for _, q in vendidos), Decimal("0"))
-    if not total:
-        return None
-    con_receta = {r[0] for r in db.query(InvuRecipeLine.source_invu_id).filter(
-        InvuRecipeLine.branch_id == branch_id, InvuRecipeLine.source_type == "item").distinct()}
-    cubiertos = sum((Decimal(q or 0) for i, q in vendidos if i in con_receta), Decimal("0"))
-    return (cubiertos / total * 100).quantize(Decimal("0.1"))
 
 
 def _cifras_sucursal(db: Session, branch: Branch, desde: date, hasta: date, tops: Optional[dict] = None) -> DashboardFigures:
@@ -2610,18 +2594,6 @@ def _cifras_sucursal(db: Session, branch: Branch, desde: date, hasta: date, tops
                 t.cost += abs(l.cost or Decimal("0"))
                 t.estimated = t.estimated or l.cost_estimated
 
-    uso = _uso_por_ventas(db, branch.id, ini, fin)
-    if uso:
-        costos = _last_costs_map(db, branch.id)
-        referencia = dict(db.query(InventoryItem.id, InventoryItem.reference_cost).filter(InventoryItem.id.in_(list(uso))))
-        for iid, cantidad in uso.items():
-            costo = costos.get(iid)
-            if costo is None or Decimal(costo) <= 0:
-                costo = referencia.get(iid)
-            if costo is not None:
-                f.theoretical_cost += cantidad * Decimal(costo)
-    f.theoretical_cost = f.theoretical_cost.quantize(Decimal("0.01"))
-    f.recipe_coverage_pct = _cobertura_recetas(db, branch.id, desde, hasta)
     return f
 
 
@@ -2629,20 +2601,16 @@ def _sumar_cifras(filas: List[DashboardFigures]) -> DashboardFigures:
     t = DashboardFigures()
     ventas = [f.sales_net for f in filas if f.sales_net is not None]
     t.sales_net = sum(ventas, Decimal("0")) if ventas else None
-    for campo in ("purchases", "waste", "count_missing", "count_no_recipe", "count_surplus", "theoretical_cost"):
+    for campo in ("purchases", "waste", "count_missing", "count_no_recipe", "count_surplus"):
         setattr(t, campo, sum((getattr(f, campo) for f in filas), Decimal("0")))
     t.purchase_lines_without_cost = sum(f.purchase_lines_without_cost for f in filas)
     t.counts = sum(f.counts for f in filas)
     t.waste_estimated = any(f.waste_estimated for f in filas)
-    coberturas = [f.recipe_coverage_pct for f in filas if f.recipe_coverage_pct is not None]
-    # Promedio simple entre sucursales: alcanza para decir "las recetas cubren ~30 % de lo vendido".
-    t.recipe_coverage_pct = (sum(coberturas, Decimal("0")) / len(coberturas)).quantize(Decimal("0.1")) if coberturas else None
     return t
 
 
 def _porcentajes(f: DashboardFigures) -> DashboardFigures:
     f.waste_pct_sales = _pct_de(f.waste, f.sales_net)
-    f.food_cost_pct = _pct_de(f.theoretical_cost, f.sales_net)
     f.purchases_pct_sales = _pct_de(f.purchases, f.sales_net)
     return f
 
@@ -2656,9 +2624,14 @@ def inventory_dashboard(
 ):
     """
     El tablero del Resumen: por sucursal y en total, en los últimos `days` días (Panamá) contra
-    los `days` anteriores. Ventas (Invu), compras (cargamentos), merma, lo que faltó en los
-    conteos (descontando lo vendido) y el costo de los ingredientes de lo vendido según las
-    recetas de Invu, con qué parte de lo vendido tiene receta.
+    los `days` anteriores. Ventas (Invu), compras (cargamentos), merma y lo que faltó en los
+    conteos (descontando lo vendido).
+
+    Hubo un "costo de lo vendido" / "cobertura de recetas" acá (cruzaba las ventas con las
+    recetas de Invu). Se quitó el 2026-10-01: con tan pocas recetas cargadas en Invu (20-25% de
+    cobertura real) el número salía muy por debajo del costo real y el food cost % que mostraba
+    (4-5%) era engañoso. El día que la cobertura de recetas en Invu esté completa, se puede
+    volver a agregar — ver el historial de este archivo para la implementación original.
     """
     hasta = invu_sales_sync.hoy_panama()
     desde = hasta - timedelta(days=days - 1)
