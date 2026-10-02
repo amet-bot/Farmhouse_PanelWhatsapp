@@ -17,12 +17,16 @@ public class MainActivity extends BridgeActivity {
     /** Canal aparte para tareas: mismo nivel de importancia, pero con otro sonido — para que no
      * se confunda con un mensaje de WhatsApp de un cliente (ver services/fcm_service.py). */
     public static final String CANAL_TAREAS = "tareas";
+    /** El botón "Recordar" de una tarea pendiente: sonido de urgencia, insistente (ver
+     * services/fcm_service.py, CANAL_RECORDATORIOS). */
+    public static final String CANAL_RECORDATORIOS = "recordatorios";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         crearCanalDeAvisos();
         crearCanalDeTareas();
+        crearCanalDeRecordatorios();
     }
 
     private static AudioAttributes atributosDeSonido() {
@@ -68,6 +72,29 @@ public class MainActivity extends BridgeActivity {
         canal.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
         canal.setSound(
             Uri.parse("android.resource://" + getPackageName() + "/raw/notif_tarea"),
+            atributosDeSonido());
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) manager.createNotificationChannel(canal);
+    }
+
+    /**
+     * "Recordatorio" de una tarea que sigue pendiente: suena a urgencia (res/raw/notif_recordatorio.wav,
+     * dos tonos alternados rápidos) y vibra largo, para que no pase desapercibido. Android no deja
+     * cambiar el sonido de un canal ya creado: si algún día cambia este sonido, hay que usar un id
+     * de canal nuevo.
+     */
+    private void crearCanalDeRecordatorios() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationChannel canal = new NotificationChannel(
+            CANAL_RECORDATORIOS, "Recordatorios urgentes", NotificationManager.IMPORTANCE_HIGH);
+        canal.setDescription("Cuando el encargado vuelve a avisar de una tarea que sigue pendiente.");
+        canal.enableVibration(true);
+        canal.setVibrationPattern(new long[] {0, 500, 150, 500, 150, 500, 400, 800});
+        canal.enableLights(true);
+        canal.setLightColor(0xFFDC2626);
+        canal.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+        canal.setSound(
+            Uri.parse("android.resource://" + getPackageName() + "/raw/notif_recordatorio"),
             atributosDeSonido());
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) manager.createNotificationChannel(canal);

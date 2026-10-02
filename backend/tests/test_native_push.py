@@ -63,6 +63,9 @@ def test_notificacion_de_prueba(client, supervisor_user, clayton_device, fcm):
     fcm.clear()
     assert client.post("/api/push/native/test?channel=tareas", headers=h).json() == {"sent": 1, "channel": "tareas"}
     assert fcm[0]["channel"] == "tareas"
+    fcm.clear()
+    assert client.post("/api/push/native/test?channel=recordatorios", headers=h).json() == {"sent": 1, "channel": "recordatorios"}
+    assert fcm[0]["channel"] == "recordatorios"
 
 
 def test_los_avisos_de_la_sucursal_llegan_a_la_app(db_session, clayton_branch, supervisor_user, clayton_agent, fcm):
@@ -109,6 +112,12 @@ def test_una_tarea_va_por_el_canal_de_tareas_no_el_de_mensajes(client, db_sessio
     r = client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Limpiar campana", "assigned_to_user_id": clayton_agent.id}, headers=h)
     assert r.status_code == 201, r.text
     assert len(fcm) == 1 and fcm[0]["channel"] == fcm_service.CANAL_TAREAS
+
+    # "Recordar" la tarea suena a urgencia: canal de recordatorios, no el de tareas.
+    fcm.clear()
+    tarea = r.json()
+    assert client.post(f"/api/ops/tasks/{tarea['id']}/remind", headers=h).status_code == 200
+    assert len(fcm) == 1 and fcm[0]["channel"] == fcm_service.CANAL_RECORDATORIOS and "Recordatorio" in fcm[0]["title"]
 
     # Un aviso de siempre (ej. cargamento con diferencias) sigue sonando como mensaje.
     fcm.clear()

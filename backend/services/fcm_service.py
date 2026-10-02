@@ -28,6 +28,9 @@ logger = logging.getLogger("farmhouse.fcm")
 FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 CANAL_AVISOS = "avisos"          # el mismo id que crea la app (MainActivity.CANAL_AVISOS)
 CANAL_TAREAS = "tareas"          # sonido distinto, para no confundirlo con un mensaje de WhatsApp
+# El botón "Recordar" de una tarea: sonido de urgencia, más largo e insistente (pedido 2026-10-02).
+# Un celular con el APK viejo no tiene este canal: Android lo muestra igual por su canal general.
+CANAL_RECORDATORIOS = "recordatorios"
 ICONO = "ic_stat_farmhouse"      # la hoja blanca de la barra de notificaciones
 COLOR = "#2F8F6A"
 

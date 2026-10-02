@@ -119,7 +119,7 @@ def native_unregister(
 
 @router.post("/native/test")
 def native_test(
-    channel: str = Query("avisos", pattern="^(avisos|tareas)$"),
+    channel: str = Query("avisos", pattern="^(avisos|tareas|recordatorios)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -129,8 +129,11 @@ def native_test(
     if not fcm_service.is_configured():
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                             detail="Las notificaciones de la app todavía no están configuradas en el servidor (falta Firebase).")
-    canal = fcm_service.CANAL_TAREAS if channel == "tareas" else fcm_service.CANAL_AVISOS
-    cuerpo = "Si suena distinto a un mensaje, el canal de tareas ya funciona." if channel == "tareas" else "¡Listo! Las notificaciones de la app te llegan a este celular."
+    canal = {"tareas": fcm_service.CANAL_TAREAS, "recordatorios": fcm_service.CANAL_RECORDATORIOS}.get(channel, fcm_service.CANAL_AVISOS)
+    cuerpo = {
+        "tareas": "Si suena distinto a un mensaje, el canal de tareas ya funciona.",
+        "recordatorios": "Si suena como alarma, el canal de recordatorios ya funciona.",
+    }.get(channel, "¡Listo! Las notificaciones de la app te llegan a este celular.")
     enviados = push_service._send_native(db, [current_user.id], {
         "title": "Farmhouse Link", "body": cuerpo,
         "url": "/hub", "tag": "fh-test", "channel": canal,

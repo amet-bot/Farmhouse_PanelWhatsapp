@@ -151,7 +151,7 @@ def _task_link(user: User, task: Task) -> str:
     return f"{TASKS_URL}?task={task.id}"
 
 
-def _notify_task(db: Session, user_ids: List[int], title: str, body: str, task: Task) -> None:
+def _notify_task(db: Session, user_ids: List[int], title: str, body: str, task: Task, channel: Optional[str] = None) -> None:
     """Manda el aviso de una tarea a esas personas, cada una con el enlace que le sirve. Por el
     canal "tareas" en la app nativa (sonido propio, ver fcm_service.py), para que no se confunda
     con un mensaje de WhatsApp de un cliente sin tener que mirar el teléfono."""
@@ -161,7 +161,7 @@ def _notify_task(db: Session, user_ids: List[int], title: str, body: str, task: 
     for u in db.query(User).filter(User.id.in_(user_ids), User.active == True).all():  # noqa: E712
         grupos.setdefault(_task_link(u, task), []).append(u.id)
     for url, ids in grupos.items():
-        _notify_safely(notify_users, db, ids, title, body, url, tag=f"fh-task-{task.id}", channel=fcm_service.CANAL_TAREAS)
+        _notify_safely(notify_users, db, ids, title, body, url, tag=f"fh-task-{task.id}", channel=channel or fcm_service.CANAL_TAREAS)
 
 
 def _branch_team_ids(db: Session, branch_id: int, exclude_user_id: Optional[int] = None) -> List[int]:
@@ -578,7 +578,8 @@ def remind_task(
     else:
         destinatarios = _branch_team_ids(db, task.branch_id, exclude_user_id=current_user.id)
         titulo = f"Recordatorio: tarea para {task.branch.name}"
-    _notify_task(db, destinatarios, titulo, task.title, task)
+    # Recordar suena a urgencia (canal "recordatorios"), distinto del aviso normal de tarea.
+    _notify_task(db, destinatarios, titulo, task.title, task, channel=fcm_service.CANAL_RECORDATORIOS)
     log_audit_event(db, current_user.id, task.branch_id, "task.remind", "task", task.id, {})
     db.commit()
     return _task_out(task)
