@@ -326,17 +326,75 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('taskBranch').disabled = !isGlobal;
     $('taskError').hidden = true;
     await fillTaskAssignees();
+    updateTaskDueHint();
     openModal('modalTask');
   });
   async function fillTaskAssignees() {
     const members = await team(Number($('taskBranch').value));
-    $('taskAssignee').innerHTML = teamOptions(members, null);
+    $('taskAssignee').innerHTML = teamOptions(members, null).replace('<option value="">Sin asignar</option>', '<option value="">Todo el equipo de la sucursal</option>');
   }
+
+  // ---- Vence: día y hora por separado ----
+  // Antes era un solo campo de fecha y hora: si se elegía el día y no la hora, el navegador lo
+  // dejaba vacío sin avisar y la tarea se creaba sin vencimiento.
+  const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  function taskDueValue() {
+    const dia = $('taskDueDate').value;
+    if (!dia) return null;
+    const hora = $('taskDueTime').value || '23:59';   // sin hora: vence al final del día
+    return new Date(`${dia}T${hora}`);
+  }
+  function updateTaskDueHint() {
+    const d = taskDueValue();
+    const hint = $('taskDueHint');
+    hint.classList.remove('is-error');
+    document.querySelectorAll('.task-due-chip').forEach((b) => b.classList.remove('active'));
+    if (!d) {
+      hint.textContent = 'Sin fecha: la tarea no vence.';
+      document.querySelector('.task-due-chip[data-due="none"]').classList.add('active');
+      return;
+    }
+    const hoy = new Date();
+    const manana = new Date(); manana.setDate(manana.getDate() + 1);
+    const chip = $('taskDueDate').value === isoDay(hoy) ? 'hoy' : $('taskDueDate').value === isoDay(manana) ? 'manana' : null;
+    if (chip) document.querySelector(`.task-due-chip[data-due="${chip}"]`).classList.add('active');
+    const diaTxt = d.toLocaleDateString('es-PA', { weekday: 'long', day: 'numeric', month: 'long' });
+    const horaTxt = $('taskDueTime').value ? `a las ${d.toLocaleTimeString('es-PA', { hour: 'numeric', minute: '2-digit' })}` : 'al final del día';
+    if (d < new Date()) {
+      hint.textContent = `Esa fecha ya pasó (${diaTxt} ${horaTxt}).`;
+      hint.classList.add('is-error');
+    } else {
+      const frase = `Vence el ${diaTxt} ${horaTxt}`;
+      hint.textContent = frase.endsWith('.') ? frase : `${frase}.`;
+    }
+  }
+  document.querySelector('.task-due-quick').addEventListener('click', (e) => {
+    const b = e.target.closest('.task-due-chip');
+    if (!b) return;
+    if (b.dataset.due === 'none') { $('taskDueDate').value = ''; $('taskDueTime').value = ''; }
+    else {
+      const d = new Date();
+      if (b.dataset.due === 'manana') d.setDate(d.getDate() + 1);
+      $('taskDueDate').value = isoDay(d);
+    }
+    updateTaskDueHint();
+  });
+  $('taskDueDate').addEventListener('input', updateTaskDueHint);
+  $('taskDueDate').addEventListener('change', updateTaskDueHint);
+  $('taskDueTime').addEventListener('input', updateTaskDueHint);
+  $('taskDueTime').addEventListener('change', updateTaskDueHint);
   $('taskBranch').addEventListener('change', fillTaskAssignees);
   $('taskForm').addEventListener('submit', (e) => {
     e.preventDefault();
     act(e.submitter, async () => {
-      const due = $('taskDue').value ? new Date($('taskDue').value).toISOString() : null;
+      const dueDate = taskDueValue();
+      if (dueDate && dueDate < new Date()) {
+        const msg = 'La fecha de vencimiento ya pasó. Elige otra o deja "Sin fecha".';
+        $('taskError').textContent = msg;
+        $('taskError').hidden = false;
+        throw new Error(msg);
+      }
+      const due = dueDate ? dueDate.toISOString() : null;
       try {
         await api.post('/ops/tasks', {
           branch_id: Number($('taskBranch').value), title: $('taskTitle').value.trim(),
