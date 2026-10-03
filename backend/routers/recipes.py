@@ -28,7 +28,7 @@ from models.shipment import Shipment, ShipmentItem
 from models.user import User
 from security.permissions import require_permission
 from services.audit import log_audit_event
-from services.recipe_resolver import ORIGEN_NINGUNA, _unidad_receta, normalizar, resolver
+from services.recipe_resolver import ORIGEN_NINGUNA, _unidad_receta, normalizar, reparar_acentos, resolver
 
 logger = logging.getLogger("farmhouse.recipes")
 
@@ -138,7 +138,7 @@ def _platos_vendidos(db: Session, days: int) -> dict:
         norm = normalizar(nombre)
         if not norm:
             continue
-        f = out.setdefault(norm, {"name": nombre, "sold": Decimal("0")})
+        f = out.setdefault(norm, {"name": reparar_acentos(nombre), "sold": Decimal("0")})
         f["sold"] += Decimal(cantidad or 0)
     return out
 

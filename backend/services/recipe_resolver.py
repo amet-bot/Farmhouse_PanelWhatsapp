@@ -40,9 +40,20 @@ ORIGEN_REVENTA = "reventa"
 ORIGEN_NINGUNA = "sin_receta"
 
 
+def reparar_acentos(texto: str) -> str:
+    """Invu manda algunos nombres con los acentos dañados ("AÃ§aÃ­ bowl" en vez de "Açaí
+    bowl": UTF-8 leído como Latin-1). Si el texto tiene esa marca y se puede, se repara."""
+    if not texto or not any(m in texto for m in ("Ã", "Â")):
+        return texto
+    try:
+        return texto.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return texto
+
+
 def normalizar(nombre: Optional[str]) -> str:
     """'Galleta De Avena &amp Choco' y 'galleta de avena & choco' son el mismo plato."""
-    t = html.unescape(nombre or "").replace("&amp", "&")
+    t = html.unescape(reparar_acentos(nombre or "")).replace("&amp", "&")
     t = unicodedata.normalize("NFD", t)
     t = "".join(c for c in t if unicodedata.category(c) != "Mn").lower()
     t = re.sub(r"[^a-z0-9&]+", " ", t)

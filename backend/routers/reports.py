@@ -869,7 +869,7 @@ def recipes_coverage(
     sin receta) y qué parte de lo vendido queda cubierta. Es la lista de trabajo para cargar
     recetas en Invu: lo que más se vende sin receta, primero.
     """
-    from services.recipe_resolver import ORIGEN_NINGUNA, resolver
+    from services.recipe_resolver import ORIGEN_NINGUNA, reparar_acentos, resolver
 
     desde, hasta = _rango(date_from, date_to, por_defecto=30)
     visible = _sucursal_visible(current_user, branch_id)
@@ -892,7 +892,7 @@ def recipes_coverage(
             cantidad = Decimal(cantidad or 0)
             o = origen.get(("item", item_id)) or {"source": ORIGEN_NINGUNA, "from_branch": None}
             platos.append({
-                "invu_item_id": item_id, "name": nombre, "sold": cantidad.quantize(Decimal("0.01")),
+                "invu_item_id": item_id, "name": reparar_acentos(nombre), "sold": cantidad.quantize(Decimal("0.01")),
                 "source": o["source"], "from_branch": o.get("from_branch"),
                 "ingredients": len(recetas.get(("item", item_id), [])),
             })

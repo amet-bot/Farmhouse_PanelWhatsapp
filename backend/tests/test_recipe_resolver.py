@@ -64,6 +64,9 @@ def test_las_recetas_se_completan_con_otra_sucursal_y_reventa(db_session, clayto
     assert {pollo.id, coca.id} <= inv._insumos_con_receta(db_session, obarrio_branch.id)
 
     assert recipe_resolver.normalizar("Galleta De Avena &amp Choco") == recipe_resolver.normalizar("galleta de avena & choco")
+    # Nombres de Invu con acentos dañados (UTF-8 leído como Latin-1) se reparan antes de comparar.
+    assert recipe_resolver.normalizar("AÃ§aÃ­ bowl") == recipe_resolver.normalizar("Açaí bowl") == "acai bowl"
+    assert recipe_resolver.reparar_acentos("Iced Chamomile + LimÃ³n") == "Iced Chamomile + Limón"
 
 
 def test_reporte_de_cobertura_de_recetas(client, db_session, admin_user, clayton_branch, obarrio_branch):
