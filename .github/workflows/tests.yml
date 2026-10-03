@@ -42,4 +42,16 @@ jobs:
           pip install pytest
 
       - name: Correr pruebas
-        run: python -m pytest -q -p no:warnings
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q -p no:warnings -rfE --tb=line 2>&1 | tee pytest.log
+
+      # Los registros de GitHub solo se ven con sesión; las anotaciones sí se ven en la página
+      # del commit. Si algo falla, cada prueba rota queda como anotación con su error.
+      - name: Resumen de fallas
+        if: failure()
+        shell: bash
+        run: |
+          grep -E "^(FAILED|ERROR) " pytest.log | head -10 | while IFS= read -r linea; do echo "::error::${linea:0:900}"; done
+          grep -E "^E |Error:|error:" pytest.log | sort | uniq -c | sort -rn | head -5 | while IFS= read -r linea; do echo "::warning::${linea:0:900}"; done
