@@ -717,3 +717,121 @@ def inventory_overview(
         "arrived": {"shipments": len(envios), "lines": len(lines), "top_items": top_llegado},
         "discrepancies": {"shipments": len(envios), "with_issues": len(con_diferencias), "claim_total": reclamo_total, "rows": con_diferencias, "by_supplier": proveedores, "status_labels": LINE_STATUS_LABELS},
     }
+
+
+# ==========================================================================
+# Gasto real contra lo esperado (hojas de cierre vs. ventas × recetas)
+# ==========================================================================
+@router.get("/inventory/variance")
+def inventory_variance(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_gerencia),
+):
+    """
+    Por sucursal: lo que de verdad se fue de cada insumo según las hojas de cierre del período,
+    contra lo que justifican las ventas de Invu por receta en los mismos lapsos.
+
+    Cada cierre guarda la diferencia entre lo contado y lo que decían los registros (entradas,
+    merma, consumo anotado, traslados). Esa diferencia, con signo cambiado, es lo que se fue sin
+    que nadie lo anotara: lo que se cocinó para vender y lo que se perdió. Restándole lo que
+    explican las ventas desde el conteo anterior queda el FALTANTE SIN EXPLICAR (porciones
+    grandes, merma no anotada, robo). El primer conteo de un insumo no cuenta (es el arranque).
+
+    No se compara: un insumo sin receta en Invu (empaques, limpieza), uno que se anota a mano
+    en consumo en el período (su uso ya está registrado) o uno cuya receta no se pudo convertir
+    a su unidad.
+    """
+    from routers.inventory import COUNT_TOLERANCE_PCT, _recetas_de_sucursal, _uso_por_ventas
+    from models.consumption import ConsumptionItem, ConsumptionRecord
+
+    desde, hasta = _rango(date_from, date_to, por_defecto=7)
+    inicio, fin = _utc_bounds(desde, hasta)
+    visible = _sucursal_visible(current_user, branch_id)
+    branches = db.query(Branch).filter(Branch.active == True).order_by(Branch.name).all()  # noqa: E712
+    branches = [b for b in branches if (visible is None and b.code != "CAT") or b.id == visible]
+    items = {i.id: i for i in db.query(InventoryItem).all()}
+
+    salida = []
+    for b in branches:
+        cierres = (
+            db.query(StockCount).options(joinedload(StockCount.items))
+            .filter(StockCount.branch_id == b.id, StockCount.kind == "closing",
+                    StockCount.counted_at >= inicio, StockCount.counted_at < fin)
+            .order_by(StockCount.counted_at.asc()).all()
+        )
+        if not cierres:
+            salida.append({"branch": {"id": b.id, "name": b.name}, "closings": 0, "rows": [], "missing_cost": Decimal("0.00"), "compared": 0})
+            continue
+        recetas = _recetas_de_sucursal(db, b.id)
+        costos = _last_costs_map(db, b.id)
+        manual = {
+            i for (i,) in db.query(ConsumptionItem.inventory_item_id)
+            .join(ConsumptionRecord, ConsumptionRecord.id == ConsumptionItem.consumption_record_id)
+            .filter(ConsumptionRecord.branch_id == b.id, ConsumptionRecord.occurred_at >= inicio, ConsumptionRecord.occurred_at < fin)
+            .distinct().all()
+        }
+        uso_cache: dict = {}
+        sin_conversion: set = set()
+        acumulado: dict = {}
+        for c in cierres:
+            for li in c.items:
+                previo = (
+                    db.query(func.max(StockCount.counted_at))
+                    .join(StockCountItem, StockCountItem.stock_count_id == StockCount.id)
+                    .filter(StockCount.branch_id == b.id, StockCountItem.inventory_item_id == li.inventory_item_id,
+                            StockCount.counted_at < c.counted_at)
+                    .scalar()
+                )
+                if previo is None:
+                    continue   # primer conteo de ese insumo: es su arranque, no un gasto
+                clave = (previo, c.counted_at)
+                if clave not in uso_cache:
+                    uso_cache[clave] = _uso_por_ventas(db, b.id, previo, c.counted_at, sin_conversion=sin_conversion, recetas_insumos=recetas)
+                fila = acumulado.setdefault(li.inventory_item_id, {"real": Decimal("0"), "esperado": Decimal("0"), "cierres": 0, "con_receta": False})
+                fila["real"] += -Decimal(li.difference)
+                fila["cierres"] += 1
+                if li.inventory_item_id in uso_cache[clave]:
+                    fila["con_receta"] = True
+                    fila["esperado"] += Decimal(uso_cache[clave][li.inventory_item_id] or 0)
+
+        filas = []
+        faltante = Decimal("0")
+        comparados = 0
+        for iid, f in acumulado.items():
+            it = items.get(iid)
+            if not it:
+                continue
+            costo = costos.get(iid) or it.reference_cost
+            comparable = f["con_receta"] and iid not in manual and iid not in sin_conversion
+            dif = (f["real"] - f["esperado"]) if comparable else None
+            tolerancia = (abs(f["esperado"]) * COUNT_TOLERANCE_PCT / 100) if comparable else None
+            if not comparable:
+                estado = "manual" if iid in manual else ("unidad" if iid in sin_conversion else "sin_receta")
+            elif dif > tolerancia:
+                estado = "faltante"
+            elif dif < -tolerancia:
+                estado = "sobra"
+            else:
+                estado = "cuadra"
+            dif_costo = _q(dif * Decimal(costo)) if (comparable and costo is not None) else None
+            if estado == "faltante" and dif_costo is not None:
+                faltante += dif_costo
+            if comparable:
+                comparados += 1
+            filas.append({
+                "inventory_item_id": iid, "name": it.name, "unit": it.unit, "closings": f["cierres"],
+                "real": f["real"].quantize(Decimal("0.001")),
+                "expected": f["esperado"].quantize(Decimal("0.001")) if comparable else None,
+                "diff": dif.quantize(Decimal("0.001")) if dif is not None else None,
+                "diff_pct": _pct(dif, f["esperado"]) if comparable and f["esperado"] else None,
+                "diff_cost": dif_costo, "status": estado,
+            })
+        orden = {"faltante": 0, "sobra": 1, "cuadra": 2, "manual": 3, "unidad": 4, "sin_receta": 5}
+        filas.sort(key=lambda r: (orden[r["status"]], -(r["diff_cost"] or 0), r["name"]))
+        salida.append({"branch": {"id": b.id, "name": b.name}, "closings": len(cierres), "rows": filas, "missing_cost": _q(faltante), "compared": comparados})
+
+    salida.sort(key=lambda s: -s["missing_cost"])
+    return {"from": desde, "to": hasta, "tolerance_pct": float(COUNT_TOLERANCE_PCT), "branches": salida}

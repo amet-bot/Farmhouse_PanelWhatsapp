@@ -920,6 +920,53 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('stockSearch').addEventListener('input', renderStockTable);
   $('stockOnlyValue').addEventListener('change', renderStockTable);
 
+  // ¿Dónde se pierde? Faltante sin explicar por sucursal (hojas de cierre vs. ventas × recetas).
+  const VAR_STATUS = { faltante: 'Faltante', sobra: 'Sobra', cuadra: 'Cuadra', manual: 'Consumo a mano', unidad: 'Unidad sin convertir', sin_receta: 'Sin receta' };
+  async function loadVariance(from, to, seq) {
+    const box = $('varianceBox');
+    box.innerHTML = '<div class="inv-skeleton-row"></div>';
+    try {
+      const d = await api.get(`/reports/inventory/variance?${query(from, to)}`);
+      if (seq !== invSeq) return;
+      const conCierres = d.branches.filter((b) => b.closings);
+      if (!conCierres.length) {
+        box.innerHTML = emptyHtml('Todavía no hay cierres de turno', 'Este reporte sale de las hojas de cierre. Cuando las sucursales cierren turno dos veces o más, aquí se ve dónde se pierde.');
+        return;
+      }
+      const sinCierre = d.branches.filter((b) => !b.closings).map((b) => b.branch.name);
+      $('varianceNote').textContent = `Tolerancia ±${d.tolerance_pct}%${sinCierre.length ? ` · sin cierres: ${sinCierre.join(', ')}` : ''}`;
+      box.innerHTML = conCierres.map((b) => {
+        const comparables = b.rows.filter((r) => ['faltante', 'sobra', 'cuadra'].includes(r.status));
+        const otros = b.rows.length - comparables.length;
+        return `
+          <details class="link-variance" ${Number(b.missing_cost) > 0 ? 'open' : ''}>
+            <summary>
+              <span class="link-item-name">${esc(b.branch.name)}</span>
+              <span class="muted">${num(b.closings)} cierre${b.closings === 1 ? '' : 's'} · ${num(b.compared)} insumo${b.compared === 1 ? '' : 's'} comparado${b.compared === 1 ? '' : 's'}</span>
+              <span class="link-variance-total ${Number(b.missing_cost) > 0 ? 'bad' : 'ok'}">${Number(b.missing_cost) > 0 ? `Faltante ${money(b.missing_cost)}` : 'Sin faltante'}</span>
+            </summary>
+            ${comparables.length ? `
+            <table class="link-table">
+              <thead><tr><th>Insumo</th><th class="num">Se fue</th><th class="num">Justifican las ventas</th><th class="num">Diferencia</th><th class="num hide-sm">Valor</th><th>Estado</th></tr></thead>
+              <tbody>${comparables.map((r) => `
+                <tr>
+                  <td><span class="link-item-name">${esc(r.name)}</span></td>
+                  <td class="num">${num(r.real)} ${esc(r.unit)}</td>
+                  <td class="num">${num(r.expected)} ${esc(r.unit)}</td>
+                  <td class="num strong">${Number(r.diff) > 0 ? '+' : ''}${num(r.diff)}${r.diff_pct != null ? ` <small class="muted">(${r.diff_pct > 0 ? '+' : ''}${r.diff_pct}%)</small>` : ''}</td>
+                  <td class="num hide-sm">${r.diff_cost != null ? money(r.diff_cost) : '<span class="muted">sin costo</span>'}</td>
+                  <td><span class="link-variance-chip ${r.status}">${esc(VAR_STATUS[r.status])}</span></td>
+                </tr>`).join('')}</tbody>
+            </table>` : '<p class="muted" style="font-size:13px;margin:8px 0">Ningún insumo de la hoja tiene receta en Invu para comparar todavía.</p>'}
+            ${otros ? `<p class="muted" style="font-size:12px;margin:6px 0 0">${num(otros)} insumo${otros === 1 ? '' : 's'} sin comparar: ${b.rows.filter((r) => !['faltante', 'sobra', 'cuadra'].includes(r.status)).slice(0, 6).map((r) => `${esc(r.name)} (${esc(VAR_STATUS[r.status].toLowerCase())})`).join(', ')}${otros > 6 ? '…' : ''}.</p>` : ''}
+          </details>`;
+      }).join('');
+    } catch (err) {
+      if (seq !== invSeq) return;
+      box.innerHTML = emptyHtml('No se pudo cargar', err.message || 'Probá de nuevo en unos segundos.');
+    }
+  }
+
   async function loadInventario() {
     const seq = ++invSeq;
     const [from, to] = rangeDates(state.range);
@@ -990,6 +1037,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </table>
           ${disc.by_supplier.filter((p) => p.with_issues).length ? `<p class="muted" style="font-size:12.5px;margin:10px 0 0">Por proveedor: ${disc.by_supplier.filter((p) => p.with_issues).map((p) => `${esc(p.supplier)} ${num(p.with_issues)}/${num(p.shipments)}${Number(p.claim) ? ` (${money(p.claim)})` : ''}`).join(' · ')}</p>` : ''}`;
       }
+      loadVariance(from, to, seq);
       utils.renderIcons();
     } catch (err) {
       if (seq !== invSeq) return;

@@ -384,3 +384,18 @@
 .link-status-chip.danado, .link-status-chip.equivocado { background: rgba(220,38,38,.12); color: var(--inv-red, #dc2626); }
 .link-ok-banner { display: flex; align-items: center; gap: 8px; padding: 14px; border-radius: 12px; background: var(--inv-green-soft); color: var(--inv-green-soft-text); font-size: 13.5px; font-weight: 600; }
 .link-ok-banner i { width: 18px; height: 18px; }
+
+
+/* ¿Dónde se pierde? (faltante sin explicar por sucursal) */
+.link-variance { border: 1px solid var(--line, #e5e7eb); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+.link-variance summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; cursor: pointer; list-style: none; }
+.link-variance summary::-webkit-details-marker { display: none; }
+.link-variance summary .muted { font-size: 12.5px; }
+.link-variance-total { margin-left: auto; font-weight: 800; font-size: 14px; }
+.link-variance-total.bad { color: #b91c1c; }
+.link-variance-total.ok { color: var(--green, #15803d); }
+.link-variance[open] summary { margin-bottom: 8px; }
+.link-variance-chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--bg-hover, rgba(0,0,0,.05)); color: var(--text-secondary, #4b5563); }
+.link-variance-chip.faltante { background: rgba(220,38,38,.12); color: #b91c1c; }
+.link-variance-chip.sobra { background: rgba(59,130,246,.14); color: #1d4ed8; }
+.link-variance-chip.cuadra { background: rgba(22,163,74,.12); color: #15803d; }
