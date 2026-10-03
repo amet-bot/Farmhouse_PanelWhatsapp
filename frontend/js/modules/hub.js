@@ -50,6 +50,13 @@ const HUB_MODULES = [
     requiredPermission: 'purchasing.approve',
   },
   {
+    id: 'recetas', name: 'Recetas', shortName: 'Recetas',
+    description: 'Lo que lleva cada plato, food cost, platos sin receta en Invu y precios de compra por proveedor.',
+    shortDescription: 'Recetas y food cost',
+    tags: ['Recetas', 'Food cost', 'Precios'], icon: 'chef-hat', route: '/recetas',
+    requiredPermission: 'reports.view',
+  },
+  {
     id: 'gestion', name: 'Centro de operación', shortName: 'Operación',
     description: 'Incidencias, tareas, solicitudes, traslados y cargamentos de todas las sucursales, con sus acciones.',
     shortDescription: 'Pendientes de todas las sucursales',
@@ -86,6 +93,7 @@ const HUB_SIDEBAR = [
   { id: 'gestion', label: 'Centro', title: 'Centro de operación', icon: 'layout-grid', route: '/gestion', requiredPermission: 'purchasing.approve' },
   { id: 'inventario', label: 'Inventario', title: 'Inventario', icon: 'package', route: '/inventario' },
   { id: 'abastecimiento', label: 'Abastecimiento', title: 'Abastecimiento', icon: 'shopping-cart', route: '/abastecimiento', requiredPermission: 'purchasing.approve' },
+  { id: 'recetas', label: 'Recetas', title: 'Recetas y food cost', icon: 'chef-hat', route: '/recetas', requiredPermission: 'reports.view' },
   { id: 'reportes', label: 'Reportes', title: 'Reportes de ventas', icon: 'line-chart', route: '/link', requiredPermission: 'reports.view' },
   { id: 'equipo', label: 'Equipo', title: 'Comunicación Interna', icon: 'users', route: '/interno' },
   { id: 'ajustes', label: 'Ajustes', title: 'Administración', icon: 'settings', route: '/administracion', requiredPermission: 'users.manage' },

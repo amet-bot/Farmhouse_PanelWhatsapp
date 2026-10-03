@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>Recetas — Farmhouse Link</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
+  <link rel="stylesheet" href="css/style.css?v=4.13.1">
+  <link rel="stylesheet" href="css/inventory.css?v=4.22.0">
+  <link rel="stylesheet" href="css/gestion.css?v=1.4.1">
+  <link rel="stylesheet" href="css/recetas.css?v=1.0.0">
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+
+  <div class="inv-gate" id="recGate">
+    <span class="inv-gate-spinner" aria-hidden="true"></span>
+    <p>Verificando sesión...</p>
+  </div>
+
+  <div class="inv-app" id="recMain" hidden>
+    <header class="inv-header">
+      <a class="inv-back" href="/hub" title="Volver al Panel General">
+        <i data-lucide="arrow-left"></i>
+        <span>Panel General</span>
+      </a>
+      <div class="inv-header-titles">
+        <p class="inv-title">Recetas</p>
+        <span class="inv-subtitle">Lo que lleva cada plato, food cost y lo que falta en Invu</span>
+      </div>
+      <div class="inv-header-actions">
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="recAgentAvatar">AD</div>
+          <div><strong id="recAgentName">Usuario</strong><small id="recAgentRole">ADMIN</small></div>
+        </div>
+        <button class="inv-logout-btn" id="btnLogout"><i data-lucide="log-out"></i><span>Salir</span></button>
+      </div>
+    </header>
+
+    <main class="ops-body rec-body">
+      <div class="ops-toolbar">
+        <nav class="ops-tabs" id="recTabs" aria-label="Secciones">
+          <button type="button" class="ops-tab active" data-tab="recetas"><i data-lucide="chef-hat"></i> Recetas y food cost</button>
+          <button type="button" class="ops-tab" data-tab="ingredientes"><i data-lucide="link"></i> Emparejar ingredientes <span class="ops-tab-count" id="countIng" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="platos"><i data-lucide="utensils"></i> Platos vendidos <span class="ops-tab-count" id="countPlatos" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="preparaciones"><i data-lucide="cooking-pot"></i> Preparaciones</button>
+          <button type="button" class="ops-tab" data-tab="precios"><i data-lucide="tags"></i> Precios de compra</button>
+        </nav>
+        <label class="inv-secondary-btn rec-import" id="importLabel" hidden title="Subir el archivo de recetas (JSON)">
+          <i data-lucide="upload"></i> Importar
+          <input type="file" id="importFile" accept="application/json,.json" hidden />
+        </label>
+      </div>
+
+      <section class="rec-view" id="viewRecetas">
+        <p class="rec-intro">Recetas cargadas en Farmhouse Link (las del dashboard anterior). <b>Invu siempre manda</b>: estas solo se usan para los platos que no tienen receta en Invu. Para que una receta cuente, sus ingredientes tienen que estar emparejados con el catálogo.</p>
+        <div class="rec-kpis" id="recKpis"></div>
+        <div class="ops-filters">
+          <input class="modal-input" id="recSearch" placeholder="Buscar plato…" autocomplete="off" />
+          <select class="inv-filter-select" id="recFilter">
+            <option value="">Todas</option>
+            <option value="revisar">Food cost a revisar</option>
+            <option value="incompleto">Con ingredientes sin emparejar</option>
+            <option value="ok">Completas</option>
+          </select>
+        </div>
+        <div id="recBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
+
+      <section class="rec-view" id="viewIngredientes" hidden>
+        <p class="rec-intro">Cada nombre de ingrediente de las recetas se empareja <b>una vez</b> con un insumo del catálogo y sirve para todas las recetas. Empieza por los de arriba: son los que más recetas usan. Lo que no se lleva en inventario (sal, agua de la llave) márcalo como <b>No se descuenta</b>.</p>
+        <div class="ops-filters">
+          <select class="inv-filter-select" id="ingFilter">
+            <option value="pendiente">Pendientes</option>
+            <option value="emparejado">Emparejados</option>
+            <option value="ignorado">No se descuentan</option>
+            <option value="">Todos</option>
+          </select>
+          <span class="ops-hint" id="ingNote"></span>
+        </div>
+        <div id="ingBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
+
+      <section class="rec-view" id="viewPlatos" hidden>
+        <p class="rec-intro">Platos vendidos en los últimos 30 días que <b>no tienen receta en Invu</b>. Enlázalos con una receta cargada (muchos ya se enlazaron solos por nombre). Los que no tengan receta en ninguna parte hay que cargarlos en Invu.</p>
+        <div class="ops-filters">
+          <select class="inv-filter-select" id="dishFilter">
+            <option value="sin">Sin receta</option>
+            <option value="con">Con receta cargada</option>
+            <option value="">Todos</option>
+          </select>
+          <span class="ops-hint" id="dishNote"></span>
+        </div>
+        <div id="dishBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
+
+      <section class="rec-view" id="viewPreparaciones" hidden>
+        <p class="rec-intro">Preparaciones de la casa (salsas, aderezos, bases): cuánto pesa el lote, cuántas porciones rinde y cuánto cuesta cada gramo.</p>
+        <div id="prepBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
+
+      <section class="rec-view" id="viewPrecios" hidden>
+        <p class="rec-intro">Precios de compra por proveedor que se usaban en el dashboard anterior. Se usan como costo de referencia cuando un insumo todavía no tiene compras registradas. En verde, el más barato por kilo.</p>
+        <div class="ops-filters"><input class="modal-input" id="priceSearch" placeholder="Buscar ingrediente…" autocomplete="off" /></div>
+        <div id="priceBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/utils.js?v=3.5.0"></script>
+  <script src="js/api.js?v=4.1.0"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/shared/shell.js?v=4.2.0"></script>
+  <script src="js/shared/native-app.js?v=1.1.0"></script>
+  <script src="js/modules/recetas.js?v=1.0.0"></script>
+</body>
+</html>

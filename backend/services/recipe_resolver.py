@@ -5,12 +5,14 @@ Orden de prioridad para cada plato o modificador que se vende en la sucursal:
   1. "invu": su receta en Invu, en ESA sucursal (siempre manda).
   2. "misma_sucursal": otra versión del mismo plato (mismo nombre, otro id de Invu: salón y
      delivery) tiene receta en esta sucursal.
-  3. "otra_sucursal": el mismo plato (mismo nombre) tiene receta en otra sucursal. El menú es
+  3. "cargada": receta cargada en Farmhouse Link (dashboard del pasante), enlazada a ese plato
+     o con el mismo nombre, con al menos un ingrediente emparejado con el catálogo.
+  4. "otra_sucursal": el mismo plato (mismo nombre) tiene receta en otra sucursal. El menú es
      el mismo en todas; si Vía Porras vende "La Lupita" sin receta y Clayton la tiene, se usa la
      de Clayton (la de la sucursal con la receta más completa).
-  4. "reventa": un producto que se vende tal cual (Coca Cola Zero, agua embotellada) y existe
+  5. "reventa": un producto que se vende tal cual (Coca Cola Zero, agua embotellada) y existe
      como insumo con el MISMO nombre medido por unidad: venderlo descuenta 1 unidad.
-  5. "sin_receta": no se puede estimar su uso.
+  6. "sin_receta": no se puede estimar su uso.
 
 Nada de esto escribe en la base ni toca Invu: se calcula al pedirlo.
 """
@@ -33,6 +35,7 @@ SOLD_LOOKBACK_DAYS = 180   # platos vendidos que se consideran para llenar hueco
 ORIGEN_INVU = "invu"
 ORIGEN_OTRA = "otra_sucursal"
 ORIGEN_GEMELA = "misma_sucursal"   # otra versión del plato en la misma sucursal (salón / delivery)
+ORIGEN_CARGADA = "cargada"         # receta cargada en Farmhouse Link (las del pasante, models/local_recipes)
 ORIGEN_REVENTA = "reventa"
 ORIGEN_NINGUNA = "sin_receta"
 
@@ -109,14 +112,24 @@ def resolver(db, branch_id: int, hoy=None) -> Tuple[dict, dict, dict]:
         return recetas, insumos, origen
 
     donantes = _donantes(db, branch_id)
+    cargadas = recetas_cargadas(db, insumos)
     por_nombre = {}
     for it in insumos.values():
-        if it.active and _familia_de_unidad(it.unit)[0] == "unidad":
+        if it.active and it.invu_id is not None and _familia_de_unidad(it.unit)[0] == "unidad":
             por_nombre.setdefault(normalizar(it.name), it)
 
     for tipo, sid, nombre in faltan:
         clave = normalizar(nombre)
         donante = donantes.get((tipo, clave))
+        if donante and donante[0] is None:   # otra versión del mismo plato en esta sucursal
+            recetas[(tipo, sid)] = donante[1]
+            origen[(tipo, sid)] = {"source": ORIGEN_GEMELA, "from_branch": None, "name": nombre}
+            continue
+        cargada = cargadas.get(clave) if tipo == "item" else None
+        if cargada:
+            recetas[(tipo, sid)] = cargada["lines"]
+            origen[(tipo, sid)] = {"source": ORIGEN_CARGADA, "from_branch": None, "name": nombre, "recipe": cargada["name"]}
+            continue
         if donante:
             recetas[(tipo, sid)] = donante[1]
             if donante[0] is None:   # otra versión del mismo plato en esta sucursal
@@ -133,3 +146,46 @@ def resolver(db, branch_id: int, hoy=None) -> Tuple[dict, dict, dict]:
             )]
             origen[(tipo, sid)] = {"source": ORIGEN_REVENTA, "from_branch": None, "name": nombre}
     return recetas, insumos, origen
+
+
+def _unidad_receta(u: Optional[str]) -> str:
+    u = (u or "").strip().lower()
+    return {"ud": "unidad", "uds": "unidad", "u": "unidad", "und": "unidad", "unidades": "unidad", "gr": "g", "grs": "g", "mililitros": "ml"}.get(u, u or "unidad")
+
+
+def recetas_cargadas(db, insumos: dict) -> Dict[str, dict]:
+    """
+    Recetas cargadas (kind="plato") listas para usar, por nombre de plato normalizado: el de la
+    receta y el de cada plato vendido enlazado a ella (RecipeDishLink). Cada ingrediente
+    emparejado se vuelve una línea como las de Invu. Agrega a `insumos` los del catálogo que no
+    vienen de Invu (con una clave negativa), para que el cálculo de uso los encuentre.
+    Una receta sin ningún ingrediente emparejado no se usa.
+    """
+    from models.local_recipes import IngredientAlias, LocalRecipe, RecipeDishLink
+
+    alias = {a.name_norm: a for a in db.query(IngredientAlias).all()}
+    por_id = {}
+    salida: Dict[str, dict] = {}
+    for r in db.query(LocalRecipe).filter(LocalRecipe.kind == "plato", LocalRecipe.active == True).all():  # noqa: E712
+        lineas = []
+        for l in r.lines:
+            a = alias.get(l.ingredient_norm)
+            if not a or a.ignored or not a.inventory_item:
+                continue
+            it = a.inventory_item
+            clave = it.invu_id if it.invu_id is not None else -it.id
+            insumos.setdefault(clave, it)
+            lineas.append(SimpleNamespace(
+                source_type="item", source_invu_id=None, source_name=r.name,
+                product_invu_id=clave, product_name=it.name,
+                quantity=Decimal(l.quantity), unit_name=_unidad_receta(l.unit),
+            ))
+        if not lineas:
+            continue
+        info = {"name": r.name, "lines": lineas, "recipe_id": r.id}
+        por_id[r.id] = info
+        salida.setdefault(r.name_norm, info)
+    for link in db.query(RecipeDishLink).filter(RecipeDishLink.recipe_id.isnot(None)).all():
+        if link.recipe_id in por_id:
+            salida[link.dish_norm] = por_id[link.recipe_id]
+    return salida

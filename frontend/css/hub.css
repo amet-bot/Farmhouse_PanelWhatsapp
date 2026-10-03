@@ -1577,6 +1577,9 @@ body {
 [data-theme="dark"] :is(.hub-module-card, .hub-m-card)[data-module-id="gestion"] .hub-module-icon {
   background: var(--color-petrol-soft); color: var(--color-petrol-text); border-color: var(--color-petrol);
 }
+[data-theme="dark"] :is(.hub-module-card, .hub-m-card)[data-module-id="recetas"] .hub-module-icon {
+  background: #3e1d14; color: #ff7a59; border-color: #8f3d26;
+}
 [data-theme="dark"] :is(.hub-module-card, .hub-m-card)[data-module-id="abastecimiento"] .hub-module-icon {
   background: #2a1f4d; color: #a78bfa; border-color: #5b43b5;
 }

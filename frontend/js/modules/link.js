@@ -968,7 +968,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Recetas: qué parte de lo vendido tiene receta y qué platos faltan (los más vendidos primero).
-  const COV_LABEL = { invu: 'De Invu', misma_sucursal: 'Otra versión del plato', otra_sucursal: 'De otra sucursal', reventa: 'Reventa 1:1', sin_receta: 'Sin receta' };
+  const COV_LABEL = { invu: 'De Invu', misma_sucursal: 'Otra versión del plato', cargada: 'Receta cargada', otra_sucursal: 'De otra sucursal', reventa: 'Reventa 1:1', sin_receta: 'Sin receta' };
   async function loadCoverage(from, to, seq) {
     const box = $('coverageBox');
     box.innerHTML = '<div class="inv-skeleton-row"></div>';
@@ -979,7 +979,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       box.innerHTML = d.branches.map((b) => {
         const pct = b.covered_pct == null ? 0 : b.covered_pct;
         const tono = pct >= 80 ? 'ok' : pct >= 50 ? 'mid' : 'bad';
-        const partes = ['invu', 'misma_sucursal', 'otra_sucursal', 'reventa', 'sin_receta'].filter((k) => b.by_source[k]).map((k) => `<span class="link-cov-chip ${k}">${esc(COV_LABEL[k])}: ${num(b.by_source[k].dishes)}</span>`).join('');
+        const partes = ['invu', 'misma_sucursal', 'cargada', 'otra_sucursal', 'reventa', 'sin_receta'].filter((k) => b.by_source[k]).map((k) => `<span class="link-cov-chip ${k}">${esc(COV_LABEL[k])}: ${num(b.by_source[k].dishes)}</span>`).join('');
         return `
           <details class="link-variance link-coverage" ${pct < 80 ? 'open' : ''}>
             <summary>
@@ -993,7 +993,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <table class="link-table">
               <thead><tr><th>Plato sin receta</th><th class="num">Vendidos</th></tr></thead>
               <tbody>${b.missing.slice(0, 15).map((m) => `<tr><td><span class="link-item-name">${esc(m.name)}</span>${m.versions > 1 ? ` <small class="muted">· ${m.versions} versiones en Invu</small>` : ''}</td><td class="num strong">${num(m.sold)}</td></tr>`).join('')}</tbody>
-            </table>${b.missing.length > 15 ? `<p class="muted" style="font-size:12px;margin:6px 0 0">Y ${num(b.missing.length - 15)} platos más sin receta, que se venden menos.</p>` : ''}` : '<div class="link-ok-banner"><i data-lucide="check-circle-2"></i> Todos los platos vendidos tienen receta.</div>'}
+            </table>${b.missing.length > 15 ? `<p class="muted" style="font-size:12px;margin:6px 0 0">Y ${num(b.missing.length - 15)} platos más sin receta, que se venden menos.</p>` : ''}<p style="margin:8px 0 0"><a class="link-text-btn" href="/recetas?tab=platos">Completar recetas →</a></p>` : '<div class="link-ok-banner"><i data-lucide="check-circle-2"></i> Todos los platos vendidos tienen receta.</div>'}
           </details>`;
       }).join('');
       utils.renderIcons();
