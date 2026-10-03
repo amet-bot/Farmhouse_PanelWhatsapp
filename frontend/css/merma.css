@@ -1,5 +1,9 @@
 /* Merma rápida (/merma): pantalla de tablet. Todo grande y tocable con el dedo; los colores salen
    de los tokens de style.css, así que sigue el modo claro / oscuro del resto del sistema. */
+/* style.css deja el body de todas las páginas fijo al alto de la pantalla y sin scroll (cada
+   pantalla desliza una caja de adentro). Aquí desliza la página entera: si no, con "Todo" no se
+   podía bajar a ver los insumos. */
+.mr-body { height: auto; overflow-x: hidden; overflow-y: auto; }
 .mr-body { margin: 0; min-height: 100vh; background: var(--bg-primary, #f5f9f8); color: var(--text-primary, #0f201b); font-family: Inter, system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
 .mr-body.mr-locked { overflow: hidden; }
 .mr-app[hidden], .mr-sheet[hidden], .mr-done[hidden], .mr-gate[hidden] { display: none !important; }
