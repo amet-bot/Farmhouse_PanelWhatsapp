@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="css/style.css?v=4.13.1">
   <link rel="stylesheet" href="css/inventory.css?v=4.22.0">
   <link rel="stylesheet" href="css/gestion.css?v=1.5.0">
-  <link rel="stylesheet" href="css/recetas.css?v=1.1.1">
+  <link rel="stylesheet" href="css/recetas.css?v=1.2.0">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -54,6 +54,7 @@
           <button type="button" class="ops-tab active" data-tab="recetas"><i data-lucide="chef-hat"></i> Recetas y food cost</button>
           <button type="button" class="ops-tab" data-tab="ingredientes"><i data-lucide="link"></i> Emparejar ingredientes <span class="ops-tab-count" id="countIng" hidden></span></button>
           <button type="button" class="ops-tab" data-tab="platos"><i data-lucide="utensils"></i> Platos vendidos <span class="ops-tab-count" id="countPlatos" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="unidades"><i data-lucide="scale"></i> Unidades <span class="ops-tab-count" id="countUnits" hidden></span></button>
           <button type="button" class="ops-tab" data-tab="preparaciones"><i data-lucide="cooking-pot"></i> Preparaciones</button>
           <button type="button" class="ops-tab" data-tab="precios"><i data-lucide="tags"></i> Precios de compra</button>
         </nav>
@@ -105,6 +106,11 @@
         <div id="dishBox"><div class="ops-loading">Cargando…</div></div>
       </section>
 
+      <section class="rec-view" id="viewUnidades" hidden>
+        <p class="rec-intro">Insumos que una receta pide en <b>otra unidad</b> (en gramos y el insumo se mide en ml, o por unidad y se lleva en gramos). Hasta que se ponga la equivalencia, esa parte de la receta <b>no se descuenta</b> del inventario. Mira las recetas de Invu de todas las sucursales y las cargadas aquí.</p>
+        <div id="unitBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
+
       <section class="rec-view" id="viewPreparaciones" hidden>
         <p class="rec-intro">Preparaciones de la casa (salsas, aderezos, bases): cuánto pesa el lote, cuántas porciones rinde y cuánto cuesta cada gramo.</p>
         <div id="prepBox"><div class="ops-loading">Cargando…</div></div>
@@ -123,6 +129,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/recetas.js?v=1.1.1"></script>
+  <script src="js/modules/recetas.js?v=1.2.1"></script>
 </body>
 </html>

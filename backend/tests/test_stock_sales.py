@@ -172,9 +172,11 @@ def test_conversion_pieza_contra_peso_y_volumen():
     # Receta por unidad, insumo en kilos o litros.
     assert _a_unidad_del_insumo(Decimal("2"), "unidad", "kg", Decimal("150")) == Decimal("0.3")
     assert _a_unidad_del_insumo(Decimal("1"), "unidad", "l", Decimal("250")) == Decimal("0.25")
+    # Receta en ml, insumo por unidad (una botella trae 150 ml).
+    assert _a_unidad_del_insumo(Decimal("300"), "ml", "unidad", Decimal("150")) == Decimal("2")
     # Sin peso por pieza, o en familias que no se cruzan, no se inventa.
     assert _a_unidad_del_insumo(Decimal("300"), "g", "unidad") is None
-    assert _a_unidad_del_insumo(Decimal("300"), "ml", "unidad", Decimal("150")) is None
+    assert _a_unidad_del_insumo(Decimal("300"), "g", "ml") is None   # sin gramos por ml
     assert _a_unidad_del_insumo(Decimal("1"), "porcion", "kg", Decimal("150")) is None
     # Lo de siempre sigue igual.
     assert _a_unidad_del_insumo(Decimal("160"), "gramos", "kg") == Decimal("0.16")

@@ -23,6 +23,7 @@ class InventoryItemResponse(BaseModel):
     reference_cost: Optional[Decimal] = None   # costo de Invu, solo referencia
     synced_at: Optional[datetime] = None
     piece_size: Optional[Decimal] = None       # una pieza entera: gramos (o ml si es de volumen)
+    grams_per_ml: Optional[Decimal] = None     # gramos que pesa 1 ml (recetas en g de un insumo en ml)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -30,6 +31,11 @@ class InventoryItemResponse(BaseModel):
 class InventoryItemPieceSize(BaseModel):
     """Cuánto es una pieza entera del insumo (g, o ml si se mide en volumen). None la borra."""
     piece_size: Optional[Decimal] = Field(None, gt=0, max_digits=12, decimal_places=3)
+
+
+class InventoryItemDensity(BaseModel):
+    """Cuántos gramos pesa 1 ml del insumo (agua = 1, aceite ≈ 0.92, miel ≈ 1.42). None la borra."""
+    grams_per_ml: Optional[Decimal] = Field(None, gt=0, le=5, max_digits=8, decimal_places=4)
 
 
 class SupplierCreate(BaseModel):

@@ -36,8 +36,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const state = { tab: 'recetas', recipes: [], ingredients: [], dishes: [], expanded: new Set() };
 
   // ---- pestañas ----
-  const VIEWS = { recetas: 'viewRecetas', ingredientes: 'viewIngredientes', platos: 'viewPlatos', preparaciones: 'viewPreparaciones', precios: 'viewPrecios' };
-  const LOADERS = { recetas: loadRecipes, ingredientes: loadIngredients, platos: loadDishes, preparaciones: loadPreps, precios: loadPrices };
+  const VIEWS = { recetas: 'viewRecetas', ingredientes: 'viewIngredientes', platos: 'viewPlatos', unidades: 'viewUnidades', preparaciones: 'viewPreparaciones', precios: 'viewPrecios' };
+  const LOADERS = { recetas: loadRecipes, ingredientes: loadIngredients, platos: loadDishes, unidades: loadUnits, preparaciones: loadPreps, precios: loadPrices };
   // En celular la fila de pestañas se desplaza de lado: que la activa quede a la vista.
   function revealActiveTab() {
     const fila = $('recTabs');
@@ -100,14 +100,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       <tr class="rec-row" data-rec="${r.id}">
         <td><span class="ops-title">${esc(r.name)}</span><span class="ops-sub">${esc(r.category || '')}</span></td>
         <td data-label="Ingredientes">${mapChip(r)}</td>
-        <td data-label="Costo">${money(r.cost)}${r.cost_complete ? '' : ' <small class="ops-sub" title="Hay ingredientes sin costo">parcial</small>'}</td>
+        <td data-label="Costo"><span>${money(r.cost)}${r.cost_complete ? '' : ' <small class="ops-sub" title="Hay ingredientes sin costo">parcial</small>'}</span></td>
         <td data-label="Precio">${money(r.sale_price)}</td>
         <td data-label="Food cost">${fcChip(r)}</td>
         <td data-label="Platos"><span class="ops-sub">${r.dishes.length ? esc(r.dishes.join(', ')) : (r.mapped_lines ? 'Por nombre' : '—')}</span></td>
       </tr>
       ${state.expanded.has(r.id) ? `<tr class="rec-detail"><td colspan="6"><ul class="rec-lines">${r.lines.map((l) => `
         <li><span>${esc(l.name)} · ${num(l.quantity)} ${esc(l.unit)}${l.item ? ` → <b>${esc(l.item.name)}</b>` : ''}</span>
-          <span class="st ${l.status}">${l.status === 'emparejado' ? 'emparejado' : l.status === 'ignorado' ? 'no se descuenta' : 'sin emparejar'}</span>
+          <span class="st ${l.unit_issue ? 'sin_unidad' : l.status}">${l.unit_issue ? 'falta la unidad' : l.status === 'emparejado' ? 'emparejado' : l.status === 'ignorado' ? 'no se descuenta' : 'sin emparejar'}</span>
           <span>${l.cost != null ? money(l.cost) : '—'}</span></li>`).join('')}</ul>
         ${r.ref_food_cost_pct != null ? `<p class="ops-sub" style="margin:8px 0 0">En el dashboard anterior: costo ${money(r.ref_cost)}, food cost ${num(r.ref_food_cost_pct)}%.</p>` : ''}</td></tr>` : ''}`).join('')}</tbody></table>`;
   }
@@ -236,6 +236,83 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   $('dishFilter').addEventListener('change', renderDishes);
 
+  // ---- unidades: receta en otra unidad que el insumo ----
+  const FAM = { peso: 'g', volumen: 'ml' };
+  // Una pregunta por cada cruce: qué número poner y a qué dato del insumo va.
+  function pregunta(it, c) {
+    if (c.kind === 'densidad') {
+      return { field: 'grams_per_ml', value: it.grams_per_ml, unit: 'g',
+        text: `La receta lo pide en <b>${esc(c.recipe_unit)}</b> y se mide en <b>${esc(it.unit)}</b>. ¿Cuántos gramos pesa 1 ml?`,
+        hint: 'Agua, leches y jugos: 1. Aceite: 0.92. Miel o siropes: 1.4.', water: true };
+    }
+    if (c.kind === 'pieza') {
+      const fam = c.recipe_family === 'unidad' ? c.item_family : c.recipe_family;   // peso o volumen
+      const u = FAM[fam] || 'g';
+      const verbo = fam === 'volumen' ? 'trae' : 'pesa';
+      const pieza = c.recipe_family === 'unidad' ? esc(c.recipe_unit) : esc(it.unit);
+      return { field: 'piece_size', value: it.piece_size, unit: u,
+        text: `La receta lo pide en <b>${esc(c.recipe_unit)}</b> y se lleva en <b>${esc(it.unit)}</b>. ¿Cuántos ${u} ${verbo} 1 ${pieza}?`,
+        hint: 'Pésalo una vez (o mira la etiqueta) y anótalo.' };
+    }
+    return null;
+  }
+  function unitCard(f, resuelto) {
+    const it = f.item;
+    const vistos = new Set();
+    const filas = f.conversions.map((c) => {
+      if (c.kind === 'desconocida') {
+        return `<p class="rec-unit-q">La receta dice <b>“${esc(c.recipe_unit)}”</b>: es una medida que no se puede convertir. Hay que cambiarla en Invu por gramos, ml o unidades.</p>`;
+      }
+      const q = pregunta(it, c);
+      if (!q || vistos.has(q.field)) return '';
+      vistos.add(q.field);
+      return `<div class="rec-unit-q" data-field="${q.field}">
+          <p>${q.text}${c.ok ? ' <span class="rec-unit-ok">resuelto</span>' : ''}</p>
+          ${canEdit ? `<div class="rec-unit-form">
+            <input class="modal-input" type="number" inputmode="decimal" step="0.01" min="0.01" value="${q.value != null ? Number(q.value) : ''}" placeholder="${q.unit}" aria-label="${q.unit}" />
+            <span class="rec-unit-suffix">${q.unit}</span>
+            ${q.water ? '<button type="button" class="ops-btn" data-water>Como agua (1)</button>' : ''}
+            <button type="button" class="inv-primary-btn" data-save>Guardar</button>
+          </div><small class="ops-sub">${esc(q.hint)}</small>` : ''}
+        </div>`;
+    }).join('');
+    return `<div class="rec-unit${resuelto ? ' is-ok' : ''}" data-item="${it.id}">
+        <div class="rec-unit-head"><strong>${esc(it.name)}</strong><span class="ops-sub">se mide en ${esc(it.unit)} · ${num(f.dishes_count)} plato${f.dishes_count === 1 ? '' : 's'}: ${esc(f.dishes.join(', '))}${f.dishes_count > f.dishes.length ? '…' : ''}</span></div>
+        ${filas}
+      </div>`;
+  }
+  function setUnitCount(n) { $('countUnits').textContent = n; $('countUnits').hidden = !n; }
+  async function loadUnits() {
+    const box = $('unitBox');
+    box.innerHTML = '<div class="ops-loading">Cargando…</div>';
+    try {
+      const d = await api.get('/recipes/unit-issues');
+      setUnitCount(d.pending.length);
+      box.innerHTML = (d.pending.length
+        ? d.pending.map((f) => unitCard(f, false)).join('')
+        : '<div class="ops-empty">Todas las recetas están en unidades que se pueden descontar.</div>')
+        + (d.resolved.length ? `<details class="rec-unit-done"><summary>Ya resueltos (${d.resolved.length})</summary>${d.resolved.map((f) => unitCard(f, true)).join('')}</details>` : '');
+    } catch (err) { box.innerHTML = `<div class="ops-empty">${esc(err.message || 'No se pudieron cargar.')}</div>`; }
+  }
+  $('unitBox').addEventListener('click', async (e) => {
+    const q = e.target.closest('[data-field]');
+    if (!q) return;
+    const input = q.querySelector('input');
+    const agua = e.target.closest('[data-water]');
+    if (agua) input.value = '1';
+    if (!agua && !e.target.closest('[data-save]')) return;
+    const v = Number(input.value);
+    if (!(v > 0)) { utils.showToast('Pon un número mayor que cero.', 'error'); input.focus(); return; }
+    const id = q.closest('[data-item]').dataset.item;
+    const field = q.dataset.field;
+    try {
+      await api.patch(`/inventory/items/${id}/${field === 'grams_per_ml' ? 'density' : 'piece-size'}`, { [field]: String(v) });
+      utils.showToast('Guardado: esas recetas ya se descuentan.', 'success');
+      state.recipes = [];
+      await loadUnits();
+    } catch (err) { utils.showToast(err.message || 'No se pudo guardar.', 'error'); }
+  });
+
   // ---- preparaciones ----
   async function loadPreps() {
     const box = $('prepBox');
@@ -293,5 +370,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   setTimeout(revealActiveTab, 400);   // otra vez cuando ya están los íconos y contadores
   // Contadores de las otras pestañas.
   if (state.tab !== 'ingredientes') api.get('/recipes/ingredients').then((d) => { $('countIng').textContent = d.pending; $('countIng').hidden = !d.pending; }).catch(() => {});
+  if (state.tab !== 'unidades') api.get('/recipes/unit-issues').then((d) => setUnitCount(d.pending.length)).catch(() => {});
   utils.renderIcons();
 });

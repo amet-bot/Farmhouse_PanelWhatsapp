@@ -374,6 +374,10 @@
   /* El botón queda a la izquierda: el menú abre hacia la derecha para no salirse de la pantalla. */
   .link-export { margin-left: 0; }
   .link-export-menu { right: auto; left: 0; max-width: calc(100vw - 28px); }
+  /* Cierre de mes: el selector de mes va debajo del título, a lo ancho (se salía 70 px). */
+  #viewCierre .inv-view-head { flex-wrap: wrap; }
+  #viewCierre .inv-view-head > div { flex: 1 1 100%; }
+  #monthInput { width: 100%; max-width: none; min-width: 0; }
 }
 
 .link-hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; align-items: end; height: 150px; padding-top: 6px; }

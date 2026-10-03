@@ -24,7 +24,7 @@ from models.inventory_movement import InventoryMovement
 from models.transfer import Transfer, TransferItem
 from models.consumption import ConsumptionRecord, ConsumptionItem
 from schemas.inventory import (
-    InventoryItemCreate, InventoryItemPieceSize, InventoryItemResponse,
+    InventoryItemCreate, InventoryItemDensity, InventoryItemPieceSize, InventoryItemResponse,
     InvuStatusResponse, InvuSyncResult,
     SupplierCreate, SupplierResponse,
     SHIPMENT_LINE_STATUSES, ShipmentCreate, ShipmentPhotoResponse, ShipmentResponse, ShipmentItemResponse,
@@ -1032,6 +1032,27 @@ def set_item_piece_size(
     return item
 
 
+@router.patch("/items/{item_id}/density", response_model=InventoryItemResponse)
+def set_item_density(
+    item_id: int,
+    body: InventoryItemDensity,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("inventory.adjust")),
+):
+    """Cuántos gramos pesa 1 ml del insumo, para las recetas que lo piden en la otra unidad."""
+    item = db.query(InventoryItem).filter(InventoryItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Insumo no encontrado.")
+    antes = item.grams_per_ml
+    item.grams_per_ml = body.grams_per_ml
+    log_audit_event(db, current_user.id, None, "item.grams_per_ml", "inventory_item", item.id,
+                    {"before": str(antes) if antes is not None else None,
+                     "after": str(body.grams_per_ml) if body.grams_per_ml is not None else None})
+    db.commit()
+    db.refresh(item)
+    return item
+
+
 # Cuándo una merma merece que se entere el encargado sin tener que ir a buscarla: cuando cuesta
 # mucho de una vez o cuando el mismo insumo se bota por el mismo motivo varias veces en el mes.
 # El residuo al limpiar queda fuera: es merma esperada y se mide con el rendimiento.
@@ -1666,13 +1687,16 @@ _UNIT_FAMILY = {
 
 def _a_unidad_del_insumo(
     cantidad: Decimal, unidad_receta: Optional[str], unidad_insumo: Optional[str], piece_size: Optional[Decimal] = None,
+    grams_per_ml: Optional[Decimal] = None,
 ) -> Optional[Decimal]:
     """
     La cantidad de la receta en la unidad del insumo, o None si no se puede convertir.
 
     Entre familias distintas (la receta en gramos y el insumo por unidad, o al revés) se usa lo
     que pesa una pieza del insumo (`piece_size`: gramos, o ml si el insumo es líquido), el mismo
-    dato que aprende la merma. Sin ese dato no se inventa: queda None y quien llama lo informa.
+    dato que aprende la merma. Entre peso y volumen (receta en g, insumo en ml) se usa
+    `grams_per_ml`, que pone una persona en Recetas → Unidades. Sin esos datos no se inventa:
+    queda None y quien llama lo informa.
     """
     r = (unidad_receta or "").strip().lower()
     i = (unidad_insumo or "").strip().lower()
@@ -1681,12 +1705,18 @@ def _a_unidad_del_insumo(
     fr, fi = _UNIT_FAMILY.get(r), _UNIT_FAMILY.get(i)
     if fr and fi and fr[0] == fi[0]:
         return cantidad * fr[1] / fi[1]
+    if fr and fi and {fr[0], fi[0]} == {"peso", "volumen"}:
+        if grams_per_ml is None or Decimal(grams_per_ml) <= 0:
+            return None
+        base = cantidad * fr[1] * 1000                    # gramos o ml de la receta
+        otra = base / Decimal(grams_per_ml) if fr[0] == "peso" else base * Decimal(grams_per_ml)
+        return otra / (fi[1] * 1000)                      # en la unidad del insumo (g, kg, ml, l...)
     if not fr or piece_size is None or Decimal(piece_size) <= 0:
         return None
     pieza = Decimal(piece_size)
     fam_i, base_i = _familia_de_unidad(unidad_insumo)   # base_i: g (o ml) por unidad del insumo
-    if fam_i == "unidad" and fr[0] == "peso":
-        return cantidad * fr[1] * 1000 / pieza          # gramos de la receta / gramos por pieza
+    if fam_i == "unidad" and fr[0] in ("peso", "volumen"):
+        return cantidad * fr[1] * 1000 / pieza          # gramos (o ml) de la receta / lo que trae una pieza
     if fr[0] == "unidad" and fam_i in ("peso", "volumen"):
         return cantidad * pieza / base_i                # piezas x gramos por pieza, en la unidad del insumo
     return None
@@ -1766,7 +1796,7 @@ def waste_recipe_usage(
             item = insumos.get(linea.product_invu_id)
             if not item:
                 continue   # ingrediente archivado en Invu que no se trajo al catálogo
-            por_unidad = _a_unidad_del_insumo(Decimal(linea.quantity), linea.unit_name, item.unit, item.piece_size)
+            por_unidad = _a_unidad_del_insumo(Decimal(linea.quantity), linea.unit_name, item.unit, item.piece_size, item.grams_per_ml)
             if por_unidad is None:
                 lineas_sin_conversion += 1
                 continue
@@ -2383,7 +2413,7 @@ def _uso_por_ventas(
                 item = insumos.get(linea.product_invu_id)
                 if not item:
                     continue
-                por_unidad = _a_unidad_del_insumo(Decimal(linea.quantity), linea.unit_name, item.unit, item.piece_size)
+                por_unidad = _a_unidad_del_insumo(Decimal(linea.quantity), linea.unit_name, item.unit, item.piece_size, item.grams_per_ml)
                 if por_unidad is None:
                     if sin_conversion is not None and cantidad:
                         sin_conversion.add(item.id)

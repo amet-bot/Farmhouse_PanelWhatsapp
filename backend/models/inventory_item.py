@@ -40,5 +40,9 @@ class InventoryItem(Base):
     # (migración 047). No viene de Invu: se carga desde el panel o se aprende la primera vez que
     # alguien registra una merma de "pieza entera" ("1 baguette = 80 g").
     piece_size = Column(Numeric(12, 3), nullable=True)
+    # Cuántos gramos pesa 1 ml de este insumo (migración 066). Solo hace falta cuando una receta
+    # lo pide en gramos y se mide en ml (o al revés): sin esto esa línea no se puede descontar.
+    # Lo pone una persona desde Recetas → Unidades; no se adivina.
+    grams_per_ml = Column(Numeric(8, 4), nullable=True)
 
     shipment_items = relationship("ShipmentItem", back_populates="inventory_item")

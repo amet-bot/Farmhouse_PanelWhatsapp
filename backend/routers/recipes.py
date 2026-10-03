@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models.branch import Branch
 from models.inventory_item import InventoryItem
-from models.invu_sales import InvuSaleLine
+from models.invu_sales import InvuRecipeLine, InvuSaleLine
 from models.local_recipes import IngredientAlias, IngredientPrice, LocalRecipe, LocalRecipeLine, RecipeDishLink
 from models.shipment import Shipment, ShipmentItem
 from models.user import User
@@ -217,12 +217,13 @@ def _costear(db: Session, recetas: List[LocalRecipe]) -> dict:
             a = alias.get(l.ingredient_norm)
             unidad = _unidad_receta(l.unit)
             estado = "ignorado" if a and a.ignored else ("emparejado" if a and a.inventory_item_id else "sin_emparejar")
-            costo, fuente = None, None
+            costo, fuente, sin_unidad = None, None, False
             item = a.inventory_item if a and a.inventory_item_id and not a.ignored else None
             if item:
                 emparejadas += 1
                 por_unidad = ultimos.get(item.id) or (Decimal(item.reference_cost) if item.reference_cost is not None else None)
-                cantidad = _a_unidad_del_insumo(Decimal(l.quantity), unidad, item.unit, item.piece_size)
+                cantidad = _a_unidad_del_insumo(Decimal(l.quantity), unidad, item.unit, item.piece_size, item.grams_per_ml)
+                sin_unidad = cantidad is None   # emparejado, pero no se descuenta hasta resolver la unidad
                 if por_unidad is not None and cantidad is not None:
                     costo, fuente = (cantidad * por_unidad), ("compra" if item.id in ultimos else "invu")
             if costo is None and not (a and a.ignored) and unidad in ("g", "ml") and l.ingredient_norm in ppg:
@@ -235,6 +236,7 @@ def _costear(db: Session, recetas: List[LocalRecipe]) -> dict:
                 "name": l.ingredient_name, "quantity": l.quantity, "unit": unidad, "status": estado,
                 "item": {"id": item.id, "name": item.name, "unit": item.unit} if item else None,
                 "cost": costo.quantize(Decimal("0.0001")) if costo is not None else None, "cost_source": fuente,
+                "unit_issue": sin_unidad,
             })
         precio = Decimal(r.sale_price) if r.sale_price else None
         fc = (total / precio * 100).quantize(Decimal("0.1")) if precio and total else None
@@ -386,6 +388,82 @@ def update_ingredient(
                     {"name": a.name, "inventory_item_id": a.inventory_item_id, "ignored": a.ignored})
     db.commit()
     return {"id": a.id, "status": "ignorado" if a.ignored else ("emparejado" if a.inventory_item_id else "pendiente")}
+
+
+def _conversion(unidad_receta: str, unidad_insumo: str) -> dict:
+    """Qué dato hace falta para pasar la unidad de la receta a la del insumo: "densidad"
+    (g ↔ ml), "pieza" (unidad ↔ g/ml), "desconocida" (la receta dice "taza", "cda"...) o
+    None si son de la misma familia. Con las familias, para que la pantalla arme la pregunta."""
+    from routers.inventory import _UNIT_FAMILY, _familia_de_unidad
+    fr = _UNIT_FAMILY.get((unidad_receta or "").strip().lower())
+    fi = _familia_de_unidad(unidad_insumo)[0]
+    if not fr:
+        return {"kind": "desconocida", "recipe_family": None, "item_family": fi}
+    kind = None if fr[0] == fi else ("densidad" if {fr[0], fi} == {"peso", "volumen"} else "pieza")
+    return {"kind": kind, "recipe_family": fr[0], "item_family": fi}
+
+
+@router.get("/unit-issues")
+def list_unit_issues(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("reports.view")),
+):
+    """
+    Insumos que una receta pide en otra unidad (la receta en gramos y el insumo en ml, o la
+    receta por unidad y el insumo en gramos...) y que hoy NO se descuentan porque falta el dato
+    para convertir: cuánto pesa 1 ml o cuánto es 1 pieza. Mira las recetas de Invu de todas las
+    sucursales y las cargadas en Farmhouse Link. También devuelve los ya resueltos, para revisarlos.
+    """
+    from routers.inventory import _a_unidad_del_insumo
+
+    por_invu = {i.invu_id: i for i in db.query(InventoryItem).filter(InventoryItem.invu_id.isnot(None))}
+    usos: dict = {}   # item.id -> {"item", "units": {unidad: set(platos)}}
+
+    def anotar(item, unidad, plato):
+        unidad = (unidad or "").strip().lower()
+        if not item or not unidad or unidad == (item.unit or "").strip().lower():
+            return
+        f = usos.setdefault(item.id, {"item": item, "units": {}})
+        f["units"].setdefault(unidad, set()).add(reparar_acentos(plato or "").strip() or "—")
+
+    for pid, unidad, plato in db.query(InvuRecipeLine.product_invu_id, InvuRecipeLine.unit_name, InvuRecipeLine.source_name).distinct():
+        anotar(por_invu.get(pid), unidad, plato)
+    alias = {a.name_norm: a for a in db.query(IngredientAlias).options(joinedload(IngredientAlias.inventory_item))
+             .filter(IngredientAlias.inventory_item_id.isnot(None), IngredientAlias.ignored == False)}  # noqa: E712
+    for norm, unidad, plato in (
+        db.query(LocalRecipeLine.ingredient_norm, LocalRecipeLine.unit, LocalRecipe.name)
+        .join(LocalRecipe, LocalRecipe.id == LocalRecipeLine.recipe_id)
+        .filter(LocalRecipe.kind == "plato", LocalRecipe.active == True).distinct()  # noqa: E712
+    ):
+        a = alias.get(norm)
+        if a:
+            anotar(a.inventory_item, _unidad_receta(unidad), plato)
+
+    pendientes, resueltos = [], []
+    for f in usos.values():
+        it = f["item"]
+        cruces = []
+        for u, ps in sorted(f["units"].items()):
+            c = _conversion(u, it.unit)
+            if c["kind"] is None:
+                continue   # misma familia (g y kg): siempre se convierte
+            ok = _a_unidad_del_insumo(Decimal("1"), u, it.unit, it.piece_size, it.grams_per_ml) is not None
+            cruces.append({"recipe_unit": u, **c, "ok": ok, "dishes_count": len(ps)})
+        if not cruces:
+            continue
+        platos = sorted({p for ps in f["units"].values() for p in ps})
+        fila = {
+            "item": {"id": it.id, "name": it.name, "unit": it.unit, "piece_size": it.piece_size, "grams_per_ml": it.grams_per_ml},
+            "dishes": platos[:6], "dishes_count": len(platos), "conversions": cruces,
+            "problems": [{"recipe_unit": c["recipe_unit"], "kind": c["kind"], "dishes_count": c["dishes_count"]} for c in cruces if not c["ok"]],
+        }
+        (pendientes if fila["problems"] else resueltos).append(fila)
+    pendientes.sort(key=lambda f: (-f["dishes_count"], f["item"]["name"].lower()))
+    resueltos.sort(key=lambda f: f["item"]["name"].lower())
+    return {
+        "pending": pendientes, "resolved": resueltos,
+        "fixable": sum(1 for f in pendientes if any(p["kind"] != "desconocida" for p in f["problems"])),
+    }
 
 
 @router.get("/dishes")
