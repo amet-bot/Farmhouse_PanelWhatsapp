@@ -46,14 +46,16 @@ const usersModule = {
 
     this.users.forEach(u => {
       const tr = document.createElement('tr');
-      const branchName = u.branch ? u.branch.name : (u.role === 'admin' ? 'Acceso Global' : '-');
+      const branchName = u.branch ? u.branch.name : (u.role === 'admin' || this.isLogistics(u) ? 'Todas las sucursales' : '-');
       const isSelf = currentUser && currentUser.id === u.id;
 
       let roleBadge = `<span class="tag-type">${utils.escapeHtml(u.role)}</span>`;
       if (u.role === 'admin') {
         roleBadge = `<span class="tag-type badge-role-admin"><i data-lucide="crown"></i> Admin</span>`;
+      } else if (this.isLogistics(u)) {
+        roleBadge = `<span class="tag-type badge-role-supervisor"><i data-lucide="truck"></i> Gerente de logística</span>`;
       } else if (u.role === 'supervisor') {
-        roleBadge = `<span class="tag-type badge-role-supervisor"><i data-lucide="shield"></i> Supervisor</span>`;
+        roleBadge = `<span class="tag-type badge-role-supervisor"><i data-lucide="shield"></i> Encargado</span>`;
       } else {
         roleBadge = `<span class="tag-type badge-role-agent"><i data-lucide="user"></i> Agente</span>`;
       }
@@ -88,15 +90,26 @@ const usersModule = {
     utils.renderIcons();
   },
 
+  // "Gerente de logística" no es un rol aparte en el servidor: es un supervisor SIN sucursal,
+  // que ve y opera todas (inventario, compras, tareas, reportes) pero no administra usuarios,
+  // dispositivos, integraciones ni respaldos.
+  normalizeRole(data) {
+    if (data && data.role === 'logistica') return { ...data, role: 'supervisor', branch_id: null };
+    return data;
+  },
+  isLogistics(u) {
+    return u && u.role === 'supervisor' && !u.branch_id;
+  },
+
   async registerUser(data) {
-    const newUser = await api.post('/users/', data);
+    const newUser = await api.post('/users/', this.normalizeRole(data));
     await this.loadUsers();
     utils.showToast(`✓ Usuario '@${newUser.username}' creado exitosamente.`, 'success');
     return newUser;
   },
 
   async updateUser(id, data) {
-    const updated = await api.put(`/users/${id}`, data);
+    const updated = await api.put(`/users/${id}`, this.normalizeRole(data));
     await this.loadUsers();
     utils.showToast(`✓ Usuario '@${updated.username}' actualizado.`, 'success');
     return updated;
@@ -143,7 +156,8 @@ const usersModule = {
       document.getElementById('editUserEmail').value = u.email || '';
     }
     document.getElementById('editUserPassword').value = '';
-    document.getElementById('editUserRole').value = u.role;
+    const editRole = document.getElementById('editUserRole');
+    editRole.value = this.isLogistics(u) && editRole.querySelector('option[value="logistica"]') ? 'logistica' : u.role;
     document.getElementById('editUserBranch').value = u.branch_id || '';
     document.getElementById('editUserStatus').value = u.active ? 'true' : 'false';
 

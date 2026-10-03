@@ -173,8 +173,9 @@
           <div>
             <label class="modal-label">Rol:</label>
             <select id="addUserRole" class="modal-select" required>
-              <option value="agent" selected>Agente de Sucursal</option>
-              <option value="supervisor">Supervisor General</option>
+              <option value="agent" selected>Agente de sucursal</option>
+              <option value="supervisor">Encargado de sucursal (supervisor)</option>
+              <option value="logistica">Gerente de logística (todas las sucursales)</option>
               <option value="admin">Administrador</option>
             </select>
           </div>
@@ -182,6 +183,7 @@
             <label class="modal-label">Sucursal Asignada:</label>
             <select id="addUserBranch" class="modal-select" required></select>
           </div>
+          <p class="adm-hint adm-role-hint" id="addUserRoleHint"></p>
           <div id="addUserError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
         </div>
         <div class="modal-footer">
@@ -218,8 +220,9 @@
           <div>
             <label class="modal-label">Rol:</label>
             <select id="editUserRole" class="modal-select" required>
-              <option value="agent">Agente de Sucursal</option>
-              <option value="supervisor">Supervisor General</option>
+              <option value="agent">Agente de sucursal</option>
+              <option value="supervisor">Encargado de sucursal (supervisor)</option>
+              <option value="logistica">Gerente de logística (todas las sucursales)</option>
               <option value="admin">Administrador</option>
             </select>
           </div>
@@ -462,8 +465,8 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/users.js?v=4.0.1"></script>
-  <script src="js/modules/administracion.js?v=4.1.0"></script>
+  <script src="js/modules/users.js?v=4.1.0"></script>
+  <script src="js/modules/administracion.js?v=4.2.0"></script>
   <script src="js/modules/admin-sistema.js?v=1.0.0"></script>
 </body>
 </html>

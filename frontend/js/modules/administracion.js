@@ -76,16 +76,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btnCancelDeleteUser').addEventListener('click', () => $('modalDeleteUser').classList.remove('active'));
   $('btnConfirmDeleteUser').addEventListener('click', () => usersModule.confirmDeleteUser());
 
-  $('addUserRole').addEventListener('change', (e) => {
-    const branchGroup = $('addUserBranchGroup');
-    const branchSelect = $('addUserBranch');
-    if (e.target.value === 'admin') {
-      branchGroup.style.display = 'none';
-      branchSelect.required = false;
-    } else {
-      branchGroup.style.display = 'block';
-      branchSelect.required = (e.target.value === 'agent');
-    }
+  const ROLE_HINTS = {
+    agent: 'Opera su sucursal: recibir, contar, merma, cierre de turno, tareas, solicitudes.',
+    supervisor: 'Encargado de UNA sucursal: además aprueba solicitudes, ajusta inventario, arma la hoja de cierre y ve reportes de su sucursal.',
+    logistica: 'Ve y opera TODAS las sucursales: existencias, pedido sugerido, órdenes, tareas, Centro de operación y reportes. No administra usuarios, dispositivos, integraciones ni respaldos. Igual que un encargado, entra desde un dispositivo registrado (pestaña Dispositivos).',
+    admin: 'Acceso total, incluida esta pantalla de Administración.',
+  };
+  function syncAddRole() {
+    const role = $('addUserRole').value;
+    const sinSucursal = role === 'admin' || role === 'logistica';
+    $('addUserBranchGroup').style.display = sinSucursal ? 'none' : 'block';
+    $('addUserBranch').required = role === 'agent' || role === 'supervisor';
+    if (sinSucursal) $('addUserBranch').value = '';
+    $('addUserRoleHint').textContent = ROLE_HINTS[role] || '';
+  }
+  $('addUserRole').addEventListener('change', syncAddRole);
+  $('btnOpenAddUser').addEventListener('click', () => setTimeout(syncAddRole, 0));
+  $('editUserRole').addEventListener('change', () => {
+    if (['admin', 'logistica'].includes($('editUserRole').value)) $('editUserBranch').value = '';
   });
 
   $('formAddUser').addEventListener('submit', async (e) => {
@@ -107,6 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!pwdVal || pwdVal.length < 4) return showError('La contraseña inicial debe tener al menos 4 caracteres.');
     if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) return showError('El correo electrónico no tiene un formato válido.');
     if (roleVal === 'agent' && !branchVal) return showError('Para un agente debes seleccionar una sucursal.');
+    if (roleVal === 'supervisor' && !branchVal) return showError('Un encargado es de una sucursal: elígela. Para todas, usa "Gerente de logística".');
 
     const data = {
       username: usernameVal, name: nameVal, email: emailRaw ? emailRaw.toLowerCase() : null,
@@ -139,6 +148,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const emailVal = $('editUserEmail').value.trim().toLowerCase();
 
     if (pwdVal && pwdVal.length < 4) return showError('La nueva contraseña debe tener al menos 4 caracteres.');
+
+    if ($('editUserRole').value === 'supervisor' && !branchVal) return showError('Un encargado es de una sucursal: elígela. Para todas, usa "Gerente de logística".');
 
     const data = {
       username: $('editUserUsername').value.trim().toLowerCase(),
