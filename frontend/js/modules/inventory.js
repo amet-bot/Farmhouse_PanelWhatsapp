@@ -1,12 +1,12 @@
 /**
- * Farmhouse - Inventario y Abastecimiento
+ * Farmhouse - Inventario
  *
- * Rail de navegación + columna de lista + panel de detalle, con siete vistas reales — Resumen,
- * Cargamentos, Insumos, Proveedores, Merma, Existencias y Conteo. Gasto por sucursal, Lotes y
- * Reportes siguen siendo "Próximamente" en el rail, sin vista propia.
+ * Rail de navegación + columna de lista + panel de detalle, con seis vistas — Resumen, Mercancía
+ * recibida (cargamentos), Existencias, Conteo y, en Catálogo, Insumos y Proveedores. La merma se
+ * registra aparte en /merma (merma rápida) y se analiza en Reportes → Merma.
  *
  * La existencia de un insumo es lo que entró, menos lo que salió por merma, más las diferencias de
- * los conteos físicos. El servidor la calcula y la sirve en /inventory/stock; acá no se recalcula
+ * los conteos físicos. El servidor la calcula y la sirve en /inventory/stock; aquí no se recalcula
  * nada, para que la pantalla y los reportes nunca se contradigan.
  *
  * La existencia puede ser NEGATIVA y se muestra así a propósito: pasa cuando se mermó algo que
@@ -22,6 +22,16 @@
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
+  {
+    // La merma ya no está en Inventario (se registra en /merma y se analiza en Reportes).
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('open') === 'waste') { window.location.replace('/merma'); return; }
+    if (q.get('view') === 'merma') {
+      const w = Number(q.get('waste'));
+      window.location.replace(w ? `/merma?waste=${w}` : '/link?view=merma');
+      return;
+    }
+  }
 
   const PAGE_SIZE = 50;          // tamaño de página de la lista de cargamentos
   const ANALYTICS_SIZE = 200;    // tope del backend; alcanza de sobra para las métricas
@@ -43,27 +53,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     suppliers: [],
     view: 'resumen',
     branchFilter: '',
-    selected: { shipment: null, item: null, supplier: null, waste: null, count: null },
-    search: { shipment: '', item: '', supplier: '', waste: '', stock: '', count: '', countItem: '' },
+    selected: { shipment: null, item: null, supplier: null, count: null },
+    search: { shipment: '', item: '', supplier: '', stock: '', count: '', countItem: '' },
     itemKind: '',   // filtro de Insumos: '' | 'materia_prima' | 'casa'
     selectedSupplierId: '',
 
     // ---- Merma y existencias ----
-    waste: [],
-    wasteOffset: 0,
-    wasteHasMore: false,
     // Tanda aparte y SIN filtrar, igual que state.analytics para los cargamentos: el Resumen
     // no puede cambiar de cifras porque alguien movió el filtro de sucursal en la vista Merma.
-    wasteAnalytics: [],
-    wasteReasons: [],
-    wasteBranchFilter: '',
-    wasteReasonFilter: '',
     stock: [],
     stockBranchFilter: '',
     stockOnlyMoved: true,
     // Existencias de la sucursal elegida en el modal de merma, para poder mostrar "te quedan 4"
     // al lado de cada línea sin pedirle una consulta al servidor por cada tecla.
-    wasteStock: new Map(),
 
     // ---- Conteo físico ----
     counts: [],
@@ -93,16 +95,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const unitCostFormatter = new Intl.NumberFormat('es-PA', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
   const unitCost = (n) => `$${unitCostFormatter.format(Number(n || 0))}`;
   // Costo de una merma para mostrar: el de cargamento o, si no hay, el estimado con Invu (≈).
-  const wasteCostValue = (w) => (w.display_cost != null ? Number(w.display_cost) : (w.total_cost != null ? Number(w.total_cost) : null));
-  const wasteCostTxt = (w) => { const v = wasteCostValue(w); return v == null ? '—' : `${w.cost_estimated ? '≈ ' : ''}${money(v)}`; };
 
   // Fotos de evidencia de la merma (ver "Evidencia de la merma" más abajo). Arriba y no allá: el detalle de una
   // merma se puede pintar antes de que el módulo llegue a esa parte.
-  const WASTE_PHOTOS_MAX = 6;           // mismo tope que el servidor
-  const WASTE_SELF_DELETE_MS = 24 * 60 * 60 * 1000;   // quien la cargó puede borrarla (igual que el servidor)
   const PHOTO_MAX_SIDE = 1600;          // px del lado largo: se ve bien el detalle y pesa ~300 KB
-  let pendingWastePhotos = [];          // [{ blob, url }] elegidas en el modal; se suben al guardar
-  const wastePhotoUrls = new Map();     // id de foto → URL ya descargada (no se vuelve a pedir)
   const SHIPMENT_PHOTOS_MAX = 4;        // factura (y lo que llegó mal): mismo tope que el servidor
   let pendingShipmentPhotos = [];       // [{ blob, url }] del formulario; se suben al guardar
   const shipmentPhotoUrls = new Map();
@@ -174,7 +170,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Maestro-detalle en celular
   // En pantalla ancha la lista y el detalle conviven lado a lado. En celular no caben: el
   // detalle quedaba debajo de toda la lista, fuera de la pantalla, y tocar una fila no parecía
-  // hacer nada. Acá la lista y el detalle pasan a ser dos pantallas que se turnan (la clase
+  // hacer nada. Aquí la lista y el detalle pasan a ser dos pantallas que se turnan (la clase
   // `is-detail` sobre el .inv-workspace decide cuál se ve) y el detalle abre con "Volver".
   // ==========================================================================
   const isMobileLayout = () => window.matchMedia('(max-width: 900px)').matches;
@@ -308,7 +304,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     cargamentos: 'viewCargamentos',
     insumos: 'viewInsumos',
     proveedores: 'viewProveedores',
-    merma: 'viewMerma',
     existencias: 'viewExistencias',
     conteo: 'viewConteo',
   };
@@ -329,7 +324,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       cargamentos: $('shipmentList'),
       insumos: $('itemList'),
       proveedores: $('supplierList'),
-      merma: $('wasteList'),
       existencias: $('stockTable'),
       conteo: $('countList'),
     }[view]);
@@ -349,10 +343,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.addEventListener('click', () => openShipmentModal());
   });
 
-  document.querySelectorAll('[data-open-waste]').forEach((btn) => {
-    btn.addEventListener('click', () => openWasteModal());
-  });
-
   document.querySelectorAll('[data-open-count]').forEach((btn) => {
     btn.addEventListener('click', () => openCountModal());
   });
@@ -363,7 +353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Número de la petición más reciente por lista. Cambiar el filtro de sucursal dos veces
   // seguidas (o tocar "Cargar más" durante un reinicio) dejaba que la respuesta vieja llegara
   // después y se concatenara: filas de dos sucursales mezcladas y el offset corrido.
-  const loadSeq = { shipments: 0, waste: 0, counts: 0, stock: 0, wasteStock: 0, countStock: 0 };
+  const loadSeq = { shipments: 0, counts: 0, stock: 0, countStock: 0 };
 
   async function loadShipments({ reset = false } = {}) {
     const seq = ++loadSeq.shipments;
@@ -410,95 +400,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Alimenta el datalist de categorías del modal con las que ya existen.
     const categories = Array.from(new Set(items.map((i) => i.category).filter(Boolean))).sort();
     $('categoryOptions').innerHTML = categories.map((c) => `<option value="${esc(c)}"></option>`).join('');
-  }
-
-  async function loadWasteReasons() {
-    try {
-      state.wasteReasons = await api.get('/inventory/waste/reasons');
-    } catch (err) {
-      state.wasteReasons = [];
-    }
-    // El filtro y el formulario se llenan desde el servidor: los motivos son vocabulario de
-    // negocio y no pueden vivir duplicados en el frontend.
-    const options = state.wasteReasons.map((r) => `<option value="${esc(r.code)}">${esc(r.label)}</option>`).join('');
-    $('wasteReasonFilter').innerHTML = `<option value="">Todos los motivos</option>${options}`;
-    $('wasteReasonSelect').innerHTML = `<option value=""></option>${options}`;
-    renderWasteReasonChips();
-  }
-
-  // Los motivos del formulario van como botones grandes con ícono y en palabras de cocina. El
-  // código (y la etiqueta del filtro y los reportes) sigue siendo el del servidor; esto solo
-  // cambia cómo se le pregunta a quien está botando algo.
-  const REASON_UI = {
-    vencido: { icon: 'calendar-x', label: 'Se venció' },
-    danado: { icon: 'package-x', label: 'Se dañó o golpeó' },
-    derrame: { icon: 'glass-water', label: 'Se cayó o se rompió' },
-    error_preparacion: { icon: 'chef-hat', label: 'Salió mal al prepararlo' },
-    recorte: { icon: 'scissors', label: 'Residuo del insumo', hint: 'Cáscara, piel, recorte' },
-    devolucion: { icon: 'undo-2', label: 'Lo devolvió un cliente' },
-    consumo_interno: { icon: 'utensils', label: 'Lo comió el personal' },
-    faltante: { icon: 'search-x', label: 'Falta o se perdió' },
-    otro: { icon: 'more-horizontal', label: 'Otro motivo' },
-  };
-  // Orden de los botones: lo que más pasa primero. El residuo va arriba: es lo más común en
-  // cocina y es merma esperada, no un error.
-  const REASON_ORDER = ['recorte', 'vencido', 'danado', 'derrame', 'error_preparacion', 'devolucion', 'consumo_interno', 'faltante', 'otro'];
-
-  function renderWasteReasonChips() {
-    const box = $('wasteReasonChips');
-    if (!box) return;
-    const actual = $('wasteReasonSelect').value;
-    const motivos = [...state.wasteReasons].sort((a, b) => {
-      const ia = REASON_ORDER.indexOf(a.code);
-      const ib = REASON_ORDER.indexOf(b.code);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-    });
-    box.innerHTML = motivos.map((r) => {
-      const ui = REASON_UI[r.code] || { icon: 'circle-help', label: r.label };
-      const on = r.code === actual;
-      return `<button type="button" class="inv-reason-chip${on ? ' is-active' : ''}" data-reason="${esc(r.code)}" role="radio" aria-checked="${on}">
-          <i data-lucide="${ui.icon}"></i><span>${esc(ui.label)}${ui.hint ? `<small>${esc(ui.hint)}</small>` : ''}</span>
-        </button>`;
-    }).join('');
-    utils.renderIcons();
-  }
-
-  $('wasteReasonChips')?.addEventListener('click', (e) => {
-    const chip = e.target.closest('.inv-reason-chip');
-    if (!chip) return;
-    const select = $('wasteReasonSelect');
-    select.value = chip.dataset.reason;
-    select.dispatchEvent(new Event('change'));
-    $('wasteReasonChips').querySelectorAll('.inv-reason-chip').forEach((c) => {
-      const on = c === chip;
-      c.classList.toggle('is-active', on);
-      c.setAttribute('aria-checked', on ? 'true' : 'false');
-    });
-  });
-
-  async function loadWaste({ reset = false } = {}) {
-    const seq = ++loadSeq.waste;
-    if (reset) {
-      state.waste = [];
-      state.wasteOffset = 0;
-      $('wasteList').innerHTML = skeletonListHtml();
-    }
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(state.wasteOffset) });
-    if (state.wasteBranchFilter) params.set('branch_id', state.wasteBranchFilter);
-    if (state.wasteReasonFilter) params.set('reason', state.wasteReasonFilter);
-    try {
-      const page = await api.get(`/inventory/waste?${params.toString()}`);
-      if (seq !== loadSeq.waste) return;
-      state.waste = state.waste.concat(page);
-      state.wasteOffset += page.length;
-      state.wasteHasMore = page.length === PAGE_SIZE;
-    } catch (err) {
-      if (seq !== loadSeq.waste) return;
-      utils.showToast(err.message || 'No se pudo cargar la merma.', 'error');
-      state.wasteHasMore = false;
-    }
-    renderWasteList();
-    animarEntrada($('wasteList'));
   }
 
   async function loadCounts({ reset = false } = {}) {
@@ -590,7 +491,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (items_local_count) detalle.push(`${pluralize(items_local_count, 'se cargó', 'se cargaron')} a mano`);
     note.hidden = false;
     note.querySelector('span').textContent =
-      `Los insumos se traen de Invu (Ingredientes) una vez al día, y se pueden seguir creando acá. ` +
+      `Los insumos se traen de Invu (Ingredientes) una vez al día, y se pueden seguir creando aquí. ` +
       `${cuando} · ${detalle.join('; ')}.`;
     utils.renderIcons();
   }
@@ -651,14 +552,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       utils.renderIcons();
     }
   });
-
-  async function loadWasteAnalytics() {
-    try {
-      state.wasteAnalytics = await api.get(`/inventory/waste?limit=${ANALYTICS_SIZE}`);
-    } catch (err) {
-      state.wasteAnalytics = [];
-    }
-  }
 
   async function loadStock() {
     const seq = ++loadSeq.stock;
@@ -732,24 +625,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Vista: Resumen
   // ==========================================================================
-  /**
-   * Merma de la ventana reciente. Se mira `occurred_at` y no `created_at`: lo que importa es
-   * cuándo se perdió, no cuándo alguien se acordó de cargarlo.
-   */
-  function recentWasteStats() {
-    const desde = daysAgoIso(RECENT_DAYS);
-    const rows = state.wasteAnalytics.filter((w) => {
-      const fecha = utils._parseServerDate(w.occurred_at);
-      return fecha && fecha >= desde;
-    });
-    const conCosto = rows.filter((w) => wasteCostValue(w) != null);
-    return {
-      rows,
-      count: rows.length,
-      total: conCosto.length ? conCosto.reduce((acc, w) => acc + wasteCostValue(w), 0) : null,
-    };
-  }
-
   // ==========================================================================
   // Tablero del Resumen: ventas, compras, merma, faltantes y costo de lo vendido
   // ==========================================================================
@@ -803,7 +678,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const p = d.prev_totals;
     const periodo = dashboard.days === 7 ? 'la semana anterior' : 'el mes anterior';
     const tiles = [
-      { label: 'Ventas', value: t.sales_net != null ? money(t.sales_net) : '—', sub: 'Caja de Invu', delta: dashDelta(t.sales_net, p.sales_net, true) },
       { label: 'Compras', value: money(t.purchases), sub: t.purchases_pct_sales != null ? `${pctTxt(t.purchases_pct_sales)} de la venta` : 'Cargamentos con costo', delta: dashDelta(t.purchases, p.purchases, false) },
       { label: 'Merma', value: `${t.waste_estimated ? '≈ ' : ''}${money(t.waste)}`, sub: t.waste_pct_sales != null ? `${pctTxt(t.waste_pct_sales)} de la venta` : 'Lo que se botó', delta: dashDelta(t.waste, p.waste, false), bad: true },
       { label: 'Faltó en conteos', value: t.counts ? money(t.count_missing) : '—', sub: t.counts ? pluralize(t.counts, 'conteo', 'conteos') : 'Sin conteos en el período', delta: t.counts ? dashDelta(t.count_missing, p.count_missing, false) : '', bad: true },
@@ -812,14 +686,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tabla = d.branches.length > 1 ? `
       <div class="inv-dash-table-wrap">
         <table class="inv-dash-table">
-          <thead><tr><th>Sucursal</th><th class="num">Ventas</th><th class="num">Compras</th><th class="num">Merma</th><th class="num">% merma</th><th class="num">Faltó</th></tr></thead>
+          <thead><tr><th>Sucursal</th><th class="num">Compras</th><th class="num">Merma</th><th class="num">Merma / venta</th><th class="num">Faltó</th></tr></thead>
           <tbody>${d.branches.map((b) => `
             <tr>
               <td data-label="Sucursal"><strong>${esc(b.branch_name)}</strong></td>
-              <td class="num" data-label="Ventas">${b.sales_net != null ? esc(money(b.sales_net)) : '—'}</td>
               <td class="num" data-label="Compras">${esc(money(b.purchases))}</td>
               <td class="num" data-label="Merma">${esc(money(b.waste))}</td>
-              <td class="num" data-label="% merma">${esc(pctTxt(b.waste_pct_sales))}</td>
+              <td class="num" data-label="Merma / venta">${esc(pctTxt(b.waste_pct_sales))}</td>
               <td class="num" data-label="Faltó">${b.counts ? esc(money(b.count_missing)) : '—'}</td>
             </tr>`).join('')}
           </tbody>
@@ -865,7 +738,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderDashboard();
     } catch (err) {
       if (seq !== dashboard.seq) return;
-      box.innerHTML = '<p class="inv-ca-foot">No se pudo calcular el tablero. Probá de nuevo en un rato.</p>';
+      box.innerHTML = '<p class="inv-ca-foot">No se pudo calcular el tablero. Prueba de nuevo en un rato.</p>';
     }
   }
 
@@ -881,7 +754,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderResumen() {
     const recent = recentShipments();
-    const recentWaste = recentWasteStats();
     const spend = recent.reduce((acc, s) => acc + shipmentTotal(s), 0);
     const costed = recent.filter((s) => s.total_cost != null).length;
     const distinctItems = new Set();
@@ -903,7 +775,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         icon: 'dollar-sign',
         label: 'Gasto registrado',
         value: money(spend),
-        sub: recent.length ? `${costed} de ${recent.length} con costo cargado` : 'Cargá el costo unitario para verlo',
+        sub: recent.length ? `${costed} de ${recent.length} con costo cargado` : 'Carga el costo unitario para verlo',
       },
       {
         icon: 'layout-list',
@@ -916,14 +788,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         label: 'Proveedores activos',
         value: String(supplierIds.size),
         sub: `${state.suppliers.length} en el catálogo`,
-      },
-      {
-        icon: 'trending-down',
-        label: `Merma (${RECENT_DAYS} días)`,
-        value: recentWaste.total != null ? money(recentWaste.total) : '—',
-        sub: recentWaste.count
-          ? `${pluralize(recentWaste.count, 'registro', 'registros')}${recentWaste.total == null ? ', sin costo conocido' : ''}`
-          : 'Sin mermas registradas',
       },
     ];
 
@@ -938,54 +802,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTopItemsBars(recent);
     renderRecentShipments();
     renderBranchBars(recent);
-    renderWasteReasonBars(recentWaste.rows);
     // renderResumen solo corre al cargar y después de registrar algo, nunca por un clic suelto:
-    // acá animar siempre es correcto.
+    // aquí animar siempre es correcto.
     animarEntrada($('viewResumen'), $('recentShipments'));
     utils.renderIcons();
-  }
-
-  /**
-   * Merma por motivo. Es la pregunta que justifica el módulo: no "cuánto se perdió" sino "por
-   * qué", que es lo único sobre lo que se puede hacer algo. Se ordena por plata perdida cuando
-   * hay costos, y por cantidad de episodios cuando todavía no.
-   */
-  function renderWasteReasonBars(rows) {
-    const panel = $('wasteReasonPanel');
-    if (!panel) return;
-    if (!rows.length) {
-      panel.hidden = true;
-      return;
-    }
-    panel.hidden = false;
-
-    const porMotivo = new Map();
-    rows.forEach((w) => {
-      const entry = porMotivo.get(w.reason) || { label: w.reason_label, costo: 0, veces: 0, conCosto: false };
-      entry.veces += 1;
-      if (wasteCostValue(w) != null) {
-        entry.costo += wasteCostValue(w);
-        entry.conCosto = true;
-      }
-      porMotivo.set(w.reason, entry);
-    });
-
-    const hayCostos = Array.from(porMotivo.values()).some((e) => e.conCosto);
-    const lista = Array.from(porMotivo.values())
-      .sort((a, b) => (hayCostos ? b.costo - a.costo : b.veces - a.veces))
-      .slice(0, 8);
-    const tope = Math.max(...lista.map((e) => (hayCostos ? e.costo : e.veces)), 1);
-
-    $('wasteReasonNote').textContent = hayCostos ? `Últimos ${RECENT_DAYS} días, por costo` : `Últimos ${RECENT_DAYS} días`;
-    $('wasteReasonBars').innerHTML = lista.map((e) => {
-      const valor = hayCostos ? e.costo : e.veces;
-      return `
-        <div class="inv-bar-row inv-bar-row-waste">
-          <span class="inv-bar-name">${esc(e.label)}</span>
-          <span class="inv-bar-value">${hayCostos ? money(e.costo) : pluralize(e.veces, 'vez', 'veces')}</span>
-          <span class="inv-bar-track"><span class="inv-bar-fill inv-bar-fill-waste" style="width:${Math.max(4, (valor / tope) * 100)}%"></span></span>
-        </div>`;
-    }).join('');
   }
 
   /**
@@ -1056,7 +876,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rows = state.analytics.slice(0, 5);
     const container = $('recentShipments');
     if (!rows.length) {
-      container.innerHTML = emptyStateHtml('truck', 'Todavía no hay cargamentos', 'Registrá el primero y aparecerá acá.');
+      container.innerHTML = emptyStateHtml('truck', 'Todavía no hay cargamentos', 'Registra el primero y aparecerá aquí.');
       utils.renderIcons();
       return;
     }
@@ -1112,8 +932,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (!rows.length) {
       list.innerHTML = state.search.shipment
-        ? emptyStateHtml('search-x', 'Sin resultados', 'Probá con otro proveedor, insumo o persona.')
-        : emptyStateHtml('truck', 'Todavía no hay cargamentos', 'Registrá lo que llegó y va a quedar acá, con su detalle y su costo.');
+        ? emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro proveedor, insumo o persona.')
+        : emptyStateHtml('truck', 'Todavía no hay cargamentos', 'Registra lo que llegó y va a quedar aquí, con su detalle y su costo.');
       $('btnLoadMore').hidden = !state.shipmentsHasMore;
       renderShipmentDetail();
       utils.renderIcons();
@@ -1178,7 +998,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const costo = it.unit_cost != null ? Number(it.unit_cost) : null;
 
     if (costo == null) {
-      frases.push('<span class="inv-line-warn">Sin costo: cargalo en el próximo cargamento para que la merma y el conteo usen el precio real.</span>');
+      frases.push('<span class="inv-line-warn">Sin costo: cárgalo en el próximo cargamento para que la merma y el conteo usen el precio real.</span>');
     } else if (it.change_pct != null) {
       const pct = Number(it.change_pct);
       const cuando = `la compra del ${esc(fechaServidor(it.prev_received_at))}${it.prev_supplier ? ` (${esc(it.prev_supplier)})` : ''}`;
@@ -1301,7 +1121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (alGuardar) {
       aviso = c.notified
         ? 'Se abrió una incidencia y se le avisó al encargado por notificación.'
-        : 'Se abrió una incidencia en Operación de Sucursal. Ningún encargado tiene las notificaciones activadas en este momento: avisale también por el grupo.';
+        : 'Se abrió una incidencia en Operación de Sucursal. Ningún encargado tiene las notificaciones activadas en este momento: avísale también por el grupo.';
     } else if (c.incident_id) {
       aviso = `Incidencia #${c.incident_id} en Operación de Sucursal.`;
     }
@@ -1334,7 +1154,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const detail = $('shipmentDetail');
     const s = state.shipments.find((x) => x.id === state.selected.shipment);
     if (!s) {
-      detail.innerHTML = emptyStateHtml('mouse-pointer-click', 'Elegí un cargamento', 'Su detalle completo — insumos, cantidades y costos — aparece acá.');
+      detail.innerHTML = emptyStateHtml('mouse-pointer-click', 'Elige un cargamento', 'Su detalle completo — insumos, cantidades y costos — aparece aquí.');
       utils.renderIcons();
       return;
     }
@@ -1406,7 +1226,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <button type="button" class="inv-danger-outline" id="btnDeleteShipment">
             <i data-lucide="trash-2"></i><span>Eliminar cargamento</span>
           </button>
-          <small>${hasPerm('inventory.adjust') ? 'Si se cargó por error.' : 'Si te equivocaste: podés borrarlo hasta 24 horas después de cargarlo.'}</small>
+          <small>${hasPerm('inventory.adjust') ? 'Si se cargó por error.' : 'Si te equivocaste: puedes borrarlo hasta 24 horas después de cargarlo.'}</small>
         </div>`);
       $('btnDeleteShipment').addEventListener('click', () => openShipmentDelete(s));
     }
@@ -1533,7 +1353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!rows.length) {
       list.innerHTML = q
         ? emptyStateHtml('search-x', 'Sin resultados', 'Ningún insumo del catálogo coincide con esa búsqueda.')
-        : emptyStateHtml('layout-list', 'Catálogo vacío', 'Creá tu primer insumo o agregalo al vuelo mientras registrás un cargamento.');
+        : emptyStateHtml('layout-list', 'Catálogo vacío', 'Crea tu primer insumo o agrégalo al vuelo mientras registrás un cargamento.');
       renderItemDetail();
       utils.renderIcons();
       return;
@@ -1578,7 +1398,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const detail = $('itemDetail');
     const item = state.items.find((i) => i.id === state.selected.item);
     if (!item) {
-      detail.innerHTML = emptyStateHtml('mouse-pointer-click', 'Elegí un insumo', 'Cuánto entró, de quién y a qué costo aparece acá.');
+      detail.innerHTML = emptyStateHtml('mouse-pointer-click', 'Elige un insumo', 'Cuánto entró, de quién y a qué costo aparece aquí.');
       utils.renderIcons();
       return;
     }
@@ -1697,8 +1517,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       list.innerHTML = q
         ? emptyStateHtml('search-x', 'Sin resultados', 'Ningún proveedor coincide con esa búsqueda.')
         : (state.invu.configured
-            ? emptyStateHtml('building-2', 'Sin proveedores', 'Se cargan en Invu. Apretá "Sincronizar con Invu" para traerlos.')
-            : emptyStateHtml('building-2', 'Sin proveedores', 'Creá el primero o agregalo al vuelo mientras registrás un cargamento.'));
+            ? emptyStateHtml('building-2', 'Sin proveedores', 'Se cargan en Invu. Aprieta "Sincronizar con Invu" para traerlos.')
+            : emptyStateHtml('building-2', 'Sin proveedores', 'Crea el primero o agrégalo al vuelo mientras registrás un cargamento.'));
       renderSupplierDetail();
       utils.renderIcons();
       return;
@@ -1738,7 +1558,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const detail = $('supplierDetail');
     const sup = state.suppliers.find((s) => s.id === state.selected.supplier);
     if (!sup) {
-      detail.innerHTML = emptyStateHtml('mouse-pointer-click', 'Elegí un proveedor', 'Cuánto te trae y cuánto te cuesta aparece acá.');
+      detail.innerHTML = emptyStateHtml('mouse-pointer-click', 'Elige un proveedor', 'Cuánto te trae y cuánto te cuesta aparece aquí.');
       utils.renderIcons();
       return;
     }
@@ -1807,7 +1627,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const name = $('newItemName').value.trim();
     const unit = $('newItemUnit').value.trim();
     const category = $('newItemCategory').value.trim();
-    if (!name) { showModalError('itemError', 'Poné un nombre para el insumo.'); return; }
+    if (!name) { showModalError('itemError', 'Pon un nombre para el insumo.'); return; }
     if (!unit) { showModalError('itemError', 'Falta la unidad: cómo lo vas a contar (kg, caja, unidad...).'); return; }
 
     const btn = $('btnSaveItem');
@@ -1852,7 +1672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btnSaveSupplier')?.addEventListener('click', async () => {
     const name = $('newSupplierName').value.trim();
     const phone = $('newSupplierPhone').value.trim();
-    if (!name) { showModalError('supplierError', 'Poné un nombre para el proveedor.'); return; }
+    if (!name) { showModalError('supplierError', 'Pon un nombre para el proveedor.'); return; }
 
     const btn = $('btnSaveSupplier');
     btn.disabled = true;
@@ -1970,7 +1790,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { invoiced, qty: q, status } = lineReceipt(row);
     const u = unitShort(itemInput.dataset.unit || '');
     const diff = strip.querySelector('.inv-recv-diff');
-    let txt = 'Anotá lo facturado';
+    let txt = 'Anota lo facturado';
     let cls = 'muted';
     if (invoiced != null && q != null) {
       const d = q - invoiced;
@@ -2214,7 +2034,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       html += `<button type="button" class="inv-item-suggestion inv-item-suggestion-create" data-create="1">+ Crear "${esc(trimmed)}"</button>`;
     }
     if (!results.length && state.invu.configured) {
-      html = '<div class="inv-item-suggestion-empty">No está en Invu. Cargalo allá y sincronizá desde Proveedores.</div>';
+      html = '<div class="inv-item-suggestion-empty">No está en Invu. Cárgalo allá y sincronizá desde Proveedores.</div>';
     }
     supplierSuggestions.innerHTML = html;
     supplierSuggestions.hidden = false;
@@ -2258,7 +2078,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     errorBox.style.display = 'none';
 
     const branchId = state.fixedBranchId || ($('branchSelect').value ? Number($('branchSelect').value) : null);
-    if (!branchId) { showModalError('shipmentError', 'Elegí una sucursal.'); return; }
+    if (!branchId) { showModalError('shipmentError', 'Elige una sucursal.'); return; }
 
     const rows = Array.from(linesContainer.querySelectorAll('.inv-line-row'));
     const conFactura = invoiceMode();
@@ -2272,7 +2092,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const r = lineReceipt(row);
       const facturado = conFactura ? row.querySelector('.inv-line-invoiced').value : '';
       if (!itemId && !qtyValue && !facturado) continue; // fila vacía, se ignora
-      if (!itemId) { showModalError('shipmentError', 'Elegí un insumo de la lista (o creá uno nuevo) en cada fila con cantidad.'); itemInput.focus(); return; }
+      if (!itemId) { showModalError('shipmentError', 'Elige un insumo de la lista (o crea uno nuevo) en cada fila con cantidad.'); itemInput.focus(); return; }
       if (qtyValue === '' || Number(qtyValue) < 0) {
         showModalError('shipmentError', conFactura ? `Falta cuánto llegó de "${itemInput.value}" (0 si no llegó nada).` : `Falta la cantidad de "${itemInput.value}".`);
         qtyInput.focus();
@@ -2282,7 +2102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const ceroValido = conFactura && ((facturado !== '' && Number(facturado) > 0) || (r.status && r.status !== ''));
       if (Number(qtyValue) === 0 && !ceroValido) {
         showModalError('shipmentError', conFactura
-          ? `"${itemInput.value}" dice 0: si no llegó nada, anotá cuánto dice la factura.`
+          ? `"${itemInput.value}" dice 0: si no llegó nada, anota cuánto dice la factura.`
           : `Falta la cantidad de "${itemInput.value}".`);
         qtyInput.focus();
         return;
@@ -2296,7 +2116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         line_note: conFactura && r.status && r.note ? r.note : null,
       });
     }
-    if (!items.length) { showModalError('shipmentError', 'Agregá al menos un insumo.'); return; }
+    if (!items.length) { showModalError('shipmentError', 'Agrega al menos un insumo.'); return; }
 
     const sospechosos = rows.map((row) => {
       const unit = row.querySelector('.inv-item-input').dataset.unit;
@@ -2309,12 +2129,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const firma = sospechosos.join('|');
     if (sospechosos.length && shipmentCostConfirmed !== firma) {
       shipmentCostConfirmed = firma;
-      showModalError('shipmentError', `Revisá el costo de ${sospechosos.join(', ')}: parece el precio del paquete y va por unidad del insumo (g, ml). Si está bien, tocá "Registrar cargamento" otra vez.`);
+      showModalError('shipmentError', `Revisa el costo de ${sospechosos.join(', ')}: parece el precio del paquete y va por unidad del insumo (g, ml). Si está bien, toca "Guardar lo recibido" otra vez.`);
       return;
     }
 
     if (supplierInput.value.trim() && !state.selectedSupplierId) {
-      showModalError('shipmentError', 'Elegí un proveedor de la lista (o creá uno nuevo), o dejá el campo vacío.');
+      showModalError('shipmentError', 'Elige un proveedor de la lista (o crea uno nuevo), o deja el campo vacío.');
       return;
     }
 
@@ -2372,7 +2192,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.textContent = 'Subiendo foto...';
         const { ultima, fallidas } = await uploadShipmentPhotos(creado.id, pendingShipmentPhotos.map((p) => p.blob));
         if (ultima) creado = { ...ultima, insights: creado.insights, notified: creado.notified };
-        if (fallidas) utils.showToast(`${pluralize(fallidas, 'foto no se pudo', 'fotos no se pudieron')} subir. Podés intentarlo de nuevo más tarde.`, 'error');
+        if (fallidas) utils.showToast(`${pluralize(fallidas, 'foto no se pudo', 'fotos no se pudieron')} subir. Puedes intentarlo de nuevo más tarde.`, 'error');
       }
       closeModal('modalShipment');
       showShipmentResult(creado);
@@ -2387,7 +2207,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       showModalError('shipmentError', err.message || 'No se pudo registrar el cargamento.');
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Registrar cargamento';
+      btn.textContent = 'Guardar lo recibido';
     }
   }
 
@@ -2558,7 +2378,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('btnSaveExpected')?.addEventListener('click', async () => {
     const fecha = $('expectedDate').value;
-    if (!fecha) { showModalError('expectedError', 'Elegí el día.'); return; }
+    if (!fecha) { showModalError('expectedError', 'Elige el día.'); return; }
     const btn = $('btnSaveExpected');
     btn.disabled = true;
     try {
@@ -2600,148 +2420,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
   // ==========================================================================
-  // Vista: Merma
+  // Utilidades que antes vivían en la vista de Merma (la merma se registra ahora en /merma y se
+  // analiza en Reportes) y que Cargamentos sigue usando: permisos, tendencia semanal, achicar la
+  // foto de la factura y el visor de fotos.
   // ==========================================================================
-  function filteredWaste() {
-    const q = state.search.waste.trim().toLowerCase();
-    if (!q) return state.waste;
-    return state.waste.filter((w) => {
-      const heno = [
-        w.reason_label,
-        w.recorded_by_name,
-        w.branch_name,
-        w.notes || '',
-        ...w.items.map((l) => l.item_name),
-      ].join(' ').toLowerCase();
-      return heno.includes(q);
-    });
+  function hasPerm(code) {
+    return (state.user?.permissions || []).includes(code);
   }
-
-  const WASTE_ICONS = {
-    vencido: 'calendar-x',
-    danado: 'package-x',
-    error_preparacion: 'chef-hat',
-    derrame: 'droplets',
-    devolucion: 'undo-2',
-    consumo_interno: 'utensils',
-    faltante: 'search-x',
-    otro: 'circle-help',
-  };
-
-  const wasteIcon = (reason) => WASTE_ICONS[reason] || 'trending-down';
-
-  /** Cuántas unidades salieron en un registro, resumido para la fila de la lista. */
-  function wasteQuantityLabel(w) {
-    if (w.items.length === 1) {
-      const line = w.items[0];
-      if (line.mode === 'entera' && line.pieces != null) {
-        const n = Number(line.pieces);
-        return `${qty(n)} ${n === 1 ? 'entera' : 'enteras'}`;
-      }
-      return `${qty(line.quantity)} ${unitShort(line.unit)}`;
-    }
-    return pluralize(w.items.length, 'insumo', 'insumos');
-  }
-
-  /** "2 piezas enteras · 160 g", "40 g · una parte", o la cantidad a secas (mermas anteriores). */
-  function wasteLineQtyTxt(l) {
-    const enUnidad = `${qty(l.quantity)} ${unitShort(l.unit)}`;
-    const fam = unitFamily(l.unit);
-    const mu = fam.fam === 'volumen' ? 'ml' : 'g';
-    if (l.mode === 'entera' && l.pieces != null) {
-      const n = Number(l.pieces);
-      const piezas = `${qty(n)} ${n === 1 ? 'pieza entera' : 'piezas enteras'}`;
-      if (l.measured_amount != null) {
-        return `${piezas} · ${fam.fam === 'unidad' ? `${qty(l.measured_amount)} ${mu}` : enUnidad} pesado`;
-      }
-      // Sin pesar: el peso es el promedio de la pieza (≈). Por unidad la cantidad es exacta.
-      return fam.fam === 'unidad' ? piezas : `${piezas} · ≈ ${enUnidad} (peso promedio)`;
-    }
-    if (l.mode === 'parte') {
-      if (fam.fam === 'unidad' && (l.measured_amount != null || l.piece_size)) {
-        // 0.333 × 90 g da 29.97: se redondea a gramo entero (a décima si es menos de 10 g).
-        const g = l.measured_amount != null ? Number(l.measured_amount) : Number(l.quantity) * Number(l.piece_size);
-        return `${Number(g.toFixed(g >= 10 ? 0 : 1))} g · una parte (${enUnidad})`;
-      }
-      return `${enUnidad} · una parte`;
-    }
-    return enUnidad;
-  }
-
-  function renderWasteList() {
-    const rows = filteredWaste();
-    const list = $('wasteList');
-
-    $('wasteCount').textContent = rows.length ? pluralize(rows.length, 'merma', 'mermas') : 'Mermas';
-    $('wasteScopeLabel').textContent = state.isGlobalScope
-      ? (state.wasteBranchFilter
-          ? (state.branches.find((b) => String(b.id) === state.wasteBranchFilter)?.name || '')
-          : 'Todas las sucursales')
-      : '';
-
-    if (!rows.length) {
-      list.innerHTML = (state.search.waste || state.wasteReasonFilter)
-        ? emptyStateHtml('search-x', 'Sin resultados', 'Probá con otro motivo, insumo o persona.')
-        : emptyStateHtml('trending-down', 'Todavía no hay mermas', 'Registrá lo que se perdió y acá queda el historial, con su motivo y su costo.');
-      $('btnLoadMoreWaste').hidden = !state.wasteHasMore;
-      renderWasteDetail();
-      utils.renderIcons();
-      return;
-    }
-
-    if (!rows.some((w) => w.id === state.selected.waste)) {
-      state.selected.waste = rows[0].id;
-    }
-
-    list.innerHTML = rows.map((w) => {
-      const active = w.id === state.selected.waste ? ' active' : '';
-      const sub = [utils.formatDateTime(w.occurred_at), state.isGlobalScope ? w.branch_name : null]
-        .filter(Boolean).join(' · ');
-      return `
-        <button type="button" class="inv-row${active}" data-waste-id="${w.id}">
-          <span class="inv-row-thumb inv-row-thumb-waste"><i data-lucide="${wasteIcon(w.reason)}"></i></span>
-          <span class="inv-row-info">
-            <strong>${esc(w.reason_label)}</strong>
-            <small>${esc(sub)}</small>
-          </span>
-          ${(w.photos || []).length ? `<span class="inv-photo-flag" title="${pluralize(w.photos.length, 'foto', 'fotos')}" aria-label="Con foto"><i data-lucide="camera"></i></span>` : ''}
-          <span class="inv-badge muted">${esc(wasteQuantityLabel(w))}</span>
-          <span class="inv-row-amount inv-row-amount-waste">${wasteCostValue(w) != null ? `${w.cost_estimated ? '≈ ' : ''}-${money(wasteCostValue(w))}` : '—'}</span>
-        </button>`;
-    }).join('');
-
-    list.querySelectorAll('.inv-row').forEach((row) => {
-      row.addEventListener('click', () => {
-        state.selected.waste = Number(row.dataset.wasteId);
-        renderWasteList();
-        openDetailOnMobile($('wasteList'));
-      });
-    });
-
-    $('btnLoadMoreWaste').hidden = !state.wasteHasMore;
-    renderWasteDetail();
-    utils.renderIcons();
-  }
-
-  // ---- Contexto de una merma ----
-  // Al guardar (y en el detalle): cuánto va de ese insumo en la semana y el mes, si el motivo se
-  // repite, en qué puesto está y qué parte de lo usado se botó. Sale de GET /waste/{id}/insights.
-  const wasteInsightsCache = new Map();
-
-  // Qué hacer, según el motivo. Corto: es para leerlo parado en la cocina.
-  const REASON_TIPS = {
-    vencido: 'Revisá la rotación (lo primero que entra, primero sale) y si conviene pedir menos.',
-    danado: 'Revisá cómo llega y cómo se guarda: los golpes suelen ser de la recepción o del almacenamiento.',
-    derrame: 'Mirá dónde y cómo se manipula: recipientes, estantes, traslados.',
-    error_preparacion: 'Si se repite, conviene repasar la receta o el procedimiento con el equipo.',
-    recorte: 'Es merma de proceso: lo importante es cuánto se aprovecha de lo que se limpia.',
-    devolucion: 'Anotá qué reclamó el cliente: así se puede corregir.',
-    consumo_interno: 'Si es comida del personal, conviene tener una regla clara de qué y cuánto.',
-    faltante: 'Hacé un conteo de ese insumo para ver si falta más.',
-  };
-
-  const ordinal = (n) => `${n}.ª`;   // «la 3.ª vez»
-  const puesto = (n) => (n === 1 ? 'el insumo que más plata se pierde' : `el ${n}.º insumo que más plata se pierde`);
 
   function trendTxt(ahora, antes) {
     const a = Number(ahora);
@@ -2753,700 +2438,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     return pct > 0 ? `, <strong>${pct}% más</strong> que la semana anterior (${esc(money(b))})` : `, ${Math.abs(pct)}% menos que la semana anterior`;
   }
 
-  function wasteInsightItemHtml(it, ins) {
-    const aprox = it.cost_estimated ? '≈ ' : '';
-    const u = unitShort(it.unit);
-    const motivo = (REASON_UI[ins.reason] || { label: ins.reason_label }).label;
-    const frases = [];
-    frases.push(`Esta semana van <strong>${esc(qty(it.week_quantity))} ${esc(u)}</strong> botados (${aprox}${esc(money(it.week_cost))}) en ${pluralize(it.week_records, 'merma', 'mermas')}${trendTxt(it.week_cost, it.prev_week_cost)}.`);
-    if (it.same_reason_month >= 2) {
-      frases.push(`Es la <strong>${ordinal(it.same_reason_month)} vez</strong> este mes por «${esc(motivo)}».`);
-    }
-    if (it.rank_month && it.items_ranked > 1 && it.rank_month <= 3) {
-      frases.push(`Es ${puesto(it.rank_month)} este mes en ${esc(ins.branch_name)} (${aprox}${esc(money(it.month_cost))}).`);
-    }
-    if (it.waste_pct_month != null) {
-      const pct = Number(it.waste_pct_month);
-      frases.push(`De todo lo que se usó este mes, se botó el <strong>${pct.toLocaleString('es-PA', { maximumFractionDigits: 1 })}%</strong>${pct > 5 ? ': arriba de 5% vale revisarlo' : ''}.`);
-    }
-    if (ins.reason === 'vencido') frases.push(...vencidoFrases(it, u));
-    return `
-      <div class="inv-ca-line">
-        <div class="inv-ca-line-head">
-          <strong>${esc(it.name)}</strong>
-          ${it.this_cost != null ? `<span class="inv-ca-chip inv-ca-chip-short">${aprox}${esc(money(it.this_cost))}</span>` : ''}
-        </div>
-        <ul class="inv-wi-list">${frases.map((f) => `<li>${f}</li>`).join('')}</ul>
-      </div>`;
-  }
-
-  /** Se venció: la última compra contra el ritmo de uso, y cuánto conviene pedir. */
-  function vencidoFrases(it, u) {
-    const frases = [];
-    const dias0 = (n) => Number(n).toLocaleString('es-PA', { maximumFractionDigits: 0 });
-    if (it.last_purchase_qty != null) {
-      const dias = it.days_to_expire;
-      const compra = `La última compra fue de <strong>${esc(qty(it.last_purchase_qty))} ${esc(u)}</strong> el ${esc(fechaServidor(it.last_purchase_at))}${it.last_purchase_supplier ? ` (${esc(it.last_purchase_supplier)})` : ''}`;
-      if (dias === 0) {
-        frases.push(`${compra} y se venció el mismo día que llegó: revisalo con el proveedor.`);
-      } else if (it.used_per_day != null) {
-        frases.push(`${compra} y se venció a los <strong>${dias} ${dias === 1 ? 'día' : 'días'}</strong>. Se usan ~${esc(qty(it.used_per_day))} ${esc(u)} por día en platos vendidos: esa compra alcanzaba para <strong>${dias0(it.purchase_cover_days)} días</strong>.`);
-        if (it.suggested_max_qty != null && Number(it.suggested_max_qty) < Number(it.last_purchase_qty)) {
-          frases.push(`<span class="inv-wi-action">Para que no se venza, comprá como máximo <strong>~${esc(qty(it.suggested_max_qty))} ${esc(u)}</strong> por pedido (lo que se usa en ${dias} ${dias === 1 ? 'día' : 'días'}), o pedí más seguido y en menos cantidad.</span>`);
-        } else if (it.suggested_max_qty != null) {
-          frases.push('No se compró de más para lo que se usa: revisá cómo se guarda y que se use primero lo que llegó antes.');
-        }
-      } else {
-        frases.push(`${compra} y se venció a los <strong>${dias} ${dias === 1 ? 'día' : 'días'}</strong>. Sin receta en Invu no se sabe cuánto se usa por día; con la receta, el sistema te dice cuánto conviene comprar.`);
-      }
-    } else {
-      frases.push('No hay compras registradas de este insumo en la sucursal: registrá los cargamentos para saber si se está pidiendo de más.');
-    }
-    if (it.expired_90d >= 2) frases.push(`Se venció <strong>${it.expired_90d} veces</strong> en los últimos 90 días.`);
-    return frases;
-  }
-
-  function wasteInsightsHtml(ins) {
-    const tip = REASON_TIPS[ins.reason];
-    return `
-      ${ins.items.map((it) => wasteInsightItemHtml(it, ins)).join('')}
-      <p class="inv-wi-branch">En ${esc(ins.branch_name)} van <strong>${esc(money(ins.branch_week_cost))}</strong> de merma en los últimos 7 días (${pluralize(ins.branch_week_records, 'merma', 'mermas')})${trendTxt(ins.branch_week_cost, ins.branch_prev_week_cost)}.</p>
-      ${tip ? `<p class="inv-wi-tip"><i data-lucide="lightbulb"></i><span>${esc(tip)}</span></p>` : ''}`;
-  }
-
-  async function wasteInsightsFor(id) {
-    if (wasteInsightsCache.has(id)) return wasteInsightsCache.get(id);
-    const ins = await api.get(`/inventory/waste/${id}/insights`);
-    wasteInsightsCache.set(id, ins);
-    return ins;
-  }
-
-  /** Lo que se ve al guardar una merma, en vez de solo "Merma registrada". */
-  function showWasteResult(merma, { fotosFallidas = 0 } = {}) {
-    wasteInsightsCache.clear();
-    if (merma.insights) wasteInsightsCache.set(merma.id, merma.insights);
-    const avisos = [];
-    if (fotosFallidas) {
-      avisos.push(`${pluralize(fotosFallidas, 'foto no se subió', 'fotos no se subieron')}: se ${fotosFallidas === 1 ? 'puede' : 'pueden'} agregar desde el detalle de la merma.`);
-    }
-    if (merma.negative_items && merma.negative_items.length) {
-      avisos.push(`${esc(merma.negative_items.join(', '))} ${merma.negative_items.length === 1 ? 'queda' : 'quedan'} en negativo: falta el conteo de arranque de la sucursal.`);
-    }
-    $('wasteResultTitle').textContent = `Merma #${merma.id} registrada`;
-    $('wasteResultSubtitle').textContent = `${merma.branch_name} · se pierde ${wasteCostTxt(merma)}`;
-    const alerta = (merma.alert_reasons || []).length ? `
-      <div class="inv-recv-result is-warn">
-        <i data-lucide="bell-ring"></i>
-        <div>
-          <strong>Merma importante</strong>
-          <ul>${merma.alert_reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
-          <p class="inv-recv-result-note">${merma.notified
-            ? 'Se le avisó al encargado por notificación.'
-            : 'Ningún encargado tiene las notificaciones activadas en este momento: avisale también por el grupo.'}</p>
-        </div>
-      </div>` : '';
-    $('wasteResultBody').innerHTML = `
-      ${alerta}
-      ${avisos.map((a) => `<p class="inv-wi-warn">${a}</p>`).join('')}
-      ${merma.insights ? wasteInsightsHtml(merma.insights) : ''}`;
-    openModal('modalWasteResult');
-  }
-
-  function renderWasteDetail() {
-    const detail = $('wasteDetail');
-    const w = state.waste.find((x) => x.id === state.selected.waste);
-    if (!w) {
-      detail.innerHTML = emptyStateHtml('mouse-pointer-click', 'Elegí una merma', 'Su detalle — insumos, cantidades y pérdida — aparece acá.');
-      utils.renderIcons();
-      return;
-    }
-
-    const fotos = w.photos || [];
-    const rowsHtml = w.items.map((l) => {
-      // Sin cargamento con costo, el de Invu marcado con ≈ (igual que en la lista y el análisis).
-      const costo = l.unit_cost != null ? Number(l.unit_cost) : (l.reference_cost != null ? Number(l.reference_cost) : null);
-      const aprox = l.unit_cost == null && l.reference_cost != null ? '≈ ' : '';
-      const subtotal = costo != null ? `${aprox}${money(Number(l.quantity) * costo)}` : '—';
-      return `
-        <tr>
-          <td class="inv-td-name" data-label="Insumo">${esc(l.item_name)}</td>
-          <td class="num" data-label="Cantidad">${esc(wasteLineQtyTxt(l))}</td>
-          <td class="num" data-label="Costo unit.">${costo != null ? `${aprox}${unitCost(costo)}` : '—'}</td>
-          <td class="num" data-label="Pérdida">${subtotal}</td>
-        </tr>`;
-    }).join('');
-
-    const footHtml = wasteCostValue(w) != null ? `
-      <tfoot>
-        <tr>
-          <td colspan="3" class="inv-td-total-label">Pérdida total</td>
-          <td class="num" data-label="Pérdida total">${esc(wasteCostTxt(w))}</td>
-        </tr>
-      </tfoot>` : '';
-
-    detail.innerHTML = `
-      ${detailBackHtml()}
-      <div class="inv-detail-header">
-        <span class="inv-detail-thumb inv-detail-thumb-waste"><i data-lucide="${wasteIcon(w.reason)}"></i></span>
-        <span class="inv-badge warn">Merma #${w.id}</span>
-      </div>
-      <h3>${esc(w.reason_label)}</h3>
-      <p class="inv-detail-sub">${esc(utils.formatDateTime(w.occurred_at))} · ${esc(w.branch_name)}</p>
-      ${w.notes ? `<p class="inv-detail-note">${esc(w.notes)}</p>` : ''}
-      <div class="inv-metrics">
-        <div><span>Ítems</span><strong>${w.items.length} <small>${w.items.length === 1 ? 'línea' : 'líneas'}</small></strong></div>
-        <div><span>Pérdida</span><strong>${esc(wasteCostTxt(w))}${w.cost_estimated ? ' <small>costo de Invu</small>' : ''}</strong></div>
-        <div><span>Peso</span><strong>${w.weight_value != null ? `${w.weight_estimated ? '≈ ' : ''}${esc(qty(w.weight_value))} <small>${esc(w.weight_unit || 'kg')}${w.weight_estimated ? ' · estimado' : ''}</small>` : '—'}</strong></div>
-        <div><span>Evidencia</span><strong>${fotos.length ? `${fotos.length} <small>${fotos.length === 1 ? 'foto' : 'fotos'}</small>` : '—'}</strong></div>
-        ${w.is_process && w.processed_value != null ? `
-          <div><span>Se limpió</span><strong>${esc(qty(w.processed_value))} <small>${esc(w.processed_unit || 'kg')}</small></strong></div>
-          <div><span>Rendimiento</span><strong>${w.yield_pct != null ? `${Number(w.yield_pct).toLocaleString('es-PA', { maximumFractionDigits: 1 })}% <small>aprovechado</small>` : '—'}</strong></div>` : ''}
-      </div>
-      ${w.is_process ? '<p class="inv-detail-note">Merma de proceso: lo que se saca al limpiar o preparar. En el análisis va aparte de la merma evitable.</p>' : ''}
-      <div class="inv-detail-section-header"><span>Insumos perdidos</span></div>
-      <table class="inv-detail-table">
-        <thead>
-          <tr><th>Insumo</th><th class="num">Cantidad</th><th class="num">Costo unit.</th><th class="num">Pérdida</th></tr>
-        </thead>
-        <tbody>${rowsHtml}</tbody>
-        ${footHtml}
-      </table>
-      <div class="inv-detail-section-header"><span>En contexto</span></div>
-      <div class="inv-waste-insights" id="wasteInsightsBox"><div class="inv-ca-loading">Calculando…</div></div>
-      <div class="inv-detail-section-header"><span>Evidencia</span></div>
-      <div class="inv-photo-grid" id="wasteDetailPhotos">
-        ${fotos.map((p) => `<button type="button" class="inv-photo-thumb is-loading" data-photo-id="${p.id}" aria-label="Ver foto (subida por ${esc(p.uploaded_by_name || 'alguien')})"></button>`).join('')}
-        ${fotos.length < WASTE_PHOTOS_MAX ? `
-          <div class="inv-photo-add-group">
-            <button type="button" class="inv-photo-add" data-photo-camera="detail">
-              <i data-lucide="camera"></i><span>Tomar foto</span>
-            </button>
-            <button type="button" class="inv-photo-add inv-photo-add-secondary" id="btnAddWastePhoto">
-              <i data-lucide="image"></i><span>Galería</span>
-            </button>
-          </div>` : ''}
-      </div>
-      ${fotos.length ? '' : '<p class="inv-photo-empty">Esta merma no tiene foto de evidencia.</p>'}
-      <div class="inv-detail-section-header"><span>Detalles</span></div>
-      <div class="inv-detail-rows">
-        <div><span>Sucursal</span><strong>${esc(w.branch_name)}</strong></div>
-        <div><span>Registrado por</span><strong>${esc(w.recorded_by_name)}</strong></div>
-        <div><span>Ocurrió el</span><strong>${esc(utils.formatDateTime(w.occurred_at))}</strong></div>
-        <div><span>Cargado al sistema</span><strong>${esc(utils.formatDateTime(w.created_at))}</strong></div>
-      </div>
-      ${canDeleteWaste(w) ? `
-        <div class="inv-detail-danger">
-          <button type="button" class="inv-danger-outline" id="btnDeleteWaste">
-            <i data-lucide="trash-2"></i><span>Eliminar merma</span>
-          </button>
-          <small>${hasPerm('inventory.adjust') ? 'Si se cargó por error.' : 'Si te equivocaste: podés borrarla hasta 24 horas después de cargarla.'}</small>
-        </div>` : ''}`;
-    utils.renderIcons();
-    wirePhotoGallery(w);
-    $('btnDeleteWaste')?.addEventListener('click', () => openWasteDelete(w));
-    wasteInsightsFor(w.id)
-      .then((ins) => {
-        const box = $('wasteInsightsBox');
-        if (!box || state.selected.waste !== w.id) return;
-        box.innerHTML = wasteInsightsHtml(ins);
-        utils.renderIcons();
-      })
-      .catch(() => {
-        const box = $('wasteInsightsBox');
-        if (box) box.innerHTML = '<p class="inv-ca-foot">No se pudo calcular el contexto.</p>';
-      });
-  }
-
-  // ---- Eliminar merma (cargada por error) ----
-  // Mismas reglas que el servidor, solo para no mostrar un botón que va a dar 403: supervisor y
-  // admin cualquiera que vean; quien la cargó, la suya durante las primeras 24 horas.
-  function hasPerm(code) {
-    return (state.user?.permissions || []).includes(code);
-  }
-
-  function canDeleteWaste(w) {
-    if (hasPerm('inventory.adjust')) return true;
-    if (!state.user || w.recorded_by_user_id !== state.user.id) return false;
-    return Date.now() - (utils._parseServerDate(w.created_at) || new Date(0)).getTime() <= WASTE_SELF_DELETE_MS;
-  }
-
-  let wasteToDelete = null;
-
-  function openWasteDelete(w) {
-    wasteToDelete = w;
-    $('wasteDeleteError').style.display = 'none';
-    $('wasteDeleteReason').value = '';
-    $('wasteDeleteTitle').textContent = `Eliminar merma #${w.id}`;
-    const insumos = w.items.map((l) => `${wasteLineQtyTxt(l)} de ${l.item_name}`).join(', ');
-    $('wasteDeleteSummary').textContent =
-      `${w.reason_label} · ${insumos}${wasteCostValue(w) != null ? ` · ${wasteCostTxt(w)}` : ''}`;
-    openModal('modalWasteDelete');
-    $('wasteDeleteReason').focus();
-  }
-
-  $('btnConfirmWasteDelete')?.addEventListener('click', async () => {
-    if (!wasteToDelete) return;
-    const btn = $('btnConfirmWasteDelete');
-    btn.disabled = true;
-    btn.textContent = 'Eliminando...';
+  /** Achica la foto antes de subirla (una de celular pesa 3-5 MB). Si no se puede, va tal cual. */
+  async function compressPhoto(file) {
+    let tmpUrl = null;
     try {
-      const motivo = $('wasteDeleteReason').value.trim();
-      await api.delete(`/inventory/waste/${wasteToDelete.id}${motivo ? `?motivo=${encodeURIComponent(motivo)}` : ''}`);
-      closeModal('modalWasteDelete');
-      wasteInsightsCache.clear();
-      utils.showToast(`Merma #${wasteToDelete.id} eliminada.`, 'success');
-      wasteToDelete = null;
-      state.selected.waste = null;
-      closeAllMobileDetails();
-      await Promise.all([loadWaste({ reset: true }), loadWasteAnalytics(), loadStock()]);
-      renderResumen();
-      if (wasteAnalysis.tab === 'analisis') loadWasteAnalysis();
-    } catch (err) {
-      showModalError('wasteDeleteError', err.message || 'No se pudo eliminar la merma.');
+      let source;
+      if (window.createImageBitmap) {
+        source = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      } else {
+        tmpUrl = URL.createObjectURL(file);
+        source = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = tmpUrl;
+        });
+      }
+      const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(source.width, source.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(source.width * scale);
+      canvas.height = Math.round(source.height * scale);
+      canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+      if (source.close) source.close();
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+      if (blob) return blob;
+    } catch (e) {
+      /* Un formato que este navegador no sabe dibujar (p. ej. HEIC fuera de Safari): se manda
+         el original y el servidor decide si es una imagen aceptada. */
     } finally {
-      btn.disabled = false;
-      btn.textContent = 'Eliminar merma';
+      if (tmpUrl) URL.revokeObjectURL(tmpUrl);
     }
-  });
-
-  $('wasteSearch')?.addEventListener('input', (e) => {
-    state.search.waste = e.target.value;
-    renderWasteList();
-  });
-
-  $('wasteReasonFilter')?.addEventListener('change', (e) => {
-    state.wasteReasonFilter = e.target.value;
-    state.selected.waste = null;
-    loadWaste({ reset: true });
-  });
-
-  // ==========================================================================
-  // Merma → Análisis (los números salen de GET /inventory/waste/analytics)
-  // ==========================================================================
-  const wasteAnalysis = { tab: 'registros', period: '30', branch: '', metric: 'cost', data: null, recipes: null, seq: 0 };
-
-  /** Hoy en Panamá (YYYY-MM-DD): los días de la merma y de las ventas se cuentan en esa hora. */
-  function hoyPanama() {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
-  }
-  function isoMasDias(iso, dias) {
-    const d = new Date(`${iso}T12:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + dias);
-    return d.toISOString().slice(0, 10);
-  }
-  function periodoMerma(p) {
-    const hoy = hoyPanama();
-    if (p === '7') return { from: isoMasDias(hoy, -6), to: hoy };
-    if (p === 'mes') return { from: `${hoy.slice(0, 7)}-01`, to: hoy };
-    if (p === 'mes-anterior') {
-      const finAnterior = isoMasDias(`${hoy.slice(0, 7)}-01`, -1);
-      return { from: `${finAnterior.slice(0, 7)}-01`, to: finAnterior };
-    }
-    return { from: isoMasDias(hoy, -29), to: hoy };
-  }
-  const fechaCorta = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-PA', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-  const kgTxt = (n) => `${qty(n)} kg`;
-
-  function setWasteTab(tab) {
-    wasteAnalysis.tab = tab;
-    document.querySelectorAll('#wasteTabs [data-waste-tab]').forEach((b) => {
-      const on = b.dataset.wasteTab === tab;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    $('wasteAnalysis').hidden = tab !== 'analisis';
-    $('wasteRecordsPane').hidden = tab !== 'registros';
-    if (tab === 'analisis') loadWasteAnalysis();
-  }
-  document.querySelectorAll('#wasteTabs [data-waste-tab]').forEach((b) => b.addEventListener('click', () => setWasteTab(b.dataset.wasteTab)));
-
-  function segmentado(id, attr, onPick) {
-    document.querySelectorAll(`#${id} [data-${attr}]`).forEach((b) => b.addEventListener('click', () => {
-      document.querySelectorAll(`#${id} [data-${attr}]`).forEach((x) => x.classList.toggle('active', x === b));
-      onPick(b.dataset[attr]);
-    }));
-  }
-  segmentado('wastePeriod', 'period', (p) => { wasteAnalysis.period = p; loadWasteAnalysis(); });
-  segmentado('wasteMetric', 'metric', (m) => { wasteAnalysis.metric = m; renderWasteAnalysis(); });
-  $('wasteAnalysisBranch')?.addEventListener('change', (e) => { wasteAnalysis.branch = e.target.value; loadWasteAnalysis(); });
-
-  async function loadWasteAnalysis() {
-    const sel = $('wasteAnalysisBranch');
-    if (state.isGlobalScope && sel && !sel.options.length) {
-      sel.innerHTML = '<option value="">Todas las sucursales</option>' +
-        state.branches.map((b) => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
-    }
-    if (sel) sel.hidden = !state.isGlobalScope;
-
-    const { from, to } = periodoMerma(wasteAnalysis.period);
-    const params = new URLSearchParams({ date_from: from, date_to: to });
-    if (wasteAnalysis.branch) params.set('branch_id', wasteAnalysis.branch);
-    const seq = ++wasteAnalysis.seq;
-    $('wasteKpis').innerHTML = '<div class="inv-kpi inv-kpi-skeleton"></div>'.repeat(4);
-    // El cruce con recetas va aparte: si falla (o todavía no hay recetas) no tapa el resto.
-    api.get(`/inventory/waste/recipe-usage?${params}`)
-      .then((r) => { if (seq === wasteAnalysis.seq) { wasteAnalysis.recipes = r; renderWasteRecipes(); } })
-      .catch(() => { if (seq === wasteAnalysis.seq) { wasteAnalysis.recipes = null; renderWasteRecipes(); } });
-    try {
-      const data = await api.get(`/inventory/waste/analytics?${params}`);
-      if (seq !== wasteAnalysis.seq) return;   // llegó otra más nueva (se cambió el período)
-      wasteAnalysis.data = data;
-      renderWasteAnalysis();
-    } catch (err) {
-      if (seq !== wasteAnalysis.seq) return;
-      $('wasteKpis').innerHTML = '';
-      utils.showToast(err.message || 'No se pudo calcular la merma.', 'error');
-    }
+    return file;
   }
 
-  /**
-   * Tramos del gráfico de tendencia: por día si el período es corto (7 días), por semana si es
-   * largo. Treinta barras finitas con días vacíos entre medio no se leían de un vistazo; cuatro
-   * o cinco semanas con su monto escrito encima, sí.
-   */
-  function tramosMerma(dias) {
-    if (dias.length <= 14) {
-      return dias.map((d) => ({ ...d, cost: Number(d.cost), kg: Number(d.kg), label: fechaCorta(d.date), largo: fechaCorta(d.date) }));
-    }
-    // Semanas contadas desde el final: las recientes (las que importan) quedan completas y el
-    // tramo parcial, si lo hay, es el más viejo. Un tramo de 2 días no puede competir como "la
-    // semana más alta" contra semanas de 7, así que se marca.
-    const tramos = [];
-    for (let fin = dias.length; fin > 0; fin -= 7) {
-      const grupo = dias.slice(Math.max(0, fin - 7), fin);
-      const ini = grupo[0].date;
-      const ult = grupo[grupo.length - 1].date;
-      const mismoMes = ini.slice(0, 7) === ult.slice(0, 7);
-      const parcial = grupo.length < 7;
-      tramos.unshift({
-        label: (mismoMes ? `${Number(ini.slice(8))}–${fechaCorta(ult)}` : `${fechaCorta(ini)}–${fechaCorta(ult)}`) + (parcial ? '*' : ''),
-        largo: `del ${fechaCorta(ini)} al ${fechaCorta(ult)}` + (parcial ? ` (solo ${grupo.length} días)` : ''),
-        parcial,
-        cost: grupo.reduce((s, d) => s + Number(d.cost), 0),
-        kg: grupo.reduce((s, d) => s + Number(d.kg), 0),
-        records: grupo.reduce((s, d) => s + d.records, 0),
-      });
-    }
-    return tramos;
+  // Visor de fotos (las de la factura de un cargamento).
+  function openPhotoViewer(url) {
+    $('wastePhotoViewerImg').src = url;
+    $('wastePhotoViewer').hidden = false;
+    $('btnCloseWastePhoto').focus();
   }
-
-  /** Paso "redondo" del eje (4 líneas): 14.56 → 4 (0, 4, 8, 12, 16); 25.27 → 8 (hasta 32). */
-  function pasoRedondo(max) {
-    if (max <= 0) return 1;
-    const crudo = max / 4;
-    const mag = 10 ** Math.floor(Math.log10(crudo));
-    for (const p of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) {
-      if (p * mag >= crudo) return p * mag;
-    }
-    return 10 * mag;
+  function closePhotoViewer() {
+    $('wastePhotoViewer').hidden = true;
+    $('wastePhotoViewerImg').removeAttribute('src');
   }
-
-  function renderWasteTrend() {
-    const a = wasteAnalysis.data;
-    const box = $('wasteDayChart');
-    if (!a || !box) return;
-    const porKg = wasteAnalysis.metric === 'kg';
-    const valorDe = (x) => (porKg ? x.kg : x.cost);
-    const fmtEje = (n) => (porKg ? `${qty(n)} kg` : `$${Number(n).toLocaleString('es-PA', { maximumFractionDigits: n < 10 ? 2 : 0 })}`);
-    const fmtValor = (n) => (porKg ? kgTxt(n) : money(n));
-
-    const tramos = tramosMerma(a.by_day);
-    const semanal = a.by_day.length > 14;
-    const unidadTramo = semanal ? 'semana' : 'día';
-    $('wasteDayTitle').textContent = `Pérdida por ${unidadTramo}`;
-    $('wasteDayNote').textContent = porKg ? 'En kilos' : 'En dólares';
-
-    if (!a.totals.records) {
-      $('wasteDayHeadline').textContent = '';
-      box.innerHTML = emptyStateHtml('bar-chart-3', 'Sin mermas en el período', 'Cuando se registren, acá se ve cuánto se perdió en cada tramo.');
-      utils.renderIcons();
-      return;
-    }
-
-    const total = tramos.reduce((s, x) => s + valorDe(x), 0);
-    // Promedio y "el más alto" sobre tramos completos cuando los hay (un tramo parcial no compite).
-    const completos = tramos.filter((x) => !x.parcial);
-    const base = completos.length ? completos : tramos;
-    const promedio = base.reduce((s, x) => s + valorDe(x), 0) / base.length;
-    const peor = base.reduce((m, x) => (valorDe(x) > valorDe(m) ? x : m), base[0]);
-    $('wasteDayHeadline').innerHTML = total > 0
-      ? `En estos ${a.by_day.length} días se ${porKg ? 'descartaron' : 'perdieron'} <strong>${esc(fmtValor(total))}</strong>, ` +
-        `unos <strong>${esc(fmtValor(promedio))}</strong> por ${unidadTramo}. ` +
-        `El${semanal ? ' tramo' : ''} más alto fue ${semanal ? esc(peor.largo) : `el ${esc(peor.largo)}`} (<strong>${esc(fmtValor(valorDe(peor)))}</strong>).`
-      : (porKg ? 'Ninguna merma del período tiene kilos conocidos.' : 'Ninguna merma del período tiene costo conocido todavía.');
-
-    // ---- SVG: eje con montos, barras con su valor encima, promedio punteado ----
-    const W = Math.max(300, box.clientWidth || 700);
-    const H = 250;
-    // A la derecha queda lugar para la etiqueta del promedio, afuera de las barras (adentro se
-    // encimaba con el monto de la última).
-    const M = { top: 26, right: W < 520 ? 58 : 96, bottom: 34, left: 52 };
-    const iw = W - M.left - M.right;
-    const ih = H - M.top - M.bottom;
-    const paso4 = pasoRedondo(Math.max(...tramos.map(valorDe)));
-    const max = paso4 * 4;
-    const y = (v) => M.top + ih - (v / max) * ih;
-    const paso = iw / tramos.length;
-    const barW = Math.min(64, paso * 0.62);
-    const angosto = paso < 44;   // en el celular con 7 días: los montos se escriben más chicos
-
-    let svg = '';
-    for (let i = 0; i <= 4; i++) {
-      const v = (max / 4) * i;
-      svg += `<line class="inv-trend-grid" x1="${M.left}" x2="${W - M.right}" y1="${y(v)}" y2="${y(v)}"/>`;
-      svg += `<text class="inv-trend-axis" x="${M.left - 8}" y="${y(v) + 4}" text-anchor="end">${esc(fmtEje(v))}</text>`;
-    }
-    tramos.forEach((x, i) => {
-      const v = valorDe(x);
-      const cx = M.left + paso * i + paso / 2;
-      const alto = Math.max(0, M.top + ih - y(v));
-      const esPeor = x === peor && v > 0;
-      const detalle = `${x.largo}: ${money(x.cost)} · ${kgTxt(x.kg)} · ${pluralize(x.records, 'merma', 'mermas')}`;
-      svg += `<g class="inv-trend-bar${esPeor ? ' is-peak' : ''}" tabindex="0" aria-label="${esc(detalle)}"><title>${esc(detalle)}</title>`;
-      if (v > 0) {
-        svg += `<rect x="${cx - barW / 2}" y="${y(v)}" width="${barW}" height="${Math.max(2, alto)}" rx="5"/>`;
-        svg += `<text class="inv-trend-value${angosto ? ' is-small' : ''}" x="${cx}" y="${y(v) - 7}" text-anchor="middle">${esc(fmtValor(v))}</text>`;
-      } else {
-        svg += `<rect class="is-empty" x="${cx - barW / 2}" y="${M.top + ih - 2}" width="${barW}" height="2" rx="1"/>`;
-      }
-      svg += `<text class="inv-trend-label" x="${cx}" y="${H - 12}" text-anchor="middle">${esc(x.label)}</text></g>`;
-    });
-    if (promedio > 0) {
-      svg += `<line class="inv-trend-avg" x1="${M.left}" x2="${W - M.right + 4}" y1="${y(promedio)}" y2="${y(promedio)}"/>`;
-      svg += `<text class="inv-trend-avg-label" x="${W - M.right + 8}" y="${y(promedio) - 3}">Promedio</text>`;
-      svg += `<text class="inv-trend-avg-label is-value" x="${W - M.right + 8}" y="${y(promedio) + 11}">${esc(fmtValor(promedio))}</text>`;
-    }
-    box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Pérdida por ${unidadTramo}">${svg}</svg>` +
-      (tramos.some((x) => x.parcial) ? '<p class="inv-trend-foot">* Semana incompleta: se muestra, pero no entra en el promedio ni compite como la más alta.</p>' : '');
-  }
-
-  // El gráfico se dibuja al ancho real de su caja: al cambiar el tamaño de la ventana se redibuja.
-  let trendResizeTimer = null;
-  window.addEventListener('resize', () => {
-    clearTimeout(trendResizeTimer);
-    trendResizeTimer = setTimeout(() => { if (wasteAnalysis.tab === 'analisis') renderWasteTrend(); }, 150);
-  });
-
-  /** Merma contra el uso real en platos (recetas de Invu) y los platos más afectados. */
-  function renderWasteRecipes() {
-    const r = wasteAnalysis.recipes;
-    const body = $('wasteRecipeBody');
-    if (!body) return;
-    const puedeTraer = (state.user?.permissions || []).includes('integrations.manage');
-    const botonTraer = puedeTraer
-      ? `<button type="button" class="inv-secondary-btn" id="btnSyncRecipes"${r?.recipes_running ? ' disabled' : ''}>
-           <i data-lucide="refresh-cw"></i> <span>${r?.recipes_running ? 'Trayendo recetas…' : 'Actualizar recetas de Invu'}</span>
-         </button>`
-      : '';
-
-    if (!r) {
-      body.innerHTML = emptyStateHtml('chef-hat', 'No se pudo cruzar con las recetas', 'Probá de nuevo en un momento.');
-      $('wasteDishPanel').hidden = true;
-      utils.renderIcons();
-      return;
-    }
-
-    const cobertura = Number(r.sold_units) > 0 ? Math.round((Number(r.sold_units_with_recipe) / Number(r.sold_units)) * 100) : null;
-    $('wasteRecipeNote').textContent = r.recipes_synced_at
-      ? `Recetas del ${utils.formatDate(r.recipes_synced_at)}${cobertura != null ? ` · ${cobertura}% de lo vendido tiene receta` : ''}`
-      : 'Recetas de Invu';
-
-    if (!r.recipes_count) {
-      body.innerHTML = `
-        ${emptyStateHtml('chef-hat', r.recipes_running ? 'Trayendo las recetas de Invu…' : 'Todavía no se trajeron las recetas de Invu',
-          r.recipes_running ? 'Son cientos de platos y modificadores: tarda unos 12 minutos por sucursal. Volvé a abrir esta vista más tarde.'
-                            : 'Se traen solas una vez por semana. Con ellas se calcula cuánto de cada insumo fue a los platos vendidos.')}
-        ${botonTraer ? `<div class="inv-recipe-actions">${botonTraer}</div>` : ''}`;
-      $('wasteDishPanel').hidden = true;
-      wireSyncRecipes();
-      utils.renderIcons();
-      return;
-    }
-
-    const nivel = (pct) => (pct == null ? '' : pct >= 8 ? 'bad' : pct >= 3 ? 'warn' : 'ok');
-    const filas = r.items;
-    body.innerHTML = filas.length ? `
-      <table class="inv-detail-table inv-recipe-table">
-        <thead>
-          <tr>
-            <th>Insumo</th>
-            <th class="num">Fue a platos<small>según recetas</small></th>
-            <th class="num">Se botó<small>merma</small></th>
-            <th class="num">% merma<small>de lo que pasó por cocina</small></th>
-            <th>Dónde más se usa</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filas.map((f) => {
-            const pct = f.waste_pct != null ? Number(f.waste_pct) : null;
-            return `
-              <tr>
-                <td class="inv-td-name" data-label="Insumo">${esc(f.name)}${f.kind === 'casa' ? ' <span class="inv-badge kind-house">Casa</span>' : ''}
-                  <small>${Number(f.wasted_cost) > 0 ? `${money(f.wasted_cost)} perdidos${f.estimated ? ' ≈' : ''}` : 'sin costo conocido'}</small></td>
-                <td class="num" data-label="Fue a platos">${f.used != null ? `${esc(qty(f.used))} <small>${esc(unitShort(f.unit))}</small>` : '<span class="inv-stock-none">sin receta</span>'}</td>
-                <td class="num" data-label="Se botó">${esc(qty(f.wasted))} <small>${esc(unitShort(f.unit))}</small></td>
-                <td class="num" data-label="% merma">${pct != null ? `<span class="inv-pct-pill ${nivel(pct)}">${pct.toLocaleString('es-PA', { maximumFractionDigits: 1 })}%</span>` : '—'}</td>
-                <td data-label="Dónde más se usa">${f.dishes.length
-                  ? f.dishes.map((d) => `<span class="inv-chip" title="${esc(d.type === 'modificador' ? 'Opción elegida en el plato' : 'Plato')}">${esc(d.name)} <small>${Number(d.share_pct).toLocaleString('es-PA', { maximumFractionDigits: 0 })}%</small></span>`).join(' ')
-                  : '<span class="inv-stock-none">ninguna receta lo usa</span>'}</td>
-              </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-      <p class="inv-recipe-foot">Los insumos marcados "Casa" (salsas, arroces…) se cuentan como preparación: lo que llevan adentro todavía no se desglosa.${r.lines_without_conversion ? ` ${pluralize(r.lines_without_conversion, 'línea de receta', 'líneas de receta')} en una unidad que no se puede pasar a la del insumo no ${r.lines_without_conversion === 1 ? 'suma' : 'suman'}.` : ''}</p>
-      ${botonTraer ? `<div class="inv-recipe-actions">${botonTraer}</div>` : ''}`
-      : `${emptyStateHtml('bar-chart-3', 'Sin mermas en el período', 'Cuando se registren, acá se ve qué parte de cada insumo se botó frente a lo que se usó.')}
-         ${botonTraer ? `<div class="inv-recipe-actions">${botonTraer}</div>` : ''}`;
-
-    // Platos más afectados
-    const platos = r.dishes.filter((d) => Number(d.allocated_cost) > 0);
-    $('wasteDishPanel').hidden = !platos.length;
-    if (platos.length) {
-      $('wasteDishBars').innerHTML = barsHtml(platos, {
-        valor: (d) => Number(d.allocated_cost),
-        etiqueta: (d) => `${esc(d.name)}${d.type === 'modificador' ? ' <span class="inv-badge muted">opción</span>' : ''}`,
-        extra: (d) => `${money(d.allocated_cost)} <small>${esc(d.ingredients.join(', '))}</small>`,
-      });
-    }
-    wireSyncRecipes();
-    utils.renderIcons();
-  }
-
-  function wireSyncRecipes() {
-    $('btnSyncRecipes')?.addEventListener('click', async () => {
-      try {
-        const res = await api.post('/inventory/invu/sync-recipes', {});
-        utils.showToast(res.started
-          ? 'Se están trayendo las recetas de Invu. Tarda unos 12 minutos por sucursal; podés seguir usando el sistema.'
-          : 'Ya se estaban trayendo las recetas.', 'success');
-        if (wasteAnalysis.recipes) wasteAnalysis.recipes.recipes_running = true;
-        renderWasteRecipes();
-      } catch (err) {
-        utils.showToast(err.message || 'No se pudieron pedir las recetas.', 'error');
-      }
-    });
-  }
-
-  function barsHtml(filas, { valor, etiqueta, extra }) {
-    const tope = Math.max(...filas.map(valor), 0);
-    return filas.map((f) => `
-      <div class="inv-bar-row inv-bar-row-waste">
-        <span class="inv-bar-name">${etiqueta(f)}</span>
-        <span class="inv-bar-value">${extra(f)}</span>
-        <span class="inv-bar-track"><span class="inv-bar-fill inv-bar-fill-waste" style="width:${tope > 0 && valor(f) > 0 ? Math.max(3, (valor(f) / tope) * 100) : 0}%"></span></span>
-      </div>`).join('');
-  }
-
-  function renderWasteAnalysis() {
-    const a = wasteAnalysis.data;
-    if (!a) return;
-    const t = a.totals;
-    const porKg = wasteAnalysis.metric === 'kg';
-    const val = (x) => Number(porKg ? (x.kg || 0) : x.cost);
-    const fmt = (x) => (porKg ? (x.kg != null ? kgTxt(x.kg) : '—') : money(x.cost));
-    const sucursal = a.branch_id ? (state.branches.find((b) => b.id === a.branch_id)?.name || '') : 'todas las sucursales';
-
-    $('wasteAnalysisRange').textContent = `Del ${fechaCorta(a.date_from)} al ${fechaCorta(a.date_to)} · ${sucursal}`;
-
-    const subCosto = [];
-    if (Number(t.cost_estimated) > 0) subCosto.push(`${money(t.cost_estimated)} estimado con costo de Invu`);
-    if (t.lines_without_cost) subCosto.push(`${pluralize(t.lines_without_cost, 'línea', 'líneas')} sin costo`);
-    const kpis = [
-      { icon: 'dollar-sign', label: 'Pérdida', value: money(t.cost_total), sub: subCosto.join(' · ') || 'Al costo de los cargamentos' },
-      { icon: 'scale', label: 'Kilos descartados', value: kgTxt(t.kg_total),
-        sub: [
-          Number(t.kg_estimated) > 0 ? `≈ ${kgTxt(t.kg_estimated)} estimado por peso promedio de pieza` : null,
-          t.lines_without_kg ? `${pluralize(t.lines_without_kg, 'línea', 'líneas')} por unidad sin peso` : null,
-        ].filter(Boolean).join(' · ') || 'Todo pesado en balanza' },
-      { icon: 'trending-down', label: 'Mermas', value: String(t.records),
-        sub: t.records ? `${t.records_with_photo} con foto · ${t.records_with_weight} con peso` : 'Ninguna en el período' },
-      { icon: 'percent', label: 'Merma sobre ventas', value: t.waste_pct_of_sales != null ? `${Number(t.waste_pct_of_sales).toLocaleString('es-PA', { maximumFractionDigits: 2 })}%` : '—',
-        sub: t.sales_net != null ? `de ${money(t.sales_net)} vendidos (Invu)` : 'Sin ventas de Invu en el período' },
-    ];
-    $('wasteKpis').innerHTML = kpis.map((k) => `
-      <div class="inv-kpi">
-        <span class="inv-kpi-label"><i data-lucide="${k.icon}"></i> ${esc(k.label)}</span>
-        <span class="inv-kpi-value">${esc(k.value)}</span>
-        <span class="inv-kpi-sub">${esc(k.sub)}</span>
-      </div>`).join('');
-
-    renderWasteTrend();
-
-    // ---- Insumos ----
-    // Los que no suman en la medida elegida (sin costo, o sin kilos) van al final: en "$" un
-    // insumo sin costo no es "el que menos se pierde", es uno que todavía no se sabe cuánto vale.
-    const items = [...a.by_item].sort((x, y) => val(y) - val(x)).slice(0, 10);
-    $('wasteItemsNote').textContent = porKg ? 'Por kilos' : 'Por pérdida';
-    $('wasteItemsBars').innerHTML = items.length ? barsHtml(items, {
-      valor: val,
-      etiqueta: (i) => `${esc(i.name)} ${i.kind === 'casa' ? '<span class="inv-badge kind-house">Casa</span>' : ''}`,
-      extra: (i) => `${fmt(i)}${!porKg && i.estimated ? ' <small title="Parte del costo es el de referencia de Invu">≈</small>' : ''}
-        <small>${esc(qty(i.quantity))} ${esc(i.unit)}</small>`,
-    }) : emptyStateHtml('package', 'Nada para mostrar', porKg ? 'Ningún insumo con kilos en el período.' : 'Ninguna merma en el período.');
-
-    // ---- Motivo ----
-    $('wasteReasonAnalysisBars').innerHTML = a.by_reason.length ? barsHtml(a.by_reason, {
-      valor: val,
-      etiqueta: (g) => esc(g.label),
-      extra: (g) => `${fmt(g)} <small>${pluralize(g.records, 'vez', 'veces')}</small>`,
-    }) : emptyStateHtml('help-circle', 'Sin motivos', 'Ninguna merma en el período.');
-
-    // ---- Sucursal (solo quien ve más de una) ----
-    const verSucursales = state.isGlobalScope && !a.branch_id;
-    $('wasteBranchPanel').hidden = !verSucursales;
-    if (verSucursales) {
-      $('wasteBranchBars').innerHTML = a.by_branch.length ? barsHtml(a.by_branch, {
-        valor: val,
-        etiqueta: (g) => esc(g.label),
-        extra: (g) => `${fmt(g)} <small>${g.waste_pct_of_sales != null ? `${Number(g.waste_pct_of_sales).toLocaleString('es-PA', { maximumFractionDigits: 2 })}% de su venta` : 'sin venta de Invu'}</small>`,
-      }) : emptyStateHtml('building-2', 'Sin mermas', 'Ninguna sucursal registró merma en el período.');
-    }
-
-    // ---- Tipo ----
-    $('wasteKindBars').innerHTML = a.by_kind.length ? barsHtml(a.by_kind, {
-      valor: val,
-      etiqueta: (g) => esc(g.label),
-      extra: (g) => fmt(g),
-    }) : emptyStateHtml('layers', 'Sin datos', 'Ninguna merma en el período.');
-
-    // ---- De proceso o evitable ----
-    $('wasteNatureBars').innerHTML = (a.by_nature || []).length ? barsHtml(a.by_nature, {
-      valor: val,
-      etiqueta: (g) => esc(g.label),
-      extra: (g) => `${fmt(g)} <small>${pluralize(g.records, 'merma', 'mermas')}</small>`,
-    }) : emptyStateHtml('scissors', 'Sin datos', 'Ninguna merma en el período.');
-
-    // ---- Rendimiento al limpiar (el más bajo primero: es el que hay que mirar) ----
-    const rinde = a.yields || [];
-    $('wasteYieldPanel').hidden = !rinde.length;
-    if (rinde.length) {
-      $('wasteYieldBars').innerHTML = rinde.map((y) => {
-        const pct = Number(y.yield_pct);
-        return `
-          <div class="inv-bar-row">
-            <span class="inv-bar-name">${esc(y.name)}</span>
-            <span class="inv-bar-value">${pct.toLocaleString('es-PA', { maximumFractionDigits: 1 })}% <small>de ${esc(kgTxt(y.processed_kg))} quedaron ${esc(kgTxt(y.trimmed_kg))} de recorte</small></span>
-            <span class="inv-bar-track"><span class="inv-bar-fill" style="width:${Math.max(0, Math.min(100, pct))}%"></span></span>
-          </div>`;
-      }).join('');
-    }
-
-    utils.renderIcons();
-  }
-
-  $('wasteBranchFilter')?.addEventListener('change', (e) => {
-    state.wasteBranchFilter = e.target.value;
-    state.selected.waste = null;
-    loadWaste({ reset: true });
-  });
-
-  $('btnLoadMoreWaste')?.addEventListener('click', async () => {
-    const btn = $('btnLoadMoreWaste');
-    btn.disabled = true;
-    btn.textContent = 'Cargando...';
-    await loadWaste();
-    btn.disabled = false;
-    btn.textContent = 'Cargar más mermas';
+  $('btnCloseWastePhoto')?.addEventListener('click', closePhotoViewer);
+  $('wastePhotoViewer')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closePhotoViewer(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('wastePhotoViewer') && !$('wastePhotoViewer').hidden) closePhotoViewer();
   });
 
   // ==========================================================================
@@ -3485,8 +2523,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const table = $('stockTable');
     if (!rows.length) {
       table.innerHTML = q
-        ? emptyStateHtml('search-x', 'Sin resultados', 'Probá con otro insumo o categoría.')
-        : emptyStateHtml('boxes', 'Todavía no hay movimientos', 'En cuanto registres un cargamento o un conteo, las existencias aparecen acá.');
+        ? emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro insumo o categoría.')
+        : emptyStateHtml('boxes', 'Todavía no hay movimientos', 'En cuanto registres un cargamento o un conteo, las existencias aparecen aquí.');
       utils.renderIcons();
       return;
     }
@@ -3555,940 +2593,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ==========================================================================
-  // Modal: registrar merma
-  // ==========================================================================
-  const wasteLinesContainer = $('wasteLines');
-  const wasteLineTemplate = $('wasteLineTemplate');
-
-  function wasteModalBranchId() {
-    return state.fixedBranchId || ($('wasteBranchSelect').value ? Number($('wasteBranchSelect').value) : null);
-  }
-
-  /**
-   * Trae las existencias de la sucursal elegida una sola vez al abrir el modal (y al cambiar de
-   * sucursal), en vez de consultar por cada insumo que se elige: son pocas filas y así la cifra
-   * aparece al instante al lado de la línea.
-   */
-  async function loadWasteStock() {
-    const seq = ++loadSeq.wasteStock;
-    state.wasteStock = new Map();
-    const branchId = wasteModalBranchId();
-    if (!branchId) return;
-    try {
-      const rows = await api.get(`/inventory/stock?branch_id=${branchId}&only_stocked=true`);
-      // Cambiar de sucursal en el modal: la respuesta de la anterior ya no escribe su stock
-      // en el mapa de la nueva.
-      if (seq !== loadSeq.wasteStock) return;
-      rows.forEach((r) => state.wasteStock.set(r.inventory_item_id, r));
-    } catch (err) {
-      // Sin existencias no se bloquea nada: la línea simplemente no muestra el "te quedan".
-    }
-    wasteLinesContainer.querySelectorAll('.inv-line-row').forEach(refreshWasteLineStock);
-    updateWasteTotal();
-  }
-
-  function refreshWasteLineStock(row) {
-    const itemInput = row.querySelector('.inv-item-input');
-    const qtyInput = row.querySelector('.inv-line-qty');
-    const cell = row.querySelector('.inv-line-stock');
-    const itemId = Number(itemInput.dataset.itemId || 0);
-
-    cell.classList.remove('is-short');
-    if (!itemId) { cell.textContent = '—'; return; }
-
-    const fila = state.wasteStock.get(itemId);
-    if (!fila) {
-      cell.textContent = 'Sin registro';
-      return;
-    }
-    const disponible = Number(fila.on_hand);
-    cell.textContent = `${qty(disponible)} ${fila.unit}`;
-    const pedido = wasteLineCalc(row).qty || 0;
-    if (pedido > disponible) cell.classList.add('is-short');
-  }
-
-  /** Refresca la existencia de una fila y, con ella, la pérdida estimada y el peso del formulario. */
-  function refreshWasteLine(row) {
-    refreshWasteLineStock(row);
-    updateWasteLineCalc(row);
-    updateWasteTotal();
-    syncWasteWeight();
-  }
-
-  // ---- Pieza entera o parte ----
-  // Cada línea dice qué se botó. `quantity` (lo que resta del stock y se multiplica por el costo)
-  // sale de ahí, siempre en la unidad del insumo:
-  //   entera · insumo en g/kg/ml → piezas × lo que pesa (o trae) una pieza
-  //   entera · insumo por unidad → piezas
-  //   parte  · insumo en g/kg/ml → lo que marca la balanza
-  //   parte  · insumo por unidad → gramos del pedazo ÷ gramos de una pieza entera
-  // El servidor hace la misma cuenta (_cantidad_de_linea); esto es para mostrarla antes de guardar.
-
-  /**
-   * { itemId, mode, fam, qty, grams, measured, estimated, weighable, error } de una fila.
-   * `estimated`: "pieza entera" sin pesar, así que el peso sale del promedio de la pieza.
-   */
-  function wasteLineCalc(row) {
-    const itemInput = row.querySelector('.inv-item-input');
-    const itemId = Number(itemInput.dataset.itemId || 0);
-    const mode = row.dataset.mode || '';
-    const fam = unitFamily(itemInput.dataset.unit);
-    const v = Number(row.querySelector('.inv-line-qty').value || 0);
-    const tam = Number(row.querySelector('.inv-line-piece-input').value || 0);
-    const pesado = mode === 'entera' ? Number(row.querySelector('.inv-line-measured-input').value || 0) : 0;
-    const r = { itemId, mode, fam, qty: null, grams: null, measured: pesado > 0 ? pesado : null,
-                estimated: false, weighable: false, error: null };
-    if (!itemId) return r;
-    if (!mode) { r.error = 'tocá si se botó entero o un pedazo.'; return r; }
-    // ¿Se puede saber el peso de esta línea? (para completar solo el bloque "Peso")
-    r.weighable = fam.fam === 'peso' || (fam.fam === 'unidad' && (mode === 'parte' || tam > 0 || pesado > 0));
-    if (!(v > 0)) {
-      r.error = mode === 'entera' ? 'falta cuántos se botaron.' : 'falta cuánto pesó.';
-      return r;
-    }
-    const medida = fam.fam === 'volumen' ? 'cuánto trae' : 'cuánto pesa';
-    if (mode === 'entera') {
-      if (fam.fam === 'unidad') {
-        r.qty = v;
-        if (pesado > 0) r.grams = pesado;
-        else if (tam > 0) { r.grams = v * tam; r.estimated = true; }
-      } else if (pesado > 0) {
-        // Se pesó: manda la balanza, no el promedio.
-        r.qty = pesado / fam.base;
-        if (fam.fam === 'peso') r.grams = pesado;
-      } else {
-        if (!(tam > 0)) { r.error = `falta ${medida} uno, más o menos (o tocá "Lo pesé en la balanza").`; return r; }
-        r.qty = (v * tam) / fam.base;
-        r.estimated = true;
-        if (fam.fam === 'peso') r.grams = v * tam;
-      }
-    } else if (fam.fam === 'unidad') {
-      if (!(tam > 0)) { r.error = 'falta cuánto pesa uno entero, más o menos.'; return r; }
-      r.qty = v / tam;
-      r.grams = v;
-    } else {
-      r.qty = v;
-      if (fam.fam === 'peso') r.grams = v * fam.base;
-    }
-    r.qty = Number(r.qty.toFixed(3));
-    return r;
-  }
-
-  /** Lo que se manda al servidor por esta fila (él recalcula la cantidad con las mismas reglas). */
-  function wasteLinePayload(row, c) {
-    const v = row.querySelector('.inv-line-qty').value;
-    const pieceInput = row.querySelector('.inv-line-piece-input');
-    const linea = { inventory_item_id: c.itemId, mode: c.mode };
-    if (c.mode === 'entera') {
-      linea.pieces = v;
-      if (c.measured) linea.measured_amount = String(c.measured);
-    } else if (c.fam.fam === 'unidad') linea.part_amount = v;
-    else linea.quantity = v;
-    if (!pieceInput.readOnly && Number(pieceInput.value) > 0) linea.piece_size = pieceInput.value;
-    return linea;
-  }
-
-  /** El costo por unidad del insumo que va a usar la estimación: el del último cargamento o el de Invu. */
-  function wasteLineUnitCost(row) {
-    const input = row.querySelector('.inv-item-input');
-    const fila = state.wasteStock.get(Number(input.dataset.itemId || 0));
-    if (fila && fila.last_unit_cost != null) return { cost: Number(fila.last_unit_cost), estimated: false };
-    if (input.dataset.refCost) return { cost: Number(input.dataset.refCost), estimated: true };
-    return null;
-  }
-
-  /** Debajo de cada insumo, en una línea: cuánto es y cuánto se pierde. */
-  function updateWasteLineCalc(row) {
-    const box = row.querySelector('.inv-line-calc');
-    if (!box) return;
-    const c = wasteLineCalc(row);
-    const partes = [];
-    const v = Number(row.querySelector('.inv-line-qty').value || 0);
-    const tam = Number(row.querySelector('.inv-line-piece-input').value || 0);
-    const u = c.fam.short;
-    const mu = c.fam.fam === 'volumen' ? 'ml' : 'g';
-    const costo = wasteLineUnitCost(row);
-    if (c.qty != null) {
-      if (c.mode === 'entera' && c.measured) {
-        partes.push(`Pesado: <strong>${esc(qty(c.measured))} ${mu}</strong>`);
-      } else if (c.mode === 'entera' && c.fam.fam !== 'unidad') {
-        partes.push(`${esc(qty(v))} × ${esc(qty(tam))} ${mu} = <strong>≈ ${esc(qty(c.qty))} ${esc(u)}</strong> <span class="inv-line-est">(aprox.)</span>`);
-      } else if (c.mode === 'parte' && c.fam.fam === 'unidad') {
-        partes.push(`Es <strong>${esc(qty(c.qty))}</strong> de uno entero`);
-      }
-      if (costo) {
-        const aprox = costo.estimated || c.estimated ? '≈ ' : '';
-        partes.push(`Se pierde <strong>${aprox}${esc(money(c.qty * costo.cost))}</strong>`);
-      }
-    }
-    // Un costo de Invu cargado "por pieza" en un insumo que se mide en gramos da miles de dólares
-    // el kilo (pasó con un pan: $1.625 el gramo). Quien carga la merma no puede arreglarlo, así
-    // que el aviso lo ven solo supervisor y admin, que sí pueden pedir que se corrija en Invu.
-    if (costo && c.fam.fam !== 'unidad' && hasPerm('inventory.adjust')) {
-      const porMil = (costo.cost / c.fam.base) * 1000;   // $ por kg o por litro
-      if (porMil > 100) {
-        partes.push(`<span class="inv-line-warn">Revisar en Invu: el costo de este insumo parece mal cargado (da ${esc(money(porMil))} el ${c.fam.fam === 'volumen' ? 'litro' : 'kilo'}).</span>`);
-      }
-    }
-    box.innerHTML = partes.join(' · ');
-    box.hidden = !partes.length;
-  }
-
-  /** Ajusta la tarjeta del insumo a lo elegido: qué se pregunta y qué se esconde. */
-  function applyWasteLineMode(row) {
-    const itemInput = row.querySelector('.inv-item-input');
-    const extra = row.querySelector('.inv-line-extra');
-    const qtyInput = row.querySelector('.inv-line-qty');
-    const qtyLabel = row.querySelector('.inv-line-qty-label');
-    const qtyUnit = row.querySelector('.inv-line-amount .inv-qty-unit');
-    const pieceBox = row.querySelector('.inv-line-piece');
-    const pieceLabel = row.querySelector('.inv-line-piece-label');
-    const pieceInput = row.querySelector('.inv-line-piece-input');
-    const measuredBox = row.querySelector('.inv-line-measured');
-    const measuredInput = row.querySelector('.inv-line-measured-input');
-    const toggle = row.querySelector('.inv-line-weighed-toggle');
-    const tip = row.querySelector('.inv-line-tip');
-    const tieneItem = Boolean(itemInput.dataset.itemId);
-    const mode = row.dataset.mode || '';
-    const fam = unitFamily(itemInput.dataset.unit);
-    const mu = fam.fam === 'volumen' ? 'ml' : 'g';
-
-    row.querySelector('.inv-line-mode').hidden = !tieneItem;
-    extra.hidden = !tieneItem || !mode;
-    row.querySelectorAll('.inv-mode-btn').forEach((b) => {
-      const on = b.dataset.mode === mode;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-checked', on ? 'true' : 'false');
-    });
-    qtyInput.disabled = !tieneItem || !mode;
-    if (!tieneItem || !mode) return;
-
-    const entera = mode === 'entera';
-    row.querySelectorAll('.inv-qty-step').forEach((b) => { b.hidden = !entera; });
-    if (entera) {
-      qtyLabel.textContent = '¿Cuántos se botaron?';
-      qtyInput.placeholder = '1';
-      qtyInput.step = '1';
-      qtyUnit.textContent = '';
-    } else if (fam.fam === 'volumen') {
-      qtyLabel.textContent = '¿Cuánto era?';
-      qtyInput.placeholder = fam.short === 'ml' ? 'Ej. 250' : 'Ej. 0.25';
-      qtyInput.step = '0.001';
-      qtyUnit.textContent = fam.short;
-    } else {
-      qtyLabel.textContent = '¿Cuánto pesó en la balanza?';
-      const enGramos = fam.fam === 'unidad' || fam.short === 'g';
-      qtyInput.placeholder = enGramos ? 'Ej. 240' : 'Ej. 0.24';
-      qtyInput.step = enGramos ? '0.1' : '0.001';
-      qtyUnit.textContent = fam.fam === 'unidad' ? 'g' : fam.short;
-    }
-
-    // "Lo pesé en la balanza": solo en "entero", y se abre a pedido (o si ya tiene un valor).
-    const pesado = Number(measuredInput.value || 0) > 0;
-    const abierto = row.dataset.weighed === '1' || pesado;
-    toggle.hidden = !entera || abierto;
-    measuredBox.hidden = !entera || !abierto;
-    row.querySelector('.inv-line-measured-label').textContent = fam.fam === 'volumen' ? 'Cantidad medida' : 'Peso en la balanza';
-    row.querySelector('.inv-line-measured-unit').textContent = mu;
-    // El recordatorio de la tara, solo cuando de verdad se está por pesar.
-    tip.hidden = fam.fam === 'volumen' || (entera && !abierto);
-
-    // Cuánto pesa uno: hace falta en "entero" de un insumo en gramos/kilos (si no se pesó) y en
-    // "un pedazo" de un insumo que se cuenta por unidad. Si ya está guardado y quien carga no lo
-    // puede cambiar, no se pregunta: se usa y la cuenta de abajo lo muestra.
-    const guardado = itemInput.dataset.pieceSize;
-    if (guardado && !pieceInput.value) pieceInput.value = String(Number(guardado));
-    const fijo = Boolean(guardado) && !hasPerm('inventory.adjust');
-    pieceInput.readOnly = fijo;
-    const necesita = (entera && fam.fam !== 'unidad' && !pesado) || (!entera && fam.fam === 'unidad');
-    pieceBox.hidden = !necesita || fijo;
-    pieceLabel.textContent = entera
-      ? (fam.fam === 'volumen' ? '¿Cuánto trae uno, más o menos?' : '¿Cuánto pesa uno, más o menos?')
-      : '¿Y cuánto pesa uno entero, más o menos?';
-    row.querySelector('.inv-line-piece-unit').textContent = mu;
-  }
-
-  /**
-   * El peso se pide UNA vez. Si todos los insumos elegidos se cuentan en peso (g, kg, lb), la
-   * cantidad de arriba ya es lo que marcó la balanza: el bloque "Peso" se completa solo con esa
-   * suma y queda de solo lectura. Si alguno va por unidad (la piña), ahí sí se escribe el peso.
-   */
-  let wasteWeightAuto = false;
-  let wasteWeightEstimated = false;   // el peso automático usa algún peso promedio de pieza
-  function syncWasteWeight() {
-    const input = $('wasteWeightValue');
-    const hint = $('wasteWeightHint');
-    if (!input) return;
-    // Cada línea sabe su peso si el insumo va en peso, o si va por unidad y se sabe cuánto pesa
-    // una pieza (o lo que se pesó fue el pedazo).
-    const filas = Array.from(wasteLinesContainer.querySelectorAll('.inv-line-row'))
-      .map(wasteLineCalc)
-      .filter((f) => f.itemId);
-    const todoEnPeso = filas.length > 0 && filas.every((f) => f.weighable);
-    if (todoEnPeso) {
-      const kg = filas.reduce((s, f) => s + (f.grams || 0), 0) / 1000;
-      const unidad = $('wasteWeightUnit').value;
-      input.value = kg > 0 ? String(Number((kg / KG_FACTOR[unidad]).toFixed(3))) : '';
-      input.readOnly = true;
-      input.classList.add('is-auto');
-      wasteWeightEstimated = filas.some((f) => f.estimated);
-      hint.textContent = wasteWeightEstimated
-        ? '≈ Estimado: sale del peso promedio de la pieza. Si lo pesaste, poné el peso real arriba.'
-        : 'Se calcula de lo que escribiste arriba.';
-      wasteWeightAuto = true;
-    } else {
-      if (wasteWeightAuto) input.value = '';   // venía calculado: ahora lo escribe la persona
-      wasteWeightEstimated = false;            // escrito a mano = leído en la balanza
-      input.readOnly = false;
-      input.classList.remove('is-auto');
-      hint.textContent = filas.length ? 'Lo que marcó la balanza (el insumo se cuenta por unidad).' : 'Lo que marcó la balanza.';
-      wasteWeightAuto = false;
-    }
-    updateYieldPreview();
-  }
-
-  /** Recorte o limpieza: "de 5 kg quedaron 0.270 kg de recorte → se aprovecha el 94.6%". */
-  function updateYieldPreview() {
-    const box = $('wasteYieldPreview');
-    if (!box) return;
-    const recorte = Number($('wasteWeightValue').value || 0) * (KG_FACTOR[$('wasteWeightUnit').value] || 0);
-    const limpio = Number($('wasteProcessedValue').value || 0) * (KG_FACTOR[$('wasteProcessedUnit').value] || 0);
-    if (!(recorte > 0 && limpio > 0)) { box.hidden = true; return; }
-    box.hidden = false;
-    if (recorte > limpio) {
-      box.className = 'inv-yield-preview is-bad';
-      box.textContent = 'El recorte pesa más que lo limpiado: revisá los dos números.';
-      return;
-    }
-    const pct = ((limpio - recorte) / limpio) * 100;
-    box.className = 'inv-yield-preview';
-    box.innerHTML = `De <strong>${esc(kgTxt(limpio))}</strong> quedaron <strong>${esc(kgTxt(recorte))}</strong> de recorte: se aprovecha el <strong>${pct.toLocaleString('es-PA', { maximumFractionDigits: 1 })}%</strong>.`;
-  }
-
-  function syncProcessedField() {
-    const esRecorte = $('wasteReasonSelect').value === 'recorte';
-    $('wasteProcessedField').hidden = !esRecorte;
-    updateYieldPreview();
-  }
-  $('wasteReasonSelect')?.addEventListener('change', syncProcessedField);
-  $('wasteWeightUnit')?.addEventListener('change', syncWasteWeight);
-  $('wasteWeightValue')?.addEventListener('input', updateYieldPreview);
-  $('wasteProcessedValue')?.addEventListener('input', updateYieldPreview);
-  $('wasteProcessedUnit')?.addEventListener('change', updateYieldPreview);
-
-  /**
-   * Estimación de la pérdida con el último costo conocido de cada insumo en esa sucursal.
-   *
-   * Es una vista previa, no la cifra final: el servidor vuelve a mirar el último cargamento al
-   * grabar, y entre que se abrió el formulario y se guardó puede haber entrado uno nuevo. Un
-   * insumo sin costo cargado nunca suma, y se dice cuántos quedaron afuera para que el total no
-   * parezca completo cuando no lo está.
-   */
-  function updateWasteTotal() {
-    let total = 0;
-    let conCosto = 0;
-    let sinCosto = 0;
-    let estimados = 0;
-    wasteLinesContainer.querySelectorAll('.inv-line-row').forEach((row) => {
-      const c = wasteLineCalc(row);
-      const cantidad = c.qty || 0;
-      if (!c.itemId || cantidad <= 0) return;
-      // Sin cargamento con costo: el de referencia de Invu (el mismo que usa el servidor).
-      const costo = wasteLineUnitCost(row);
-      if (costo) {
-        total += cantidad * costo.cost;
-        conCosto += 1;
-        if (costo.estimated) estimados += 1;
-      } else {
-        sinCosto += 1;
-      }
-    });
-
-    $('wasteTotal').textContent = conCosto ? `${estimados ? '≈ ' : ''}${money(total)}` : '—';
-    const nota = document.querySelector('#modalWaste .inv-total-box small');
-    if (nota) {
-      const partes = [];
-      if (sinCosto) partes.push(`${pluralize(sinCosto, 'insumo', 'insumos')} sin precio, no se cuenta${sinCosto === 1 ? '' : 'n'}`);
-      if (estimados) partes.push('aprox., con el precio de Invu');
-      nota.textContent = partes.length ? partes.join(' · ') : 'Con el precio de la última compra';
-    }
-  }
-
-  function createWasteLineRow() {
-    const frag = wasteLineTemplate.content.cloneNode(true);
-    const row = frag.querySelector('.inv-line-row');
-    const itemInput = row.querySelector('.inv-item-input');
-    const suggestBox = row.querySelector('.inv-item-suggestions');
-    const unitLabel = row.querySelector('.inv-line-unit');
-    const removeBtn = row.querySelector('.inv-line-remove');
-    const qtyInput = row.querySelector('.inv-line-qty');
-    itemInput.dataset.itemId = '';
-    itemInput._reqId = 0;
-
-    const pieceInput = row.querySelector('.inv-line-piece-input');
-    const measuredInput = row.querySelector('.inv-line-measured-input');
-
-    const hideSuggestions = () => { suggestBox.hidden = true; suggestBox.innerHTML = ''; };
-    /** Vuelve la fila a "sin insumo": sin modo, sin cantidad pedida y sin tamaño de pieza. */
-    const resetLine = () => {
-      itemInput.dataset.itemId = '';
-      itemInput.dataset.unit = '';
-      itemInput.dataset.refCost = '';
-      itemInput.dataset.pieceSize = '';
-      unitLabel.textContent = '';
-      row.dataset.mode = '';
-      row.dataset.weighed = '';
-      pieceInput.value = '';
-      measuredInput.value = '';
-      applyWasteLineMode(row);
-    };
-
-    function selectItem(item) {
-      itemInput.value = item.name;
-      itemInput.dataset.itemId = String(item.id);
-      itemInput.dataset.unit = item.unit || '';
-      itemInput.dataset.refCost = item.reference_cost != null ? String(item.reference_cost) : '';
-      itemInput.dataset.pieceSize = item.piece_size != null ? String(item.piece_size) : '';
-      unitLabel.textContent = item.unit ? `Se cuenta en ${item.unit}` : '';
-      row.dataset.mode = '';
-      row.dataset.weighed = '';
-      pieceInput.value = '';
-      measuredInput.value = '';
-      qtyInput.value = '';
-      applyWasteLineMode(row);
-      hideSuggestions();
-      refreshWasteLine(row);
-      row.querySelector('.inv-mode-btn')?.focus();
-    }
-
-    row.querySelectorAll('.inv-mode-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (row.dataset.mode !== btn.dataset.mode) {
-          // Piezas ≠ gramos: al cambiar de modo la cantidad se vacía. En "entera" arranca en 1
-          // (lo más común: se botó un pan, una piña), y se cambia si fueron más.
-          qtyInput.value = btn.dataset.mode === 'entera' ? '1' : '';
-          measuredInput.value = '';
-          row.dataset.weighed = '';
-        }
-        row.dataset.mode = btn.dataset.mode;
-        applyWasteLineMode(row);
-        refreshWasteLine(row);
-        // En "entero" no se abre el teclado: se usan − y +. En "un pedazo" sí, porque lo que
-        // sigue es escribir lo que marcó la balanza.
-        if (btn.dataset.mode === 'parte') qtyInput.focus();
-      });
-    });
-    row.querySelectorAll('.inv-qty-step').forEach((b) => {
-      b.addEventListener('click', () => {
-        const n = Math.max(1, Math.round((Number(qtyInput.value) || 0) + Number(b.dataset.step)));
-        qtyInput.value = String(n);
-        refreshWasteLine(row);
-      });
-    });
-    row.querySelector('.inv-line-weighed-toggle').addEventListener('click', () => {
-      row.dataset.weighed = '1';
-      applyWasteLineMode(row);
-      measuredInput.focus();
-    });
-    pieceInput.addEventListener('input', () => refreshWasteLine(row));
-    measuredInput.addEventListener('input', () => { applyWasteLineMode(row); refreshWasteLine(row); });
-
-    // La lista sale del catálogo ya cargado en la pantalla (los insumos de Invu y los cargados a
-    // mano): aparece entera al tocar el campo y se filtra con cada letra, al instante, sin
-    // importar tildes ni mayúsculas ("pina" encuentra "Piña") y también por código ("P203").
-    let visibles = [];
-    let marcado = -1;
-
-    function renderSuggestions(results) {
-      visibles = results;
-      marcado = -1;
-      // Sin "+ Crear": una merma es de algo que ya existía. Si el insumo no está en el catálogo,
-      // tampoco entró nunca, y registrar su pérdida sería inventar un movimiento.
-      if (!results.length) {
-        suggestBox.innerHTML = '<div class="inv-item-suggestion-empty">Ningún insumo del catálogo coincide.</div>';
-        suggestBox.hidden = false;
-        return;
-      }
-      suggestBox.innerHTML = results.map((r, i) => `
-        <button type="button" class="inv-item-suggestion" data-idx="${i}" role="option">
-          <span class="inv-sugg-name">${esc(r.name)}${r.kind === 'casa' ? ' <span class="inv-badge kind-house">Casa</span>' : ''}</span>
-          <small>${r.code ? `${esc(r.code)} · ` : ''}${esc(r.unit)}</small>
-        </button>`).join('');
-      suggestBox.hidden = false;
-      suggestBox.querySelectorAll('.inv-item-suggestion').forEach((btn) => {
-        // mousedown y no click: el blur del campo cerraría la lista antes de que llegue el click.
-        btn.addEventListener('mousedown', (e) => { e.preventDefault(); selectItem(visibles[Number(btn.dataset.idx)]); });
-      });
-    }
-
-    function filtrarCatalogo(query) {
-      const q = sinTildes(query.trim());
-      const activos = state.items.filter((i) => i.active !== false);
-      if (!q) return activos;
-      const empiezan = [];
-      const contienen = [];
-      activos.forEach((i) => {
-        const nombre = sinTildes(i.name);
-        const codigo = sinTildes(i.code || '');
-        if (nombre.startsWith(q) || codigo === q) empiezan.push(i);
-        else if (nombre.includes(q) || codigo.includes(q)) contienen.push(i);
-      });
-      return [...empiezan, ...contienen];
-    }
-
-    async function mostrarSugerencias() {
-      if (state.items.length) {
-        renderSuggestions(filtrarCatalogo(itemInput.value));
-        return;
-      }
-      // Catálogo todavía sin cargar: se pregunta al servidor como antes.
-      const query = itemInput.value.trim();
-      const reqId = ++itemInput._reqId;
-      try {
-        const results = await api.get(`/inventory/items?q=${encodeURIComponent(query)}&limit=50`);
-        if (reqId === itemInput._reqId) renderSuggestions(results);
-      } catch (err) {
-        if (reqId === itemInput._reqId) hideSuggestions();
-      }
-    }
-
-    function marcar(idx) {
-      const botones = suggestBox.querySelectorAll('.inv-item-suggestion');
-      if (!botones.length) return;
-      marcado = (idx + botones.length) % botones.length;
-      botones.forEach((b, i) => b.classList.toggle('is-active', i === marcado));
-      botones[marcado].scrollIntoView({ block: 'nearest' });
-    }
-
-    itemInput.addEventListener('focus', () => { if (!itemInput.dataset.itemId) mostrarSugerencias(); });
-    itemInput.addEventListener('blur', () => setTimeout(hideSuggestions, 120));
-    itemInput.addEventListener('keydown', (e) => {
-      if (suggestBox.hidden) return;
-      if (e.key === 'ArrowDown') { e.preventDefault(); marcar(marcado + 1); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); marcar(marcado - 1); }
-      else if (e.key === 'Enter' && visibles.length) { e.preventDefault(); selectItem(visibles[Math.max(0, marcado)]); }
-      else if (e.key === 'Escape') hideSuggestions();
-    });
-
-    itemInput.addEventListener('input', () => {
-      resetLine();
-      refreshWasteLine(row);
-      mostrarSugerencias();
-    });
-
-    qtyInput.addEventListener('input', () => refreshWasteLine(row));
-
-    removeBtn.addEventListener('click', () => {
-      if (wasteLinesContainer.children.length > 1) {
-        row.remove();
-      } else {
-        itemInput.value = '';
-        qtyInput.value = '';
-        resetLine();
-      }
-      refreshWasteLine(row);
-    });
-
-    applyWasteLineMode(row);
-    wasteLinesContainer.appendChild(row);
-    utils.renderIcons();
-  }
-
-  $('btnAddWasteLine')?.addEventListener('click', () => {
-    createWasteLineRow();
-    const inputs = wasteLinesContainer.querySelectorAll('.inv-item-input');
-    inputs[inputs.length - 1]?.focus();
-  });
-
-  $('wasteBranchSelect')?.addEventListener('change', loadWasteStock);
-
-  // ==========================================================================
-  // Evidencia de la merma: fotos de lo que se descartó. Se guardan en la base con la merma.
-  // ==========================================================================
-
-  /** Achica la foto antes de subirla (una de celular pesa 3-5 MB). Si no se puede, va tal cual. */
-  async function compressPhoto(file) {
-    let tmpUrl = null;
-    try {
-      let source;
-      if (window.createImageBitmap) {
-        source = await createImageBitmap(file, { imageOrientation: 'from-image' });
-      } else {
-        tmpUrl = URL.createObjectURL(file);
-        source = await new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = reject;
-          img.src = tmpUrl;
-        });
-      }
-      const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(source.width, source.height));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(source.width * scale);
-      canvas.height = Math.round(source.height * scale);
-      canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
-      if (source.close) source.close();
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
-      if (blob) return blob;
-    } catch (e) {
-      /* Un formato que este navegador no sabe dibujar (p. ej. HEIC fuera de Safari): se manda
-         el original y el servidor decide si es una imagen aceptada. */
-    } finally {
-      if (tmpUrl) URL.revokeObjectURL(tmpUrl);
-    }
-    return file;
-  }
-
-  function renderPendingPhotos() {
-    const grid = $('wastePhotoPreviews');
-    if (!grid) return;
-    const add = grid.querySelector('.inv-photo-add-group');
-    grid.querySelectorAll('.inv-photo-thumb').forEach((n) => n.remove());
-    pendingWastePhotos.forEach((p, i) => {
-      const el = document.createElement('div');
-      el.className = 'inv-photo-thumb';
-      el.innerHTML = `<img src="${p.url}" alt="Foto ${i + 1}">
-        <button type="button" class="inv-photo-remove" data-idx="${i}" aria-label="Quitar foto ${i + 1}">&times;</button>`;
-      grid.insertBefore(el, add);
-    });
-    add.hidden = pendingWastePhotos.length >= WASTE_PHOTOS_MAX;
-  }
-
-  function resetPendingPhotos() {
-    pendingWastePhotos.forEach((p) => URL.revokeObjectURL(p.url));
-    pendingWastePhotos = [];
-    renderPendingPhotos();
-  }
-
-  /** Fotos elegidas o sacadas en el formulario: quedan en espera hasta guardar la merma. */
-  async function addPendingPhotos(files) {
-    for (const f of files) {
-      if (pendingWastePhotos.length >= WASTE_PHOTOS_MAX) break;
-      const blob = await compressPhoto(f);
-      pendingWastePhotos.push({ blob, url: URL.createObjectURL(blob) });
-    }
-    renderPendingPhotos();
-  }
-
-  $('wastePhotoInput')?.addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';   // elegir la misma foto otra vez tiene que volver a disparar el cambio
-    await addPendingPhotos(files);
-  });
-
-  // ---- Tomar foto con la cámara ----
-  // Celular/tablet: el input con `capture` abre la cámara del teléfono (la app nativa, que enfoca
-  // y maneja la luz mejor que cualquier cosa hecha acá). Computadora: ahí `capture` se ignora y
-  // abriría el explorador de archivos, así que se usa la webcam en vivo. Sin webcam o sin
-  // permiso, cae a elegir un archivo.
-  let cameraTarget = 'form';   // para quién se abrió la cámara: el formulario o el detalle
-  let cameraStream = null;
-
-  async function deliverCameraPhotos(files) {
-    if (!files.length) return;
-    if (cameraTarget === 'detail') await uploadDetailPhotos(files);
-    else if (cameraTarget === 'shipment') await addShipmentPhotos(files);
-    else await addPendingPhotos(files);
-  }
-
-  function openCamera(target) {
-    cameraTarget = target;
-    const tactil = window.matchMedia('(pointer: coarse)').matches;
-    if (tactil || !navigator.mediaDevices?.getUserMedia) {
-      $('wasteCameraInput').click();
-      return;
-    }
-    openWebcam();
-  }
-
-  async function openWebcam() {
-    const msg = $('wasteCameraMsg');
-    const shoot = $('btnCameraShoot');
-    msg.hidden = true;
-    shoot.disabled = true;
-    $('wasteCamera').hidden = false;
-    try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
-      });
-      $('wasteCameraVideo').srcObject = cameraStream;
-      shoot.disabled = false;
-    } catch (err) {
-      closeWebcam();
-      const sinPermiso = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
-      utils.showToast(
-        sinPermiso
-          ? 'No hay permiso para usar la cámara. Podés elegir la foto con «Galería».'
-          : 'No se encontró una cámara. Podés elegir la foto con «Galería».',
-        'warning'
-      );
-      // Si todavía vale el clic del usuario, abre el selector directo; si el navegador ya no lo
-      // deja (pasó mucho rato en el aviso de permiso), queda el botón «Galería».
-      $({ detail: 'wasteDetailPhotoInput', shipment: 'shipmentPhotoInput' }[cameraTarget] || 'wastePhotoInput').click();
-    }
-  }
-
-  function closeWebcam() {
-    if (cameraStream) cameraStream.getTracks().forEach((t) => t.stop());
-    cameraStream = null;
-    $('wasteCameraVideo').srcObject = null;
-    $('wasteCamera').hidden = true;
-  }
-
-  $('btnCameraCancel')?.addEventListener('click', closeWebcam);
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !$('wasteCamera').hidden) closeWebcam();
-  });
-
-  $('btnCameraShoot')?.addEventListener('click', async () => {
-    const video = $('wasteCameraVideo');
-    if (!video.videoWidth) return;
-    const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(video.videoWidth, video.videoHeight));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
-    closeWebcam();
-    if (blob) await deliverCameraPhotos([blob]);
-  });
-
-  $('wasteCameraInput')?.addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';
-    await deliverCameraPhotos(files);
-  });
-
-  // Los botones "Tomar foto" del formulario y del detalle (este último se redibuja).
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-photo-camera]');
-    if (btn) openCamera(btn.dataset.photoCamera);
-  });
-
-  $('wastePhotoPreviews')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.inv-photo-remove');
-    if (!btn) return;
-    const [quitada] = pendingWastePhotos.splice(Number(btn.dataset.idx), 1);
-    if (quitada) URL.revokeObjectURL(quitada.url);
-    renderPendingPhotos();
-  });
-
-  /** Sube las fotos una por una. Devuelve la merma como quedó y cuántas fallaron. */
-  async function uploadWastePhotos(wasteId, blobs) {
-    let ultima = null;
-    let fallidas = 0;
-    for (const blob of blobs) {
-      const fd = new FormData();
-      fd.append('file', blob, blob.type === 'image/png' ? 'peso.png' : 'peso.jpg');
-      try {
-        ultima = await api.request(`/inventory/waste/${wasteId}/photos`, { method: 'POST', body: fd });
-      } catch (err) {
-        fallidas += 1;
-      }
-    }
-    return { ultima, fallidas };
-  }
-
-  /** La foto con los mismos encabezados que el resto (un <img src> no manda el del dispositivo). */
-  async function wastePhotoUrl(wasteId, photoId) {
-    if (wastePhotoUrls.has(photoId)) return wastePhotoUrls.get(photoId);
-    const headers = { 'X-Requested-With': 'XMLHttpRequest' };
-    const deviceId = api.getDeviceId();
-    if (deviceId) headers['X-Device-ID'] = deviceId;
-    const res = await fetch(`${api.baseUrl}/inventory/waste/${wasteId}/photos/${photoId}`, { credentials: 'include', headers });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const url = URL.createObjectURL(await res.blob());
-    wastePhotoUrls.set(photoId, url);
-    return url;
-  }
-
-  function openPhotoViewer(url) {
-    $('wastePhotoViewerImg').src = url;
-    $('wastePhotoViewer').hidden = false;
-    $('btnCloseWastePhoto').focus();
-  }
-  function closePhotoViewer() {
-    $('wastePhotoViewer').hidden = true;
-    $('wastePhotoViewerImg').removeAttribute('src');
-  }
-  $('btnCloseWastePhoto')?.addEventListener('click', closePhotoViewer);
-  $('wastePhotoViewer')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closePhotoViewer(); });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !$('wastePhotoViewer').hidden) closePhotoViewer();
-  });
-
-  /** Galería del detalle: carga las miniaturas y deja agregar más. */
-  function wirePhotoGallery(w) {
-    const grid = $('wasteDetailPhotos');
-    if (!grid) return;
-    grid.querySelectorAll('[data-photo-id]').forEach((btn) => {
-      const photoId = Number(btn.dataset.photoId);
-      wastePhotoUrl(w.id, photoId)
-        .then((url) => {
-          if (!btn.isConnected) return;
-          btn.classList.remove('is-loading');
-          btn.innerHTML = `<img src="${url}" alt="Foto de la merma">`;
-          btn.addEventListener('click', () => openPhotoViewer(url));
-        })
-        .catch(() => {
-          if (!btn.isConnected) return;
-          btn.classList.remove('is-loading');
-          btn.classList.add('is-error');
-          btn.innerHTML = '<i data-lucide="image-off"></i>';
-          utils.renderIcons();
-        });
-    });
-    $('btnAddWastePhoto')?.addEventListener('click', () => $('wasteDetailPhotoInput').click());
-  }
-
-  $('wasteDetailPhotoInput')?.addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';
-    await uploadDetailPhotos(files);
-  });
-
-  /** Fotos agregadas desde el detalle de una merma ya registrada: se suben en el momento. */
-  async function uploadDetailPhotos(files) {
-    const w = state.waste.find((x) => x.id === state.selected.waste);
-    if (!w || !files.length) return;
-    const libres = WASTE_PHOTOS_MAX - (w.photos || []).length;
-    const blobs = [];
-    for (const f of files.slice(0, Math.max(0, libres))) blobs.push(await compressPhoto(f));
-    if (!blobs.length) return;
-    utils.showToast('Subiendo foto...', 'info');
-    const { ultima, fallidas } = await uploadWastePhotos(w.id, blobs);
-    if (ultima) Object.assign(w, ultima);
-    if (fallidas) utils.showToast(`${pluralize(fallidas, 'foto no se pudo', 'fotos no se pudieron')} subir.`, 'error');
-    else utils.showToast(blobs.length === 1 ? 'Foto agregada.' : 'Fotos agregadas.', 'success');
-    renderWasteList();
-  }
-
-  function openWasteModal() {
-    $('wasteError').style.display = 'none';
-    $('wasteNotes').value = '';
-    $('wasteWeightValue').value = '';
-    $('wasteWeightUnit').value = 'kg';
-    $('wasteProcessedValue').value = '';
-    $('wasteProcessedUnit').value = 'kg';
-    resetPendingPhotos();
-    $('wasteOccurredAt').value = toLocalInputValue(new Date());
-    // Sin motivo marcado de entrada: uno preseleccionado se quedaba puesto sin que nadie lo eligiera.
-    $('wasteReasonSelect').value = '';
-    renderWasteReasonChips();
-    const mas = document.querySelector('#modalWaste .inv-waste-more');
-    if (mas) mas.open = false;
-    wasteLinesContainer.innerHTML = '';
-    createWasteLineRow();
-    $('wasteTotal').textContent = '—';
-    syncProcessedField();
-    syncWasteWeight();
-    openModal('modalWaste');
-    loadWasteStock();
-  }
-
-  $('btnSubmitWaste')?.addEventListener('click', async () => {
-    $('wasteError').style.display = 'none';
-
-    const branchId = wasteModalBranchId();
-    if (!branchId) { showModalError('wasteError', 'Elegí una sucursal.'); return; }
-
-    // Se revisa en el mismo orden en que está el formulario: 1) qué, 2) por qué.
-    const rows = Array.from(wasteLinesContainer.querySelectorAll('.inv-line-row'));
-    const items = [];
-    for (const row of rows) {
-      const itemInput = row.querySelector('.inv-item-input');
-      const qtyInput = row.querySelector('.inv-line-qty');
-      const itemId = itemInput.dataset.itemId;
-      if (!itemId && !itemInput.value.trim() && !qtyInput.value) continue;
-      if (!itemId) { showModalError('wasteError', 'Tocá el insumo en la lista que aparece al escribir.'); itemInput.focus(); return; }
-      const c = wasteLineCalc(row);
-      if (c.error) {
-        showModalError('wasteError', `${itemInput.value}: ${c.error}`);
-        if (!c.mode) row.querySelector('.inv-mode-btn')?.focus();
-        else if (!(Number(qtyInput.value) > 0)) qtyInput.focus();
-        else row.querySelector('.inv-line-piece-input')?.focus();
-        return;
-      }
-      items.push(wasteLinePayload(row, c));
-    }
-    if (!items.length) { showModalError('wasteError', 'Falta el paso 1: escribí qué se botó.'); return; }
-
-    const reason = $('wasteReasonSelect').value;
-    if (!reason) {
-      showModalError('wasteError', 'Falta el paso 2: tocá por qué se botó.');
-      $('wasteReasonChips')?.querySelector('.inv-reason-chip')?.focus();
-      return;
-    }
-
-    const occurredValue = $('wasteOccurredAt').value;
-    let occurredAt = null;
-    if (occurredValue) {
-      const parsed = new Date(occurredValue);
-      if (Number.isNaN(parsed.getTime())) { showModalError('wasteError', 'La fecha no es válida.'); return; }
-      occurredAt = parsed.toISOString();
-    }
-
-    const weightRaw = $('wasteWeightValue').value.trim();
-    if (weightRaw && !(Number(weightRaw) > 0)) {
-      showModalError('wasteError', 'El peso tiene que ser mayor que cero.');
-      $('wasteWeightValue').focus();
-      return;
-    }
-    const processedRaw = $('wasteProcessedValue').value.trim();
-    if (reason === 'recorte' && processedRaw && !(Number(processedRaw) > 0)) {
-      showModalError('wasteError', 'Lo que se limpió tiene que ser mayor que cero.');
-      $('wasteProcessedValue').focus();
-      return;
-    }
-
-    const btn = $('btnSubmitWaste');
-    btn.disabled = true;
-    btn.textContent = 'Registrando...';
-    try {
-      const creada = await api.post('/inventory/waste', {
-        branch_id: branchId,
-        reason,
-        occurred_at: occurredAt,
-        notes: $('wasteNotes').value.trim() || null,
-        items,
-        weight_value: weightRaw || null,
-        weight_unit: weightRaw ? $('wasteWeightUnit').value : null,
-        weight_estimated: weightRaw ? (wasteWeightAuto && wasteWeightEstimated) : null,
-        processed_value: (reason === 'recorte' && processedRaw) ? processedRaw : null,
-        processed_unit: (reason === 'recorte' && processedRaw) ? $('wasteProcessedUnit').value : null,
-      });
-
-      // Lo aprendido (cuánto pesa una pieza) queda en el catálogo de la pantalla para la próxima.
-      (creada.items || []).forEach((l) => {
-        const it = state.items.find((i) => i.id === l.inventory_item_id);
-        if (it && l.piece_size != null) it.piece_size = l.piece_size;
-      });
-
-      // Las fotos van después, una por una, contra la merma ya creada: si una falla, la merma
-      // igual quedó guardada y la foto se puede agregar desde su detalle.
-      let fotosFallidas = 0;
-      if (pendingWastePhotos.length) {
-        btn.textContent = 'Subiendo fotos...';
-        ({ fallidas: fotosFallidas } = await uploadWastePhotos(creada.id, pendingWastePhotos.map((p) => p.blob)));
-      }
-      closeModal('modalWaste');
-      resetPendingPhotos();
-      showWasteResult(creada, { fotosFallidas });
-
-      state.selected.waste = null;
-      await Promise.all([loadWaste({ reset: true }), loadWasteAnalytics(), loadStock()]);
-      renderResumen();
-      if (wasteAnalysis.tab === 'analisis') loadWasteAnalysis();
-    } catch (err) {
-      showModalError('wasteError', err.message || 'No se pudo registrar la merma.');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Registrar merma';
-    }
-  });
-
-  // ==========================================================================
   // Vista: Conteo
   // ==========================================================================
   const countTitle = (c) => (c.is_first_count ? 'Conteo de arranque' : 'Conteo físico');
@@ -4521,8 +2625,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (!rows.length) {
       list.innerHTML = state.search.count
-        ? emptyStateHtml('search-x', 'Sin resultados', 'Probá con otro insumo o persona.')
-        : emptyStateHtml('clipboard-check', 'Todavía no hay conteos', 'Contá lo que hay en el estante: el primero de cada sucursal pasa a ser su inventario de arranque.');
+        ? emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro insumo o persona.')
+        : emptyStateHtml('clipboard-check', 'Todavía no hay conteos', 'Cuenta lo que hay en el estante: el primero de cada sucursal pasa a ser su inventario de arranque.');
       $('btnLoadMoreCounts').hidden = !state.countsHasMore;
       renderCountDetail();
       utils.renderIcons();
@@ -4628,7 +2732,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         hallazgos.push(`En ${pluralize(t.no_recipe, 'insumo', 'insumos')} faltó más de lo esperado, pero no ${t.no_recipe === 1 ? 'está' : 'están'} en ninguna receta de Invu: puede ser lo que se usó. Si se les carga la receta en Invu, el conteo lo descuenta solo.`);
       }
       if (t.no_conversion) {
-        hallazgos.push(`En ${pluralize(t.no_conversion, 'insumo', 'insumos')} no se pudo calcular cuánto se usó: la receta de Invu lo pide en otra unidad (por ejemplo gramos) y el insumo se cuenta por pieza. Anotá cuánto pesa una pieza (al registrar una merma, o en el insumo) y el conteo lo descuenta solo.`);
+        hallazgos.push(`En ${pluralize(t.no_conversion, 'insumo', 'insumos')} no se pudo calcular cuánto se usó: la receta de Invu lo pide en otra unidad (por ejemplo gramos) y el insumo se cuenta por pieza. Anota cuánto pesa una pieza (al registrar una merma, o en el insumo) y el conteo lo descuenta solo.`);
       }
       if (t.surplus) {
         hallazgos.push(`${t.surplus === 1 ? 'Sobró 1 insumo' : `Sobraron ${t.surplus} insumos`}: casi siempre es una compra que no se registró en Cargamentos.`);
@@ -4692,7 +2796,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const detail = $('countDetail');
     const c = state.counts.find((x) => x.id === state.selected.count);
     if (!c) {
-      detail.innerHTML = emptyStateHtml('mouse-pointer-click', 'Elegí un conteo', 'Lo que decía el sistema, lo que se contó y la diferencia aparecen acá.');
+      detail.innerHTML = emptyStateHtml('mouse-pointer-click', 'Elige un conteo', 'Lo que decía el sistema, lo que se contó y la diferencia aparecen aquí.');
       utils.renderIcons();
       return;
     }
@@ -4732,7 +2836,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       })
       .catch(() => {
         const box = $('countAnalysisBox');
-        if (box) box.innerHTML = '<p class="inv-ca-foot">No se pudo calcular el análisis. Probá de nuevo en un rato.</p>';
+        if (box) box.innerHTML = '<p class="inv-ca-foot">No se pudo calcular el análisis. Prueba de nuevo en un rato.</p>';
       });
   }
 
@@ -4819,12 +2923,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rows = visibleCountRows();
 
     if (!state.countStock.length) {
-      box.innerHTML = emptyStateHtml('layout-list', 'No hay insumos en el catálogo', 'Creá los insumos en la vista Insumos y volvé a contar.');
+      box.innerHTML = emptyStateHtml('layout-list', 'No hay insumos en el catálogo', 'Crea los insumos en la vista Insumos y vuelve a contar.');
       utils.renderIcons();
       return;
     }
     if (!rows.length) {
-      box.innerHTML = emptyStateHtml('search-x', 'Sin resultados', 'Probá con otro nombre, o destildá "Solo los que tienen movimiento".');
+      box.innerHTML = emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro nombre, o destildá "Solo los que tienen movimiento".');
       utils.renderIcons();
       return;
     }
@@ -4902,7 +3006,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const total = $('countTotal');
     total.classList.remove('is-short', 'is-over');
-    // Qué faltó y qué sobró no se puede saber acá: falta descontar lo que se usó en los platos
+    // Qué faltó y qué sobró no se puede saber aquí: falta descontar lo que se usó en los platos
     // vendidos (ventas de Invu × recetas), y eso lo calcula el servidor al guardar.
     if (state.countIsFirst && conCosto) {
       total.textContent = money(Math.abs(valor));
@@ -4949,7 +3053,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('countError').style.display = 'none';
 
     const branchId = countModalBranchId();
-    if (!branchId) { showModalError('countError', 'Elegí una sucursal.'); return; }
+    if (!branchId) { showModalError('countError', 'Elige una sucursal.'); return; }
 
     const items = [];
     for (const [itemId, v] of state.countEntries) {
@@ -4961,7 +3065,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       items.push({ inventory_item_id: itemId, counted_quantity: v });
     }
-    if (!items.length) { showModalError('countError', 'Anotá la cantidad de al menos un insumo.'); return; }
+    if (!items.length) { showModalError('countError', 'Anota la cantidad de al menos un insumo.'); return; }
 
     const btn = $('btnSubmitCount');
     btn.disabled = true;
@@ -4994,9 +3098,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const select = $('branchSelect');
     const filter = $('shipmentBranchFilter');
 
-    const wasteBadge = $('wasteBranchBadge');
-    const wasteSelect = $('wasteBranchSelect');
-    const wasteFilter = $('wasteBranchFilter');
     const stockFilter = $('stockBranchFilter');
     const dashFilter = $('dashboardBranch');
 
@@ -5012,10 +3113,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       badge.textContent = branchName;
       select.hidden = true;
       filter.hidden = true;
-      wasteBadge.hidden = false;
-      wasteBadge.textContent = branchName;
-      wasteSelect.hidden = true;
-      wasteFilter.hidden = true;
       stockFilter.hidden = true;
       if (dashFilter) dashFilter.hidden = true;
       countBadge.hidden = false;
@@ -5023,29 +3120,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       countSelect.hidden = true;
       countFilter.hidden = true;
       $('invScopeValue').textContent = branchName;
-      $('invHeaderScope').textContent = `Entradas, merma y existencias de ${branchName}`;
+      $('invHeaderScope').textContent = `Lo que llega, lo que hay y los conteos de ${branchName}`;
       return;
     }
 
     state.isGlobalScope = true;
     badge.hidden = true;
     select.hidden = false;
-    wasteBadge.hidden = true;
-    wasteSelect.hidden = false;
     countBadge.hidden = true;
     countSelect.hidden = false;
     $('invScopeValue').textContent = 'Todas las sucursales';
-    $('invHeaderScope').textContent = 'Entradas, merma y existencias de todas las sucursales';
+    $('invHeaderScope').textContent = 'Lo que llega, lo que hay y los conteos de todas las sucursales';
 
     try {
       state.branches = await api.get('/branches/');
       const options = state.branches.map((b) => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
       select.innerHTML = options;
-      wasteSelect.innerHTML = options;
       filter.innerHTML = `<option value="">Todas las sucursales</option>${options}`;
       filter.hidden = false;
-      wasteFilter.innerHTML = `<option value="">Todas las sucursales</option>${options}`;
-      wasteFilter.hidden = false;
       stockFilter.innerHTML = `<option value="">Todas las sucursales</option>${options}`;
       stockFilter.hidden = false;
       if (dashFilter) {
@@ -5077,19 +3169,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('shipmentList').innerHTML = skeletonListHtml();
   $('itemList').innerHTML = skeletonListHtml(3);
   $('supplierList').innerHTML = skeletonListHtml(3);
-  $('wasteList').innerHTML = skeletonListHtml(3);
   $('countList').innerHTML = skeletonListHtml(3);
 
   await resolveBranchContext(existingUser);
-  // Los motivos van primero: el filtro de la vista Merma y el selector del modal se llenan con
-  // ellos, y loadWaste puede pedir con un motivo ya elegido.
-  await loadWasteReasons();
   await Promise.all([
     loadShipments({ reset: true }),
     loadAnalytics(),
     loadCatalogs(),
-    loadWaste({ reset: true }),
-    loadWasteAnalytics(),
     loadStock(),
     loadCounts({ reset: true }),
     loadInvuStatus(),
@@ -5104,14 +3190,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   setView('resumen');
   utils.renderIcons();
 
-  // Fase 4: la vista de tablet (tablet.html) linkea acá con ?open=shipment|waste|count en vez
-  // de reconstruir esos formularios — un botón grande que abre el modal de siempre.
-  // Merma entra a su pantalla y NO abre el formulario sola: quien llega quiere ver lo registrado
-  // y decide si registra (lo pidió el negocio); el formulario se abre con "Registrar merma".
+  // Fase 4: la vista de tablet (tablet.html) linkea aquí con ?open=shipment|count en vez de
+  // reconstruir esos formularios — un botón grande que abre el modal de siempre. La merma ya no
+  // vive aquí: se registra en /merma y se analiza en Reportes; los enlaces viejos van allá.
   const openParam = new URLSearchParams(window.location.search).get('open');
   const AUTO_OPEN = {
     shipment: () => { setView('cargamentos'); openShipmentModal(); },
-    waste: () => { setView('merma'); },
     count: () => { setView('conteo'); openCountModal(); },
   };
   AUTO_OPEN[openParam]?.();
@@ -5125,11 +3209,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (viewParam === 'cargamentos' && shipmentParam && state.shipments.some((s) => s.id === shipmentParam)) {
       state.selected.shipment = shipmentParam;
       renderShipmentList();
-    }
-    const wasteParam = Number(urlParams.get('waste'));
-    if (viewParam === 'merma' && wasteParam && state.waste.some((w) => w.id === wasteParam)) {
-      state.selected.waste = wasteParam;
-      renderWasteList();
     }
   }
 });

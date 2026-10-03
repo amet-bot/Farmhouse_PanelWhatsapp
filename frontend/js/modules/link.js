@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Vistas
   // ==========================================================================
-  const VIEWS = { ventas: 'viewVentas', analisis: 'viewAnalisis', compras: 'viewCompras', cierre: 'viewCierre', inventario: 'viewInventario', sincronizacion: 'viewSincronizacion' };
+  const VIEWS = { ventas: 'viewVentas', analisis: 'viewAnalisis', compras: 'viewCompras', merma: 'viewMerma', cierre: 'viewCierre', inventario: 'viewInventario', sincronizacion: 'viewSincronizacion' };
 
   function setView(view) {
     if (!VIEWS[view]) view = 'ventas';
@@ -91,12 +91,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     Object.entries(VIEWS).forEach(([key, id]) => { $(id).hidden = key !== view; });
     document.querySelectorAll('#linkNav .inv-nav-item').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
     // Los filtros de período mandan en Ventas, Análisis y Compras; en Cierre el período es el mes.
-    $('linkFilters').hidden = view === 'sincronizacion';
+    // Merma tiene su propio período, sucursal y medida (ver waste-analysis.js).
+    $('linkFilters').hidden = view === 'sincronizacion' || view === 'merma';
     $('rangeGroup').hidden = view === 'cierre';
     if (view === 'sincronizacion') loadSyncStatus();
     if (view === 'ventas' && state.daily.length) renderDailyChart();  // el ancho pudo cambiar estando oculto
     if (view === 'analisis') loadAnalisis();
     if (view === 'compras') loadCompras();
+    if (view === 'merma') loadMerma();
     if (view === 'cierre') loadCierre();
     if (view === 'inventario') loadInventario();
   }
@@ -1143,6 +1145,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       utils.showToast(err.message || 'No se pudo cargar el cierre.', 'error');
       $('cierreTable').innerHTML = emptyHtml('No se pudo cargar', 'Probá de nuevo en unos segundos.');
     }
+  }
+
+  // ==========================================================================
+  // Merma (análisis): lo pinta js/modules/waste-analysis.js, con sus propios filtros
+  // ==========================================================================
+  let mermaReady = false;
+  function loadMerma() {
+    if (!window.WasteAnalysis) {
+      utils.showToast('No se pudo abrir el análisis de merma. Recarga la página.', 'error');
+      return;
+    }
+    if (!mermaReady) {
+      mermaReady = true;
+      WasteAnalysis.init({
+        isGlobalScope: state.isGlobal,
+        branches: state.branches.map((b) => ({ id: b.branch_id, name: b.branch_name })),
+        canSyncRecipes: (state.user?.permissions || []).includes('integrations.manage'),
+        scopeName: state.user?.branch?.name || '',
+      });
+    }
+    WasteAnalysis.load();
   }
 
   let resizeTimer;

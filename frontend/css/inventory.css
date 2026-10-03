@@ -357,6 +357,9 @@ body {
 
 .inv-nav-item.soon:hover { background: transparent; color: var(--inv-text-muted); }
 
+a.inv-nav-item { text-decoration: none; }
+.inv-nav-links .inv-nav-item { color: var(--inv-text-muted); }
+
 .inv-nav-sep {
   padding: 18px 10px 8px;
   font-size: 10px;
@@ -1452,6 +1455,7 @@ body {
   .inv-sidebar-brand,
   .inv-nav-sep,
   .inv-nav-soon,
+  .inv-nav-links,
   .inv-sidebar-foot { display: none; }
 
   /* min-width: 0 — sin esto la barra medía lo que suman los textos sin cortar (el mínimo de
@@ -3173,7 +3177,7 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 }
 .inv-dash-seg button.active { background: var(--inv-green-soft); color: var(--inv-green-dark); }
 
-.inv-dash-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.inv-dash-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .inv-dash-tile {
   display: flex;
   flex-direction: column;

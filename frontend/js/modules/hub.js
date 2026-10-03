@@ -33,14 +33,14 @@ const HUB_MODULES = [
   {
     id: 'operacion', name: 'Operación de Sucursal', shortName: 'Operación',
     description: 'Recibir mercancía, contar, registrar merma, solicitar insumos, transferir y reportar incidencias.',
-    shortDescription: 'Sucursales, tareas y reportes',
+    shortDescription: 'Lo del día en la sucursal',
     tags: ['Sucursales', 'Tareas'], icon: 'clipboard-list', route: '/operacion',
   },
   {
-    id: 'inventario', name: 'Inventario y Abastecimiento', shortName: 'Inventario',
-    description: 'Cargamentos, merma y conteos por sucursal. Gasto: próximamente.',
-    shortDescription: 'Stock y abastecimiento',
-    tags: ['Stock', 'Sucursales', 'Abastecimiento'], icon: 'package', route: '/inventario',
+    id: 'inventario', name: 'Inventario', shortName: 'Inventario',
+    description: 'La mercancía que llega, cuánto hay de cada insumo y los conteos de cada sucursal.',
+    shortDescription: 'Lo que llega y lo que hay',
+    tags: ['Mercancía recibida', 'Existencias', 'Conteo'], icon: 'package', route: '/inventario',
   },
   {
     id: 'abastecimiento', name: 'Abastecimiento', shortName: 'Abastecimiento',
