@@ -26,6 +26,16 @@ def _no_bot_response_delay(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _whatsapp_display_number(monkeypatch):
+    """
+    Un número de WhatsApp fijo para armar los enlaces wa.me en las pruebas. Antes salía del .env
+    local, y en GitHub (sin .env) las pruebas de pedidos y Yappy fallaban. La prueba que revisa
+    qué pasa sin número lo pone en None por su cuenta.
+    """
+    monkeypatch.setattr(settings, "META_WA_DISPLAY_NUMBER", "50760000000")
+
+
+@pytest.fixture(autouse=True)
 def _no_invu_credentials_from_env(monkeypatch):
     """
     Las credenciales de Invu del .env local no entran a las pruebas: con las de las sucursales la

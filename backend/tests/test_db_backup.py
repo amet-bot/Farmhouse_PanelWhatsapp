@@ -27,7 +27,7 @@ def carpeta(tmp_path, monkeypatch):
     return d
 
 
-def test_solo_admin_ve_y_baja_los_respaldos(client, carpeta, admin_user, supervisor_user, clayton_agent, clayton_device, monkeypatch):
+def test_solo_admin_ve_y_baja_los_respaldos(client, db_session, carpeta, admin_user, supervisor_user, clayton_agent, clayton_device, monkeypatch):
     monkeypatch.setattr(db_backup, "is_supported", lambda: False)   # la base de pruebas no es MySQL
     _escribir(carpeta / "farmhouse-2026-10-03.sql.gz", {"users": 4, "branches": 6})
     (carpeta / "otra-cosa.txt").write_text("no es un respaldo")
@@ -39,6 +39,8 @@ def test_solo_admin_ve_y_baja_los_respaldos(client, carpeta, admin_user, supervi
 
     r = client.get("/api/system/backups/farmhouse-2026-10-03.sql.gz", headers=ha)
     assert r.status_code == 200 and r.headers["content-type"] == "application/gzip"
+    from models.audit import AuditEvent
+    assert db_session.query(AuditEvent).filter(AuditEvent.action == "backup.download").count() == 1
     assert client.get("/api/system/backups/otra-cosa.txt", headers=ha).status_code == 404
     assert client.get("/api/system/backups/..%2F..%2Fmain.py", headers=ha).status_code == 404
 
