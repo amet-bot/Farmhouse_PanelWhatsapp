@@ -60,12 +60,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ---- pestañas ----
-  const views = { existencias: 'viewExistencias', minimos: 'viewMinimos', sugerido: 'viewSugerido', ordenes: 'viewOrdenes', precios: 'viewPrecios' };
+  const views = { existencias: 'viewExistencias', minimos: 'viewMinimos', sugerido: 'viewSugerido', ordenes: 'viewOrdenes', precios: 'viewPrecios', arranque: 'viewArranque' };
   const loaded = new Set();
+  // En celular la fila de pestañas se desplaza de lado: que la activa quede a la vista. Se repite
+  // cuando aparecen los íconos y los contadores, que ensanchan las pestañas.
+  function revealActiveTab() {
+    const fila = $('supTabs');
+    const activa = fila.querySelector('.ops-tab.active');
+    if (!activa || fila.scrollWidth <= fila.clientWidth) return;
+    const a = activa.getBoundingClientRect(), f = fila.getBoundingClientRect();
+    if (a.left < f.left || a.right > f.right) fila.scrollLeft += a.left - f.left - 12;
+  }
   function showTab(tab, { push = true } = {}) {
     if (!views[tab]) tab = 'existencias';
     state.tab = tab;
     document.querySelectorAll('#supTabs .ops-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+    revealActiveTab();
     Object.entries(views).forEach(([k, id]) => { $(id).hidden = k !== tab; });
     if (push) {
       const u = new URL(location.href);
@@ -79,7 +89,68 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btnRefresh').addEventListener('click', () => loadTab(state.tab));
   function loadTab(tab) {
     loaded.add(tab);
-    ({ existencias: loadStock, minimos: loadSettings, sugerido: loadSuggested, ordenes: loadOrders, precios: loadPrices })[tab]();
+    ({ existencias: loadStock, minimos: loadSettings, sugerido: loadSuggested, ordenes: loadOrders, precios: loadPrices, arranque: loadSetup })[tab]();
+  }
+
+  // =========================================================================
+  // Puesta en marcha: qué le falta a cada sucursal
+  // =========================================================================
+  const fechaCorta = (iso) => (iso ? utils._parseServerDate(iso).toLocaleDateString('es-PA', { day: 'numeric', month: 'short' }) : '');
+  function setupStep(done, title, detail, actionLabel, href, warn) {
+    return `
+      <li class="sup-step ${done ? 'done' : ''}">
+        <span class="sup-step-icon"><i data-lucide="${done ? 'check' : 'circle'}"></i></span>
+        <div class="sup-step-text">
+          <strong>${utils.escapeHtml(title)}</strong>
+          <span>${detail}</span>
+          ${warn ? `<span class="sup-step-warn">${warn}</span>` : ''}
+        </div>
+        <a class="${done ? 'inv-secondary-btn' : 'inv-primary-btn'} sup-step-btn" href="${href}">${utils.escapeHtml(actionLabel)}</a>
+      </li>`;
+  }
+  async function loadSetup() {
+    const box = $('setupBox');
+    try {
+      const data = await api.get('/supply/setup');
+      const pendientes = data.branches.filter((b) => b.progress < b.total).length;
+      $('countArranque').textContent = pendientes;
+      $('countArranque').hidden = !pendientes;
+      revealActiveTab();
+      if (!data.branches.length) { box.innerHTML = '<div class="ops-empty">No hay sucursales para mostrar.</div>'; return; }
+      box.innerHTML = `<div class="sup-setup-grid">${data.branches.map((b) => {
+        const s = b.steps;
+        const esc = utils.escapeHtml;
+        const faltan = s.closing_sheet.missing_piece_size_count;
+        const pasos = [
+          setupStep(s.first_count.done, '1. Primer conteo completo',
+            s.first_count.done ? `Hecho el ${fechaCorta(s.first_count.at)} · ${s.first_count.items} insumos contados.` : 'Contar todo lo que hay una vez. Es el punto de partida de la existencia.',
+            s.first_count.done ? 'Ver conteos' : 'Hacer conteo', '/inventario?view=conteos'),
+          setupStep(s.closing_sheet.done, '2. Hoja de cierre armada',
+            s.closing_sheet.done ? `${s.closing_sheet.items} insumos en la hoja.` : 'Elegir los 15 a 25 insumos que se cuentan al cerrar cada turno.',
+            s.closing_sheet.done ? 'Ver hoja' : 'Armar hoja', `/consumo?branch=${b.branch.id}`,
+            faltan ? `Falta cuánto trae una pieza de ${faltan} insumo${faltan === 1 ? '' : 's'} (${esc(s.closing_sheet.missing_piece_size.slice(0, 4).join(', '))}${faltan > 4 ? '…' : ''}). Se carga solo la primera vez que alguien cuenta en piezas.` : ''),
+          setupStep(s.minimums.done, '3. Mínimos cargados',
+            s.minimums.done ? `${s.minimums.items} insumos con mínimo: avisan cuando bajan.` : 'Sin mínimos no hay aviso de stock bajo ni pedido sugerido fino.',
+            s.minimums.done ? 'Ver mínimos' : 'Cargar mínimos', `/abastecimiento?tab=minimos&branch=${b.branch.id}`),
+          setupStep(s.closings.done, '4. Cierres de turno esta semana',
+            s.closings.done ? `${s.closings.last_week} cierre${s.closings.last_week === 1 ? '' : 's'} en ${data.recent_days} días · último ${fechaCorta(s.closings.last_at)}.` : (s.closings.last_at ? `Último cierre el ${fechaCorta(s.closings.last_at)}: nadie cerró turno esta semana.` : 'Todavía nadie ha cerrado turno con la hoja.'),
+            'Ir a la hoja', `/consumo?branch=${b.branch.id}`),
+        ];
+        const pct = Math.round((b.progress / b.total) * 100);
+        return `
+          <article class="sup-setup-card ${b.progress === b.total ? 'is-done' : ''}">
+            <header>
+              <h3>${esc(b.branch.name)}</h3>
+              <span class="sup-setup-count">${b.progress} de ${b.total} listos</span>
+            </header>
+            <div class="sup-setup-bar"><div style="width:${pct}%"></div></div>
+            <ol class="sup-steps">${pasos.join('')}</ol>
+          </article>`;
+      }).join('')}</div>`;
+      utils.renderIcons();
+    } catch (err) {
+      box.innerHTML = `<div class="ops-empty">No se pudo cargar la puesta en marcha. ${utils.escapeHtml(err.message || '')}</div>`;
+    }
   }
 
   // =========================================================================
@@ -445,6 +516,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ---- arranque ----
   showTab(state.tab, { push: false });
+  // El contador de "Puesta en marcha" se ve desde cualquier pestaña: cuántas sucursales tienen pasos pendientes.
+  if (state.tab !== 'arranque') loadSetup();
+  setTimeout(revealActiveTab, 400);
   if (state.tab !== 'sugerido' && state.branchId) { loaded.add('sugerido'); loadSuggested(); }   // el contador de la pestaña
   if (state.tab !== 'ordenes') { loaded.add('ordenes'); loadOrders(); }
   utils.renderIcons();

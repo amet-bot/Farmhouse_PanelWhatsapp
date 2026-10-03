@@ -16,7 +16,7 @@
   <!-- Mismo armazón (cabecera, gate de sesión, botones, pestañas y tablas) que Inventario y el Centro de operación. -->
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
   <link rel="stylesheet" href="css/gestion.css?v=1.0.0">
-  <link rel="stylesheet" href="css/abastecimiento.css?v=1.0.0">
+  <link rel="stylesheet" href="css/abastecimiento.css?v=1.1.2">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -65,9 +65,16 @@
           <button type="button" class="ops-tab" data-tab="sugerido"><i data-lucide="shopping-cart"></i> Pedido sugerido <span class="ops-tab-count" id="countSugerido" hidden></span></button>
           <button type="button" class="ops-tab" data-tab="ordenes"><i data-lucide="truck"></i> Órdenes <span class="ops-tab-count" id="countOrdenes" hidden></span></button>
           <button type="button" class="ops-tab" data-tab="precios"><i data-lucide="tags"></i> Precios</button>
+          <button type="button" class="ops-tab" data-tab="arranque"><i data-lucide="rocket"></i> Puesta en marcha <span class="ops-tab-count" id="countArranque" hidden></span></button>
         </nav>
         <button type="button" class="inv-secondary-btn ops-refresh" id="btnRefresh" title="Actualizar"><i data-lucide="refresh-cw"></i></button>
       </div>
+
+      <!-- ---------- Puesta en marcha: qué le falta a cada sucursal ---------- -->
+      <section class="sup-view" id="viewArranque" hidden>
+        <p class="sup-setup-intro">Para que existencias, mínimos y pedido sugerido digan la verdad, cada sucursal necesita estos cuatro pasos. Toca el botón de cada paso para hacerlo.</p>
+        <div id="setupBox"><div class="ops-loading">Cargando…</div></div>
+      </section>
 
       <!-- ---------- Existencias: cuánto le queda a cada sucursal ---------- -->
       <section class="sup-view" id="viewExistencias">
@@ -170,6 +177,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/abastecimiento.js?v=1.0.1"></script>
+  <script src="js/modules/abastecimiento.js?v=1.1.3"></script>
 </body>
 </html>

@@ -157,3 +157,32 @@ def test_precios_por_proveedor_marcan_el_mejor(client, db_session, clayton_branc
     a, b = por_prov["Avícola Sur"], por_prov["PriceSmart"]
     assert a["purchases"] == 2 and float(a["last_cost"]) == 2.9 and float(a["min_cost"]) == 2.5 and float(a["avg_cost"]) == 2.7
     assert b["best_price"] is True and a["best_price"] is False and a["vs_best_pct"] == pytest.approx(11.5, abs=0.1)
+
+
+def test_puesta_en_marcha_dice_que_le_falta_a_cada_sucursal(client, db_session, admin_user, clayton_branch, obarrio_branch, clayton_agent, clayton_device, supervisor_user):
+    """Primer conteo, hoja de cierre (y tamaños de pieza que faltan), mínimos y cierres de la
+    semana: por sucursal. Un empleado solo ve la suya."""
+    pollo = InventoryItem(name="Pollo", unit="kilogramo")
+    bolsa = InventoryItem(name="Bolsa", unit="unidad")
+    db_session.add_all([pollo, bolsa]); db_session.commit()
+    hs = auth_headers_for(supervisor_user, clayton_device.device_id)
+    client.put("/api/inventory/closing-sheet/config", json={"branch_id": clayton_branch.id, "item_ids": [pollo.id, bolsa.id]}, headers=hs)
+
+    d = client.get("/api/supply/setup", headers=auth_headers_for(admin_user)).json()
+    por_nombre = {f["branch"]["name"]: f for f in d["branches"]}
+    cly, obr = por_nombre[clayton_branch.name], por_nombre[obarrio_branch.name]
+    assert obr["progress"] == 0 and obr["total"] == 4
+    assert cly["steps"]["closing_sheet"] == {"done": True, "items": 2, "missing_piece_size": ["Pollo"], "missing_piece_size_count": 1}
+    assert cly["steps"]["first_count"]["done"] is False and cly["progress"] == 1
+
+    # Un cierre de turno cuenta como primer conteo y como cierre de la semana.
+    client.post("/api/inventory/closing-sheet", json={"branch_id": clayton_branch.id, "lines": [{"inventory_item_id": pollo.id, "counted_quantity": "3"}]}, headers=hs)
+    fila = db_session.query(ItemBranchSetting).filter_by(inventory_item_id=bolsa.id, branch_id=clayton_branch.id).one()
+    fila.min_quantity = Decimal("50")
+    db_session.commit()
+    cly = next(f for f in client.get("/api/supply/setup", headers=auth_headers_for(admin_user)).json()["branches"] if f["branch"]["id"] == clayton_branch.id)
+    assert cly["progress"] == 4 and cly["steps"]["first_count"]["items"] == 1 and cly["steps"]["closings"]["last_week"] == 1
+    assert cly["steps"]["minimums"] == {"done": True, "items": 1}
+
+    propia = client.get("/api/supply/setup", headers=auth_headers_for(clayton_agent, clayton_device.device_id)).json()
+    assert [f["branch"]["id"] for f in propia["branches"]] == [clayton_branch.id]

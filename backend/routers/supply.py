@@ -578,3 +578,69 @@ def supplier_prices(
     rows.sort(key=lambda r: (r["name"], r["last_cost"]))
     proveedores = sorted({(r["supplier_id"], r["supplier_name"]) for r in rows}, key=lambda t: t[1])
     return {"days": days, "rows": rows, "suppliers": [{"id": i, "name": n} for i, n in proveedores]}
+
+
+# ==========================================================================
+# Puesta en marcha por sucursal
+# ==========================================================================
+SETUP_RECENT_DAYS = 7
+
+
+@router.get("/setup")
+def branch_setup(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """
+    Qué le falta a cada sucursal para que el inventario sea real: primer conteo completo (el
+    arranque), hoja de cierre armada, insumos de la hoja que se cuentan en piezas sin tamaño de
+    pieza, mínimos cargados, y si se está cerrando turno (cierres de la última semana).
+    Cada paso dice si está hecho; `progress` es cuántos de los cuatro principales.
+    """
+    from models.inventory_item import InventoryItem as _Item  # local: evita ciclo de imports
+    from routers.inventory import _familia_de_unidad
+
+    efectiva = _visible_branch_filter(current_user, None)
+    bq = db.query(Branch).filter(Branch.active == True, Branch.code != "CAT")  # noqa: E712
+    if efectiva is not None:
+        bq = bq.filter(Branch.id == efectiva)
+    branches = bq.order_by(Branch.name).all()
+    desde = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=SETUP_RECENT_DAYS)
+
+    filas = []
+    for b in branches:
+        conteos = db.query(StockCount.id, StockCount.counted_at, StockCount.kind).filter(StockCount.branch_id == b.id).order_by(StockCount.counted_at.asc()).all()
+        primero = conteos[0] if conteos else None
+        items_contados = 0
+        if primero:
+            from models.stock_count import StockCountItem as _SCI
+            items_contados = db.query(func.count(_SCI.id)).filter(_SCI.stock_count_id == primero.id).scalar() or 0
+        cierres_semana = sum(1 for c in conteos if c.kind == "closing" and c.counted_at >= desde)
+        ultimo_cierre = max((c.counted_at for c in conteos if c.kind == "closing"), default=None)
+
+        hoja = (
+            db.query(ItemBranchSetting).join(_Item, _Item.id == ItemBranchSetting.inventory_item_id)
+            .filter(ItemBranchSetting.branch_id == b.id, ItemBranchSetting.on_closing_sheet == True, _Item.active == True)  # noqa: E712
+            .all()
+        )
+        sin_pieza = [
+            s.inventory_item.name for s in hoja
+            if s.inventory_item.piece_size is None and _familia_de_unidad(s.inventory_item.unit)[0] != "unidad"
+        ]
+        con_minimo = db.query(func.count(ItemBranchSetting.id)).filter(
+            ItemBranchSetting.branch_id == b.id, ItemBranchSetting.min_quantity.isnot(None)
+        ).scalar() or 0
+
+        pasos = {
+            "first_count": {"done": primero is not None, "at": primero.counted_at if primero else None, "items": items_contados},
+            "closing_sheet": {"done": len(hoja) > 0, "items": len(hoja), "missing_piece_size": sorted(sin_pieza)[:20], "missing_piece_size_count": len(sin_pieza)},
+            "minimums": {"done": con_minimo > 0, "items": con_minimo},
+            "closings": {"done": cierres_semana > 0, "last_week": cierres_semana, "last_at": ultimo_cierre},
+        }
+        filas.append({
+            "branch": {"id": b.id, "name": b.name, "code": b.code},
+            "steps": pasos,
+            "progress": sum(1 for p in pasos.values() if p["done"]),
+            "total": len(pasos),
+        })
+    return {"branches": filas, "recent_days": SETUP_RECENT_DAYS}
