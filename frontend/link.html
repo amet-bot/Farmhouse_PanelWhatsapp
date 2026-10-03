@@ -18,7 +18,7 @@
   <!-- El armazón (cabecera, rail, fichas, paneles) es el mismo de Inventario: se reusa su hoja
        tal cual y link.css solo agrega lo que Inventario no tiene (gráficos y tablas). -->
   <link rel="stylesheet" href="css/inventory.css?v=4.22.0">
-  <link rel="stylesheet" href="css/link.css?v=4.9.0">
+  <link rel="stylesheet" href="css/link.css?v=4.10.1">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -319,6 +319,12 @@
           </div>
 
           <div class="inv-panel">
+            <div class="inv-panel-head"><h2>Recetas: ¿qué platos tienen?</h2><span class="inv-panel-note" id="coverageNote">Lo vendido en el período</span></div>
+            <div id="coverageBox"></div>
+            <p class="muted" style="font-size:12px;margin:8px 0 0">Las recetas salen de Invu. Si un plato no tiene en esa sucursal, se usa la del mismo plato en otra sucursal; si es un producto que se vende tal cual (una Coca Cola) y existe como insumo con el mismo nombre, cuenta 1 unidad. Los platos <b>sin receta</b> hay que cargarlos en Invu: empieza por los de arriba.</p>
+          </div>
+
+          <div class="inv-panel">
             <div class="inv-panel-head"><h2>¿Llegó todo?</h2><span class="inv-panel-note" id="issuesNote"></span></div>
             <div class="link-table-wrap" id="issuesTable"></div>
           </div>
@@ -356,6 +362,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/link.js?v=4.10.0"></script>
+  <script src="js/modules/link.js?v=4.11.1"></script>
 </body>
 </html>

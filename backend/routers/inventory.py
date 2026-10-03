@@ -2338,11 +2338,11 @@ COUNT_TOLERANCE_PCT = Decimal("3")
 
 
 def _recetas_de_sucursal(db: Session, branch_id: int) -> tuple:
-    """Las recetas de Invu de la sucursal por (tipo, id de Invu) y el catálogo por id de Invu."""
-    recetas: dict = {}
-    for linea in db.query(InvuRecipeLine).filter(InvuRecipeLine.branch_id == branch_id).all():
-        recetas.setdefault((linea.source_type, linea.source_invu_id), []).append(linea)
-    insumos = {i.invu_id: i for i in db.query(InventoryItem).filter(InventoryItem.invu_id.isnot(None))}
+    """Las recetas efectivas de la sucursal por (tipo, id de Invu) y el catálogo por id de Invu.
+    Las de Invu de esa sucursal mandan; donde no hay, se usa la del mismo plato en otra sucursal
+    o, si es un producto de reventa, 1 unidad del insumo del mismo nombre (services/recipe_resolver)."""
+    from services.recipe_resolver import resolver
+    recetas, insumos, _origen = resolver(db, branch_id)
     return recetas, insumos
 
 
@@ -2393,11 +2393,10 @@ def _uso_por_ventas(
 
 
 def _insumos_con_receta(db: Session, branch_id: int) -> set:
-    """Los insumos que aparecen en alguna receta de Invu de esa sucursal."""
-    invu_ids = {r[0] for r in db.query(InvuRecipeLine.product_invu_id).filter(InvuRecipeLine.branch_id == branch_id).distinct()}
-    if not invu_ids:
-        return set()
-    return {r[0] for r in db.query(InventoryItem.id).filter(InventoryItem.invu_id.in_(invu_ids))}
+    """Los insumos que aparecen en alguna receta efectiva de esa sucursal (ver _recetas_de_sucursal)."""
+    recetas, insumos = _recetas_de_sucursal(db, branch_id)
+    invu_ids = {l.product_invu_id for lineas in recetas.values() for l in lineas}
+    return {insumos[i].id for i in invu_ids if i in insumos}
 
 
 def _analizar_conteo(db: Session, record: StockCount) -> StockCountAnalysis:

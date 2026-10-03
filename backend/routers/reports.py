@@ -835,3 +835,79 @@ def inventory_variance(
 
     salida.sort(key=lambda s: -s["missing_cost"])
     return {"from": desde, "to": hasta, "tolerance_pct": float(COUNT_TOLERANCE_PCT), "branches": salida}
+
+
+# ==========================================================================
+# Cobertura de recetas: qué platos vendidos tienen receta y de dónde sale
+# ==========================================================================
+def _faltantes_agrupados(platos: list, sin_receta: str) -> list:
+    """Los platos sin receta juntando las versiones del mismo plato (salón / delivery tienen
+    otro id en Invu pero se cargan igual): una fila por nombre, con lo vendido sumado."""
+    from services.recipe_resolver import normalizar
+    grupos: dict = {}
+    for p in platos:
+        if p["source"] != sin_receta:
+            continue
+        g = grupos.setdefault(normalizar(p["name"]), {"name": p["name"], "sold": Decimal("0"), "versions": 0, "invu_item_ids": []})
+        g["sold"] += p["sold"]
+        g["versions"] += 1
+        g["invu_item_ids"].append(p["invu_item_id"])
+    return sorted(grupos.values(), key=lambda g: (-g["sold"], g["name"]))
+
+
+@router.get("/recipes/coverage")
+def recipes_coverage(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_gerencia),
+):
+    """
+    Por sucursal: los platos vendidos en el período, ordenados por cuánto se venden, con el
+    origen de su receta (Invu de esa sucursal, el mismo plato en otra sucursal, reventa 1:1 o
+    sin receta) y qué parte de lo vendido queda cubierta. Es la lista de trabajo para cargar
+    recetas en Invu: lo que más se vende sin receta, primero.
+    """
+    from services.recipe_resolver import ORIGEN_NINGUNA, resolver
+
+    desde, hasta = _rango(date_from, date_to, por_defecto=30)
+    visible = _sucursal_visible(current_user, branch_id)
+    branches = db.query(Branch).filter(Branch.active == True).order_by(Branch.name).all()  # noqa: E712
+    branches = [b for b in branches if (visible is None and b.code != "CAT") or b.id == visible]
+
+    salida = []
+    for b in branches:
+        recetas, _insumos, origen = resolver(db, b.id, hoy=hasta)
+        filas = (
+            db.query(InvuSaleLine.invu_item_id, func.max(InvuSaleLine.name), func.sum(InvuSaleLine.quantity))
+            .filter(InvuSaleLine.branch_id == b.id, InvuSaleLine.business_date >= desde, InvuSaleLine.business_date <= hasta,
+                    InvuSaleLine.counted == True, InvuSaleLine.invu_item_id.isnot(None))  # noqa: E712
+            .group_by(InvuSaleLine.invu_item_id).all()
+        )
+        platos = []
+        por_origen = defaultdict(lambda: {"dishes": 0, "units": Decimal("0")})
+        total = Decimal("0")
+        for item_id, nombre, cantidad in filas:
+            cantidad = Decimal(cantidad or 0)
+            o = origen.get(("item", item_id)) or {"source": ORIGEN_NINGUNA, "from_branch": None}
+            platos.append({
+                "invu_item_id": item_id, "name": nombre, "sold": cantidad.quantize(Decimal("0.01")),
+                "source": o["source"], "from_branch": o.get("from_branch"),
+                "ingredients": len(recetas.get(("item", item_id), [])),
+            })
+            por_origen[o["source"]]["dishes"] += 1
+            por_origen[o["source"]]["units"] += cantidad
+            total += cantidad
+        platos.sort(key=lambda p: (-p["sold"], p["name"]))
+        cubiertas = total - por_origen[ORIGEN_NINGUNA]["units"]
+        salida.append({
+            "branch": {"id": b.id, "name": b.name},
+            "dishes": len(platos),
+            "units": _q(total),
+            "covered_pct": _pct(cubiertas, total),
+            "by_source": {k: {"dishes": v["dishes"], "units": _q(v["units"]), "pct": _pct(v["units"], total)} for k, v in por_origen.items()},
+            "missing": _faltantes_agrupados(platos, ORIGEN_NINGUNA)[:25],
+            "rows": platos[:200],
+        })
+    return {"from": desde, "to": hasta, "branches": salida}
