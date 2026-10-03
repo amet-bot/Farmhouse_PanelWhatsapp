@@ -18,7 +18,7 @@
   <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario: se reusa su hoja tal cual
        y tablet.css solo agrega la grilla de botones grandes, que Inventario no tiene. -->
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
-  <link rel="stylesheet" href="css/tablet.css?v=4.5.0">
+  <link rel="stylesheet" href="css/tablet.css?v=4.5.1">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -115,9 +115,16 @@
       <form id="requestForm">
         <label class="tablet-field">
           <span>¿Qué hace falta?</span>
-          <input type="text" id="requestItemName" required maxlength="150" placeholder="Ej: Servilletas">
+          <input type="text" id="requestItemName" required maxlength="150" placeholder="Busca: servilletas, pollo, aceite…" autocomplete="off">
+          <input type="hidden" id="requestItemId">
+          <div class="tablet-autocomplete" id="requestItemResults" hidden></div>
+          <small class="tablet-field-hint" id="requestItemHint">Elige de la lista para que entre al pedido. Si no aparece, escríbelo igual.</small>
         </label>
-        <label class="tablet-field">
+        <label class="tablet-field" id="requestQtyCatalog" hidden>
+          <span>¿Cuánto hace falta? <em id="requestQtyUnit"></em></span>
+          <input type="number" id="requestQuantity" min="0.001" step="0.001" inputmode="decimal" placeholder="Ej: 5">
+        </label>
+        <label class="tablet-field" id="requestQtyFree">
           <span>Cantidad (opcional)</span>
           <input type="text" id="requestQuantityHint" maxlength="50" placeholder="Ej: 3 paquetes">
         </label>
@@ -202,7 +209,7 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/tablet.js?v=4.0.0"></script>
+  <script src="js/modules/tablet.js?v=4.1.0"></script>
   <script src="js/modules/tablet-tareas.js?v=1.0.0"></script>
 </body>
 </html>

@@ -55,20 +55,64 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btnGoConsumo').addEventListener('click', () => { window.location.href = '/consumo'; });
 
   // ---- Solicitar insumos ----
+  // Ligada al catálogo cuando se elige de la lista: así la solicitud entra al pedido sugerido
+  // de Abastecimiento con su cantidad. Si el insumo no está, se manda como texto libre.
+  let requestPicked = null;   // { id, name, unit }
+  function setRequestPicked(item) {
+    requestPicked = item;
+    $('requestItemId').value = item ? item.id : '';
+    $('requestQtyCatalog').hidden = !item;
+    $('requestQtyFree').hidden = !!item;
+    $('requestQuantity').required = !!item;
+    $('requestQtyUnit').textContent = item && item.unit ? `(en ${item.unit})` : '';
+    $('requestItemHint').textContent = item ? 'Del catálogo: entra al pedido sugerido.' : 'Elige de la lista para que entre al pedido. Si no aparece, escríbelo igual.';
+  }
   $('btnOpenRequest').addEventListener('click', () => {
     $('requestForm').reset();
+    setRequestPicked(null);
+    $('requestItemResults').hidden = true;
     $('requestError').style.display = 'none';
     openModal('modalRequest');
+  });
+  let requestSearchTimer = null;
+  let requestSearchSeq = 0;
+  $('requestItemName').addEventListener('input', () => {
+    const q = $('requestItemName').value.trim();
+    if (requestPicked && q !== requestPicked.name) setRequestPicked(null);
+    clearTimeout(requestSearchTimer);
+    if (q.length < 2) { $('requestItemResults').hidden = true; return; }
+    requestSearchTimer = setTimeout(async () => {
+      const seq = ++requestSearchSeq;
+      try {
+        const items = await api.get(`/inventory/items?q=${encodeURIComponent(q)}&limit=8`);
+        if (seq !== requestSearchSeq) return;
+        const box = $('requestItemResults');
+        if (!items.length) { box.hidden = true; return; }
+        box.innerHTML = items.map((i) => `<button type="button" class="tablet-autocomplete-row" data-id="${i.id}" data-name="${esc(i.name)}" data-unit="${esc(i.unit || '')}">${esc(i.name)} <small>${esc(i.unit || '')}</small></button>`).join('');
+        box.hidden = false;
+      } catch (e) { /* búsqueda silenciosa: se puede mandar como texto */ }
+    }, 200);
+  });
+  $('requestItemResults').addEventListener('click', (e) => {
+    const row = e.target.closest('.tablet-autocomplete-row');
+    if (!row) return;
+    $('requestItemName').value = row.dataset.name;
+    $('requestItemResults').hidden = true;
+    setRequestPicked({ id: Number(row.dataset.id), name: row.dataset.name, unit: row.dataset.unit });
+    $('requestQuantity').focus();
   });
 
   guardSubmit($('requestForm'), async () => {
     const errorBox = $('requestError');
     errorBox.style.display = 'none';
     try {
+      const qty = requestPicked ? Number($('requestQuantity').value) : null;
       await api.post('/ops/requests', {
         branch_id: branchId,
         item_name: $('requestItemName').value.trim(),
-        quantity_hint: $('requestQuantityHint').value.trim() || null,
+        inventory_item_id: requestPicked ? requestPicked.id : null,
+        quantity: requestPicked && qty > 0 ? String(qty) : null,
+        quantity_hint: requestPicked ? (qty > 0 ? `${qty} ${requestPicked.unit || ''}`.trim() : null) : ($('requestQuantityHint').value.trim() || null),
         notes: $('requestNotes').value.trim() || null,
       });
       closeModal('modalRequest');
