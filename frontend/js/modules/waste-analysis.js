@@ -47,6 +47,7 @@
   const unitShort = (u) => UNIT_SHORT[String(u || '').trim().toLowerCase()] || String(u || '');
 
   const pluralize = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const PICK_HINT = 'Toca una barra para ver el detalle de ese tramo.';
 
   const emptyStateHtml = (icon, title, text) => `
     <div class="inv-empty">
@@ -109,6 +110,28 @@
     segmentado('wastePeriod', 'period', (p) => { wasteAnalysis.period = p; loadWasteAnalysis(); });
     segmentado('wasteMetric', 'metric', (m) => { wasteAnalysis.metric = m; renderWasteAnalysis(); });
     $('wasteAnalysisBranch')?.addEventListener('change', (e) => { wasteAnalysis.branch = e.target.value; loadWasteAnalysis(); });
+
+    // El detalle de cada barra vivía solo en el <title> del SVG (aparece al pasar el mouse): en la
+    // tablet, tocar una barra no mostraba nada. Ahora tocarla (o enfocarla con el teclado) lo
+    // escribe debajo del gráfico; tocarla otra vez lo quita.
+    const chart = $('wasteDayChart');
+    const pick = (bar) => {
+      const already = bar && bar.classList.contains('is-picked');
+      chart.querySelectorAll('.inv-trend-bar.is-picked').forEach((b) => b.classList.remove('is-picked'));
+      const out = $('wasteDayPick');
+      if (!out) return;
+      if (!bar || already) { out.textContent = PICK_HINT; return; }
+      bar.classList.add('is-picked');
+      const [cuando, resto] = String(bar.getAttribute('aria-label') || '').split(/:\s(.+)/);
+      out.innerHTML = `<strong>${esc(cuando)}</strong>${resto ? `: ${esc(resto)}` : ''}`;
+    };
+    chart?.addEventListener('click', (e) => pick(e.target.closest('.inv-trend-bar')));
+    chart?.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.inv-trend-bar')) {
+        e.preventDefault();
+        pick(e.target.closest('.inv-trend-bar'));
+      }
+    });
 
     // El gráfico se dibuja al ancho real de su caja: al cambiar el tamaño de la ventana se redibuja.
     let trendResizeTimer = null;
@@ -236,6 +259,8 @@
     const unidadTramo = semanal ? 'semana' : 'día';
     $('wasteDayTitle').textContent = `Pérdida por ${unidadTramo}`;
     $('wasteDayNote').textContent = porKg ? 'En kilos' : 'En dólares';
+    const pickOut = $('wasteDayPick');
+    if (pickOut) { pickOut.textContent = a.totals.records ? PICK_HINT : ''; }
 
     if (!a.totals.records) {
       $('wasteDayHeadline').textContent = '';
@@ -463,7 +488,7 @@
     $('wasteItemsBars').innerHTML = items.length ? barsHtml(items, {
       valor: val,
       etiqueta: (i) => `${esc(i.name)} ${i.kind === 'casa' ? '<span class="inv-badge kind-house">Casa</span>' : ''}`,
-      extra: (i) => `${fmt(i)}${!porKg && i.estimated ? ' <small title="Parte del costo es el de referencia de Invu">≈</small>' : ''}
+      extra: (i) => `${fmt(i)}${!porKg && i.estimated ? ' <small>≈ estimado</small>' : ''}
         <small>${esc(qty(i.quantity))} ${esc(i.unit)}</small>`,
     }) : emptyStateHtml('package', 'Nada para mostrar', porKg ? 'Ningún insumo con kilos en el período.' : 'Ninguna merma en el período.');
 

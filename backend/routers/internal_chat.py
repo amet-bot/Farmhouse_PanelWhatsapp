@@ -160,7 +160,7 @@ def _serialize_thread(db: Session, thread: InternalThread, me: User, online_ids:
     last_message_at = None
     if last:
         preview = _preview(last)
-        sender_name = "Vos" if last.sender_user_id == me.id else last.sender.name.split(" ")[0]
+        sender_name = "Tú" if last.sender_user_id == me.id else last.sender.name.split(" ")[0]
         last_message_at = last.created_at
     elif not (participant and participant.cleared_up_to_id):
         # Sin mensajes visibles y sin haber vaciado el hilo: comportamiento de siempre, la fecha

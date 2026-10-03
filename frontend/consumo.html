@@ -12,10 +12,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=4.13.1">
-  <link rel="stylesheet" href="css/inventory.css?v=4.23.0">
-  <link rel="stylesheet" href="css/gestion.css?v=1.5.0">
-  <link rel="stylesheet" href="css/cierre.css?v=1.3.2">
+  <link rel="stylesheet" href="css/style.css?v=5.0.1003">
+  <link rel="stylesheet" href="css/inventory.css?v=5.0.1003">
+  <link rel="stylesheet" href="css/gestion.css?v=5.0.1003">
+  <link rel="stylesheet" href="css/cierre.css?v=5.0.1003">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -99,8 +99,9 @@
         <span>insumos anotados</span>
         <div class="cie-bar-track"><div class="cie-bar-fill" id="barFill"></div></div>
       </div>
-      <input class="modal-input cie-bar-notes" id="notes" maxlength="500" placeholder="Nota (opcional)" />
-      <button type="button" class="inv-primary-btn cie-submit" id="btnSubmit" disabled><i data-lucide="check"></i> Cerrar turno</button>
+      <input class="modal-input cie-bar-notes" id="notes" maxlength="500" placeholder="Nota (opcional)" aria-label="Nota del cierre (opcional)" enterkeyhint="done" />
+      <button type="button" class="inv-primary-btn cie-submit" id="btnSubmit" disabled><i data-lucide="check"></i> <span id="btnSubmitLabel">Cerrar turno</span></button>
+      <p class="cie-bar-error" id="barError" role="alert" hidden></p>
     </div>
 
     <!-- Modal: elegir insumos de la hoja (encargados) -->
@@ -113,7 +114,7 @@
         <div class="modal-body cie-config-body">
           <p class="ops-hint">Marca lo que la sucursal debe contar al cerrar cada turno. Conviene que sean 15 a 25 cosas: las que más se gastan o más cuestan. Se muestran agrupadas por categoría, en este orden.</p>
           <div class="cie-config-tools">
-            <input class="modal-input" id="configSearch" placeholder="Buscar insumo…" autocomplete="off" />
+            <input class="modal-input" id="configSearch" placeholder="Buscar insumo…" aria-label="Buscar insumo" autocomplete="off" enterkeyhint="search" />
             <span class="cie-config-count" id="configCount">0 marcados</span>
           </div>
           <div class="cie-config-list" id="configList"></div>
@@ -121,17 +122,17 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="inv-secondary-btn" id="btnConfigCancel">Cancelar</button>
-          <button type="button" class="inv-primary-btn" id="btnConfigSave"><i data-lucide="save"></i> Guardar hoja</button>
+          <button type="button" class="inv-primary-btn" id="btnConfigSave"><i data-lucide="save"></i> <span id="btnConfigSaveLabel">Guardar hoja</span></button>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="js/utils.js?v=3.5.0"></script>
-  <script src="js/api.js?v=4.1.0"></script>
+  <script src="js/utils.js?v=5.0.1003"></script>
+  <script src="js/api.js?v=5.0.1003"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/cierre.js?v=1.3.1"></script>
+  <script src="js/shared/shell.js?v=5.0.1003"></script>
+  <script src="js/shared/native-app.js?v=5.0.1003"></script>
+  <script src="js/modules/cierre.js?v=5.0.1003"></script>
 </body>
 </html>

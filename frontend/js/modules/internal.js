@@ -45,6 +45,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   ];
 
   const esc = (v) => utils.escapeHtml(v);
+  // El rol en palabras ("Encargado", "Administrador"), no el código del servidor.
+  const roleText = (p) => (window.FarmhouseShell && FarmhouseShell.roleLabel ? FarmhouseShell.roleLabel(p) : p.role);
+  // El servidor todavía manda "Vos" como remitente del último mensaje propio.
+  const senderText = (s) => (s === 'Vos' ? 'Tú' : s);
 
   // ==========================================================================
   // Tema y sesión (utilidad compartida, ver js/shared/shell.js)
@@ -141,7 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.threads = await api.get('/internal/threads');
       renderThreads();
     } catch (err) {
-      if (!silent) $('threadList').innerHTML = emptyHtml('No se pudo cargar', err.message || 'Intentá de nuevo en un momento.');
+      if (!silent) $('threadList').innerHTML = emptyHtml('No se pudo cargar', err.message || 'Intenta de nuevo en un momento.');
     }
   }
 
@@ -165,7 +169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!rows.length) {
       list.innerHTML = q
         ? emptyHtml('Sin resultados', 'Ninguna conversación coincide con esa búsqueda.')
-        : emptyHtml('Todavía no hay conversaciones', 'Abrí el Directorio y escribile a quien necesites.');
+        : emptyHtml('Todavía no hay conversaciones', 'Abre el Directorio y escríbele a quien necesites.');
       return;
     }
 
@@ -173,7 +177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const active = t.id === state.activeThreadId ? ' active' : '';
       const unreadCls = t.unread_count ? ' has-unread' : '';
       const preview = t.last_message_preview
-        ? `${t.last_message_sender ? esc(t.last_message_sender) + ': ' : ''}${esc(t.last_message_preview)}`
+        ? `${t.last_message_sender ? esc(senderText(t.last_message_sender)) + ': ' : ''}${esc(t.last_message_preview)}`
         : (t.kind === 'branch' ? 'Canal del equipo' : 'Sin mensajes todavía');
       return `
         <button type="button" class="int-row${active}${unreadCls}" data-thread-id="${t.id}">
@@ -209,14 +213,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.people = await api.get('/internal/directory');
       renderPeople();
     } catch (err) {
-      if (!silent) $('peopleList').innerHTML = emptyHtml('No se pudo cargar', err.message || 'Intentá de nuevo.');
+      if (!silent) $('peopleList').innerHTML = emptyHtml('No se pudo cargar', err.message || 'Intenta de nuevo.');
     }
   }
 
   function renderPeople() {
     const q = state.search.people.trim().toLowerCase();
     const rows = state.people.filter((p) =>
-      !q || `${p.name} ${p.branch_name || ''} ${p.role}`.toLowerCase().includes(q)
+      !q || `${p.name} ${p.branch_name || ''} ${p.role} ${roleText(p)}`.toLowerCase().includes(q)
     );
 
     const list = $('peopleList');
@@ -243,7 +247,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <span class="int-row-preview">${p.online ? 'En línea' : 'Desconectado'}</span>
           </span>
           <span class="int-row-meta">
-            ${p.role !== 'agent' ? `<span class="int-chip role">${esc(p.role)}</span>` : ''}
+            ${p.role !== 'agent' ? `<span class="int-chip role">${esc(roleText(p))}</span>` : ''}
           </span>
         </button>`).join('')}
     `).join('');
@@ -290,7 +294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderMessages();
       await markRead(threadId);
     } catch (err) {
-      $('messageList').innerHTML = emptyHtml('No se pudo cargar', err.message || 'Intentá de nuevo.');
+      $('messageList').innerHTML = emptyHtml('No se pudo cargar', err.message || 'Intenta de nuevo.');
     }
     $('composerInput')?.focus();
   }
@@ -316,7 +320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderMessages() {
     const list = $('messageList');
     if (!state.messages.length) {
-      list.innerHTML = emptyHtml('Conversación nueva', 'Escribí el primer mensaje.');
+      list.innerHTML = emptyHtml('Conversación nueva', 'Escribe el primer mensaje.');
       return;
     }
 
@@ -426,7 +430,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // otra parte del hilo.
   $('btnClearChat')?.addEventListener('click', async () => {
     if (!state.activeThreadId) return;
-    if (!confirm('¿Vaciar esta conversación? Solo la vas a vaciar para vos, la otra persona sigue viendo los mensajes.')) return;
+    if (!confirm('¿Vaciar esta conversación? Solo la vas a vaciar para ti, la otra persona sigue viendo los mensajes.')) return;
 
     try {
       await api.post(`/internal/threads/${state.activeThreadId}/clear`, {});
@@ -491,7 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      utils.showToast('El archivo pesa más de 10 MB. Mandá una versión más liviana.', 'warning');
+      utils.showToast('El archivo pesa más de 10 MB. Manda una versión más liviana.', 'warning');
       return;
     }
     setAttachment(file);
@@ -596,7 +600,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     thread.last_message_at = message.created_at;
     thread.last_message_preview = previewOf(message);
-    thread.last_message_sender = mine ? 'Vos' : (message.sender_name || '').split(' ')[0];
+    thread.last_message_sender = mine ? 'Tú' : (message.sender_name || '').split(' ')[0];
     if (!mine && threadId !== state.activeThreadId) {
       thread.unread_count = (thread.unread_count || 0) + 1;
     }

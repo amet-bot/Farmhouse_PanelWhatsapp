@@ -1,20 +1,20 @@
 /* Registrar consumo (consumo.html): tablero de insumos para tocar, hoja de cantidad y barra de
    lo que está por guardar. Pensado para la tablet de cocina: botones grandes, poco texto. */
-.con-body { padding: 16px 20px 140px; max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+.con-body { padding: 16px 20px 190px; max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
 
 /* Buscador + chips */
 .con-toolbar { display: grid; gap: 10px; }
 .con-search { position: relative; display: flex; align-items: center; }
 .con-search > i { position: absolute; left: 14px; width: 20px; height: 20px; color: var(--text-muted, #6b7280); pointer-events: none; }
-.con-search input { width: 100%; height: 50px; padding: 0 44px 0 44px; border-radius: 14px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--text-primary, #111827); font: inherit; font-size: 17px; }
+.con-search input { width: 100%; height: 52px; padding: 0 52px 0 44px; border-radius: 14px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--text-primary, #111827); font: inherit; font-size: 17px; }
 .con-search input:focus { outline: none; border-color: var(--green-border, #16a34a); box-shadow: 0 0 0 3px rgba(22,163,74,.15); }
-.con-search-clear { position: absolute; right: 8px; width: 36px; height: 36px; border: 0; border-radius: 10px; background: var(--bg-hover, rgba(0,0,0,.05)); color: var(--text-muted, #6b7280); display: grid; place-items: center; cursor: pointer; }
+.con-search-clear { position: absolute; right: 4px; width: 44px; height: 44px; border: 0; border-radius: 10px; background: var(--bg-hover, rgba(0,0,0,.05)); color: var(--text-muted, #6b7280); display: grid; place-items: center; cursor: pointer; }
 .con-search-clear i { width: 18px; height: 18px; }
 .con-toolbar .inv-filter-select { max-width: 260px; height: 44px; }
-.con-hint { margin: 0; font-size: 13px; color: var(--text-muted, #6b7280); }
+.con-hint { margin: 0; font-size: 14.5px; line-height: 1.45; color: var(--text-muted, #6b7280); }
 .con-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
 .con-chips::-webkit-scrollbar { display: none; }
-.con-chip { flex: 0 0 auto; height: 38px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--text-secondary, #4b5563); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.con-chip { flex: 0 0 auto; height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--text-secondary, #4b5563); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .con-chip.active { background: var(--green, #16a34a); border-color: var(--green, #16a34a); color: #fff; }
 .con-chip small { font-weight: 500; opacity: .8; margin-left: 4px; }
 
@@ -25,13 +25,13 @@
 .con-card:hover, .con-card:focus-visible { border-color: var(--green-border, #16a34a); box-shadow: 0 6px 18px -8px rgba(22,163,74,.35); outline: none; }
 .con-card:active { transform: scale(.985); }
 .con-card.in-cart { border-color: var(--green, #16a34a); background: rgba(22,163,74,.06); }
-.con-card-name { font-size: 15px; font-weight: 700; line-height: 1.25; }
-.con-card-cat { font-size: 11.5px; color: var(--text-muted, #6b7280); }
-.con-card-stock { margin-top: auto; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--bg-hover, rgba(0,0,0,.05)); font-size: 12.5px; font-weight: 600; color: var(--text-secondary, #4b5563); }
+.con-card-name { font-size: 16px; font-weight: 700; line-height: 1.25; }
+.con-card-cat { font-size: 12.5px; color: var(--text-muted, #6b7280); }
+.con-card-stock { margin-top: auto; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--bg-hover, rgba(0,0,0,.05)); font-size: 13px; font-weight: 600; color: var(--text-secondary, #4b5563); }
 .con-card-stock.is-low { background: rgba(245,158,11,.16); color: #b45309; }
 .con-card-stock.is-neg, .con-card-stock.is-zero { background: rgba(220,38,38,.12); color: #b91c1c; }
 .con-card-stock.no-data { background: transparent; border: 1px dashed var(--line, #e5e7eb); color: var(--text-muted, #6b7280); font-weight: 500; }
-.con-card-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; color: var(--text-muted, #6b7280); }
+.con-card-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 13px; color: var(--text-muted, #6b7280); }
 .con-card-meta .today { color: var(--green, #15803d); font-weight: 600; }
 .con-card-meta .pending { color: #b45309; font-weight: 600; }
 .con-board-empty { grid-column: 1 / -1; }
@@ -40,20 +40,24 @@
 .con-cart { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--bg-surface, #fff); border-top: 1px solid var(--line, #e5e7eb); box-shadow: 0 -10px 30px -12px rgba(0,0,0,.25); display: grid; gap: 8px; }
 .con-cart-lines { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .con-cart-lines::-webkit-scrollbar { display: none; }
-.con-cart-line { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 6px 0 12px; border-radius: 999px; background: rgba(22,163,74,.1); color: var(--text-primary, #111827); font-size: 14px; }
+.con-cart-line { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; height: 48px; padding: 0 2px 0 14px; border-radius: 999px; background: rgba(22,163,74,.1); color: var(--text-primary, #111827); font-size: 15px; }
 .con-cart-line strong { font-weight: 700; }
-.con-cart-line button { width: 28px; height: 28px; border: 0; border-radius: 999px; background: transparent; color: #b91c1c; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; display: grid; place-items: center; }
+/* Quitar: 44 × 44 de área de toque (antes 28 px, fácil de errar con el dedo). */
+.con-cart-line button { flex: 0 0 auto; width: 44px; height: 44px; border: 0; border-radius: 999px; background: transparent; color: #b91c1c; font: inherit; font-size: 22px; line-height: 1; font-weight: 700; cursor: pointer; display: grid; place-items: center; }
 .con-cart-line button:hover { background: rgba(220,38,38,.12); }
-.con-cart-actions { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
-.con-cart-notes { height: 44px; }
-.con-save { height: 44px; font-size: 15px; padding: 0 22px; }
+.con-cart-actions { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; }
+.con-cart-actions #btnClearCart { height: 48px; padding: 0 20px; font-size: 15px; }
+.con-cart-notes { height: 48px; }
+.con-cart-error { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--danger-bg, #fef2f2); color: var(--danger-text, #b91c1c); font-size: 14px; font-weight: 600; }
+.con-cart-error[hidden] { display: none; }
+.con-save { height: 48px; font-size: 16px; padding: 0 24px; justify-content: center; }
 .con-save:disabled { opacity: .5; cursor: default; }
 
 /* Hoja de cantidad */
 .con-sheet { width: min(460px, 100%); padding: 18px 20px 20px; }
 .con-sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .con-sheet-head h3 { margin: 0; font-size: 20px; }
-.con-sheet-head p { margin: 4px 0 0; font-size: 13.5px; color: var(--text-muted, #6b7280); }
+.con-sheet-head p { margin: 4px 0 0; font-size: 15px; color: var(--text-muted, #6b7280); }
 .con-sheet-head p.is-low { color: #b45309; }
 .con-sheet-head p.is-neg { color: #b91c1c; }
 .con-qty-row { display: grid; grid-template-columns: 64px 1fr 64px; gap: 10px; align-items: stretch; }
@@ -64,31 +68,34 @@
 .con-qty-field input::-webkit-outer-spin-button, .con-qty-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .con-qty-field input:focus { outline: none; border-color: var(--green, #16a34a); }
 .con-qty-field span { position: absolute; right: 14px; font-size: 14px; font-weight: 600; color: var(--text-muted, #6b7280); }
-.con-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.con-preset { height: 42px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--text-primary, #111827); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.con-presets { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.con-preset { height: 48px; min-width: 56px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--text-primary, #111827); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
 .con-preset.last { border-color: var(--green-border, #16a34a); color: var(--green, #15803d); }
 .con-preset:active { transform: scale(.97); }
-.con-sheet-after { margin: 12px 0 0; min-height: 18px; font-size: 13.5px; color: var(--text-secondary, #4b5563); }
+.con-sheet-after { margin: 12px 0 0; min-height: 20px; font-size: 15px; color: var(--text-secondary, #4b5563); }
 .con-sheet-after.is-neg { color: #b91c1c; }
 .con-sheet-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 14px; }
-.con-sheet-actions button { height: 50px; font-size: 16px; }
+.con-sheet-actions button { height: 52px; font-size: 16px; justify-content: center; }
 
 /* Historial */
 .con-history { background: var(--bg-surface, #fff); border: 1px solid var(--line, #e5e7eb); border-radius: 14px; padding: 16px 18px; }
 .con-form-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .con-form-head h2 { margin: 0 0 2px; font-size: 17px; }
-.con-form-head p { margin: 0; font-size: 12.5px; color: var(--text-muted, #6b7280); }
+.con-form-head p { margin: 0; font-size: 14px; color: var(--text-muted, #6b7280); }
 .con-record { padding: 12px 0; border-top: 1px solid var(--line, #e5e7eb); }
 .con-record:first-child { border-top: 0; padding-top: 4px; }
-.con-record-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--text-muted, #6b7280); }
+.con-record-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--text-muted, #6b7280); }
 .con-record-head strong { color: var(--text-primary, #111827); }
 .con-record-items { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
-.con-record-items li { padding: 3px 9px; border-radius: 999px; background: var(--bg-hover, rgba(0,0,0,.05)); font-size: 12.5px; }
+.con-record-items li { padding: 4px 10px; border-radius: 999px; background: var(--bg-hover, rgba(0,0,0,.05)); font-size: 13.5px; }
+/* Borrar un registro: botón de verdad para el dedo (el .ops-btn de Gestión mide ~26 px). */
+.con-del-btn { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; font-size: 14px; border-radius: 10px; }
+.con-del-btn i, .con-del-btn svg { width: 16px; height: 16px; }
 .con-record-items li small { color: var(--text-muted, #6b7280); }
 .con-record-items li.neg { background: rgba(220,38,38,.1); color: #b91c1c; }
 
 @media (max-width: 640px) {
-  .con-body { padding: 12px 12px 170px; }
+  .con-body { padding: 12px 12px 230px; }
   .con-board { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .con-card { min-height: 96px; padding: 12px; }
   .con-cart-actions { grid-template-columns: 1fr auto; }
@@ -99,4 +106,16 @@
   .con-sheet-backdrop { padding: 0; align-items: end; place-items: end stretch; }
   .con-sheet-backdrop .con-sheet { width: 100%; max-width: none; height: auto; max-height: 92dvh; border-radius: 20px 20px 0 0; border: none; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); animation: sheetUp .18s ease-out; }
   @keyframes sheetUp { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+}
+
+/* Tablet con el dedo: la hoja de cantidad sale arriba, para que el teclado no tape el número
+   ni el botón "Agregar". */
+@media (pointer: coarse) and (min-width: 641px) {
+  .con-sheet-backdrop { place-items: start center; padding-top: 6vh; }
+}
+
+/* El aviso de "Guardado" / error sale arriba de la barra fija, no encima de los botones. */
+body:has(#cart:not([hidden])) .toast-banner { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 640px) {
+  body:has(#cart:not([hidden])) .toast-banner { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); }
 }

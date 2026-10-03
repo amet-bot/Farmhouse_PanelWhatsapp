@@ -33,7 +33,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  const PAGE_SIZE = 50;          // tamaño de página de la lista de cargamentos
+  // ---- Llegar desde Operación de Sucursal ----
+  // El inicio de la sucursal (/operacion) abre "Recibir mercancía" y "Hacer conteo" con
+  // ?open=shipment|count&from=operacion. Ahí quien recibe no viene a mirar Inventario: el
+  // formulario abre apenas se puede, la flecha de arriba vuelve a Operación y, al guardar (después
+  // de ver el resultado) o al cancelar, se vuelve allá solo. Sin `from` todo sigue como siempre.
+  const FROM_OPERACION = new URLSearchParams(window.location.search).get('from') === 'operacion';
+  const OPERACION_URL = '/operacion';
+  // replace y no href: con "atrás" no tiene que volver a abrirse el formulario ya guardado.
+  const volverAOperacion = () => { window.location.replace(OPERACION_URL); };
+  if (FROM_OPERACION) {
+    const back = document.getElementById('invBack');
+    if (back) {
+      back.href = OPERACION_URL;
+      back.title = 'Volver a Operación de Sucursal';
+      back.dataset.short = 'Operación';
+      back.classList.add('inv-back-from-op');
+      const label = back.querySelector('span');
+      if (label) label.textContent = 'Operación de Sucursal';
+    }
+    ['btnShipmentResultDone', 'btnCountResultDone'].forEach((id) => {
+      const b = document.getElementById(id);
+      if (b) b.textContent = 'Listo, volver a Operación';
+    });
+  }
+
+  const PAGE_SIZE = 50;         // tamaño de página de la lista de cargamentos
   const ANALYTICS_SIZE = 200;    // tope del backend; alcanza de sobra para las métricas
   const RECENT_DAYS = 30;
 
@@ -83,7 +108,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Cuando la integración está configurada, Invu es la fuente de verdad de los proveedores:
     // el panel deja de crearlos y pasa a sincronizarlos. Lo decide el servidor, no la pantalla.
     invu: { configured: false, last_synced_at: null, synced_count: 0, local_count: 0 },
+
+    // Qué lista no se pudo traer: así una falla de red no se confunde con "todavía no hay nada"
+    // y la lista ofrece "Reintentar" en vez de un vacío que miente.
+    loadError: { shipments: false, counts: false, stock: false, catalogs: false, countStock: false },
   };
+
+  // Quien registró un cargamento puede borrarlo durante 24 horas (igual que el servidor).
+  const SHIPMENT_SELF_DELETE_MS = 24 * 60 * 60 * 1000;
 
   // ==========================================================================
   // Utilidades de formato
@@ -230,6 +262,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       <p>${esc(text)}</p>
     </div>`;
 
+  /** Lo que se muestra cuando una lista no se pudo traer: el motivo y un botón para reintentar. */
+  const errorStateHtml = (retryKey, text = 'Revisa la conexión a internet y vuelve a intentarlo.') => `
+    <div class="inv-empty is-error" role="alert">
+      <span class="inv-empty-icon"><i data-lucide="wifi-off"></i></span>
+      <strong>No se pudo cargar</strong>
+      <p>${esc(text)}</p>
+      <button type="button" class="inv-secondary-btn" data-retry="${retryKey}"><i data-lucide="refresh-cw"></i> Reintentar</button>
+    </div>`;
+
   const skeletonListHtml = (rows = 4) => Array.from({ length: rows }).map(() => `
     <div class="inv-skeleton-row">
       <span class="inv-sk inv-sk-thumb"></span>
@@ -256,22 +297,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     utils.renderIcons();
   }
 
+  /** Cierre "por código" (después de guardar): no pregunta nada ni dispara lo de `modalAfterClose`. */
   function closeModal(id) {
     $(id)?.classList.remove('active');
   }
 
+  // Cierre pedido por la persona (Cancelar, ✕, tocar afuera, Escape). Cada modal puede tener:
+  //   · modalCanClose[id]()  → false para no cerrarse (formulario a medio llenar o guardando).
+  //   · modalAfterClose[id]() → qué pasa después (desde Operación: volver allá).
+  const modalCanClose = {};
+  const modalAfterClose = {};
+  // Los formularios largos no se cierran por tocar afuera sin querer: con el dedo pasa seguido y
+  // se perdía lo anotado. Se cierran con Cancelar o con la ✕.
+  const MODALS_SIN_CIERRE_AFUERA = new Set(['modalShipment', 'modalCount']);
+
+  function requestCloseModal(id) {
+    if (!$(id)?.classList.contains('active')) return;
+    if (modalCanClose[id] && !modalCanClose[id]()) return;
+    closeModal(id);
+    modalAfterClose[id]?.();
+  }
+
   document.querySelectorAll('[data-close-modal]').forEach((btn) => {
-    btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
+    btn.addEventListener('click', () => requestCloseModal(btn.dataset.closeModal));
   });
 
   document.querySelectorAll('.modal-backdrop').forEach((backdrop) => {
     backdrop.addEventListener('click', (e) => {
-      if (e.target === backdrop) backdrop.classList.remove('active');
+      if (e.target !== backdrop || MODALS_SIN_CIERRE_AFUERA.has(backdrop.id)) return;
+      requestCloseModal(backdrop.id);
     });
   });
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    // La cámara y el visor de fotos van encima de todo y se cierran solos con Escape (más abajo).
+    if ($('shipmentCamera')?.hidden === false || $('wastePhotoViewer')?.hidden === false) return;
     // Si hay un autocomplete abierto, Escape lo cierra a él y no el modal entero.
     const openSuggestions = Array.from(document.querySelectorAll('.inv-item-suggestions')).filter((b) => !b.hidden);
     if (openSuggestions.length) {
@@ -282,7 +343,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // insumo" abierto sobre "Registrar cargamento", Escape también tiraba el cargamento a medio
     // llenar.
     const open = document.querySelectorAll('.modal-backdrop.active');
-    if (open.length) open[open.length - 1].classList.remove('active');
+    if (open.length) requestCloseModal(open[open.length - 1].id);
   });
 
   // Cierra cualquier autocomplete al hacer clic afuera (un solo listener delegado).
@@ -328,6 +389,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       conteo: $('countList'),
     }[view]);
 
+    // El tablero es la consulta más pesada de la página: se pide recién cuando se mira.
+    if (view === 'resumen') ensureDashboard();
+
     utils.renderIcons();
   }
 
@@ -370,10 +434,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.shipments = state.shipments.concat(page);
       state.shipmentsOffset += page.length;
       state.shipmentsHasMore = page.length === PAGE_SIZE;
+      state.loadError.shipments = false;
     } catch (err) {
       if (seq !== loadSeq.shipments) return;
       utils.showToast(err.message || 'No se pudo cargar el historial.', 'error');
       state.shipmentsHasMore = false;
+      // Solo si no hay nada que mostrar: si falló "Cargar más", lo ya cargado sigue sirviendo.
+      state.loadError.shipments = !state.shipments.length;
     }
     renderShipmentList();
     animarEntrada($('shipmentList'));
@@ -386,16 +453,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.analyticsTruncated = rows.length === ANALYTICS_SIZE;
     } catch (err) {
       state.analytics = [];
+      utils.showToast('No se pudieron cargar las cifras de los cargamentos. Recarga la página en un rato.', 'error');
     }
   }
 
   async function loadCatalogs() {
+    let fallo = false;
     const [items, suppliers] = await Promise.all([
-      api.get('/inventory/items?limit=500').catch(() => []),
-      api.get('/inventory/suppliers?limit=200').catch(() => []),
+      api.get('/inventory/items?limit=500').catch(() => { fallo = true; return []; }),
+      api.get('/inventory/suppliers?limit=200').catch(() => { fallo = true; return []; }),
     ]);
     state.items = items;
     state.suppliers = suppliers;
+    state.loadError.catalogs = fallo;
+    if (fallo) utils.showToast('No se pudo cargar el catálogo de insumos y proveedores.', 'error');
 
     // Alimenta el datalist de categorías del modal con las que ya existen.
     const categories = Array.from(new Set(items.map((i) => i.category).filter(Boolean))).sort();
@@ -417,10 +488,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.counts = state.counts.concat(page);
       state.countsOffset += page.length;
       state.countsHasMore = page.length === PAGE_SIZE;
+      state.loadError.counts = false;
     } catch (err) {
       if (seq !== loadSeq.counts) return;
       utils.showToast(err.message || 'No se pudieron cargar los conteos.', 'error');
       state.countsHasMore = false;
+      state.loadError.counts = !state.counts.length;
     }
     renderCountList();
     animarEntrada($('countList'));
@@ -562,14 +635,34 @@ document.addEventListener('DOMContentLoaded', async () => {
       const rows = await api.get(`/inventory/stock?${params.toString()}`);
       if (seq !== loadSeq.stock) return;
       state.stock = rows;
+      state.loadError.stock = false;
     } catch (err) {
       if (seq !== loadSeq.stock) return;
       state.stock = [];
+      state.loadError.stock = true;
       utils.showToast(err.message || 'No se pudieron cargar las existencias.', 'error');
     }
     renderStockTable();
     animarEntrada($('stockTable'));
   }
+
+  // "Reintentar" de las listas que no se pudieron traer (ver errorStateHtml).
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-retry]');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = 'Cargando…';
+    const key = btn.dataset.retry;
+    if (key === 'shipments') await loadShipments({ reset: true });
+    else if (key === 'counts') await loadCounts({ reset: true });
+    else if (key === 'stock') await loadStock();
+    else if (key === 'countStock') await loadCountStock();
+    else if (key === 'catalogs') {
+      await loadCatalogs();
+      renderItemList();
+      renderSupplierList();
+    }
+  });
 
   // ==========================================================================
   // Métricas derivadas (siempre sobre state.analytics)
@@ -628,7 +721,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Tablero del Resumen: ventas, compras, merma, faltantes y costo de lo vendido
   // ==========================================================================
-  const dashboard = { days: 7, branch: '', data: null, seq: 0 };
+  const dashboard = { days: 7, branch: '', data: null, seq: 0, stale: true };
+
+  /** Pide el tablero si hace falta (la primera vez que se mira, o si algo cambió desde entonces). */
+  function ensureDashboard() {
+    if (!dashboard.stale) return;
+    dashboard.stale = false;
+    loadDashboard();
+  }
+
+  /** Un cargamento, un conteo o un borrado cambian las cifras: se recalcula al volver a mirarlo. */
+  function invalidateDashboard() {
+    dashboard.stale = true;
+    if (state.view === 'resumen') ensureDashboard();
+  }
 
   const pctTxt = (v) => (v == null ? '—' : `${Number(v).toLocaleString('es-PA', { maximumFractionDigits: 1 })}%`);
 
@@ -798,7 +904,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         <span class="inv-kpi-sub">${esc(k.sub)}</span>
       </div>`).join('');
 
-    loadDashboard();
     renderTopItemsBars(recent);
     renderRecentShipments();
     renderBranchBars(recent);
@@ -931,9 +1036,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       : '';
 
     if (!rows.length) {
-      list.innerHTML = state.search.shipment
-        ? emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro proveedor, insumo o persona.')
-        : emptyStateHtml('truck', 'Todavía no hay cargamentos', 'Registra lo que llegó y va a quedar aquí, con su detalle y su costo.');
+      list.innerHTML = state.loadError.shipments
+        ? errorStateHtml('shipments')
+        : state.search.shipment
+          ? emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro proveedor, insumo o persona.')
+          : emptyStateHtml('truck', 'Todavía no hay cargamentos', 'Registra lo que llegó y va a quedar aquí, con su detalle y su costo.');
       $('btnLoadMore').hidden = !state.shipmentsHasMore;
       renderShipmentDetail();
       utils.renderIcons();
@@ -1266,7 +1373,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function canDeleteShipment(s) {
     if (hasPerm('inventory.adjust')) return true;
     if (!state.user || s.received_by_user_id !== state.user.id) return false;
-    return Date.now() - (utils._parseServerDate(s.created_at) || new Date(0)).getTime() <= WASTE_SELF_DELETE_MS;
+    return Date.now() - (utils._parseServerDate(s.created_at) || new Date(0)).getTime() <= SHIPMENT_SELF_DELETE_MS;
   }
 
   let shipmentToDelete = null;
@@ -1297,6 +1404,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       shipmentToDelete = null;
       state.selected.shipment = null;
       closeAllMobileDetails();
+      invalidateDashboard();
       await Promise.all([loadShipments({ reset: true }), loadAnalytics(), loadStock()]);
       renderResumen();
       renderItemList();
@@ -1351,9 +1459,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const list = $('itemList');
     if (!rows.length) {
-      list.innerHTML = q
-        ? emptyStateHtml('search-x', 'Sin resultados', 'Ningún insumo del catálogo coincide con esa búsqueda.')
-        : emptyStateHtml('layout-list', 'Catálogo vacío', 'Crea tu primer insumo o agrégalo al vuelo mientras registrás un cargamento.');
+      list.innerHTML = state.loadError.catalogs
+        ? errorStateHtml('catalogs')
+        : q
+          ? emptyStateHtml('search-x', 'Sin resultados', 'Ningún insumo del catálogo coincide con esa búsqueda.')
+          : emptyStateHtml('layout-list', 'Catálogo vacío', 'Crea tu primer insumo o agrégalo al vuelo mientras registras un cargamento.');
       renderItemDetail();
       utils.renderIcons();
       return;
@@ -1476,6 +1586,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (raw && !(Number(raw) > 0)) { utils.showToast('Tiene que ser mayor que cero.', 'error'); return; }
       const btn = $('btnSavePieceSize');
       btn.disabled = true;
+      btn.textContent = 'Guardando…';
       try {
         const actualizado = await api.request(`/inventory/items/${item.id}/piece-size`, {
           method: 'PATCH',
@@ -1487,6 +1598,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (err) {
         utils.showToast(err.message || 'No se pudo guardar.', 'error');
         btn.disabled = false;
+        btn.textContent = 'Guardar';
       }
     });
   }
@@ -1514,11 +1626,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const list = $('supplierList');
     if (!rows.length) {
-      list.innerHTML = q
-        ? emptyStateHtml('search-x', 'Sin resultados', 'Ningún proveedor coincide con esa búsqueda.')
-        : (state.invu.configured
-            ? emptyStateHtml('building-2', 'Sin proveedores', 'Se cargan en Invu. Aprieta "Sincronizar con Invu" para traerlos.')
-            : emptyStateHtml('building-2', 'Sin proveedores', 'Crea el primero o agrégalo al vuelo mientras registrás un cargamento.'));
+      list.innerHTML = state.loadError.catalogs
+        ? errorStateHtml('catalogs')
+        : q
+          ? emptyStateHtml('search-x', 'Sin resultados', 'Ningún proveedor coincide con esa búsqueda.')
+          : (state.invu.configured
+              ? emptyStateHtml('building-2', 'Sin proveedores', 'Se cargan en Invu. Toca "Sincronizar con Invu" para traerlos.')
+              : emptyStateHtml('building-2', 'Sin proveedores', 'Crea el primero o agrégalo al vuelo mientras registras un cargamento.'));
       renderSupplierDetail();
       utils.renderIcons();
       return;
@@ -1704,6 +1818,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const box = $(id);
     box.textContent = msg;
     box.style.display = 'block';
+    // En los formularios largos el aviso queda fijo arriba (CSS .inv-sticky-error); en el resto,
+    // se trae a la vista por si se estaba más abajo.
+    if (!box.closest('.inv-sticky-body')) box.scrollIntoView({ block: 'nearest' });
   }
 
   // ==========================================================================
@@ -1728,7 +1845,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     openModal('modalShipment');
     utils.renderIcons();
+    // Cómo quedó al abrir (vacío, o con las líneas de la orden): "sin guardar" es distinto de esto.
+    shipmentSnapshot = shipmentFormSignature();
   }
+
+  // ---- Cambios sin guardar ----
+  let shipmentSnapshot = '';
+  let shipmentSaving = false;
+
+  /** Todo lo que la persona puede haber escrito en el formulario, en una sola cadena. */
+  function shipmentFormSignature() {
+    const lines = Array.from(linesContainer.querySelectorAll('.inv-line-row')).map((row) => [
+      row.querySelector('.inv-item-input').value,
+      row.querySelector('.inv-line-invoiced').value,
+      row.querySelector('.inv-line-qty').value,
+      row.querySelector('.inv-line-cost').value,
+      row.dataset.recvStatus || '',
+      row.querySelector('.inv-recv-note').value,
+    ].join('\u0001'));
+    return [
+      supplierInput.value, $('notesInput').value, $('invoiceNumberInput').value,
+      $('invoiceModeToggle').checked, $('receivedAtInput').value, pendingShipmentPhotos.length,
+      ...lines,
+    ].join('\u0002');
+  }
+
+  const shipmentIsDirty = () => $('modalShipment').classList.contains('active')
+    && shipmentFormSignature() !== shipmentSnapshot;
+
+  modalCanClose.modalShipment = () => {
+    if (shipmentSaving) return false;   // a medio guardar: cerrar ahora dejaría sin ver el resultado
+    if (!shipmentIsDirty()) return true;
+    return window.confirm('¿Salir sin guardar? Se pierde lo que anotaste de esta mercancía.');
+  };
+  modalAfterClose.modalShipment = () => { if (FROM_OPERACION) volverAOperacion(); };
+  modalAfterClose.modalShipmentResult = () => { if (FROM_OPERACION) volverAOperacion(); };
 
   /**
    * Una orden de compra (Abastecimiento) trae sus líneas: la recepción arranca con cada una como
@@ -1921,6 +2072,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       suggestBox.innerHTML = html;
       suggestBox.hidden = false;
+      // En la última fila la lista quedaba debajo del borde del formulario (o del teclado).
+      suggestBox.scrollIntoView({ block: 'nearest' });
       suggestBox.querySelectorAll('.inv-item-suggestion').forEach((btn) => {
         btn.addEventListener('click', () => {
           if (btn.dataset.create) {
@@ -1971,6 +2124,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       updateShipmentTotal();
       updateLineReceipt(row);
+    });
+    // "Siguiente" del teclado: facturado → llegó → costo → se cierra el teclado.
+    [invoicedInput, qtyInput, costInput].forEach((input, i, campos) => {
+      input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const siguiente = campos.slice(i + 1).find((c) => c.offsetParent !== null);
+        if (siguiente) siguiente.focus();
+        else input.blur();
+      });
     });
     row.querySelector('.inv-recv-chips').addEventListener('click', (e) => {
       const chip = e.target.closest('.inv-recv-chip');
@@ -2034,10 +2197,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       html += `<button type="button" class="inv-item-suggestion inv-item-suggestion-create" data-create="1">+ Crear "${esc(trimmed)}"</button>`;
     }
     if (!results.length && state.invu.configured) {
-      html = '<div class="inv-item-suggestion-empty">No está en Invu. Cárgalo allá y sincronizá desde Proveedores.</div>';
+      html = '<div class="inv-item-suggestion-empty">No está en Invu. Cárgalo allá y sincroniza desde Proveedores.</div>';
     }
     supplierSuggestions.innerHTML = html;
     supplierSuggestions.hidden = false;
+    supplierSuggestions.scrollIntoView({ block: 'nearest' });
     supplierSuggestions.querySelectorAll('.inv-item-suggestion').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (btn.dataset.create) {
@@ -2142,7 +2306,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     let receivedAt = null;
     if (receivedAtValue) {
       const parsed = new Date(receivedAtValue);
-      if (Number.isNaN(parsed.getTime())) { showModalError('shipmentError', 'La fecha de recepción no es válida.'); return; }
+      if (Number.isNaN(parsed.getTime())) {
+        $('shipmentMore').open = true;   // la fecha está en "Más datos"
+        showModalError('shipmentError', 'La fecha de recepción no es válida.');
+        return;
+      }
       // El backend guarda en UTC (ver utils._parseServerDate): se manda con zona explícita para
       // que la hora que escribió el encargado sea la que después se muestra.
       receivedAt = parsed.toISOString();
@@ -2182,21 +2350,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     await sendShipment(payload);
   });
 
+  /** Mientras se guarda: el botón dice qué está pasando y no se puede cancelar ni tocar dos veces. */
+  function setFormSaving(modalId, submitBtn, saving, text) {
+    submitBtn.disabled = saving;
+    submitBtn.textContent = text;
+    submitBtn.setAttribute('aria-busy', String(saving));
+    document.querySelectorAll(`[data-close-modal="${modalId}"]`).forEach((b) => { b.disabled = saving; });
+  }
+
   async function sendShipment(payload) {
     const btn = $('btnSubmitShipment');
-    btn.disabled = true;
-    btn.textContent = 'Registrando...';
+    shipmentSaving = true;
+    setFormSaving('modalShipment', btn, true, 'Guardando…');
     try {
       let creado = await api.post('/inventory/shipments', payload);
       if (pendingShipmentPhotos.length) {
-        btn.textContent = 'Subiendo foto...';
+        btn.textContent = 'Subiendo la foto…';
         const { ultima, fallidas } = await uploadShipmentPhotos(creado.id, pendingShipmentPhotos.map((p) => p.blob));
         if (ultima) creado = { ...ultima, insights: creado.insights, notified: creado.notified };
-        if (fallidas) utils.showToast(`${pluralize(fallidas, 'foto no se pudo', 'fotos no se pudieron')} subir. Puedes intentarlo de nuevo más tarde.`, 'error');
+        if (fallidas) utils.showToast(`Se guardó, pero ${pluralize(fallidas, 'foto no se pudo', 'fotos no se pudieron')} subir. Puedes agregarla después desde el cargamento.`, 'error');
       }
+      shipmentSaving = false;
       closeModal('modalShipment');
+      // La ventana del resultado ya dice "registrado": un aviso más abajo taparía su botón "Listo".
       showShipmentResult(creado);
       state.selected.shipment = null;
+      // Desde Operación se vuelve allá al tocar "Listo": no hace falta refrescar Inventario.
+      if (FROM_OPERACION) return;
+      invalidateDashboard();
       // loadStock también: Existencias quedaba mostrando lo de antes del cargamento hasta
       // recargar la página (merma y conteo ya la refrescaban).
       await Promise.all([loadShipments({ reset: true }), loadAnalytics(), loadStock(), loadExpected(), loadSupplierIssues()]);
@@ -2204,10 +2385,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderItemList();
       renderSupplierList();
     } catch (err) {
-      showModalError('shipmentError', err.message || 'No se pudo registrar el cargamento.');
+      showModalError('shipmentError', err.message || 'No se pudo guardar. Revisa la conexión e inténtalo de nuevo.');
     } finally {
-      btn.disabled = false;
-      btn.textContent = 'Guardar lo recibido';
+      shipmentSaving = false;
+      setFormSaving('modalShipment', btn, false, 'Guardar lo recibido');
     }
   }
 
@@ -2254,6 +2435,80 @@ document.addEventListener('DOMContentLoaded', async () => {
     const [quitada] = pendingShipmentPhotos.splice(Number(btn.dataset.idx), 1);
     if (quitada) URL.revokeObjectURL(quitada.url);
     renderShipmentPhotos();
+  });
+
+  // ---- "Tomar foto" de la factura ----
+  // (Se había ido junto con la merma y el botón quedó sin hacer nada.) Celular/tablet: el input con
+  // `capture` abre la cámara del equipo, que enfoca y maneja la luz mejor que cualquier cosa hecha
+  // aquí. Computadora: ahí `capture` se ignora y abriría el explorador de archivos, así que se usa
+  // la webcam en vivo; sin webcam o sin permiso, cae a elegir un archivo.
+  let cameraStream = null;
+
+  function openShipmentCamera() {
+    const tactil = window.matchMedia('(pointer: coarse)').matches;
+    if (tactil || !navigator.mediaDevices?.getUserMedia) {
+      $('shipmentCameraInput').click();
+      return;
+    }
+    openWebcam();
+  }
+
+  async function openWebcam() {
+    const shoot = $('btnCameraShoot');
+    shoot.disabled = true;
+    $('shipmentCamera').hidden = false;
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      $('shipmentCameraVideo').srcObject = cameraStream;
+      shoot.disabled = false;
+    } catch (err) {
+      closeWebcam();
+      const sinPermiso = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+      utils.showToast(
+        sinPermiso
+          ? 'No hay permiso para usar la cámara. Puedes elegir la foto con «Galería».'
+          : 'No se encontró una cámara. Puedes elegir la foto con «Galería».',
+        'warning'
+      );
+      $('shipmentPhotoInput').click();
+    }
+  }
+
+  function closeWebcam() {
+    if (cameraStream) cameraStream.getTracks().forEach((t) => t.stop());
+    cameraStream = null;
+    $('shipmentCameraVideo').srcObject = null;
+    $('shipmentCamera').hidden = true;
+  }
+
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-photo-camera]')) openShipmentCamera();
+  });
+  $('btnCameraCancel')?.addEventListener('click', closeWebcam);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('shipmentCamera') && !$('shipmentCamera').hidden) closeWebcam();
+  });
+
+  $('btnCameraShoot')?.addEventListener('click', async () => {
+    const video = $('shipmentCameraVideo');
+    if (!video.videoWidth) return;
+    const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(video.videoWidth, video.videoHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+    closeWebcam();
+    if (blob) await addShipmentPhotos([blob]);
+  });
+
+  $('shipmentCameraInput')?.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    await addShipmentPhotos(files);
   });
 
   async function uploadShipmentPhotos(shipmentId, blobs) {
@@ -2343,12 +2598,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else if (cancelar) {
       const agendado = state.expected.find((x) => x.id === Number(cancelar.dataset.expectedCancel));
       if (!agendado || !window.confirm(`¿Cancelar el cargamento de ${agendado.supplier_name || 'este proveedor'} (${expectedWhen(agendado)})?`)) return;
+      cancelar.disabled = true;
+      cancelar.textContent = 'Cancelando…';
       try {
         await api.post(`/inventory/expected-shipments/${agendado.id}/cancel`, {});
         utils.showToast('Cargamento agendado cancelado.', 'success');
         await loadExpected();
       } catch (err) {
         utils.showToast(err.message || 'No se pudo cancelar.', 'error');
+        cancelar.disabled = false;
+        cancelar.textContent = 'Cancelar';
       }
     }
   });
@@ -2381,6 +2640,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!fecha) { showModalError('expectedError', 'Elige el día.'); return; }
     const btn = $('btnSaveExpected');
     btn.disabled = true;
+    btn.textContent = 'Agendando…';
     try {
       await api.post('/inventory/expected-shipments', {
         branch_id: Number($('expectedBranch').value),
@@ -2396,6 +2656,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       showModalError('expectedError', err.message || 'No se pudo agendar.');
     } finally {
       btn.disabled = false;
+      btn.textContent = 'Agendar y avisar';
     }
   });
 
@@ -2522,9 +2783,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const table = $('stockTable');
     if (!rows.length) {
-      table.innerHTML = q
-        ? emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro insumo o categoría.')
-        : emptyStateHtml('boxes', 'Todavía no hay movimientos', 'En cuanto registres un cargamento o un conteo, las existencias aparecen aquí.');
+      table.innerHTML = state.loadError.stock
+        ? errorStateHtml('stock')
+        : q
+          ? emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro insumo o categoría.')
+          : emptyStateHtml('boxes', 'Todavía no hay movimientos', 'En cuanto registres un cargamento o un conteo, las existencias aparecen aquí.');
       utils.renderIcons();
       return;
     }
@@ -2559,16 +2822,16 @@ document.addEventListener('DOMContentLoaded', async () => {
               <tr>
                 <td class="inv-td-name" data-label="Insumo">
                   ${esc(r.item_name)}
-                  <small>${esc(r.category || 'Sin categoría')} · se cuenta en ${esc(r.unit)}</small>
+                  <small>${esc(r.category || 'Sin categoría')} · se cuenta en ${esc(r.unit)} · ${r.last_counted_at ? `contado el ${esc(fechaServidor(r.last_counted_at))}` : 'nunca contado'}</small>
                 </td>
                 <td class="num" data-label="Entró (cargamentos)">${Number(r.entered) ? cant(r.entered, r.unit) : '<span class="inv-stock-none">nada</span>'}</td>
                 <td class="num" data-label="Salió por merma">${Number(r.wasted) ? cant(r.wasted, r.unit) : '—'}</td>
-                <td class="num" data-label="Ajuste por conteo" title="${r.last_counted_at ? `Último conteo: ${esc(utils.formatDateTime(r.last_counted_at))}` : 'Nunca se contó'}">${Number(r.adjusted) ? cant(r.adjusted, r.unit, true) : '—'}</td>
+                <td class="num" data-label="Ajuste por conteo">${Number(r.adjusted) ? cant(r.adjusted, r.unit, true) : '—'}</td>
                 ${hayTraslados ? `<td class="num" data-label="Traslados">${Number(r.transferred) ? cant(r.transferred, r.unit, true) : '—'}</td>` : ''}
                 ${hayVendido ? `<td class="num" data-label="Vendido desde el conteo">${Number(r.sold_since_count) ? `−${cant(r.sold_since_count, r.unit)}` : '—'}</td>` : ''}
                 <td class="num inv-stock-onhand" data-label="Queda hoy"><span class="inv-stock-pill${clase}">${cant(r.on_hand, r.unit)}</span></td>
                 <td class="num" data-label="Pérdida en $">${r.wasted_cost != null
-                  ? `${money(r.wasted_cost)}${r.wasted_cost_estimated ? ' <small title="Valuado con el costo de referencia de Invu: todavía no hay cargamento con costo">≈</small>' : ''}`
+                  ? `${r.wasted_cost_estimated ? '<small aria-label="estimado con el costo de Invu">≈ </small>' : ''}${money(r.wasted_cost)}`
                   : '—'}</td>
               </tr>`;
           }).join('')}
@@ -2624,9 +2887,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       : '';
 
     if (!rows.length) {
-      list.innerHTML = state.search.count
-        ? emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro insumo o persona.')
-        : emptyStateHtml('clipboard-check', 'Todavía no hay conteos', 'Cuenta lo que hay en el estante: el primero de cada sucursal pasa a ser su inventario de arranque.');
+      list.innerHTML = state.loadError.counts
+        ? errorStateHtml('counts')
+        : state.search.count
+          ? emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro insumo o persona.')
+          : emptyStateHtml('clipboard-check', 'Todavía no hay conteos', 'Cuenta lo que hay en el estante: el primero de cada sucursal pasa a ser su inventario de arranque.');
       $('btnLoadMoreCounts').hidden = !state.countsHasMore;
       renderCountDetail();
       utils.renderIcons();
@@ -2875,11 +3140,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.countStock = [];
     state.countEntries = new Map();
     state.countIsFirst = false;
+    state.loadError.countStock = false;
     $('countIntro').hidden = true;
     const branchId = countModalBranchId();
-    if (!branchId) { renderCountLines(); return; }
+    countBranchPrev = $('countBranchSelect').value;
+    if (!branchId) { renderCountLines(); updateCountTotal(); return; }
 
-    $('countLines').innerHTML = skeletonListHtml(4);
+    $('countLines').innerHTML = skeletonListHtml(6);
+    updateCountTotal();
     try {
       // Sin only_stocked: en el conteo de arranque justamente importa lo que el sistema nunca vio.
       const [stock, previos] = await Promise.all([
@@ -2892,28 +3160,34 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.countStock = stock;
       state.countIsFirst = previos.length === 0;
     } catch (err) {
-      showModalError('countError', err.message || 'No se pudo traer el catálogo de esta sucursal.');
+      if (seq !== loadSeq.countStock) return;
+      state.loadError.countStock = true;
     }
     $('countIntro').hidden = !state.countIsFirst;
     renderCountLines();
     updateCountTotal();
   }
 
+  /** Lo anotado en un renglón, como número (acepta coma decimal: "2,5"). NaN si no es un número. */
+  const countValue = (v) => (v == null || String(v).trim() === '' ? NaN : Number(String(v).trim().replace(',', '.')));
+
   function visibleCountRows() {
-    const q = state.search.countItem.trim().toLowerCase();
+    const q = sinTildes(state.search.countItem.trim());
     return state.countStock.filter((r) => {
       // Lo que ya se anotó nunca se esconde: desaparecer de la vista algo que se contó hace
       // pensar que se perdió.
-      if (state.countEntries.has(r.inventory_item_id)) return !q || r.item_name.toLowerCase().includes(q);
+      if (state.countEntries.has(r.inventory_item_id)) return !q || sinTildes(r.item_name).includes(q);
       if (state.countOnlyStocked && !Number(r.entered) && !Number(r.wasted) && !Number(r.adjusted) && !Number(r.transferred)) return false;
-      return !q || `${r.item_name} ${r.category || ''}`.toLowerCase().includes(q);
+      return !q || sinTildes(`${r.item_name} ${r.category || ''}`).includes(q);
     });
   }
 
   function countDiffHtml(row) {
     const valor = state.countEntries.get(row.inventory_item_id);
     if (valor == null) return '—';
-    const dif = Number(valor) - Number(row.on_hand);
+    const n = countValue(valor);
+    if (Number.isNaN(n) || n < 0) return '<span class="inv-count-diff-bad">Revisa</span>';
+    const dif = n - Number(row.on_hand);
     if (state.countIsFirst || Math.abs(dif) < 0.0005) return '<span class="inv-count-diff-neutral">✓</span>';
     return `<span class="inv-count-diff-neutral">${esc(signedQty(dif))}</span>`;
   }
@@ -2922,96 +3196,124 @@ document.addEventListener('DOMContentLoaded', async () => {
     const box = $('countLines');
     const rows = visibleCountRows();
 
+    if (state.loadError.countStock) {
+      box.innerHTML = errorStateHtml('countStock', 'No se pudo traer la lista de insumos de esta sucursal. Revisa la conexión y vuelve a intentarlo.');
+      utils.renderIcons();
+      return;
+    }
     if (!state.countStock.length) {
-      box.innerHTML = emptyStateHtml('layout-list', 'No hay insumos en el catálogo', 'Crea los insumos en la vista Insumos y vuelve a contar.');
+      box.innerHTML = countModalBranchId()
+        ? emptyStateHtml('layout-list', 'No hay insumos en el catálogo', 'Crea los insumos en la vista Insumos y vuelve a contar.')
+        : emptyStateHtml('store', 'Elige la sucursal', 'Aparece la lista de insumos para contar.');
       utils.renderIcons();
       return;
     }
     if (!rows.length) {
-      box.innerHTML = emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro nombre, o destildá "Solo los que tienen movimiento".');
+      box.innerHTML = emptyStateHtml('search-x', 'Sin resultados', 'Prueba con otro nombre, o desmarca "Solo con movimiento".');
       utils.renderIcons();
       return;
     }
 
+    // `type="text"` con teclado numérico (inputmode) y no `type="number"`: con number, un "2,5"
+    // escrito con coma quedaba vacío sin avisar y ese insumo no se contaba.
     box.innerHTML = rows.map((r) => {
       const valor = state.countEntries.get(r.inventory_item_id);
       const sistema = Number(r.on_hand);
+      const malo = valor != null && (Number.isNaN(countValue(valor)) || countValue(valor) < 0);
       return `
-        <div class="inv-count-row${valor != null ? ' is-counted' : ''}" data-item-id="${r.inventory_item_id}">
+        <div class="inv-count-row${valor != null ? ' is-counted' : ''}${malo ? ' is-invalid' : ''}" data-item-id="${r.inventory_item_id}">
           <div class="inv-count-name">
             <strong>${esc(r.item_name)}</strong>
             <small>${esc(r.category || 'Sin categoría')} · en ${esc(r.unit)}</small>
           </div>
           <div class="inv-count-cell">
             <span class="inv-line-label">Registrado</span>
-            <span class="inv-count-system${sistema < 0 ? ' is-negative' : ''}">${esc(qty(sistema))}</span>
+            <span class="inv-count-system${sistema < 0 ? ' is-negative' : ''}">${esc(qty(sistema))} <small>${esc(unitShort(r.unit))}</small></span>
           </div>
           <div class="inv-count-cell">
             <span class="inv-line-label">Contado</span>
-            <input type="number" class="modal-input inv-count-input" min="0" step="0.001" inputmode="decimal"
-                   placeholder="—" value="${valor != null ? esc(valor) : ''}" aria-label="Cantidad contada de ${esc(r.item_name)}">
+            <input type="text" class="modal-input inv-count-input" inputmode="decimal" enterkeyhint="next"
+                   autocomplete="off" placeholder="—" value="${valor != null ? esc(valor) : ''}"
+                   aria-label="Cantidad contada de ${esc(r.item_name)}, en ${esc(r.unit)}">
           </div>
           <div class="inv-count-cell">
-            <span class="inv-line-label">Dif.</span>
+            <span class="inv-line-label">Diferencia</span>
             <span class="inv-count-diff">${countDiffHtml(r)}</span>
           </div>
         </div>`;
     }).join('');
-
-    box.querySelectorAll('.inv-count-row').forEach((el) => {
-      const itemId = Number(el.dataset.itemId);
-      const row = state.countStock.find((r) => r.inventory_item_id === itemId);
-      const input = el.querySelector('.inv-count-input');
-      // Solo se refresca la fila y el pie: volver a dibujar la lista con cada tecla le quitaría
-      // el foco al campo que se está escribiendo.
-      input.addEventListener('input', () => {
-        const v = input.value.trim();
-        if (v === '') state.countEntries.delete(itemId);
-        else state.countEntries.set(itemId, v);
-        el.classList.toggle('is-counted', v !== '');
-        el.querySelector('.inv-count-diff').innerHTML = countDiffHtml(row);
-        updateCountTotal();
-      });
-      // Enter pasa al siguiente: contar un estante es anotar un número tras otro.
-      input.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter') return;
-        e.preventDefault();
-        const inputs = Array.from(box.querySelectorAll('.inv-count-input'));
-        inputs[inputs.indexOf(input) + 1]?.focus();
-      });
-    });
     utils.renderIcons();
   }
 
-  /** Pie del modal: cuántos se contaron, cuántos no cuadran y cuánto vale la diferencia. */
+  // Un solo juego de escuchas para toda la lista (se vuelve a dibujar al buscar o filtrar).
+  const countLinesBox = $('countLines');
+  // Solo se refresca la fila y el pie: volver a dibujar la lista con cada tecla le quitaría el
+  // foco al campo que se está escribiendo.
+  countLinesBox?.addEventListener('input', (e) => {
+    const input = e.target.closest('.inv-count-input');
+    if (!input) return;
+    const el = input.closest('.inv-count-row');
+    const itemId = Number(el.dataset.itemId);
+    const row = state.countStock.find((r) => r.inventory_item_id === itemId);
+    const v = input.value.trim();
+    if (v === '') state.countEntries.delete(itemId);
+    else state.countEntries.set(itemId, v);
+    const n = countValue(v);
+    el.classList.toggle('is-counted', v !== '');
+    el.classList.toggle('is-invalid', v !== '' && (Number.isNaN(n) || n < 0));
+    if (row) el.querySelector('.inv-count-diff').innerHTML = countDiffHtml(row);
+    updateCountTotal();
+  });
+  // "Siguiente" (Enter) pasa al próximo insumo: contar un estante es anotar un número tras otro.
+  countLinesBox?.addEventListener('keydown', (e) => {
+    const input = e.target.closest('.inv-count-input');
+    if (!input || e.key !== 'Enter') return;
+    e.preventDefault();
+    const inputs = Array.from(countLinesBox.querySelectorAll('.inv-count-input'));
+    const next = inputs[inputs.indexOf(input) + 1];
+    if (!next) { input.blur(); return; }
+    // Centrado: arriba está la búsqueda fija y abajo el teclado; en el borde quedaba tapado.
+    next.focus({ preventScroll: true });
+    next.closest('.inv-count-row')?.scrollIntoView({ block: 'center' });
+  });
+  // Tocar cualquier parte del renglón (el nombre, lo registrado) va directo a anotar.
+  countLinesBox?.addEventListener('click', (e) => {
+    if (e.target.closest('input, button, a')) return;
+    e.target.closest('.inv-count-row')?.querySelector('.inv-count-input')?.focus();
+  });
+
+  /** Pie del modal y avance: cuántos se contaron de cuántos hay en la lista. */
   function updateCountTotal() {
     let contados = 0;
-    let distintos = 0;
     let valor = 0;
     let conCosto = 0;
     state.countEntries.forEach((v, itemId) => {
       const row = state.countStock.find((r) => r.inventory_item_id === itemId);
-      if (!row) return;
+      const n = countValue(v);
+      if (!row || Number.isNaN(n) || n < 0) return;
       contados += 1;
-      const dif = Number(v) - Number(row.on_hand);
+      const dif = n - Number(row.on_hand);
       if (Math.abs(dif) < 0.0005) return;
-      distintos += 1;
       if (row.last_unit_cost != null) {
         valor += dif * Number(row.last_unit_cost);
         conCosto += 1;
       }
     });
 
-    $('countProgress').textContent = contados ? pluralize(contados, 'insumo contado', 'insumos contados') : 'Nada contado todavía';
+    const total = state.countStock.length;
+    const avance = total ? `${contados} de ${total} contados` : (contados ? pluralize(contados, 'contado', 'contados') : '');
+    $('countProgress').textContent = contados ? avance : 'Nada contado todavía';
+    $('countProgressTop').textContent = total ? avance : 'Cargando la lista…';
+    $('countProgressFill').style.width = total ? `${Math.round((contados / total) * 100)}%` : '0%';
 
-    const total = $('countTotal');
-    total.classList.remove('is-short', 'is-over');
+    const totalBox = $('countTotal');
+    totalBox.classList.remove('is-short', 'is-over');
     // Qué faltó y qué sobró no se puede saber aquí: falta descontar lo que se usó en los platos
     // vendidos (ventas de Invu × recetas), y eso lo calcula el servidor al guardar.
     if (state.countIsFirst && conCosto) {
-      total.textContent = money(Math.abs(valor));
+      totalBox.textContent = money(Math.abs(valor));
     } else {
-      total.textContent = contados ? String(contados) : '—';
+      totalBox.textContent = contados ? String(contados) : '—';
     }
     const nota = document.querySelector('#modalCount .inv-total-box small');
     if (nota) {
@@ -3025,18 +3327,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.search.countItem = e.target.value;
     renderCountLines();
   });
+  // Enter en la búsqueda va al primer insumo encontrado: "fre" → Enter → se anota la fresa.
+  $('countItemSearch')?.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const first = countLinesBox?.querySelector('.inv-count-input');
+    if (first) first.focus();
+    else e.target.blur();
+  });
 
   $('countOnlyStocked')?.addEventListener('change', (e) => {
     state.countOnlyStocked = e.target.checked;
     renderCountLines();
   });
 
-  $('countBranchSelect')?.addEventListener('change', () => {
+  let countBranchPrev = '';
+  $('countBranchSelect')?.addEventListener('change', (e) => {
     // Cambiar de sucursal a mitad del conteo descarta lo anotado: los números eran de otro
-    // estante, y mandarlos a esta sucursal sería peor que perderlos.
+    // estante, y mandarlos a esta sucursal sería peor que perderlos. Por eso se pregunta antes.
+    if (state.countEntries.size && !window.confirm('Al cambiar de sucursal se borra lo que ya anotaste en este conteo. ¿Cambiar igual?')) {
+      e.target.value = countBranchPrev;
+      return;
+    }
     loadCountStock();
   });
 
+  // ---- Cambios sin guardar ----
+  let countSaving = false;
+  const countIsDirty = () => $('modalCount').classList.contains('active')
+    && (state.countEntries.size > 0 || $('countNotes').value.trim() !== '');
+
+  modalCanClose.modalCount = () => {
+    if (countSaving) return false;
+    if (!countIsDirty()) return true;
+    return window.confirm(`¿Salir sin guardar? Se pierde lo que anotaste (${pluralize(state.countEntries.size, 'insumo', 'insumos')}).`);
+  };
+  modalAfterClose.modalCount = () => { if (FROM_OPERACION) volverAOperacion(); };
+  modalAfterClose.modalCountResult = () => { if (FROM_OPERACION) volverAOperacion(); };
+
+  // Cerrar la pestaña o recargar con un formulario a medio llenar: el navegador pregunta.
+  window.addEventListener('beforeunload', (e) => {
+    if (shipmentIsDirty() || countIsDirty()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  /** Devuelve la carga de la lista: desde Operación, lo demás de la página se pide después. */
   function openCountModal() {
     $('countError').style.display = 'none';
     $('countNotes').value = '';
@@ -3046,7 +3383,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('countTotal').textContent = '—';
     $('countProgress').textContent = 'Nada contado todavía';
     openModal('modalCount');
-    loadCountStock();
+    return loadCountStock();
   }
 
   $('btnSubmitCount')?.addEventListener('click', async () => {
@@ -3057,36 +3394,44 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const items = [];
     for (const [itemId, v] of state.countEntries) {
-      const cantidad = Number(v);
+      const cantidad = countValue(v);
       if (Number.isNaN(cantidad) || cantidad < 0) {
         const nombre = state.countStock.find((r) => r.inventory_item_id === itemId)?.item_name || 'un insumo';
-        showModalError('countError', `La cantidad de "${nombre}" no es válida.`);
+        showModalError('countError', `La cantidad de "${nombre}" no es un número válido. Corrígela o déjala vacía.`);
+        // Que se vea y se pueda corregir aunque esté filtrado o más abajo.
+        const fila = countLinesBox?.querySelector(`.inv-count-row[data-item-id="${itemId}"]`);
+        fila?.scrollIntoView({ block: 'center' });
+        fila?.querySelector('.inv-count-input')?.focus({ preventScroll: true });
         return;
       }
-      items.push({ inventory_item_id: itemId, counted_quantity: v });
+      items.push({ inventory_item_id: itemId, counted_quantity: String(cantidad) });
     }
     if (!items.length) { showModalError('countError', 'Anota la cantidad de al menos un insumo.'); return; }
 
     const btn = $('btnSubmitCount');
-    btn.disabled = true;
-    btn.textContent = 'Guardando...';
+    countSaving = true;
+    setFormSaving('modalCount', btn, true, 'Guardando…');
     try {
       const creado = await api.post('/inventory/counts', {
         branch_id: branchId,
         notes: $('countNotes').value.trim() || null,
         items,
       });
+      countSaving = false;
       closeModal('modalCount');
       showCountResult(creado);
 
+      // Desde Operación se vuelve allá al tocar "Listo": no hace falta refrescar Inventario.
+      if (FROM_OPERACION) return;
       state.selected.count = creado.id;
+      invalidateDashboard();
       await Promise.all([loadCounts({ reset: true }), loadStock()]);
       setView('conteo');
     } catch (err) {
-      showModalError('countError', err.message || 'No se pudo guardar el conteo.');
+      showModalError('countError', err.message || 'No se pudo guardar el conteo. Revisa la conexión e inténtalo de nuevo.');
     } finally {
-      btn.disabled = false;
-      btn.textContent = 'Guardar conteo';
+      countSaving = false;
+      setFormSaving('modalCount', btn, false, 'Guardar conteo');
     }
   });
 
@@ -3171,44 +3516,63 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('supplierList').innerHTML = skeletonListHtml(3);
   $('countList').innerHTML = skeletonListHtml(3);
 
-  await resolveBranchContext(existingUser);
-  await Promise.all([
-    loadShipments({ reset: true }),
-    loadAnalytics(),
-    loadCatalogs(),
-    loadStock(),
-    loadCounts({ reset: true }),
-    loadInvuStatus(),
-    loadExpected(),
-    loadSupplierIssues(),
-  ]);
-  $('btnScheduleShipment').hidden = !hasPerm('inventory.adjust');
-
-  renderResumen();
-  renderItemList();
-  renderSupplierList();
-  setView('resumen');
-  utils.renderIcons();
-
-  // Fase 4: la vista de tablet (tablet.html) linkea aquí con ?open=shipment|count en vez de
-  // reconstruir esos formularios — un botón grande que abre el modal de siempre. La merma ya no
-  // vive aquí: se registra en /merma y se analiza en Reportes; los enlaces viejos van allá.
-  const openParam = new URLSearchParams(window.location.search).get('open');
+  // La vista de tablet (/operacion) linkea aquí con ?open=shipment|count en vez de reconstruir
+  // esos formularios — un botón grande que abre el modal de siempre. La merma ya no vive aquí: se
+  // registra en /merma y se analiza en Reportes; los enlaces viejos van allá (arriba de todo).
+  const urlParams = new URLSearchParams(window.location.search);
+  const openParam = urlParams.get('open');
+  const viewParam = urlParams.get('view');
   const AUTO_OPEN = {
     shipment: () => { setView('cargamentos'); openShipmentModal(); },
-    count: () => { setView('conteo'); openCountModal(); },
+    count: () => { setView('conteo'); return openCountModal(); },
   };
-  AUTO_OPEN[openParam]?.();
+  const autoOpen = AUTO_OPEN[openParam];
+
+  await resolveBranchContext(existingUser);
+  $('btnScheduleShipment').hidden = !hasPerm('inventory.adjust');
+
+  // Con ?open=..., el formulario se abre apenas tiene lo que necesita (la sucursal, y para recibir
+  // también el catálogo y si Invu manda en los proveedores), sin esperar el tablero, el historial
+  // ni las existencias: eso se pide después, por detrás.
+  const yaCargado = new Set();
+  if (autoOpen) {
+    if (openParam === 'shipment') {
+      await Promise.all([loadCatalogs(), loadInvuStatus()]);
+      yaCargado.add('catalogs').add('invu');
+    }
+    const listo = autoOpen();
+    // Desde Operación, lo de atrás casi nunca se mira: primero la lista del conteo.
+    if (FROM_OPERACION && listo) await listo;
+  } else {
+    // La vista se muestra ya, con sus esqueletos; las cifras llegan a medida que responden.
+    setView(VIEWS[viewParam] ? viewParam : 'resumen');
+  }
+
+  const resto = [
+    loadShipments({ reset: true }),
+    loadAnalytics(),
+    loadStock(),
+    loadCounts({ reset: true }),
+    loadExpected(),
+    loadSupplierIssues(),
+  ];
+  if (!yaCargado.has('catalogs')) resto.push(loadCatalogs());
+  if (!yaCargado.has('invu')) resto.push(loadInvuStatus());
+  const todoCargado = Promise.all(resto).then(() => {
+    renderResumen();
+    renderItemList();
+    renderSupplierList();
+    utils.renderIcons();
+  });
+
+  if (autoOpen) return;
+  await todoCargado;
 
   // Desde una notificación: ?view=cargamentos&shipment=ID abre ese cargamento.
-  const urlParams = new URLSearchParams(window.location.search);
-  const viewParam = urlParams.get('view');
-  if (!openParam && VIEWS[viewParam]) {
-    setView(viewParam);
-    const shipmentParam = Number(urlParams.get('shipment'));
-    if (viewParam === 'cargamentos' && shipmentParam && state.shipments.some((s) => s.id === shipmentParam)) {
-      state.selected.shipment = shipmentParam;
-      renderShipmentList();
-    }
+  const shipmentParam = Number(urlParams.get('shipment'));
+  if (viewParam === 'cargamentos' && shipmentParam && state.shipments.some((s) => s.id === shipmentParam)) {
+    state.selected.shipment = shipmentParam;
+    renderShipmentList();
+    openDetailOnMobile($('shipmentList'));
   }
 });

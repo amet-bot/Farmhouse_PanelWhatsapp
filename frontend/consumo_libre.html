@@ -12,10 +12,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="/css/style.css?v=4.13.1">
-  <link rel="stylesheet" href="/css/inventory.css?v=4.23.0">
-  <link rel="stylesheet" href="/css/gestion.css?v=1.5.0">
-  <link rel="stylesheet" href="/css/consumo_libre.css?v=2.1.0">
+  <link rel="stylesheet" href="/css/style.css?v=5.0.1003">
+  <link rel="stylesheet" href="/css/inventory.css?v=5.0.1003">
+  <link rel="stylesheet" href="/css/gestion.css?v=5.0.1003">
+  <link rel="stylesheet" href="/css/consumo_libre.css?v=5.0.1003">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -28,9 +28,9 @@
   <div class="inv-app" id="conMain" hidden>
 
     <header class="inv-header">
-      <a class="inv-back" href="/consumo" title="Volver a la hoja de cierre">
+      <a class="inv-back" href="/consumo" title="Volver a Cierre de turno">
         <i data-lucide="arrow-left"></i>
-        <span>Hoja de cierre</span>
+        <span>Cierre de turno</span>
       </a>
       <div class="inv-header-titles">
         <p class="inv-title">Anotar un gasto suelto</p>
@@ -60,7 +60,7 @@
       <section class="con-toolbar">
         <div class="con-search">
           <i data-lucide="search"></i>
-          <input id="itemSearch" placeholder="Buscar insumo… (pollo, papel, aceite)" autocomplete="off" />
+          <input id="itemSearch" placeholder="Buscar insumo… (pollo, papel, aceite)" aria-label="Buscar insumo" autocomplete="off" enterkeyhint="search" />
           <button type="button" class="con-search-clear" id="btnClearSearch" hidden aria-label="Limpiar búsqueda"><i data-lucide="x"></i></button>
         </div>
         <select class="inv-filter-select" id="branchSelect" aria-label="Sucursal" hidden></select>
@@ -87,10 +87,11 @@
     <div class="con-cart" id="cart" hidden>
       <div class="con-cart-lines" id="cartLines"></div>
       <div class="con-cart-actions">
-        <input class="modal-input con-cart-notes" id="notes" maxlength="500" placeholder="Nota (opcional)" />
+        <input class="modal-input con-cart-notes" id="notes" maxlength="500" placeholder="Nota (opcional)" aria-label="Nota (opcional)" enterkeyhint="done" />
         <button type="button" class="inv-secondary-btn" id="btnClearCart">Vaciar</button>
         <button type="button" class="inv-primary-btn con-save" id="btnSave"><i data-lucide="check"></i> <span id="btnSaveLabel">Guardar</span></button>
       </div>
+      <p class="con-cart-error" id="cartError" role="alert" hidden></p>
     </div>
 
     <!-- Hoja de cantidad -->
@@ -106,13 +107,13 @@
         <div class="con-qty-row">
           <button type="button" class="con-qty-step" id="btnMinus" aria-label="Menos">−</button>
           <div class="con-qty-field">
-            <input id="sheetQty" type="number" min="0.001" step="0.001" inputmode="decimal" placeholder="0" />
+            <input id="sheetQty" type="number" min="0.001" step="0.001" inputmode="decimal" enterkeyhint="done" placeholder="0" aria-label="Cuánto se gastó" />
             <span id="sheetUnit">kg</span>
           </div>
           <button type="button" class="con-qty-step" id="btnPlus" aria-label="Más">+</button>
         </div>
         <div class="con-presets" id="presets"></div>
-        <p class="con-sheet-after" id="sheetAfter"></p>
+        <p class="con-sheet-after" id="sheetAfter" aria-live="polite"></p>
         <div class="con-sheet-actions">
           <button type="button" class="inv-secondary-btn" id="btnSheetCancel">Cancelar</button>
           <button type="button" class="inv-primary-btn" id="btnSheetAdd"><i data-lucide="plus"></i> Agregar</button>
@@ -121,11 +122,11 @@
     </div>
   </div>
 
-  <script src="/js/utils.js?v=3.5.0"></script>
-  <script src="/js/api.js?v=4.1.0"></script>
+  <script src="/js/utils.js?v=5.0.1003"></script>
+  <script src="/js/api.js?v=5.0.1003"></script>
   <script src="/js/modules/auth.js?v=3.4.0"></script>
-  <script src="/js/shared/shell.js?v=4.2.0"></script>
-  <script src="/js/shared/native-app.js?v=1.1.0"></script>
-  <script src="/js/modules/consumo_libre.js?v=2.1.0"></script>
+  <script src="/js/shared/shell.js?v=5.0.1003"></script>
+  <script src="/js/shared/native-app.js?v=5.0.1003"></script>
+  <script src="/js/modules/consumo_libre.js?v=5.0.1003"></script>
 </body>
 </html>

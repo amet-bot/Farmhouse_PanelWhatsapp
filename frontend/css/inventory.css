@@ -1351,6 +1351,10 @@ a.inv-nav-item { text-decoration: none; }
 
 .inv-line-remove i { width: 16px; height: 16px; }
 
+/* La palabra "Quitar" junto a la ✕: en escritorio la columna es de 38 px y alcanza con la ✕ (y el
+   aria-label); donde la fila se apila en tarjeta (≤900 px) se ve el texto. */
+.inv-line-remove-text { display: none; font-size: 13px; font-weight: 600; }
+
 .inv-add-line-btn {
   display: inline-flex;
   align-items: center;
@@ -1704,13 +1708,6 @@ a.inv-nav-item { text-decoration: none; }
     grid-column: 1 / -1;
     width: 100%;
     gap: 6px;
-  }
-
-  .inv-line-remove::after {
-    content: 'Quitar';
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 600;
   }
 
   /* El pie del modal se apila: el total en su fila, los botones a ancho completo debajo. */
@@ -2148,14 +2145,23 @@ a.inv-nav-item { text-decoration: none; }
 @media (max-width: 900px) {
   .inv-view-head-actions { flex-wrap: nowrap; flex-shrink: 0; }
 
-  /* En celular el secundario queda solo con su ícono: dos botones con texto no caben al lado
-     del título. */
-  .inv-secondary-btn { padding: 9px 11px; }
-  .inv-secondary-btn span { display: none; }
-
   .inv-stock-note { flex-wrap: wrap; }
   .inv-stock-note .inv-link-btn { margin-left: 26px; }
+}
 
+/* En un teléfono angosto el secundario de la cabecera queda solo con su ícono: dos botones con
+   texto no caben al lado del título. Antes era a ≤900 px y para CUALQUIER secundario con <span>:
+   en una tablet vertical, y en páginas como Reportes ("Actualizar recetas de Invu"), quedaban
+   íconos sueltos sin nombre. Ahora solo ≤560 px y solo si el botón tiene aria-label (así el
+   lector de pantalla y quien lo toque por primera vez siguen teniendo el nombre). */
+@media (max-width: 560px) {
+  .inv-secondary-btn[aria-label]:has(> i, > svg) { padding: 9px 11px; }
+  .inv-secondary-btn[aria-label]:has(> i, > svg) > span { display: none; }
+}
+
+/* El renglón del conteo se apila solo en celular: en una tablet vertical (modal de ~730 px) el
+   nombre y los tres números entran en una línea, que es más rápido para recorrer 160 insumos. */
+@media (max-width: 640px) {
   .inv-count-head { display: none; }
 
   /* Cada insumo pasa a ser un renglón de dos pisos: el nombre arriba, los tres números abajo. */
@@ -2395,7 +2401,9 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 .inv-camera {
   position: fixed;
   inset: 0;
-  z-index: 1300;
+  /* Encima de los modales (9999) y de la revisión con quien entrega (10000): se abre desde
+     "Recibir mercancía". Con 1300 quedaba detrás del formulario. */
+  z-index: 10050;
   display: flex;
   flex-direction: column;
   background: #000;
@@ -3418,9 +3426,12 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 .inv-supplier-issue span { color: var(--inv-text-secondary); grid-column: 1; }
 .inv-supplier-issue-claim { grid-column: 2 !important; grid-row: 1 / span 2; align-self: center; font-weight: 700; color: var(--inv-loss-text) !important; }
 
-@media (max-width: 900px) {
+@media (max-width: 640px) {
   .inv-invoice-fields { grid-template-columns: 1fr; }
   .inv-invoice-mode .inv-line-row { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 900px) {
   .inv-expected-card { flex-wrap: wrap; }
   .inv-expected-actions { width: 100%; justify-content: flex-end; }
   .inv-expected-receive { flex: 1; justify-content: center; }
@@ -3434,3 +3445,611 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
   background: var(--inv-green-soft);
   color: var(--inv-green-soft-text);
 }
+
+/* ============================================================================
+   TABLET Y DEDOS (2026-10)
+   Inventario se usa en una tablet con los dedos: el encargado recibe mercancía y cuenta el
+   estante con la tablet en la mano (vertical ~768-834 px, acostada ~1024-1180 px). Lo que sigue
+   no cambia el escritorio con mouse ni las otras páginas que comparten esta hoja: lo táctil va
+   bajo (pointer: coarse) y lo de diseño de página bajo `.inv-inventario` (la clase del <body> de
+   inventory.html). Embebido en el Panel General (`.fh-embedded`) el rail lo pone el hub.
+   ============================================================================ */
+
+/* ---- 1. Tamaños de toque que le ganaban a la capa táctil de style.css ----
+   Esa capa va con :where() (especificidad 0) y estas clases traen su propio alto o ancho. */
+@media (pointer: coarse) {
+  .inv-recv-chip { min-height: 44px; padding: 6px 14px; font-size: 14px; }
+  .inv-recv-chips { gap: 8px; }
+  .inv-expected-receive { min-height: 44px; }
+  .inv-expected-cancel { min-height: 44px; padding: 8px 12px; }
+  .inv-check { min-height: 44px; gap: 10px; }
+  .inv-check input,
+  .inv-invoice-toggle input { width: 22px; height: 22px; }
+  .inv-invoice-toggle { min-height: 44px; align-items: center; }
+  .inv-nav-item { min-height: 44px; }
+  .inv-detail-back { min-height: 44px; padding: 10px 16px 10px 12px; font-size: 14px; }
+  .inv-danger-outline { min-height: 44px; padding: 8px 14px; font-size: 14px; }
+  .inv-load-more { min-height: 52px; font-size: 14px; }
+  .inv-mini-row { min-height: 56px; }
+  .inv-dash-seg button { padding: 8px 16px; }
+  .inv-supplier-issues summary,
+  .inv-ca-group > summary { min-height: 44px; display: flex; align-items: center; gap: 6px; }
+
+  /* Resultados del buscador de insumo / proveedor: renglones de 48 px, no de 35. */
+  .inv-item-suggestion {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 48px;
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+  .inv-item-suggestions { max-height: 312px; }
+  .inv-item-suggestion-empty { padding: 14px; font-size: 14px; }
+
+  /* La búsqueda: con el alto de 44 px de la capa táctil, el campo dentro de su caja (que ya tiene
+     relleno) daba una barra de 64 px. La caja manda y el campo la llena. */
+  .inv-search { padding: 0 12px; min-height: 48px; }
+  .inv-search input { min-height: 46px; padding: 0; }
+  .inv-search i { width: 18px; height: 18px; }
+
+  /* Fotos de la factura: la ✕ para quitar una foto medía 24 px y "Galería" ~30. */
+  .inv-photo-remove { width: 36px; height: 36px; font-size: 20px; }
+  .inv-photo-grid-sm { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+  .inv-photo-add-group { aspect-ratio: auto; grid-template-rows: minmax(64px, 1fr) 44px; }
+  .inv-photo-add-group .inv-photo-add-secondary { font-size: 13px; }
+}
+
+/* En la tabla del cargamento (escritorio/tablet acostada) la columna de quitar pasa a 44 px. */
+@media (pointer: coarse) and (min-width: 901px) {
+  #modalShipment .inv-lines-head,
+  #modalShipment .inv-line-row { grid-template-columns: minmax(0, 2.2fr) 110px 120px 92px 44px; }
+  #modalShipment.inv-invoice-mode .inv-lines-head,
+  #modalShipment.inv-invoice-mode .inv-line-row { grid-template-columns: minmax(0, 2fr) 104px 104px 112px 92px 44px; }
+  #modalShipment .inv-line-remove { width: 44px; height: 44px; }
+}
+
+/* ---- 2. Letra para leer con la tablet en la mano ----
+   El texto corrido de Inventario iba en 12.5 px y las etiquetas en 10-11 px: en una tablet a
+   40 cm no se leía. Con el dedo: cuerpo 14-15 px, etiquetas 12 px, campos 16 px (con menos, el
+   iPad hace zoom al tocarlos: la regla de 16 px de style.css solo llega hasta 900 px y la capa
+   táctil pierde contra el `font-size` de .modal-input). */
+@media (pointer: coarse) {
+  .inv-inventario .modal-input,
+  .inv-inventario .inv-filter-select,
+  .inv-inventario .inv-search input { font-size: 16px; }
+
+  .inv-inventario .inv-back { font-size: 14px; }
+  .inv-inventario .inv-header-titles .inv-subtitle { font-size: 12.5px; }
+  .inv-inventario .inv-view-head p { font-size: 14.5px; line-height: 1.5; }
+
+  .inv-inventario .inv-list-header { font-size: 13px; padding: 11px 16px; }
+  .inv-inventario .inv-row-info strong { font-size: 15px; }
+  .inv-inventario .inv-row-info small { font-size: 12.5px; }
+  .inv-inventario .inv-row-amount { font-size: 14.5px; }
+  .inv-inventario .inv-badge { font-size: 11.5px; padding: 4px 10px; }
+  .inv-inventario .inv-row { min-height: 64px; }
+
+  .inv-inventario .inv-panel-head h2 { font-size: 16px; }
+  .inv-inventario .inv-panel-note { font-size: 12.5px; }
+  .inv-inventario .inv-bar-name,
+  .inv-inventario .inv-bar-value { font-size: 14px; }
+  .inv-inventario .inv-mini-info strong,
+  .inv-inventario .inv-mini-amount { font-size: 14.5px; }
+  .inv-inventario .inv-mini-info small { font-size: 12.5px; }
+  .inv-inventario .inv-dash-label,
+  .inv-inventario .inv-dash-tile small { font-size: 12.5px; }
+  .inv-inventario .inv-dash-table { font-size: 14px; }
+  .inv-inventario .inv-dash-table th { font-size: 12px; }
+
+  .inv-inventario .inv-detail h3 { font-size: 19px; }
+  .inv-inventario .inv-detail-sub { font-size: 13.5px; }
+  .inv-inventario .inv-detail-note { font-size: 14px; }
+  .inv-inventario .inv-metrics span { font-size: 12px; }
+  .inv-inventario .inv-metrics strong { font-size: 17px; }
+  .inv-inventario .inv-metrics small { font-size: 12px; }
+  .inv-inventario .inv-detail-section-header { font-size: 12px; }
+  .inv-inventario .inv-detail-rows > div { font-size: 14px; padding: 11px 0; }
+  .inv-inventario .inv-detail-table { font-size: 14px; }
+  .inv-inventario .inv-detail-table th { font-size: 12px; padding: 9px 8px; }
+  .inv-inventario .inv-detail-table td { padding: 12px 8px; }
+  .inv-inventario .inv-chip { font-size: 13px; padding: 6px 12px; display: inline-flex; align-items: center; }
+  .inv-inventario .inv-ca-line p,
+  .inv-inventario .inv-ca-findings li { font-size: 14px; }
+  .inv-inventario .inv-ca-foot { font-size: 13px; }
+  .inv-inventario .inv-wi-list li,
+  .inv-inventario .inv-wi-branch { font-size: 14px; }
+
+  .inv-inventario .inv-stock-note,
+  .inv-inventario .inv-invu-note,
+  .inv-inventario .inv-count-intro { font-size: 14px; }
+  .inv-inventario .inv-stock-formula p { font-size: 13px; }
+  .inv-inventario .inv-formula-term { font-size: 14px; }
+  .inv-inventario .inv-formula-term small,
+  .inv-inventario .inv-stock-grid th small,
+  .inv-inventario .inv-stock-grid .inv-td-name small { font-size: 12px; }
+  .inv-inventario .inv-expected-info small { font-size: 13px; }
+
+  .inv-inventario .inv-empty strong { font-size: 15px; }
+  .inv-inventario .inv-empty p { font-size: 14px; max-width: 340px; }
+
+  .inv-inventario .modal-header h3 { font-size: 18px; }
+  .inv-inventario .modal-subtitle { font-size: 13.5px; }
+  .inv-inventario .modal-label { font-size: 13.5px; }
+  .inv-inventario .inv-field-hint,
+  .inv-inventario .inv-line-unit { font-size: 12.5px; }
+  .inv-inventario .inv-lines-head,
+  .inv-inventario .inv-count-head { font-size: 12px; }
+  .inv-inventario .inv-line-label { font-size: 12px; }
+  .inv-inventario .inv-line-subtotal { font-size: 15px; }
+  .inv-inventario .inv-recv-diff { font-size: 14px; }
+  .inv-inventario .inv-invoice-toggle small { font-size: 13px; }
+  .inv-inventario .login-error-box { font-size: 14px; }
+  .inv-inventario .inv-total-box span { font-size: 12.5px; }
+  .inv-inventario .inv-total-box strong { font-size: 22px; }
+  .inv-inventario #modalCount .inv-total-box small { font-size: 12px; }
+  .inv-inventario .inv-check-list,
+  .inv-inventario .inv-recv-result { font-size: 15px; }
+}
+
+@media (pointer: coarse) and (min-width: 641px) {
+  .inv-inventario .inv-view-head h1 { font-size: 24px; }
+}
+
+/* ---- 3. Encabezado de una sola fila en tablet ----
+   A 768-1100 px el encabezado se partía en dos renglones (volver + título + tema + usuario +
+   Salir no entraban) y el rail fijo quedaba corrido. Alto fijo de 64 px: el rail se pega justo
+   debajo. Quedan el avatar y los íconos; "Panel General" / "Operación de Sucursal" se sigue
+   leyendo, que es a donde se vuelve. */
+@media (min-width: 641px) and (max-width: 1100px) {
+  .inv-inventario .inv-header {
+    flex-wrap: nowrap;
+    gap: 10px;
+    min-height: 64px;
+    padding: 9px 16px;
+    box-sizing: border-box;
+  }
+  .inv-inventario .inv-header-titles { min-width: 0; }
+  .inv-inventario .inv-header-titles .inv-title,
+  .inv-inventario .inv-header-titles .inv-subtitle {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .inv-inventario .inv-header-actions { flex-wrap: nowrap; gap: 8px; flex-shrink: 0; }
+  .inv-inventario .inv-header-actions .user-profile > div:not(.profile-avatar) { display: none; }
+  .inv-inventario .inv-header-actions .user-profile { padding: 4px; gap: 0; }
+  .inv-inventario .theme-toggle-btn .theme-label { display: none; }
+  .inv-inventario .inv-back { flex-shrink: 0; }
+}
+
+/* En celular la flecha va sola; viniendo de Operación dice a dónde vuelve. */
+@media (max-width: 640px) {
+  .inv-back.inv-back-from-op::after {
+    content: attr(data-short);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .inv-back.inv-back-from-op { padding: 8px 10px 8px 6px; }
+}
+
+/* ---- 4. Tablet: rail a la izquierda en vez de barra de abajo (768-1100 px) ----
+   La barra inferior es para el pulgar en un teléfono; en una tablet queda lejos y con nombres
+   recortados ("Recibido", "Stock"). Un rail angosto con el ícono arriba y el nombre entero abajo
+   deja todo el ancho para la lista y el detalle. En escritorio (>1100) sigue el rail ancho. */
+@media (min-width: 768px) and (max-width: 1100px) {
+  :root:not(.fh-embedded) .inv-inventario .inv-shell { grid-template-columns: 96px minmax(0, 1fr); }
+
+  :root:not(.fh-embedded) .inv-inventario .inv-sidebar {
+    position: sticky;
+    inset: auto;
+    top: 64px;
+    z-index: 2;
+    display: block;
+    height: calc(100vh - 64px);
+    height: calc(100dvh - 64px);
+    overflow-y: auto;
+    padding: 12px 6px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--inv-panel-2);
+    border-top: none;
+    border-right: 1px solid var(--inv-border);
+    box-shadow: none;
+  }
+
+  .inv-inventario .inv-sidebar-brand,
+  .inv-inventario .inv-sidebar-foot { display: none; }
+
+  .inv-inventario .inv-nav { flex-direction: column; gap: 4px; }
+
+  .inv-inventario .inv-nav-item {
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 64px;
+    padding: 9px 4px;
+    border-radius: 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+  }
+  .inv-inventario .inv-nav-item i,
+  .inv-inventario .inv-nav-item svg { width: 22px; height: 22px; }
+  /* El nombre entero, en dos renglones si hace falta ("Mercancía / recibida"). */
+  .inv-inventario .inv-nav-item span,
+  .inv-inventario .inv-nav-item[data-short] > span {
+    display: block;
+    max-width: 100%;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+  .inv-inventario .inv-nav-item[data-short]::after { content: none; }
+  .inv-inventario .inv-nav-item.active { box-shadow: inset 3px 0 0 var(--inv-green); }
+
+  .inv-inventario .inv-nav-sep {
+    display: block;
+    margin-top: 6px;
+    padding: 10px 2px 4px;
+    border-top: 1px solid var(--inv-border);
+    font-size: 10.5px;
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+
+  :root:not(.fh-embedded) .inv-inventario .inv-content { padding: 20px 20px 40px; }
+  :root:not(.fh-embedded) body.inv-inventario .toast-banner { bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Celular (≤767): la barra de abajo con 6 secciones. Íconos y nombres un poco más grandes y el
+   alto de toque completo; los nombres largos van abreviados (data-short). */
+@media (max-width: 767px) {
+  .inv-inventario .inv-nav-item { min-height: 52px; padding: 6px 1px; font-size: 11px; }
+  .inv-inventario .inv-nav-item i,
+  .inv-inventario .inv-nav-item svg { width: 21px; height: 21px; }
+}
+
+/* ---- 5. Tablet acostada (901-1100): lista y detalle lado a lado ----
+   Con el rail angosto queda ~890 px de ancho: alcanza para las dos columnas. Antes, debajo de
+   1100 px el detalle caía debajo de toda la lista, fuera de la pantalla. Existencias (sin panel
+   de detalle) sigue a lo ancho. */
+@media (min-width: 901px) and (max-width: 1100px) {
+  .inv-inventario .inv-workspace:not(:has(> .inv-list-col-wide)) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .inv-inventario .inv-workspace:not(:has(> .inv-list-col-wide)) .inv-list-col {
+    border-right: 1px solid var(--inv-border);
+    border-bottom: none;
+  }
+  .inv-inventario .inv-workspace .inv-detail { max-height: calc(100dvh - 140px); }
+  .inv-inventario .inv-workspace .inv-list { max-height: calc(100dvh - 240px); }
+}
+
+/* Tablet vertical (768-900): la lista y el detalle se turnan (inventory.js, `is-detail`); el
+   botón para volver a la lista va arriba, grande y pegado mientras se lee el detalle. */
+@media (min-width: 641px) and (max-width: 900px) {
+  .inv-inventario .inv-detail { padding: 18px 22px 26px; }
+}
+
+/* ---- 6. Tablas del detalle en tarjetas cuando el panel es angosto ----
+   El detalle de un cargamento lleva hasta 6 columnas; en el panel de la tablet acostada (~440
+   px) o en una ventana chica se salía de lado. Se decide por el ancho del PANEL (container
+   query), no de la pantalla. Mismo formato de tarjeta que ya tenía el celular. */
+.inv-inventario .inv-detail { container-type: inline-size; container-name: invdetail; }
+
+@container invdetail (max-width: 560px) {
+  .inv-detail-table,
+  .inv-detail-table tbody,
+  .inv-detail-table tfoot,
+  .inv-detail-table tr,
+  .inv-detail-table td { display: block; width: 100%; }
+  .inv-detail-table thead { display: none; }
+  .inv-detail-table tbody tr {
+    padding: 11px 12px;
+    margin-bottom: 8px;
+    border: 1px solid var(--inv-border);
+    border-radius: var(--radius-sm);
+    background: var(--inv-panel-2);
+  }
+  .inv-detail-table tbody td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    border-bottom: none;
+    text-align: right;
+  }
+  .inv-detail-table tbody td::before {
+    content: attr(data-label);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--inv-text-muted);
+    text-align: left;
+  }
+  .inv-detail-table td.inv-td-name {
+    display: block;
+    font-weight: 700;
+    text-align: left;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--inv-border-light);
+  }
+  .inv-detail-table td.inv-td-name::before { content: none; }
+  .inv-detail-table td.inv-td-total-label { display: none; }
+  .inv-detail-table tfoot td { display: flex; justify-content: space-between; padding: 12px 12px 0; }
+  .inv-detail-table tfoot td::before { content: attr(data-label); color: var(--inv-green-soft-text); }
+}
+
+/* ---- 7. Existencias en tarjetas en tablet vertical y celular ----
+   Hasta 8 columnas: a 768 px se desplazaba de lado y en celular cada insumo eran 8 renglones de
+   "etiqueta … número". Ahora: el nombre y lo que QUEDA (el número que se busca) arriba y grande,
+   y los movimientos debajo en columnas cortas con su nombre. Acostada (>900) sigue la tabla. */
+@media (max-width: 900px) {
+  .inv-inventario .inv-stock-grid,
+  .inv-inventario .inv-stock-grid tbody { display: block; width: 100%; }
+  .inv-inventario .inv-stock-grid thead { display: none; }
+  .inv-inventario .inv-stock-grid tbody tr {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px 12px;
+    width: auto;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    border: 1px solid var(--inv-border);
+    border-radius: 12px;
+    background: var(--inv-panel-2);
+  }
+  .inv-inventario .inv-stock-grid tbody td {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 2px;
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    text-align: left;
+    white-space: normal;
+    font-size: 15px;
+  }
+  .inv-inventario .inv-stock-grid tbody td::before {
+    content: attr(data-label);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--inv-text-muted);
+    text-align: left;
+  }
+  .inv-inventario .inv-stock-grid tbody td.inv-td-name {
+    grid-column: 1 / span 3;
+    grid-row: 1;
+    display: block;
+    margin: 0;
+    padding: 0;
+    border: none;
+    font-size: 15.5px;
+    font-weight: 700;
+  }
+  .inv-inventario .inv-stock-grid tbody td.inv-td-name::before { content: none; }
+  .inv-inventario .inv-stock-grid tbody td.inv-stock-onhand {
+    grid-column: 4;
+    grid-row: 1;
+    align-items: flex-end;
+    text-align: right;
+  }
+  .inv-inventario .inv-stock-grid .inv-stock-onhand .inv-stock-pill { font-size: 18px; padding: 2px 8px; }
+}
+
+@media (max-width: 640px) {
+  .inv-inventario .inv-stock-grid tbody tr { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .inv-inventario .inv-stock-grid tbody td.inv-td-name { grid-column: 1 / span 2; }
+  .inv-inventario .inv-stock-grid tbody td.inv-stock-onhand { grid-column: 3; }
+  .inv-inventario .inv-stock-grid tbody td { font-size: 14px; }
+}
+
+/* ---- 8. "Recibir mercancía" ---- */
+/* Acostada o en escritorio: más ancho que el modal grande común, para que la fila de cada insumo
+   (insumo, facturado, llegó, costo, subtotal) no vaya apretada. */
+@media (min-width: 901px) {
+  #modalShipment .modal-card { max-width: 980px; }
+}
+
+/* El aviso de error queda pegado arriba al deslizar: con 10 insumos, el error salía arriba de
+   todo y quien estaba abajo tocando "Guardar" no lo veía. El relleno de arriba del cuerpo pasa
+   a un ::before para que "pegado arriba" sea el borde visible, sin depender del navegador. */
+.inv-sticky-body { padding-top: 0; }
+.inv-sticky-body::before { content: ""; display: block; height: 18px; }
+.inv-sticky-error {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: linear-gradient(var(--red-soft), var(--red-soft)), var(--panel-bg);
+  box-shadow: 0 8px 16px -12px rgba(0, 0, 0, .45);
+}
+
+#modalShipment .inv-invoice-box { margin: 0 0 12px; padding: 10px 14px; }
+#modalShipment .inv-lines { gap: 12px; }
+
+/* "Agregar otro insumo": botón ancho y alto, fácil de encontrar debajo de la última fila. */
+#modalShipment .inv-add-line-btn {
+  width: 100%;
+  justify-content: center;
+  min-height: 52px;
+  font-size: 15px;
+}
+#modalShipment .inv-add-line-btn i,
+#modalShipment .inv-add-line-btn svg { width: 18px; height: 18px; }
+
+/* Número y foto de la factura: después de las líneas, en su propia caja. */
+#modalShipment .inv-invoice-fields {
+  margin: 16px 0 0;
+  padding: 12px 14px 0;
+  border: 1px solid var(--inv-border);
+  border-radius: var(--radius-sm);
+  background: var(--inv-panel-2);
+}
+
+/* "Más datos (opcional)": fecha y notas, plegado. */
+.inv-more {
+  margin-top: 14px;
+  border: 1px solid var(--inv-border);
+  border-radius: var(--radius-sm);
+  background: var(--inv-panel-2);
+}
+.inv-more > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--inv-text-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+.inv-more > summary::-webkit-details-marker { display: none; }
+.inv-more > summary small { font-weight: 500; color: var(--inv-text-muted); }
+.inv-more > summary i,
+.inv-more > summary svg { width: 18px; height: 18px; flex-shrink: 0; transition: transform .15s ease; }
+.inv-more[open] > summary i,
+.inv-more[open] > summary svg { transform: rotate(90deg); }
+.inv-more-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 14px;
+  padding: 0 14px;
+}
+@media (max-width: 640px) {
+  .inv-more-body { grid-template-columns: 1fr; }
+}
+
+/* Cada insumo recibido como tarjeta en la tablet vertical (641-900): el insumo a lo ancho con
+   "Quitar" a la derecha, separado de los números, y debajo facturado | llegó | costo | subtotal
+   con su nombre. Antes, en ese ancho, la cabecera de 6 columnas seguía visible sobre filas de 2,
+   sin etiquetas: no se sabía qué número iba en cada caja. */
+@media (min-width: 641px) and (max-width: 900px) {
+  #modalShipment .inv-lines-head { display: none; }
+  #modalShipment .inv-line-row,
+  #modalShipment.inv-invoice-mode .inv-line-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--inv-border);
+    border-radius: 12px;
+    background: var(--inv-panel-2);
+  }
+  #modalShipment .inv-line-item { grid-row: 1; grid-column: 1 / span 3; }
+  #modalShipment .inv-line-remove {
+    grid-row: 1;
+    grid-column: 4;
+    justify-self: end;
+    align-self: start;
+    width: auto;
+    height: 44px;
+    gap: 6px;
+    padding: 0 14px;
+    margin-top: 0;
+  }
+  #modalShipment .inv-line-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--inv-text-muted);
+  }
+  #modalShipment .inv-line-qty,
+  #modalShipment .inv-line-invoiced,
+  #modalShipment .inv-line-cost { text-align: left; }
+  #modalShipment .inv-line-subtotal { text-align: left; padding: 11px 0; }
+  #modalShipment .inv-invoice-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+}
+
+@media (max-width: 900px) {
+  .inv-line-remove-text { display: inline; }
+}
+
+/* Celular: "Quitar" queda abajo de la tarjeta, a lo ancho, con aire respecto de los campos. */
+@media (max-width: 640px) {
+  #modalShipment .inv-line-remove { margin-top: 4px; height: 44px; }
+}
+
+/* ---- 9. "Nuevo conteo": búsqueda y avance siempre a la vista ---- */
+.inv-count-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  margin: 0 -20px;
+  padding: 10px 20px 0;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--inv-border);
+  box-shadow: 0 10px 14px -14px rgba(0, 0, 0, .5);
+}
+.inv-count-sticky .login-error-box { margin-bottom: 10px; }
+
+/* La búsqueda nunca se aprieta: si la casilla no entra al lado, baja a su renglón (en celular
+   salía "Buscar ins" al lado de "Solo los que tienen movimiento"). */
+.inv-count-toolbar { flex-wrap: wrap; gap: 6px 14px; padding: 0 0 8px; }
+.inv-count-toolbar .inv-search { flex: 1 1 260px; }
+
+.inv-count-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--inv-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.inv-count-progress > span:first-child { flex-shrink: 0; }
+.inv-count-progress-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--inv-cyan-soft);
+  overflow: hidden;
+}
+.inv-count-progress-bar > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--inv-cyan);
+  transition: width .2s ease;
+}
+
+.inv-count-sticky .inv-count-head { border-bottom: none; padding-bottom: 8px; }
+
+.inv-count-row { cursor: text; }
+.inv-count-system small { font-size: 11px; font-weight: 500; color: var(--inv-text-muted); }
+.inv-count-row.is-invalid { background: var(--inv-loss-soft); }
+.inv-count-row.is-invalid .inv-count-input { border-color: var(--inv-loss); }
+.inv-count-diff-bad { color: var(--inv-loss-text); font-weight: 700; }
+
+@media (pointer: coarse) {
+  .inv-count-row { min-height: 60px; padding: 8px 10px; }
+  .inv-count-name strong { white-space: normal; }
+  .inv-count-progress { font-size: 14px; }
+}
+
+/* Tablet vertical: columnas de números más anchas para el campo de 16 px. */
+@media (min-width: 641px) and (max-width: 900px) {
+  .inv-count-head,
+  .inv-count-row { grid-template-columns: minmax(0, 2fr) 100px 132px 100px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inv-count-progress-bar > span,
+  .inv-more > summary i,
+  .inv-more > summary svg { transition: none; }
+}
+
+/* ---- 10. Error al cargar una lista: se ve distinto de "todavía no hay nada" ---- */
+.inv-empty.is-error .inv-empty-icon { background: var(--inv-loss-soft); color: var(--inv-loss); }
+.inv-empty.is-error .inv-secondary-btn { margin-top: 4px; }

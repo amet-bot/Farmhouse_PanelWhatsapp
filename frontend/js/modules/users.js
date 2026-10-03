@@ -49,15 +49,17 @@ const usersModule = {
       const branchName = u.branch ? u.branch.name : (u.role === 'admin' || this.isLogistics(u) ? 'Todas las sucursales' : '-');
       const isSelf = currentUser && currentUser.id === u.id;
 
-      let roleBadge = `<span class="tag-type">${utils.escapeHtml(u.role)}</span>`;
+      // El nombre del rol en español, el mismo de la cabecera (FarmhouseShell.roleLabel).
+      const rolTxt = utils.escapeHtml(this.roleLabel(u));
+      let roleBadge;
       if (u.role === 'admin') {
-        roleBadge = `<span class="tag-type badge-role-admin"><i data-lucide="crown"></i> Admin</span>`;
+        roleBadge = `<span class="tag-type badge-role-admin"><i data-lucide="crown"></i> ${rolTxt}</span>`;
       } else if (this.isLogistics(u)) {
-        roleBadge = `<span class="tag-type badge-role-supervisor"><i data-lucide="truck"></i> Gerente de logística</span>`;
+        roleBadge = `<span class="tag-type badge-role-supervisor"><i data-lucide="truck"></i> ${rolTxt}</span>`;
       } else if (u.role === 'supervisor') {
-        roleBadge = `<span class="tag-type badge-role-supervisor"><i data-lucide="shield"></i> Encargado</span>`;
+        roleBadge = `<span class="tag-type badge-role-supervisor"><i data-lucide="shield"></i> ${rolTxt}</span>`;
       } else {
-        roleBadge = `<span class="tag-type badge-role-agent"><i data-lucide="user"></i> Agente</span>`;
+        roleBadge = `<span class="tag-type badge-role-agent"><i data-lucide="user"></i> ${rolTxt}</span>`;
       }
 
       let statusBadge = u.active
@@ -66,23 +68,24 @@ const usersModule = {
 
       let actionsHtml = '';
       if (currentUser && currentUser.role === 'admin') {
-        actionsHtml += `<button class="btn-sm-action" onclick="usersModule.openEditModal(${u.id})" title="Editar"><i data-lucide="pencil"></i> Editar</button> `;
+        actionsHtml += `<button type="button" class="btn-sm-action" onclick="usersModule.openEditModal(${u.id})"><i data-lucide="pencil"></i> Editar</button> `;
         if (!isSelf) {
-          actionsHtml += `<button class="btn-sm-action" onclick="usersModule.toggleActive(${u.id})" title="Cambiar estado"><i data-lucide="${u.active ? 'pause' : 'play'}"></i> ${u.active ? 'Pausar' : 'Activar'}</button> `;
-          actionsHtml += `<button class="btn-sm-action delete-action" onclick="usersModule.openDeleteModal(${u.id})" title="Eliminar" aria-label="Eliminar usuario"><i data-lucide="trash-2"></i></button>`;
+          actionsHtml += `<button type="button" class="btn-sm-action" onclick="usersModule.toggleActive(${u.id})"><i data-lucide="${u.active ? 'pause' : 'play'}"></i> ${u.active ? 'Pausar' : 'Activar'}</button> `;
+          actionsHtml += `<button type="button" class="btn-sm-action delete-action" onclick="usersModule.openDeleteModal(${u.id})" aria-label="Eliminar a ${utils.escapeHtml(u.name)}"><i data-lucide="trash-2"></i> Eliminar</button>`;
         }
       }
 
+      // data-label: en tablet de pie y celular la fila se ve como tarjeta (administracion.css).
       tr.innerHTML = `
-        <td>
+        <td class="adm-td-main">
           <strong>${utils.escapeHtml(u.name)}</strong>
-          <div style="font-size:11px;color:var(--primary-color);font-weight:600">@${utils.escapeHtml(u.username)}</div>
-          ${u.email ? `<div style="font-size:11px;color:var(--text-muted)">${utils.escapeHtml(u.email)}</div>` : ''}
+          <div class="adm-sub" style="font-size:11px;color:var(--primary-color);font-weight:600">@${utils.escapeHtml(u.username)}</div>
+          ${u.email ? `<div class="adm-sub" style="font-size:11px;color:var(--text-muted)">${utils.escapeHtml(u.email)}</div>` : ''}
         </td>
-        <td>${roleBadge}</td>
-        <td>${utils.escapeHtml(branchName)}</td>
-        <td>${statusBadge}</td>
-        <td style="white-space:nowrap">${actionsHtml}</td>
+        <td data-label="Rol">${roleBadge}</td>
+        <td data-label="Sucursal">${utils.escapeHtml(branchName)}</td>
+        <td data-label="Estado">${statusBadge}</td>
+        <td class="adm-td-actions${actionsHtml ? '' : ' is-empty'}" style="white-space:nowrap">${actionsHtml}</td>
       `;
       tableBody.appendChild(tr);
     });
@@ -100,18 +103,26 @@ const usersModule = {
   isLogistics(u) {
     return u && u.role === 'supervisor' && !u.branch_id;
   },
+  roleLabel(u) {
+    if (window.FarmhouseShell && typeof FarmhouseShell.roleLabel === 'function') return FarmhouseShell.roleLabel(u);
+    if (!u) return '';
+    if (u.role === 'admin') return 'Administrador';
+    if (u.role === 'supervisor') return u.branch_id ? 'Encargado' : 'Gerente de logística';
+    if (u.role === 'agent') return 'Empleado';
+    return u.role || '';
+  },
 
   async registerUser(data) {
     const newUser = await api.post('/users/', this.normalizeRole(data));
     await this.loadUsers();
-    utils.showToast(`✓ Usuario '@${newUser.username}' creado exitosamente.`, 'success');
+    utils.showToast(`Usuario @${newUser.username} creado.`, 'success');
     return newUser;
   },
 
   async updateUser(id, data) {
     const updated = await api.put(`/users/${id}`, this.normalizeRole(data));
     await this.loadUsers();
-    utils.showToast(`✓ Usuario '@${updated.username}' actualizado.`, 'success');
+    utils.showToast(`Cambios guardados para @${updated.username}.`, 'success');
     return updated;
   },
 
@@ -119,9 +130,9 @@ const usersModule = {
     try {
       const updated = await api.post(`/users/${id}/toggle-active`, {});
       await this.loadUsers();
-      utils.showToast(`✓ Estado de '@${updated.username}' actualizado a: ${updated.active ? 'Activo' : 'Inactivo'}`, 'info');
+      utils.showToast(updated.active ? `@${updated.username} está activo: ya puede entrar.` : `@${updated.username} quedó en pausa: no puede entrar hasta que lo actives.`, 'success');
     } catch (e) {
-      utils.showToast(`Error: ${e.message}`, 'error');
+      utils.showToast(`No se pudo cambiar el estado: ${e.message}`, 'error');
     }
   },
 
@@ -175,14 +186,19 @@ const usersModule = {
 
   async confirmDeleteUser() {
     if (!this.userToDeleteId) return;
+    const btn = document.getElementById('btnConfirmDeleteUser');
+    const prev = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Eliminando…'; }
     try {
       await api.delete(`/users/${this.userToDeleteId}`);
       document.getElementById('modalDeleteUser').classList.remove('active');
       this.userToDeleteId = null;
       await this.loadUsers();
-      utils.showToast('✓ Usuario eliminado correctamente.', 'success');
+      utils.showToast('Usuario eliminado.', 'success');
     } catch (e) {
-      utils.showToast(`Error eliminando usuario: ${e.message}`, 'error');
+      utils.showToast(`No se pudo eliminar el usuario: ${e.message}`, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = prev; }
     }
   }
 };

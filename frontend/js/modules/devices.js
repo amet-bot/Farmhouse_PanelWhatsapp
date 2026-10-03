@@ -181,7 +181,8 @@ const devicesModule = {
     if (userSelect) {
       userSelect.innerHTML = '<option value="">-- Sin asignar / Agente de turno --</option>';
       usersModule.users.forEach(u => {
-        userSelect.innerHTML += `<option value="${u.id}">${utils.escapeHtml(u.name)} (${utils.escapeHtml(u.role)}${u.branch ? ' - ' + utils.escapeHtml(u.branch.name) : ''})</option>`;
+        const rol = (typeof usersModule.roleLabel === 'function') ? usersModule.roleLabel(u) : u.role;
+        userSelect.innerHTML += `<option value="${u.id}">${utils.escapeHtml(u.name)} (${utils.escapeHtml(rol)}${u.branch ? ' - ' + utils.escapeHtml(u.branch.name) : ''})</option>`;
       });
     }
     document.getElementById('formAddDevice').reset();

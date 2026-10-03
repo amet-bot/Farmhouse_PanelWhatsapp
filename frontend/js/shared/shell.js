@@ -73,13 +73,22 @@
     });
   }
 
+  /** El rol en palabras (antes salía "AGENT", "SUPERVISOR", "ADMIN"). */
+  function roleLabel(user) {
+    if (!user) return '';
+    if (user.role === 'admin') return 'Administrador';
+    if (user.role === 'supervisor') return user.branch_id ? 'Encargado' : 'Gerente de logística';
+    if (user.role === 'agent') return 'Empleado';
+    return user.role || '';
+  }
+
   /** Llena nombre/rol/avatar del usuario logueado en los ids que le pase cada página. */
   function fillUserHeader({ nameId, roleId, avatarId }, user) {
     const nameEl = nameId ? document.getElementById(nameId) : null;
     const roleEl = roleId ? document.getElementById(roleId) : null;
     const avatarEl = avatarId ? document.getElementById(avatarId) : null;
     if (nameEl) nameEl.textContent = user.name;
-    if (roleEl) roleEl.textContent = `${user.role.toUpperCase()}${user.branch ? ' • ' + user.branch.name : ''}`;
+    if (roleEl) roleEl.textContent = `${roleLabel(user)}${user.branch ? ' • ' + user.branch.name : ''}`;
     if (avatarEl) avatarEl.textContent = utils.getInitials(user.name);
   }
 
@@ -132,5 +141,5 @@
     });
   }
 
-  window.FarmhouseShell = { applyTheme, initTheme, setTheme, fillUserHeader, initLogout, embedded };
+  window.FarmhouseShell = { applyTheme, initTheme, setTheme, fillUserHeader, initLogout, embedded, roleLabel };
 })();

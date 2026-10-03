@@ -80,14 +80,39 @@ const api = {
    * lo que antes se mostraba al usuario como "[object Object]".
    */
   parseErrorDetail(detail) {
-    if (!detail) return 'Ocurrió un error en el servidor.';
-    if (typeof detail === 'string') return detail;
-    if (Array.isArray(detail)) {
-      return detail
-        .map(e => (e && typeof e === 'object' && e.msg) ? e.msg : String(e))
-        .join(' ');
+    if (!detail) return 'Algo falló en el servidor. Intenta de nuevo en un momento.';
+    if (typeof detail === 'string') {
+      // Los mensajes que FastAPI pone solo (en inglés), en palabras.
+      const genericos = {
+        'Not Found': 'No se encontró lo que buscabas. Puede que ya no exista.',
+        'Method Not Allowed': 'Esa acción no está disponible.',
+        'Internal Server Error': 'El servidor no respondió bien. Espera un momento e intenta de nuevo.',
+        'Not authenticated': 'Tu sesión se cerró. Vuelve a entrar.',
+        'Forbidden': 'No tienes permiso para hacer esto.',
+      };
+      return genericos[detail] || detail;
     }
-    return 'Ocurrió un error en el servidor.';
+    if (Array.isArray(detail)) {
+      // Errores de validación (422): vienen en inglés ("Field required"). Se dice en palabras
+      // qué dato revisar, con el nombre del campo si se puede.
+      const campos = [...new Set(detail
+        .map((e) => (e && Array.isArray(e.loc) ? e.loc[e.loc.length - 1] : null))
+        .filter((c) => typeof c === 'string' && c !== 'body'))];
+      const nombre = (c) => this.FIELD_NAMES[c] || c.replace(/_/g, ' ');
+      return campos.length
+        ? `Revisa ${campos.length === 1 ? 'este dato' : 'estos datos'}: ${campos.map(nombre).join(', ')}. Falta o no es válido.`
+        : 'Revisa los datos: hay uno que falta o no es válido.';
+    }
+    return 'Algo falló en el servidor. Intenta de nuevo en un momento.';
+  },
+
+  /** Nombres en palabras de los campos que más aparecen en los errores de validación. */
+  FIELD_NAMES: {
+    quantity: 'cantidad', counted_quantity: 'cantidad contada', unit_cost: 'costo', price: 'precio',
+    branch_id: 'sucursal', inventory_item_id: 'insumo', supplier_id: 'proveedor', reason: 'motivo',
+    name: 'nombre', title: 'título', description: 'descripción', due_at: 'vence', items: 'insumos',
+    username: 'usuario', password: 'contraseña', email: 'correo', phone: 'teléfono', role: 'rol',
+    piece_size: 'peso de una pieza', grams_per_ml: 'gramos por ml', min_qty: 'mínimo', par_qty: 'par',
   },
 
   async request(endpoint, options = {}) {
@@ -124,10 +149,16 @@ const api = {
         try {
           errData = await response.json();
         } catch (e) {
-          errData = { detail: `Error HTTP ${response.status}: ${response.statusText}` };
+          errData = {};
         }
 
-        const errMsg = this.parseErrorDetail(errData.detail);
+        // Sin un mensaje del servidor, uno que se entienda (antes: "Error HTTP 502: Bad Gateway").
+        let errMsg = this.parseErrorDetail(errData.detail);
+        if (!errData.detail) {
+          if (response.status >= 500) errMsg = 'El servidor no respondió bien. Espera un momento e intenta de nuevo.';
+          else if (response.status === 404) errMsg = 'No se encontró lo que buscabas. Puede que ya no exista.';
+          else if (response.status === 413) errMsg = 'El archivo es demasiado grande.';
+        }
 
         if (response.status === 401) {
           window.dispatchEvent(new CustomEvent('auth:unauthorized', { detail: errMsg }));
@@ -156,6 +187,11 @@ const api = {
       return await response.text();
     } catch (err) {
       console.error(`[API Error] ${options.method || 'GET'} ${url}:`, err);
+      // Sin internet o el servidor caído: el navegador da "Failed to fetch" / "Load failed" en
+      // inglés. Se dice qué pasa y qué hacer.
+      if (err instanceof TypeError) {
+        throw new Error('No hay conexión con el sistema. Revisa el internet e intenta de nuevo.');
+      }
       throw err;
     }
   },

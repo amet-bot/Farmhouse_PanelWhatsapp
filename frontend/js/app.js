@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // composer (el agente revisa y envía) y el modal de transferencia del header.
   const requireOpenConversation = () => {
     if (chatModule.currentConversation) return true;
-    utils.showToast('Abrí una conversación primero.', 'info');
+    utils.showToast('Abre una conversación primero.', 'info');
     return false;
   };
   document.getElementById('btnActionMenu')?.addEventListener('click', () => {

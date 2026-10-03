@@ -1,6 +1,6 @@
 /* Farmhouse Link — Administración (Sucursales, empleados y dispositivos)
    El armazón (gate, header) viene de inventory.css; las tablas, badges y modales de Usuarios/
-   Dispositivos son las mismas clases globales de style.css que ya usa Centro WhatsApp. Acá solo
+   Dispositivos son las mismas clases globales de style.css que ya usa Centro WhatsApp. Aquí solo
    las pestañas y algún detalle chico propio de este panel. */
 
 /* width: 100% por lo mismo que .tablet-body: hijo de un flex en columna con margin auto, el
@@ -12,7 +12,7 @@
   padding: 24px 20px 60px;
 }
 
-/* Dentro del Panel General las pestañas van en el sidebar del hub (hub.js las lee de acá). */
+/* Dentro del Panel General las pestañas van en el sidebar del hub (hub.js las lee de aquí). */
 .fh-embedded .admin-tabs { display: none; }
 
 .admin-tabs {
@@ -78,3 +78,64 @@
 .adm-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: rgba(22,163,74,.12); color: var(--green, #15803d); font-size: 11.5px; font-weight: 700; }
 .adm-link-btn { border: 0; background: transparent; color: var(--green, #15803d); font: inherit; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .adm-link-btn:disabled { opacity: .5; cursor: default; }
+
+/* ============================================================================
+   TABLET Y DEDO (Administración)
+   ============================================================================ */
+/* Tablet acostada y laptop: más ancho para que las tablas de 6-7 columnas respiren. */
+.admin-body { max-width: 1200px; }
+
+/* Confirmación de eliminar usuario. */
+.adm-confirm-text { margin: 0 0 10px; font-size: 14px; color: var(--text-primary); }
+.adm-confirm-note { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+
+/* El pie del modal (Guardar) siempre a la vista: el <form> es el que reparte el alto del
+   modal; sin esto, en una tablet acostada el botón quedaba cortado abajo. */
+.modal-card > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.modal-card > form > .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.modal-card > form > .modal-footer, .modal-card > .modal-footer { flex: 0 0 auto; }
+
+.admin-checkbox-row { flex-wrap: wrap; }
+.admin-checkbox-row .form-row { flex: 1 1 100%; }
+
+/* Tablet de pie y celular: cada usuario / dispositivo / sucursal / respaldo es una tarjeta
+   (nombre arriba, datos con su etiqueta en columnas, botones abajo). Sin scroll de lado. */
+@media (max-width: 900px) {
+  .device-table-wrap:has(.adm-cards) { border: 0; overflow: visible; }
+  .device-table.adm-cards, .device-table.adm-cards tbody { display: block; }
+  .device-table.adm-cards thead { display: none; }
+  .device-table.adm-cards tr { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 16px;
+    padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-bg); }
+  .device-table.adm-cards tr:hover td { background: transparent; }
+  .device-table.adm-cards td { display: block; padding: 0; border: 0; min-width: 0; font-size: 14px; }
+  .device-table.adm-cards td.adm-td-main, .device-table.adm-cards td.adm-td-actions, .device-table.adm-cards td[colspan] { grid-column: 1 / -1; }
+  .device-table.adm-cards td.adm-td-main strong { font-size: 16px; }
+  .device-table.adm-cards td.adm-td-main .adm-sub { font-size: 13px !important; margin-top: 2px; }
+  .device-table.adm-cards td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 3px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+  .device-table.adm-cards td.adm-td-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); white-space: normal !important; }
+  .device-table.adm-cards td.adm-td-actions.is-empty { display: none; }
+  .device-table.adm-cards td.adm-td-actions .delete-action { margin-left: auto; }
+  .device-table.adm-cards td.adm-mono { word-break: break-all; }
+}
+
+@media (pointer: coarse) {
+  .admin-tab { font-size: 15px; padding: 10px 18px; }
+  .btn-sm-action { min-height: 44px; padding: 8px 14px; font-size: 14px; border-radius: 10px; gap: 6px; }
+  .btn-sm-action svg, .btn-sm-action i { width: 16px; height: 16px; }
+  .device-table { font-size: 14px; }
+  .device-table td { padding: 14px; }
+  .device-table th { font-size: 12px; }
+  .dev-badge, .tag-type { font-size: 12.5px; padding: 3px 9px; }
+  .adm-link-btn { min-height: 44px; font-size: 14.5px; }
+  .adm-hint, .inv-panel-note { font-size: 14px; }
+  .admin-checkbox-row label { min-height: 44px; font-size: 15px; gap: 10px; }
+  .modal-label { font-size: 14px; }
+  .modal-subtitle { font-size: 13px; }
+  .btn-cancel, .btn-danger { min-height: 44px; font-size: 15px; }
+  .modal-footer .btn-primary { font-size: 15px; }
+  .adm-confirm-text { font-size: 15px; }
+  .adm-confirm-note { font-size: 14px; }
+  /* La tabla en fila (tablet acostada): los botones uno al lado del otro con aire entre ellos. */
+  .device-table td[style*="nowrap"] { white-space: normal !important; }
+  .device-table td .btn-sm-action { margin: 4px 8px 4px 0; }
+}

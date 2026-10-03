@@ -14,11 +14,11 @@
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=4.13.1">
+  <link rel="stylesheet" href="css/style.css?v=5.0.1003">
   <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario: se reusa su hoja tal cual
        y tablet.css solo agrega la grilla de botones grandes, que Inventario no tiene. -->
-  <link rel="stylesheet" href="css/inventory.css?v=4.23.0">
-  <link rel="stylesheet" href="css/tablet.css?v=4.5.1">
+  <link rel="stylesheet" href="css/inventory.css?v=5.0.1003">
+  <link rel="stylesheet" href="css/tablet.css?v=5.0.1003">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -38,7 +38,7 @@
       </a>
       <div class="inv-header-titles">
         <p class="inv-title">Operación de Sucursal</p>
-        <span class="inv-subtitle" id="tabletHeaderScope">Tocá lo que necesitás hacer.</span>
+        <span class="inv-subtitle" id="tabletHeaderScope">Toca lo que necesitas hacer.</span>
       </div>
       <div class="inv-header-actions">
         <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
@@ -62,139 +62,183 @@
     <main class="tablet-body">
       <div class="tablet-branch-badge" id="tabletBranchBadge">Sucursal</div>
 
+      <!-- Cada mosaico: ícono, nombre y una línea que dice en palabras simples para qué sirve.
+           El Panel General lee de aquí el ícono y .tablet-tile-label para su menú (hub.js). -->
       <div class="tablet-grid">
         <a class="tablet-tile tablet-tile-tasks" id="tileTareas" href="/tareas">
           <span class="tablet-tile-icon"><i data-lucide="list-checks"></i></span>
-          <span class="tablet-tile-label">Tareas</span>
+          <span class="tablet-tile-text">
+            <span class="tablet-tile-label">Tareas</span>
+            <span class="tablet-tile-sub">Lo que te pidieron hacer</span>
+          </span>
           <span class="tablet-tile-badge" id="tareasBadge" hidden></span>
         </a>
         <button type="button" class="tablet-tile" id="btnGoShipment">
           <span class="tablet-tile-icon"><i data-lucide="truck"></i></span>
-          <span class="tablet-tile-label">Recibir mercancía</span>
+          <span class="tablet-tile-text">
+            <span class="tablet-tile-label">Recibir mercancía</span>
+            <span class="tablet-tile-sub">Anota lo que llegó del proveedor</span>
+          </span>
         </button>
         <button type="button" class="tablet-tile" id="btnGoCount">
           <span class="tablet-tile-icon"><i data-lucide="clipboard-check"></i></span>
-          <span class="tablet-tile-label">Hacer conteo</span>
+          <span class="tablet-tile-text">
+            <span class="tablet-tile-label">Hacer conteo</span>
+            <span class="tablet-tile-sub">Contar todo el estante (una vez al mes)</span>
+          </span>
         </button>
         <button type="button" class="tablet-tile" id="btnGoWaste">
           <span class="tablet-tile-icon"><i data-lucide="trash-2"></i></span>
-          <span class="tablet-tile-label">Registrar merma</span>
+          <span class="tablet-tile-text">
+            <span class="tablet-tile-label">Registrar merma</span>
+            <span class="tablet-tile-sub">Lo que se botó o se dañó</span>
+          </span>
         </button>
         <button type="button" class="tablet-tile" id="btnGoConsumo">
           <span class="tablet-tile-icon"><i data-lucide="flame"></i></span>
-          <span class="tablet-tile-label">Cierre de turno</span>
+          <span class="tablet-tile-text">
+            <span class="tablet-tile-label">Cierre de turno</span>
+            <span class="tablet-tile-sub">Anota lo que queda al cerrar</span>
+          </span>
         </button>
         <button type="button" class="tablet-tile" id="btnGoPrep">
-          <span class="tablet-tile-icon"><i data-lucide="clipboard-check"></i></span>
-          <span class="tablet-tile-label">Prep de Bowls</span>
+          <span class="tablet-tile-icon"><i data-lucide="chef-hat"></i></span>
+          <span class="tablet-tile-text">
+            <span class="tablet-tile-label">Preparación del día</span>
+            <span class="tablet-tile-sub">Anota lo que hay listo para los bowls</span>
+          </span>
         </button>
         <button type="button" class="tablet-tile" id="btnOpenRequest">
           <span class="tablet-tile-icon"><i data-lucide="package-plus"></i></span>
-          <span class="tablet-tile-label">Solicitar insumos</span>
+          <span class="tablet-tile-text">
+            <span class="tablet-tile-label">Solicitar insumos</span>
+            <span class="tablet-tile-sub">Pide lo que se está acabando</span>
+          </span>
         </button>
         <button type="button" class="tablet-tile" id="btnOpenTransfer">
-          <span class="tablet-tile-icon"><i data-lucide="arrow-left-right"></i></span>
-          <span class="tablet-tile-label">Transferir</span>
+          <span class="tablet-tile-icon"><i data-lucide="send"></i></span>
+          <span class="tablet-tile-text">
+            <span class="tablet-tile-label">Enviar a otra sucursal</span>
+            <span class="tablet-tile-sub">Mandar insumo de aquí a otra sucursal</span>
+          </span>
         </button>
         <button type="button" class="tablet-tile" id="btnOpenIncident">
           <span class="tablet-tile-icon"><i data-lucide="alert-triangle"></i></span>
-          <span class="tablet-tile-label">Reportar incidencia</span>
+          <span class="tablet-tile-text">
+            <span class="tablet-tile-label">Reportar incidencia</span>
+            <span class="tablet-tile-sub">Algo dañado o un problema</span>
+          </span>
         </button>
       </div>
+      <p class="tablet-scope-note" id="tabletScopeNote" hidden></p>
     </main>
   </div>
 
   <!-- ================= Solicitar insumos ================= -->
   <div class="tablet-modal-overlay" id="modalRequest" hidden>
-    <div class="tablet-modal">
+    <div class="tablet-modal" role="dialog" aria-modal="true" aria-labelledby="requestHeading">
       <div class="tablet-modal-head">
-        <h2>Solicitar insumos</h2>
+        <h2 id="requestHeading">Solicitar insumos</h2>
         <button type="button" class="tablet-modal-close" data-close aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
-      <div class="tablet-modal-error" id="requestError" style="display:none"></div>
-      <form id="requestForm">
-        <label class="tablet-field">
-          <span>¿Qué hace falta?</span>
-          <input type="text" id="requestItemName" required maxlength="150" placeholder="Busca: servilletas, pollo, aceite…" autocomplete="off">
+      <p class="tablet-modal-intro">Les llega un aviso a los encargados y entra al próximo pedido.</p>
+      <div class="tablet-modal-error" id="requestError" role="alert" style="display:none"></div>
+      <form id="requestForm" novalidate>
+        <div class="tablet-field">
+          <label for="requestItemName">¿Qué hace falta?</label>
+          <input type="text" id="requestItemName" maxlength="150" placeholder="Busca: servilletas, pollo, aceite…" autocomplete="off" enterkeyhint="next">
           <input type="hidden" id="requestItemId">
           <div class="tablet-autocomplete" id="requestItemResults" hidden></div>
           <small class="tablet-field-hint" id="requestItemHint">Elige de la lista para que entre al pedido. Si no aparece, escríbelo igual.</small>
-        </label>
-        <label class="tablet-field" id="requestQtyCatalog" hidden>
-          <span>¿Cuánto hace falta? <em id="requestQtyUnit"></em></span>
-          <input type="number" id="requestQuantity" min="0.001" step="0.001" inputmode="decimal" placeholder="Ej: 5">
-        </label>
-        <label class="tablet-field" id="requestQtyFree">
-          <span>Cantidad (opcional)</span>
-          <input type="text" id="requestQuantityHint" maxlength="50" placeholder="Ej: 3 paquetes">
-        </label>
-        <label class="tablet-field">
-          <span>Notas (opcional)</span>
+        </div>
+        <div class="tablet-field" id="requestQtyCatalog" hidden>
+          <label for="requestQuantity">¿Cuánto hace falta? <em id="requestQtyUnit"></em></label>
+          <input type="number" id="requestQuantity" min="0.001" step="0.001" inputmode="decimal" enterkeyhint="next" placeholder="Ej: 5">
+        </div>
+        <div class="tablet-field" id="requestQtyFree">
+          <label for="requestQuantityHint">Cantidad (opcional)</label>
+          <input type="text" id="requestQuantityHint" maxlength="50" enterkeyhint="next" placeholder="Ej: 3 paquetes">
+        </div>
+        <div class="tablet-field">
+          <label for="requestNotes">Notas (opcional)</label>
           <textarea id="requestNotes" rows="2" maxlength="1000"></textarea>
-        </label>
-        <button type="submit" class="tablet-submit-btn">Enviar solicitud</button>
+        </div>
+        <div class="tablet-modal-actions">
+          <button type="submit" class="tablet-submit-btn" data-busy="Enviando…">Enviar solicitud</button>
+        </div>
       </form>
     </div>
   </div>
 
-  <!-- ================= Transferir ================= -->
+  <!-- ================= Enviar a otra sucursal (traslado) ================= -->
   <div class="tablet-modal-overlay" id="modalTransfer" hidden>
-    <div class="tablet-modal">
+    <div class="tablet-modal" role="dialog" aria-modal="true" aria-labelledby="transferHeading">
       <div class="tablet-modal-head">
-        <h2>Transferir insumo</h2>
+        <h2 id="transferHeading">Enviar insumo a otra sucursal</h2>
         <button type="button" class="tablet-modal-close" data-close aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
-      <div class="tablet-modal-error" id="transferError" style="display:none"></div>
-      <form id="transferForm">
-        <label class="tablet-field">
-          <span>Sucursal destino</span>
-          <select id="transferToBranch" required></select>
-        </label>
-        <label class="tablet-field">
-          <span>Insumo</span>
-          <input type="text" id="transferItemSearch" placeholder="Buscar insumo..." autocomplete="off">
+      <p class="tablet-modal-intro" id="transferIntro">Sale de tu sucursal hacia la que elijas. Se descuenta de tu inventario cuando se despacha.</p>
+      <div class="tablet-modal-error" id="transferError" role="alert" style="display:none"></div>
+      <form id="transferForm" novalidate>
+        <div class="tablet-field">
+          <label for="transferToBranch">¿A qué sucursal lo envías?</label>
+          <select id="transferToBranch"></select>
+        </div>
+        <div class="tablet-field">
+          <label for="transferItemSearch">¿Qué insumo?</label>
+          <input type="text" id="transferItemSearch" placeholder="Busca: pollo, aceite, servilletas…" autocomplete="off" enterkeyhint="search">
           <input type="hidden" id="transferItemId">
           <div class="tablet-autocomplete" id="transferItemResults" hidden></div>
-        </label>
-        <label class="tablet-field">
-          <span>Cantidad</span>
-          <input type="number" id="transferQuantity" required min="0.001" step="0.001">
-        </label>
-        <label class="tablet-field">
-          <span>Notas (opcional)</span>
+          <small class="tablet-field-hint">Escribe al menos 2 letras y elige de la lista.</small>
+        </div>
+        <div class="tablet-field">
+          <label for="transferQuantity">¿Cuánto envías? <em id="transferQtyUnit"></em></label>
+          <div class="tablet-qty">
+            <input type="number" id="transferQuantity" min="0.001" step="0.001" inputmode="decimal" enterkeyhint="next" placeholder="Ej: 5">
+            <span class="tablet-qty-unit" id="transferQtyUnitTag" hidden></span>
+          </div>
+        </div>
+        <div class="tablet-field">
+          <label for="transferNotes">Notas (opcional)</label>
           <textarea id="transferNotes" rows="2" maxlength="1000"></textarea>
-        </label>
-        <button type="submit" class="tablet-submit-btn">Pedir traslado</button>
+        </div>
+        <div class="tablet-modal-actions">
+          <p class="tablet-summary" id="transferSummary" hidden></p>
+          <button type="submit" class="tablet-submit-btn" data-busy="Enviando…">Enviar</button>
+        </div>
       </form>
     </div>
   </div>
 
   <!-- ================= Reportar incidencia ================= -->
   <div class="tablet-modal-overlay" id="modalIncident" hidden>
-    <div class="tablet-modal">
+    <div class="tablet-modal" role="dialog" aria-modal="true" aria-labelledby="incidentHeading">
       <div class="tablet-modal-head">
-        <h2>Reportar incidencia</h2>
+        <h2 id="incidentHeading">Reportar incidencia</h2>
         <button type="button" class="tablet-modal-close" data-close aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
-      <div class="tablet-modal-error" id="incidentError" style="display:none"></div>
-      <form id="incidentForm">
-        <label class="tablet-field">
-          <span>¿Qué pasó?</span>
-          <input type="text" id="incidentTitle" required maxlength="150" placeholder="Ej: Nevera dañada">
-        </label>
-        <label class="tablet-field">
-          <span>Severidad</span>
-          <select id="incidentSeverity">
-            <option value="baja">Baja</option>
-            <option value="media" selected>Media</option>
-            <option value="alta">Alta</option>
-          </select>
-        </label>
-        <label class="tablet-field">
-          <span>Detalle (opcional)</span>
+      <p class="tablet-modal-intro">Algo dañado, que falta o que hay que arreglar. Les llega un aviso a los encargados.</p>
+      <div class="tablet-modal-error" id="incidentError" role="alert" style="display:none"></div>
+      <form id="incidentForm" novalidate>
+        <div class="tablet-field">
+          <label for="incidentTitle">¿Qué pasó?</label>
+          <input type="text" id="incidentTitle" maxlength="150" placeholder="Ej: Nevera dañada" enterkeyhint="next">
+        </div>
+        <fieldset class="tablet-field tablet-seg-field">
+          <legend>¿Qué tan urgente es?</legend>
+          <div class="tablet-seg">
+            <label><input type="radio" name="incidentSeverity" value="baja"><span>Baja<small>Puede esperar</small></span></label>
+            <label><input type="radio" name="incidentSeverity" value="media" checked><span>Media<small>En estos días</small></span></label>
+            <label><input type="radio" name="incidentSeverity" value="alta"><span>Alta<small>Hoy mismo</small></span></label>
+          </div>
+        </fieldset>
+        <div class="tablet-field">
+          <label for="incidentDescription">Detalle (opcional)</label>
           <textarea id="incidentDescription" rows="3" maxlength="2000"></textarea>
-        </label>
-        <button type="submit" class="tablet-submit-btn">Reportar</button>
+        </div>
+        <div class="tablet-modal-actions">
+          <button type="submit" class="tablet-submit-btn" data-busy="Enviando…">Reportar</button>
+        </div>
       </form>
     </div>
   </div>
@@ -204,12 +248,12 @@
     <span id="toastMessage">Operación realizada con éxito.</span>
   </div>
 
-  <script src="js/utils.js?v=3.5.0"></script>
-  <script src="js/api.js?v=4.1.0"></script>
+  <script src="js/utils.js?v=5.0.1003"></script>
+  <script src="js/api.js?v=5.0.1003"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/tablet.js?v=4.2.0"></script>
-  <script src="js/modules/tablet-tareas.js?v=1.0.0"></script>
+  <script src="js/shared/shell.js?v=5.0.1003"></script>
+  <script src="js/shared/native-app.js?v=5.0.1003"></script>
+  <script src="js/modules/tablet.js?v=5.0.1003"></script>
+  <script src="js/modules/tablet-tareas.js?v=5.0.1003"></script>
 </body>
 </html>

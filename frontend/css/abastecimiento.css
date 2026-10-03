@@ -1,6 +1,6 @@
-/* Abastecimiento (abastecimiento.html): existencias por sucursal, mínimos y pares, pedido
+/* Abastecimiento (abastecimiento.html): existencias por sucursal, mínimos y cantidad ideal, pedido
    sugerido, órdenes de compra y precios por proveedor. Reusa el armazón de Inventario y las
-   pestañas/tablas del Centro de operación (gestion.css); acá solo lo propio. */
+   pestañas/tablas del Centro de operación (gestion.css); aquí solo lo propio. */
 .sup-body { max-width: 1400px; margin: 0 auto; }
 .sup-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .sup-filters .modal-input { max-width: 260px; height: 38px; }
@@ -48,7 +48,7 @@
 .sup-branch-pills span { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(107,114,128,.12); color: #4b5563; }
 .sup-branch-pills span.ok { background: rgba(22,163,74,.12); color: #15803d; }
 
-/* Mínimos y pares: inputs chicos dentro de la tabla. */
+/* Mínimos y cantidad ideal: inputs chicos dentro de la tabla. */
 .sup-min-input { width: 84px; height: 32px; padding: 0 8px; text-align: right; border-radius: 8px; border: 1px solid var(--line, #e5e7eb); font: inherit; font-size: 13.5px; background: var(--bg-surface, #fff); color: var(--text-primary, #111827); }
 .sup-min-input.changed { border-color: var(--green, #16a34a); box-shadow: 0 0 0 2px rgba(22,163,74,.15); }
 .sup-min-select { height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line, #e5e7eb); font: inherit; font-size: 13px; background: var(--bg-surface, #fff); color: var(--text-primary, #111827); max-width: 170px; }
@@ -100,7 +100,7 @@
 }
 
 
-/* ---- Puesta en marcha ---- */
+/* ---- Primeros pasos (antes "Puesta en marcha") ---- */
 .sup-setup-intro { margin: 0 0 12px; font-size: 13.5px; color: var(--text-muted, #6b7280); max-width: 820px; }
 .sup-setup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
 .sup-setup-card { border: 1px solid var(--line, #e5e7eb); border-radius: 16px; background: var(--bg-surface, #fff); padding: 14px 16px; display: grid; gap: 10px; }
@@ -135,3 +135,76 @@
 .sup-body .ops-tabs { min-width: 0; flex: 1 1 auto; overflow-x: auto; scrollbar-width: thin; padding-right: 12px; }
 .sup-body .ops-tabs::after { content: ""; flex: 0 0 4px; }
 .sup-body .ops-tab { flex: 0 0 auto; }
+
+/* ============================================================================
+   TABLET Y DEDO (Abastecimiento)
+   Las tablas de Mínimos, Pedido sugerido y Precios pasan a tarjetas en tablet de pie y celular
+   (`ops-cards`, en gestion.css). Existencias sigue con scroll de lado a propósito: la gracia es
+   comparar sucursales en columnas.
+   ============================================================================ */
+
+/* Una línea que explica la pestaña, siempre visible (nada escondido en tooltips). */
+.sup-tab-hint { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--text-muted, #6b7280); max-width: 900px; }
+.sup-tab-hint .sup-days-chip { margin-left: 0; }
+.sup-legend-low { color: #dc2626; font-weight: 700; }
+.sup-help { padding: 10px 14px; border: 1px solid var(--line, #e5e7eb); border-radius: 12px; background: var(--bg-surface, #fff); display: grid; gap: 4px; }
+.sup-help p { margin: 0; }
+.sup-help b { color: var(--text-primary, #111827); }
+
+/* Pedido sugerido: el nombre del insumo (y del proveedor) también marca/desmarca. */
+.sup-line-label { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.sup-line-label input { margin-top: 2px; flex: 0 0 auto; }
+.sup-line-label strong { display: block; }
+.sup-group-label { flex: 1; min-width: 0; gap: 10px; white-space: normal; }
+.sup-group-label strong { font-size: 14px; }
+.sup-group-head { flex-wrap: wrap; }
+
+/* Órdenes: botones juntos y al final de la cabecera. */
+.sup-order-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+
+/* Barra de "cambios sin guardar" en Mínimos: pegada abajo mientras se baja por la lista. */
+.sup-savebar { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 12px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border: 1px solid var(--green, #16a34a);
+  border-radius: 14px; background: var(--bg-surface, #fff); box-shadow: 0 -8px 24px -12px rgba(0,0,0,.25); }
+.sup-savebar[hidden] { display: none; }
+.sup-savebar span { flex: 1; min-width: 180px; font-size: 14px; font-weight: 600; color: var(--text-primary, #111827); }
+
+@media (max-width: 900px) {
+  /* En tarjeta los campos ocupan su columna entera. */
+  .ops-cards .sup-min-input, .ops-cards .sup-min-select { width: 100%; max-width: 220px; text-align: left; }
+  .ops-cards .sup-qty-input { width: 120px; text-align: left; }
+  .sup-group .ops-table.ops-cards { padding: 10px 10px 0; }
+  .sup-group .ops-table.ops-cards tr { margin-bottom: 10px; }
+  .sup-group-head .ops-btn { width: 100%; }
+}
+
+@media (pointer: coarse) {
+  .sup-filters .modal-input { height: auto; }
+  .sup-save { height: auto; }
+  .sup-filters-note, .sup-check, .sup-inline, .sup-tab-hint { font-size: 14px; }
+  .sup-check { min-height: 44px; gap: 10px; }
+  .sup-min-input, .sup-qty-input { font-size: 16px; min-height: 44px; width: 100px; }
+  .sup-min-select { font-size: 16px; min-height: 44px; max-width: 220px; }
+  .sup-matrix td { font-size: 15px; padding: 10px 12px; }
+  .sup-matrix th { font-size: 12px; }
+  .sup-min-hint, .sup-reason { font-size: 12.5px; }
+  .sup-group-head { padding: 12px 14px; }
+  .sup-group-label strong, .sup-order-head strong { font-size: 15.5px; }
+  .sup-group-cost, .sup-order-head .sup-order-meta { font-size: 14px; }
+  .sup-order-items li { font-size: 14px; padding: 6px 12px; }
+  .sup-totals { font-size: 14.5px; }
+  .sup-step-text strong { font-size: 15px; }
+  .sup-step-text span { font-size: 13.5px; }
+  .sup-step-btn { font-size: 14px; padding: 0 16px; }
+  .sup-setup-intro { font-size: 14.5px; }
+  .sup-empty p { font-size: 14.5px; }
+  .sup-order-lines li { font-size: 14.5px; padding: 10px 12px; }
+  .sup-modal-sub { font-size: 14px; }
+  .sup-savebar .inv-primary-btn, .sup-savebar .inv-secondary-btn { min-height: 48px; font-size: 15px; }
+}
+
+/* Tablet de pie: el modal de la orden con proveedor a todo el ancho y fecha + hora debajo. */
+@media (min-width: 561px) and (max-width: 900px) {
+  .sup-form-grid { grid-template-columns: 1fr 1fr; }
+  .sup-form-grid > :first-child { grid-column: 1 / -1; }
+}

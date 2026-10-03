@@ -452,9 +452,181 @@
 [data-theme="dark"] .link-cov-chip.reventa { background: rgba(167,139,250,.18); color: #c4b5fd; }
 [data-theme="dark"] .link-cov-chip.sin_receta { background: rgba(255,107,107,.16); color: #ff9b9b; }
 
-/* Barra inferior del celular con 7 secciones (se sumó Merma): en 375 px cada una mide ~52 px y
-   "Inventario" (51 px a 10.5 px) se cortaba en "Inventa…". Sin relleno lateral y a 10 px entra
-   hasta en 360 px; los nombres largos ya van abreviados con data-short. */
+/* Barra inferior del celular con 7 secciones: en 375 px cada una mide ~52 px y "Inventario"
+   (51 px a 10.5 px) se cortaba en "Inventa…". Sin relleno lateral y a 10 px entra hasta en
+   360 px; los nombres largos ya van abreviados con data-short ("Cierre", "Invu"). */
 @media (max-width: 420px) {
   #linkNav .inv-nav-item { padding-left: 0; padding-right: 0; font-size: 10px; }
+}
+
+/* ============================================================================
+   TABLET Y PANTALLAS TÁCTILES
+   Reportes se mira con la tablet en la mano: cifras en 2 columnas a lo alto, tablas que se
+   leen sin hacer zoom, listas como tarjetas y el detalle de los gráficos al tocar (antes solo
+   con el mouse).
+   ============================================================================ */
+
+/* ---- Notas al pie de un panel (antes con estilo en línea a 12px) ---- */
+.link-foot-note { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--inv-text-muted); }
+.link-foot-note b { color: var(--inv-text-secondary); }
+
+/* ---- "Otras fechas" y mes del cierre: con su nombre a la vista ---- */
+.link-custom-label { font-weight: 600; color: var(--inv-text-secondary); }
+.link-month { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--inv-text-secondary); }
+
+/* ---- Lo que se ve al tocar una barra (hora del día, merma por tramo) ---- */
+.link-chart-pick { margin: 10px 0 0; min-height: 20px; font-size: 13px; color: var(--inv-text-muted); }
+.link-chart-pick strong { color: var(--inv-text); }
+.link-chart-tip { color: var(--inv-text-muted); }
+
+/* Hora del día: cada columna es un botón (se toca para ver su detalle). */
+.link-hour-col { padding: 0; border: 0; background: transparent; font: inherit; cursor: pointer; border-radius: 6px; }
+.link-hour-col:focus-visible { outline: 2px solid var(--inv-green); outline-offset: 1px; }
+.link-hour-col.is-picked .link-hour-bar { opacity: 1; outline: 2px solid var(--inv-text); outline-offset: 1px; }
+
+/* Merma por tramo: la barra tocada queda marcada. */
+.inv-trend-bar { cursor: pointer; }
+.inv-trend-bar.is-picked rect:not(.is-empty) { opacity: 1; stroke: var(--inv-text); stroke-width: 1.5; }
+
+/* ---- Compras: acceso a Merma ---- */
+.link-goto { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.link-goto p { flex: 1 1 260px; margin: 0; font-size: 14px; line-height: 1.5; color: var(--inv-text-secondary); }
+.link-goto p strong { color: var(--inv-text); }
+.link-goto-icon {
+  display: inline-grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0;
+  border-radius: 12px; background: var(--inv-loss-soft, rgba(220,38,38,.1)); color: var(--inv-loss-text, #b91c1c);
+}
+.link-goto-icon i, .link-goto-icon svg { width: 20px; height: 20px; }
+
+/* ---- Sincronización: el porqué del estado, a la vista (antes en un title) ---- */
+.link-status-why { display: block; margin-top: 4px; font-size: 12px; color: var(--inv-text-muted); white-space: normal; max-width: 360px; }
+
+/* ---- Tablas: la primera columna queda fija al deslizar de lado ----
+   Solo se nota en las tablas anchas de números (platos por sucursal, existencias, día por
+   día): así nunca se pierde de qué fila es cada número. */
+.link-table-wrap > .link-table th:first-child,
+.link-table-wrap > .link-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--inv-panel);
+}
+.link-table-wrap > .link-table tbody tr:hover td:first-child { background: var(--inv-panel-2); }
+.link-cell-sub { display: block; margin-top: 2px; }
+
+/* "Ver día por día" y las sucursales de "¿Dónde se pierde?" / recetas: que se note que se abren. */
+.link-variance > summary::after,
+.link-cuadre-details > summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-right: 2px solid var(--inv-text-muted);
+  border-bottom: 2px solid var(--inv-text-muted);
+  transform: rotate(45deg) translateY(-3px);
+  transition: transform .15s ease;
+  flex-shrink: 0;
+}
+.link-variance[open] > summary::after,
+.link-cuadre-details[open] > summary::after { transform: rotate(225deg) translate(-2px, -1px); }
+.link-cuadre-details > summary { display: inline-flex; align-items: center; list-style: none; }
+.link-cuadre-details > summary::-webkit-details-marker { display: none; }
+.link-variance summary { align-items: center; }
+
+/* ---- Listas como tarjetas (hasta 900px: tablet parada y celular) ----
+   Cargamentos con diferencias, faltantes, cierre de mes y sincronización eran tablas de 6 a 9
+   columnas: en la tablet parada había que deslizar de lado y se perdía de qué fila era cada
+   número. Cada fila pasa a ser una tarjeta con la etiqueta al lado de cada dato. */
+@media (max-width: 900px) {
+  .link-cards thead { display: none; }
+  .link-cards, .link-cards tbody, .link-cards tr { display: block; width: 100%; }
+  .link-cards tr { padding: 12px 2px; border-bottom: 1px solid var(--inv-border-light); }
+  .link-cards tbody tr:last-child { border-bottom: 0; }
+  .link-cards td,
+  .link-table-wrap > .link-cards td:first-child {
+    position: static;
+    display: block;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    white-space: normal;
+    text-align: left;
+  }
+  .link-cards td:first-child { padding-bottom: 6px; font-size: 15px; }
+  .link-cards td[data-label],
+  .link-cards td.hide-sm[data-label] {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    text-align: right;
+  }
+  .link-cards td[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    max-width: 55%;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--inv-text-muted);
+    text-align: left;
+  }
+  .link-cards tbody tr:hover td { background: transparent; }
+  .link-cards tr.total { border-top: 2px solid var(--inv-border); }
+  .link-cards tr.total td { border-top: 0; }
+  .link-cards .link-cell-action { padding-top: 8px; }
+  .link-cards .link-status-why { max-width: none; text-align: right; }
+}
+
+/* ---- Cifras: dos columnas en la tablet (con tres, la cuarta quedaba sola abajo) ---- */
+@media (min-width: 641px) and (max-width: 1100px) {
+  #linkMain .inv-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #linkMain .inv-kpi-row > .inv-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
+/* ---- Pantallas táctiles: letra y botones del tamaño del dedo ---- */
+@media (pointer: coarse) {
+  .link-segmented button { font-size: 14px; padding: 9px 14px; }
+  .link-text-btn { font-size: 13.5px; padding: 8px 12px; }
+  .link-text-btn i, .link-text-btn svg { width: 16px; height: 16px; }
+  /* 16px: con menos, el iPad hace zoom al tocar el campo. */
+  .link-custom-range input[type="date"] { height: 44px; font-size: 16px; }
+  .link-custom-range,
+  .link-month { font-size: 14px; }
+  .link-export-menu { min-width: 280px; }
+  .link-export-menu button { min-height: 48px; font-size: 15px; padding: 10px 14px; }
+  .link-check { min-height: 44px; font-size: 14px; }
+  .link-legend-item { font-size: 13.5px; }
+  .link-legend-swatch { width: 12px; height: 12px; }
+  .link-chart-note, .link-chart-pick { font-size: 14px; }
+  .link-axis, .link-bar-total { font-size: 12px; }
+  .link-table { font-size: 14px; }
+  .link-table th { font-size: 12px; padding: 10px; }
+  .link-table td { padding: 11px 10px; }
+  .link-status { font-size: 13px; padding: 4px 10px; }
+  .link-status-chip, .link-variance-chip, .link-cov-chip { font-size: 12.5px; padding: 3px 10px; }
+  .link-variance > summary,
+  .link-cuadre-details > summary { min-height: 44px; }
+  .link-variance summary .muted { font-size: 13.5px; }
+  .link-foot-note { font-size: 14px; }
+  .link-hours { gap: 2px; }
+  .link-hour-col small { font-size: 11px; }
+  .link-tooltip { font-size: 14px; padding: 12px 14px; }
+  /* Merma: "En dólares / En kilos" y los períodos, cómodos para el dedo. */
+  #wasteAnalysis .inv-segmented button { font-size: 14px; padding: 9px 14px; }
+  /* Barras horizontales: nombre y monto legibles. */
+  #linkMain .inv-bar-name,
+  #linkMain .inv-bar-value { font-size: 14px; }
+  #linkMain .inv-bar-value small { font-size: 12.5px; }
+  #linkMain .inv-kpi-label { font-size: 13px; }
+  #linkMain .inv-kpi-sub { font-size: 13px; line-height: 1.45; }
+  #linkMain .inv-panel-note { font-size: 12.5px; }
+  #linkMain .inv-panel-head h2 { font-size: 15.5px; }
+  /* Sin mouse no hay hover: las fichas no se quedan "levantadas" después de tocarlas. */
+  #linkMain .inv-kpi:hover { transform: none; }
+}
+
+@media (pointer: coarse) and (max-width: 900px) {
+  /* En tarjeta, las celdas no llevan el relleno lateral de la tabla. */
+  .link-cards td,
+  .link-table-wrap > .link-cards td:first-child { padding: 5px 0; }
 }

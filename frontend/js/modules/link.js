@@ -112,6 +112,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     else if (state.view === 'inventario') loadInventario();
   }
   document.querySelectorAll('#linkNav .inv-nav-item').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
+  // Accesos dentro de una vista a otra (Compras → "Ver Merma").
+  document.addEventListener('click', (e) => {
+    const go = e.target.closest('[data-goto-view]');
+    if (!go) return;
+    setView(go.dataset.gotoView);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // Con el dedo no hay "pasar el mouse": los gráficos muestran su detalle al tocar.
+  const touchFirst = window.matchMedia('(pointer: coarse)').matches;
 
   // ==========================================================================
   // Colores por sucursal
@@ -182,7 +192,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       utils.showToast(err.message || 'No se pudieron cargar las ventas.', 'error');
       // Antes los esqueletos de carga quedaban para siempre: se reemplazan por un aviso claro.
       ['dailyChart', 'branchBars', 'channelBars', 'itemsTable'].forEach((id) => {
-        $(id).innerHTML = emptyHtml('No se pudieron cargar las ventas', 'Probá de nuevo en unos segundos.');
+        $(id).innerHTML = emptyHtml('No se pudieron cargar las ventas', 'Prueba de nuevo en unos segundos.');
       });
       utils.renderIcons();
     }
@@ -274,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const cuando = dias.length === 1 ? 'El día' : `Los ${dias.length} días`;
       resumen.innerHTML = `<span class="link-cuadre-ok">✓</span> ${cuando} de ${quien} <strong>cuadran con Invu</strong>. La venta que ves es la del reporte de Invu.`;
     } else {
-      resumen.innerHTML = `<span class="link-cuadre-warn">⚠</span> ${problemas.length === 1 ? 'Hay 1 día que no cuadra' : `Hay ${problemas.length} días que no cuadran`} (cuadran ${ok} de ${total}): ${problemas.slice(0, 3).map(esc).join(' · ')}${problemas.length > 3 ? '…' : ''}.${state.user && state.user.role === 'admin' ? ' Tocá <strong>Actualizar ahora</strong> para volver a traer hoy y ayer.' : ''}`;
+      resumen.innerHTML = `<span class="link-cuadre-warn">⚠</span> ${problemas.length === 1 ? 'Hay 1 día que no cuadra' : `Hay ${problemas.length} días que no cuadran`} (cuadran ${ok} de ${total}): ${problemas.slice(0, 3).map(esc).join(' · ')}${problemas.length > 3 ? '…' : ''}.${state.user && state.user.role === 'admin' ? ' Toca <strong>Actualizar ahora</strong> para volver a traer hoy y ayer.' : ''}`;
       $('cuadreDetails').open = true;
     }
   }
@@ -391,7 +401,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     return step * pow;
   }
 
+  // El globo del gráfico diario: se cierra al tocar fuera del gráfico o al desplazar la página.
+  let dailyTipHide = null;
+  document.addEventListener('pointerdown', (e) => {
+    if (dailyTipHide && !$('chartTooltip').hidden && !e.target.closest('#dailyChart')) dailyTipHide();
+  });
+  window.addEventListener('scroll', () => {
+    if (dailyTipHide && !$('chartTooltip').hidden) dailyTipHide();
+  }, { passive: true, capture: true });
+
   function renderDailyChart() {
+    if (dailyTipHide) { dailyTipHide(); dailyTipHide = null; }
     const box = $('dailyChart');
     const series = seriesFromDaily();
     const days = state.days || [];
@@ -422,13 +442,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (completos.length > 1) {
       const mejor = completos.reduce((m, d) => (totalDia(d) > totalDia(m) ? d : m), completos[0]);
       const prom = completos.reduce((acc, d) => acc + totalDia(d), 0) / completos.length;
-      $('dailyNote').innerHTML = `Promedio por día <b>${esc(money(prom))}</b> · mejor día <b>${esc(dayLabelLong(mejor))}</b> con ${esc(money(totalDia(mejor)))}`;
+      $('dailyNote').innerHTML = `Promedio por día <b>${esc(money(prom))}</b> · mejor día <b>${esc(dayLabelLong(mejor))}</b> con ${esc(money(totalDia(mejor)))}`
+        + (touchFirst ? ' · <span class="link-chart-tip">Toca una barra para ver cada sucursal.</span>' : '');
     } else {
-      $('dailyNote').textContent = '';
+      $('dailyNote').innerHTML = touchFirst ? '<span class="link-chart-tip">Toca una barra para ver cada sucursal.</span>' : '';
     }
 
     const W = Math.max(box.clientWidth, 280);
-    const H = W < 560 ? 230 : 290;
+    // En la tablet acostada el gráfico tiene más ancho que alto disponible: un poco más alto se lee mejor.
+    const H = W < 560 ? 240 : (W < 1000 ? 300 : 320);
     const m = { top: 22, right: 8, bottom: 28, left: 52 };
     const iw = W - m.left - m.right;
     const ih = H - m.top - m.bottom;
@@ -468,7 +490,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         svg += `<text class="link-bar-total${parcial ? ' is-partial' : ''}" x="${cx(i)}" y="${(y(base) - 6).toFixed(1)}" text-anchor="middle">${esc(moneyShort(base))}${parcial ? ' · va' : ''}</text>`;
       }
     });
-    svg += `<rect class="link-hit" x="${m.left}" y="${m.top}" width="${iw}" height="${ih}" tabindex="0" aria-label="Recorrer días con el mouse o las flechas"/>`;
+    svg += `<rect class="link-hit" x="${m.left}" y="${m.top}" width="${iw}" height="${ih}" tabindex="0" aria-label="Toca un día (o usa las flechas) para ver la venta de cada sucursal"/>`;
     svg += '</svg>';
     box.innerHTML = svg;
 
@@ -525,14 +547,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       let left = clientX + 14;
       if (left + r.width > window.innerWidth - 8) left = clientX - r.width - 14;
       tip.style.left = `${Math.max(8, left)}px`;
-      tip.style.top = `${Math.max(8, clientY - r.height / 2)}px`;
+      // Con el dedo, el globo va ARRIBA del punto tocado (al costado quedaba debajo de la mano).
+      const above = clientY - r.height - 18;
+      tip.style.top = `${Math.max(8, pinned && above > 8 ? above : clientY - r.height / 2)}px`;
     }
 
     function hide() {
       current = -1;
+      pinned = false;
       tip.hidden = true;
       focus.setAttribute('visibility', 'hidden');
     }
+    dailyTipHide = hide;
+    let pinned = false;   // abierto con un toque o clic: queda hasta tocar otra cosa
 
     function indexAt(clientX) {
       const rect = box.querySelector('svg').getBoundingClientRect();
@@ -541,9 +568,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       return Math.min(days.length - 1, Math.max(0, i));
     }
 
-    hit.addEventListener('pointermove', (e) => show(indexAt(e.clientX), e.clientX, e.clientY));
-    hit.addEventListener('pointerleave', hide);
-    hit.addEventListener('blur', hide);
+    // Mouse: el globo sigue al puntero. Dedo (o clic): se fija en el día tocado; tocar el mismo
+    // día otra vez, otra parte de la pantalla o desplazar la página lo cierra. Antes el globo
+    // solo existía con el mouse: en la tablet tocar una barra no mostraba nada.
+    hit.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'mouse' && !pinned) show(indexAt(e.clientX), e.clientX, e.clientY);
+    });
+    hit.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !pinned) hide(); });
+    hit.addEventListener('click', (e) => {
+      const i = indexAt(e.clientX);
+      if (pinned && current === i) { hide(); return; }
+      pinned = true;
+      show(i, e.clientX, e.clientY);
+    });
+    hit.addEventListener('blur', () => { if (!pinned) hide(); });
     hit.addEventListener('keydown', (e) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       e.preventDefault();
@@ -599,9 +637,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const max = rows[0].net || 1;
     $('branchNote').textContent = `Total ${money(total)}`;
     $('branchBars').innerHTML = rows.map((r) => `
-      <div class="inv-bar-row" title="${esc(r.name)}: ${money(r.net)} en ${num(r.orders)} órdenes">
+      <div class="inv-bar-row">
         <span class="inv-bar-name"><span class="link-legend-swatch" style="background:${branchColorVar(r.id)}"></span>${esc(r.name)}</span>
-        <span class="inv-bar-value">${money(r.net)} <small>${total ? ((r.net / total) * 100).toFixed(0) : 0}%</small></span>
+        <span class="inv-bar-value">${money(r.net)} <small>${total ? ((r.net / total) * 100).toFixed(0) : 0}% · ${num(r.orders)} órdenes</small></span>
         <span class="inv-bar-track"><span class="inv-bar-fill" style="width:${Math.max(2, (r.net / max) * 100)}%; background:${branchColorVar(r.id)}"></span></span>
       </div>`).join('');
   }
@@ -612,9 +650,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const total = rows.reduce((acc, r) => acc + Number(r.net_total), 0);
     const max = Math.max(...rows.map((r) => Number(r.net_total)), 1);
     $('channelBars').innerHTML = rows.map((r) => `
-      <div class="inv-bar-row" title="${esc(r.order_type)}: ${num(r.orders)} órdenes">
+      <div class="inv-bar-row">
         <span class="inv-bar-name">${esc(r.order_type)}</span>
-        <span class="inv-bar-value">${money(r.net_total)} <small>${total ? ((Number(r.net_total) / total) * 100).toFixed(0) : 0}%</small></span>
+        <span class="inv-bar-value">${money(r.net_total)} <small>${total ? ((Number(r.net_total) / total) * 100).toFixed(0) : 0}% · ${num(r.orders)} órdenes</small></span>
         <span class="inv-bar-track"><span class="inv-bar-fill" style="width:${Math.max(2, (Number(r.net_total) / max) * 100)}%"></span></span>
       </div>`).join('');
   }
@@ -675,26 +713,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rows = status.branches;
     if (!rows.length) { $('syncTable').innerHTML = emptyHtml('Sin sucursales', 'Ninguna sucursal configurada para Link.'); utils.renderIcons(); return; }
     $('syncTable').innerHTML = `
-      <table class="link-table">
+      <table class="link-table link-cards">
         <thead><tr>
-          <th>Sucursal</th><th>Estado</th><th class="num">Días</th><th class="hide-sm">Desde</th>
-          <th class="hide-sm">Última actualización</th><th class="num">Menú</th>
+          <th>Sucursal</th><th>Estado</th><th class="num">Días traídos</th><th class="hide-sm">Desde</th>
+          <th class="hide-sm">Última actualización</th><th class="num">Platos en el menú</th>
         </tr></thead>
         <tbody>${rows.map((b) => {
           let estado;
-          if (!b.configured) estado = '<span class="link-status warn"><i data-lucide="key-round"></i> Sin usuario de API</span>';
-          else if (b.error_days) estado = `<span class="link-status bad" title="${esc(b.last_error || '')}"><i data-lucide="alert-triangle"></i> ${b.error_days} día(s) con error</span>`;
-          else if (b.mismatched_days) estado = `<span class="link-status warn"><i data-lucide="scale"></i> ${b.mismatched_days} día(s) no cuadran</span>`;
+          if (!b.configured) estado = '<span class="link-status warn"><i data-lucide="key-round"></i> No conectada a Invu</span><small class="link-status-why">Falta el acceso de esta sucursal a Invu (lo configura un administrador).</small>';
+          else if (b.error_days) estado = `<span class="link-status bad"><i data-lucide="alert-triangle"></i> ${b.error_days} día${b.error_days === 1 ? '' : 's'} con error</span>${b.last_error ? `<small class="link-status-why">${esc(String(b.last_error).slice(0, 140))}</small>` : ''}`;
+          else if (b.mismatched_days) estado = `<span class="link-status warn"><i data-lucide="scale"></i> ${b.mismatched_days === 1 ? '1 día no cuadra' : `${b.mismatched_days} días no cuadran`}</span>`;
           else if (b.days_synced) estado = '<span class="link-status ok"><i data-lucide="check-circle-2"></i> Cuadra con Invu</span>';
           else estado = '<span class="link-status warn"><i data-lucide="clock"></i> Esperando primera carga</span>';
           return `
             <tr>
               <td><span class="link-legend-swatch" style="background:${branchColorVar(b.branch_id)}"></span> <strong>${esc(b.branch_name)}</strong></td>
-              <td>${estado}</td>
-              <td class="num">${num(b.days_synced)}</td>
-              <td class="hide-sm">${b.first_day ? esc(dayLabel(b.first_day)) : '—'}</td>
-              <td class="hide-sm">${esc(fmtDateTime(b.last_synced_at))}</td>
-              <td class="num">${num(b.menu_items)}</td>
+              <td data-label="Estado">${estado}</td>
+              <td class="num" data-label="Días traídos">${num(b.days_synced)}</td>
+              <td class="hide-sm" data-label="Desde">${b.first_day ? esc(dayLabel(b.first_day)) : '—'}</td>
+              <td class="hide-sm" data-label="Última actualización">${esc(fmtDateTime(b.last_synced_at))}</td>
+              <td class="num" data-label="Platos en el menú">${num(b.menu_items)}</td>
             </tr>`;
         }).join('')}</tbody>
       </table>`;
@@ -708,7 +746,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const res = await api.post('/link/invu/sync', {});
       const errores = res.flatMap((b) => b.days).filter((d) => d.error).length;
-      utils.showToast(errores ? `Actualizado, pero ${errores} día(s) dieron error en Invu.` : 'Ventas de hoy y ayer actualizadas con Invu.', errores ? 'warning' : 'success');
+      utils.showToast(errores ? `Actualizado, pero ${errores === 1 ? '1 día dio' : `${errores} días dieron`} error en Invu.` : 'Ventas de hoy y ayer actualizadas con Invu.', errores ? 'warning' : 'success');
       await loadSales();
     } catch (err) {
       utils.showToast(err.message || 'No se pudo actualizar.', 'error');
@@ -726,7 +764,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res = await api.post('/link/invu/sync', {});
       const dias = res.flatMap((b) => b.days);
       const errores = dias.filter((d) => d.error).length;
-      utils.showToast(errores ? `Sincronizado con ${errores} día(s) con error.` : 'Ventas de hoy y ayer al día.', errores ? 'warning' : 'success');
+      utils.showToast(errores ? `Sincronizado, pero ${errores === 1 ? '1 día dio' : `${errores} días dieron`} error en Invu.` : 'Ventas de hoy y ayer al día.', errores ? 'warning' : 'success');
       await Promise.all([loadSyncStatus(), loadSales()]);
     } catch (err) {
       utils.showToast(err.message || 'No se pudo sincronizar.', 'error');
@@ -762,9 +800,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('monthInput').addEventListener('change', (e) => { state.month = e.target.value || null; loadCierre(); });
 
   // Exportar a Excel: la sesión va en la cookie, así que se baja con fetch y se guarda el archivo.
+  document.addEventListener('pointerdown', (e) => {
+    if ($('exportMenu').open && !e.target.closest('#exportMenu')) $('exportMenu').open = false;
+  });
   document.querySelectorAll('#exportMenu [data-export]').forEach((b) => b.addEventListener('click', async () => {
     const [from, to] = rangeDates(state.range);
     b.disabled = true;
+    const label = b.textContent;
+    b.textContent = 'Preparando el archivo…';
     try {
       const res = await fetch(`/api/reports/export/${b.dataset.export}.xlsx?${query(from, to)}`, { credentials: 'include', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'No se pudo exportar.');
@@ -776,10 +819,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
       $('exportMenu').open = false;
+      utils.showToast(`Listo: se descargó ${name}.`, 'success');
     } catch (err) {
       utils.showToast(err.message || 'No se pudo exportar.', 'error');
     } finally {
       b.disabled = false;
+      b.textContent = label;
     }
   }));
 
@@ -791,7 +836,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!rows.length) { box.innerHTML = emptyHtml('Sin datos', 'Nada en este período.'); return; }
     const max = Math.max(...rows.map((r) => Number(value(r))), 0.01);
     box.innerHTML = rows.map((r) => `
-      <div class="inv-bar-row" title="${esc(name(r))}: ${esc(money(value(r)))}">
+      <div class="inv-bar-row">
         <span class="inv-bar-name">${esc(name(r))}</span>
         <span class="inv-bar-value">${esc(money(value(r)))}${sub ? ` <small>${esc(sub(r))}</small>` : ''}</span>
         <span class="inv-bar-track"><span class="inv-bar-fill" style="width:${Math.max(2, (Number(value(r)) / max) * 100)}%${tone ? `; background:${tone(r)}` : ''}"></span></span>
@@ -803,12 +848,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     const total = byHour.reduce((a, h) => a + Number(h.net), 0);
     const pico = byHour.reduce((best, h) => (Number(h.net) > Number(best.net) ? h : best), byHour[0]);
     $('hourNote').textContent = total ? `Hora pico: ${pico.hour}:00 (${money(pico.net)})` : 'Sin ventas';
-    $('hourChart').innerHTML = byHour.map((h) => `
-      <div class="link-hour-col ${Number(h.net) ? '' : 'zero'}" title="${h.hour}:00 · ${num(h.orders)} órdenes · ${money(h.net)}">
+    state.byHour = byHour;
+    $('hourChart').innerHTML = byHour.map((h, i) => `
+      <button type="button" class="link-hour-col ${Number(h.net) ? '' : 'zero'}" data-hour-i="${i}" aria-label="${h.hour}:00 · ${num(h.orders)} órdenes · ${esc(money(h.net))}">
         <span class="link-hour-bar" style="height:${Math.max(2, (Number(h.net) / max) * 100)}%"></span>
         <small>${h.hour}h</small>
-      </div>`).join('');
+      </button>`).join('');
+    $('hourPick').textContent = total ? 'Toca una barra para ver la venta de esa hora.' : '';
   }
+
+  // Antes el detalle de cada hora estaba solo en el `title` (hover del mouse): con el dedo no se veía.
+  function pickHour(i) {
+    const h = (state.byHour || [])[i];
+    if (!h) return;
+    document.querySelectorAll('#hourChart .link-hour-col').forEach((c) => c.classList.toggle('is-picked', Number(c.dataset.hourI) === i));
+    $('hourPick').innerHTML = `<strong>${h.hour}:00 a ${h.hour}:59</strong> · ${esc(money(h.net))} · ${num(h.orders)} órdenes`;
+  }
+  $('hourChart').addEventListener('click', (e) => {
+    const col = e.target.closest('[data-hour-i]');
+    if (col) pickHour(Number(col.dataset.hourI));
+  });
+  $('hourChart').addEventListener('pointerover', (e) => {
+    const col = e.pointerType === 'mouse' && e.target.closest('[data-hour-i]');
+    if (col) pickHour(Number(col.dataset.hourI));
+  });
 
   function renderMatrix(m) {
     if (!m.rows.length) { $('matrixTable').innerHTML = emptyHtml('Sin platos vendidos', 'Nada vendido en este período.'); return; }
@@ -849,23 +912,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       if (seq !== analisisSeq) return;
       utils.showToast(err.message || 'No se pudo cargar el análisis.', 'error');
-      ['hourChart', 'weekdayBars', 'categoryBars', 'matrixTable'].forEach((id) => { $(id).innerHTML = emptyHtml('No se pudo cargar', 'Probá de nuevo en unos segundos.'); });
+      ['hourChart', 'weekdayBars', 'categoryBars', 'matrixTable'].forEach((id) => { $(id).innerHTML = emptyHtml('No se pudo cargar', 'Prueba de nuevo en unos segundos.'); });
     }
   }
 
   // ==========================================================================
-  // Compras y merma
+  // Compras (la merma tiene su propia vista: ver waste-analysis.js)
   // ==========================================================================
   let comprasSeq = 0;
   async function loadCompras() {
     const seq = ++comprasSeq;
     const [from, to] = rangeDates(state.range);
     $('comprasKpis').innerHTML = '';
-    ['supplierBars', 'purchaseCategoryBars', 'wasteReasonBars', 'wasteCategoryBars'].forEach((id) => { $(id).innerHTML = '<div class="inv-skeleton-row"></div>'; });
+    ['supplierBars', 'purchaseCategoryBars'].forEach((id) => { $(id).innerHTML = '<div class="inv-skeleton-row"></div>'; });
     try {
-      const [compras, merma, daily] = await Promise.all([
+      const [compras, daily] = await Promise.all([
         api.get(`/reports/purchases?${query(from, to)}`),
-        api.get(`/reports/waste?${query(from, to)}`),
         api.get(`/link/sales/daily?${query(from, to)}`),
       ]);
       if (seq !== comprasSeq) return;
@@ -873,8 +935,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const pct = (v) => (venta ? `${((Number(v) / venta) * 100).toFixed(1)}% de la venta` : 'Sin venta para comparar');
       const kpis = [
         { icon: 'shopping-cart', label: 'Compras', value: money(compras.total), sub: `${pct(compras.total)}${compras.lines_without_cost ? ` · ${num(compras.lines_without_cost)} línea${compras.lines_without_cost === 1 ? '' : 's'} sin costo` : ''}` },
-        { icon: 'truck', label: 'Líneas recibidas', value: num(compras.lines), sub: `${num(compras.by_supplier.length)} proveedor${compras.by_supplier.length === 1 ? '' : 'es'}` },
-        { icon: 'trash-2', label: 'Merma', value: money(merma.total), sub: `${pct(merma.total)}${merma.lines_without_cost ? ` · ${num(merma.lines_without_cost)} sin costo` : ''}` },
+        { icon: 'truck', label: 'Líneas de factura recibidas', value: num(compras.lines), sub: `De ${num(compras.by_supplier.length)} proveedor${compras.by_supplier.length === 1 ? '' : 'es'}` },
         { icon: 'dollar-sign', label: 'Venta neta', value: money(venta), sub: 'Mismo período (Invu)' },
       ];
       $('comprasKpis').innerHTML = kpis.map((k) => `
@@ -886,14 +947,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('supplierNote').textContent = `Total ${money(compras.total)}`;
       barRows('supplierBars', compras.by_supplier, { name: (r) => r.supplier, value: (r) => r.amount, sub: (r) => `${r.share_pct == null ? 0 : r.share_pct}% · ${num(r.shipments)} cargamento${r.shipments === 1 ? '' : 's'}${r.issues ? ` · ${num(r.issues)} con diferencias` : ''}` });
       barRows('purchaseCategoryBars', compras.by_category, { name: (r) => r.category, value: (r) => r.amount, sub: (r) => `${r.share_pct == null ? 0 : r.share_pct}%` });
-      $('wasteNote').textContent = `Total ${money(merma.total)}`;
-      barRows('wasteReasonBars', merma.by_reason, { name: (r) => r.label, value: (r) => r.cost, sub: (r) => `${r.share_pct == null ? 0 : r.share_pct}% · ${num(r.lines)} registro${r.lines === 1 ? '' : 's'}`, tone: () => 'var(--inv-amber, #b45309)' });
-      barRows('wasteCategoryBars', merma.by_category, { name: (r) => r.category, value: (r) => r.cost, sub: (r) => `${r.share_pct == null ? 0 : r.share_pct}%`, tone: () => 'var(--inv-amber, #b45309)' });
       utils.renderIcons();
     } catch (err) {
       if (seq !== comprasSeq) return;
-      utils.showToast(err.message || 'No se pudieron cargar compras y merma.', 'error');
-      ['supplierBars', 'purchaseCategoryBars', 'wasteReasonBars', 'wasteCategoryBars'].forEach((id) => { $(id).innerHTML = emptyHtml('No se pudo cargar', 'Probá de nuevo en unos segundos.'); });
+      utils.showToast(err.message || 'No se pudieron cargar las compras.', 'error');
+      ['supplierBars', 'purchaseCategoryBars'].forEach((id) => { $(id).innerHTML = emptyHtml('No se pudo cargar', 'Prueba de nuevo en unos segundos.'); });
     }
   }
 
@@ -925,7 +983,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <td class="num">${Number(r.total_value) ? money(r.total_value) : '<span class="muted">sin costo</span>'}</td>
           </tr>`).join('')}
         </tbody>
-      </table>${rows.length > 300 ? `<p class="muted" style="font-size:12px;margin:8px 0 0">Se muestran 300 de ${num(rows.length)} insumos; afina la búsqueda para ver el resto.</p>` : ''}`;
+      </table>${rows.length > 300 ? `<p class="link-foot-note">Se muestran 300 de ${num(rows.length)} insumos; afina la búsqueda para ver el resto.</p>` : ''}`;
   }
   $('stockSearch').addEventListener('input', renderStockTable);
   $('stockOnlyValue').addEventListener('change', renderStockTable);
@@ -956,24 +1014,24 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span class="link-variance-total ${Number(b.missing_cost) > 0 ? 'bad' : 'ok'}">${Number(b.missing_cost) > 0 ? `Faltante ${money(b.missing_cost)}` : 'Sin faltante'}</span>
             </summary>
             ${comparables.length ? `
-            <table class="link-table">
+            <table class="link-table link-cards">
               <thead><tr><th>Insumo</th><th class="num">Se fue</th><th class="num">Justifican las ventas</th><th class="num">Diferencia</th><th class="num hide-sm">Valor</th><th>Estado</th></tr></thead>
               <tbody>${comparables.map((r) => `
                 <tr>
                   <td><span class="link-item-name">${esc(r.name)}</span></td>
-                  <td class="num">${num(r.real)} ${esc(r.unit)}</td>
-                  <td class="num">${num(r.expected)} ${esc(r.unit)}</td>
-                  <td class="num strong">${Number(r.diff) > 0 ? '+' : ''}${num(r.diff)}${r.diff_pct != null ? ` <small class="muted">(${r.diff_pct > 0 ? '+' : ''}${r.diff_pct}%)</small>` : ''}</td>
-                  <td class="num hide-sm">${r.diff_cost != null ? money(r.diff_cost) : '<span class="muted">sin costo</span>'}</td>
-                  <td><span class="link-variance-chip ${r.status}">${esc(VAR_STATUS[r.status])}</span></td>
+                  <td class="num" data-label="Se fue">${num(r.real)} ${esc(r.unit)}</td>
+                  <td class="num" data-label="Justifican las ventas">${num(r.expected)} ${esc(r.unit)}</td>
+                  <td class="num strong" data-label="Diferencia">${Number(r.diff) > 0 ? '+' : ''}${num(r.diff)}${r.diff_pct != null ? ` <small class="muted">(${r.diff_pct > 0 ? '+' : ''}${r.diff_pct}%)</small>` : ''}</td>
+                  <td class="num hide-sm" data-label="Valor">${r.diff_cost != null ? money(r.diff_cost) : '<span class="muted">sin costo</span>'}</td>
+                  <td data-label="Estado"><span class="link-variance-chip ${r.status}">${esc(VAR_STATUS[r.status])}</span></td>
                 </tr>`).join('')}</tbody>
-            </table>` : '<p class="muted" style="font-size:13px;margin:8px 0">Ningún insumo de la hoja tiene receta en Invu para comparar todavía.</p>'}
-            ${otros ? `<p class="muted" style="font-size:12px;margin:6px 0 0">${num(otros)} insumo${otros === 1 ? '' : 's'} sin comparar: ${b.rows.filter((r) => !['faltante', 'sobra', 'cuadra'].includes(r.status)).slice(0, 6).map((r) => `${esc(r.name)} (${esc(VAR_STATUS[r.status].toLowerCase())})`).join(', ')}${otros > 6 ? '…' : ''}.</p>` : ''}
+            </table>` : '<p class="link-foot-note">Ningún insumo de la hoja tiene receta en Invu para comparar todavía.</p>'}
+            ${otros ? `<p class="link-foot-note">${num(otros)} insumo${otros === 1 ? '' : 's'} sin comparar: ${b.rows.filter((r) => !['faltante', 'sobra', 'cuadra'].includes(r.status)).slice(0, 6).map((r) => `${esc(r.name)} (${esc(VAR_STATUS[r.status].toLowerCase())})`).join(', ')}${otros > 6 ? '…' : ''}.</p>` : ''}
           </details>`;
       }).join('');
     } catch (err) {
       if (seq !== invSeq) return;
-      box.innerHTML = emptyHtml('No se pudo cargar', err.message || 'Probá de nuevo en unos segundos.');
+      box.innerHTML = emptyHtml('No se pudo cargar', err.message || 'Prueba de nuevo en unos segundos.');
     }
   }
 
@@ -1003,13 +1061,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             <table class="link-table">
               <thead><tr><th>Plato sin receta</th><th class="num">Vendidos</th></tr></thead>
               <tbody>${b.missing.slice(0, 15).map((m) => `<tr><td><span class="link-item-name">${esc(m.name)}</span>${m.versions > 1 ? ` <small class="muted">· ${m.versions} versiones en Invu</small>` : ''}</td><td class="num strong">${num(m.sold)}</td></tr>`).join('')}</tbody>
-            </table>${b.missing.length > 15 ? `<p class="muted" style="font-size:12px;margin:6px 0 0">Y ${num(b.missing.length - 15)} platos más sin receta, que se venden menos.</p>` : ''}<p style="margin:8px 0 0"><a class="link-text-btn" href="/recetas?tab=platos">Completar recetas →</a></p>` : '<div class="link-ok-banner"><i data-lucide="check-circle-2"></i> Todos los platos vendidos tienen receta.</div>'}
+            </table>${b.missing.length > 15 ? `<p class="link-foot-note">Y ${num(b.missing.length - 15)} platos más sin receta, que se venden menos.</p>` : ''}<p style="margin:10px 0 0"><a class="link-text-btn" href="/recetas?tab=platos">Completar recetas <i data-lucide="arrow-right"></i></a></p>` : '<div class="link-ok-banner"><i data-lucide="check-circle-2"></i> Todos los platos vendidos tienen receta.</div>'}
           </details>`;
       }).join('');
       utils.renderIcons();
     } catch (err) {
       if (seq !== invSeq) return;
-      box.innerHTML = emptyHtml('No se pudo cargar', err.message || 'Probá de nuevo en unos segundos.');
+      box.innerHTML = emptyHtml('No se pudo cargar', err.message || 'Prueba de nuevo en unos segundos.');
     }
   }
 
@@ -1069,19 +1127,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         const chips = (st) => `<span class="link-status-chips">${Object.entries(st).map(([k, v]) => `<span class="link-status-chip ${k}">${esc(disc.status_labels[k] || k)} ×${v}</span>`).join('')}</span>`;
         $('issuesTable').innerHTML = `
-          <table class="link-table">
+          <table class="link-table link-cards">
             <thead><tr><th>Cargamento</th><th>Sucursal</th><th>Proveedor</th><th>Qué pasó</th><th class="num">Reclamo</th><th></th></tr></thead>
             <tbody>${disc.rows.map((r) => `
               <tr>
-                <td><span class="link-item-name">#${r.id}${r.invoice_number ? ` · Fact. ${esc(r.invoice_number)}` : ''}</span><br><small class="muted">${esc(fmtDateTime(r.received_at))} · ${esc(r.received_by)}</small></td>
-                <td>${esc(r.branch_name)}</td>
-                <td>${esc(r.supplier)}</td>
-                <td>${chips(r.statuses)}</td>
-                <td class="num ${Number(r.claim) ? 'strong' : 'muted'}">${Number(r.claim) ? money(r.claim) : '—'}</td>
-                <td class="num"><a class="link-text-btn" href="/inventario?view=cargamentos&shipment=${r.id}">Ver</a></td>
+                <td><span class="link-item-name">#${r.id}${r.invoice_number ? ` · Factura ${esc(r.invoice_number)}` : ''}</span><small class="muted link-cell-sub">${esc(fmtDateTime(r.received_at))} · recibió ${esc(r.received_by)}</small></td>
+                <td data-label="Sucursal">${esc(r.branch_name)}</td>
+                <td data-label="Proveedor">${esc(r.supplier)}</td>
+                <td data-label="Qué pasó">${chips(r.statuses)}</td>
+                <td class="num ${Number(r.claim) ? 'strong' : 'muted'}" data-label="Reclamo">${Number(r.claim) ? money(r.claim) : '—'}</td>
+                <td class="num link-cell-action"><a class="link-text-btn" href="/inventario?view=cargamentos&shipment=${r.id}">Ver cargamento</a></td>
               </tr>`).join('')}</tbody>
           </table>
-          ${disc.by_supplier.filter((p) => p.with_issues).length ? `<p class="muted" style="font-size:12.5px;margin:10px 0 0">Por proveedor: ${disc.by_supplier.filter((p) => p.with_issues).map((p) => `${esc(p.supplier)} ${num(p.with_issues)}/${num(p.shipments)}${Number(p.claim) ? ` (${money(p.claim)})` : ''}`).join(' · ')}</p>` : ''}`;
+          ${disc.by_supplier.filter((p) => p.with_issues).length ? `<p class="link-foot-note">Por proveedor: ${disc.by_supplier.filter((p) => p.with_issues).map((p) => `${esc(p.supplier)} ${num(p.with_issues)}/${num(p.shipments)}${Number(p.claim) ? ` (${money(p.claim)})` : ''}`).join(' · ')}</p>` : ''}`;
       }
       loadVariance(from, to, seq);
       loadCoverage(from, to, seq);
@@ -1089,7 +1147,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       if (seq !== invSeq) return;
       utils.showToast(err.message || 'No se pudo cargar el inventario.', 'error');
-      ['stockTable', 'spentBars', 'arrivedTable', 'issuesTable'].forEach((id) => { $(id).innerHTML = emptyHtml('No se pudo cargar', 'Probá de nuevo en unos segundos.'); });
+      ['stockTable', 'spentTable', 'arrivedTable', 'issuesTable'].forEach((id) => { $(id).innerHTML = emptyHtml('No se pudo cargar', 'Prueba de nuevo en unos segundos.'); });
     }
   }
 
@@ -1125,25 +1183,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       const fila = (b, cls = '') => `
         <tr class="${cls}">
           <td>${cls ? '' : `<span class="link-legend-swatch" style="background:${branchColorVar(b.branch_id)}"></span> `}<strong>${esc(b.branch_name)}</strong></td>
-          <td class="num">${money(b.sales_net)}</td>
-          <td class="num hide-sm">${num(b.orders)}</td>
-          <td class="num hide-sm">${money(b.avg_ticket)}</td>
-          <td class="num">${money(b.purchases)} <small class="muted">${pctTxt(b.purchases_pct_sales)}</small>${b.purchase_lines_without_cost ? ` <small class="warn" title="líneas sin costo">+${num(b.purchase_lines_without_cost)} s/c</small>` : ''}</td>
-          <td class="num ${b.waste_pct_sales != null && b.waste_pct_sales > 3 ? 'bad' : ''}">${money(b.waste_cost)} <small class="muted">${pctTxt(b.waste_pct_sales)}</small></td>
-          <td class="num hide-sm">${money(b.count_missing_cost)}</td>
-          <td class="num hide-sm">${num(b.counts)}</td>
-          <td class="num hide-sm">${num(b.incidents)}</td>
+          <td class="num" data-label="Venta">${money(b.sales_net)}</td>
+          <td class="num hide-sm" data-label="Órdenes">${num(b.orders)}</td>
+          <td class="num hide-sm" data-label="Ticket promedio">${money(b.avg_ticket)}</td>
+          <td class="num" data-label="Compras">${money(b.purchases)} <small class="muted">${pctTxt(b.purchases_pct_sales)}</small>${b.purchase_lines_without_cost ? ` <small class="warn">+${num(b.purchase_lines_without_cost)} líneas sin costo</small>` : ''}</td>
+          <td class="num ${b.waste_pct_sales != null && b.waste_pct_sales > 3 ? 'bad' : ''}" data-label="Merma">${money(b.waste_cost)} <small class="muted">${pctTxt(b.waste_pct_sales)}</small></td>
+          <td class="num hide-sm" data-label="Faltantes en conteos">${money(b.count_missing_cost)}</td>
+          <td class="num hide-sm" data-label="Conteos">${num(b.counts)}</td>
+          <td class="num hide-sm" data-label="Incidencias">${num(b.incidents)}</td>
         </tr>`;
       $('cierreTable').innerHTML = rows.length ? `
-        <table class="link-table">
-          <thead><tr><th>Sucursal</th><th class="num">Venta</th><th class="num hide-sm">Órdenes</th><th class="num hide-sm">Ticket</th><th class="num">Compras</th><th class="num">Merma</th><th class="num hide-sm">Faltantes conteo</th><th class="num hide-sm">Conteos</th><th class="num hide-sm">Incidencias</th></tr></thead>
+        <table class="link-table link-cards">
+          <thead><tr><th>Sucursal</th><th class="num">Venta</th><th class="num hide-sm">Órdenes</th><th class="num hide-sm">Ticket</th><th class="num">Compras</th><th class="num">Merma</th><th class="num hide-sm">Faltantes en conteos</th><th class="num hide-sm">Conteos</th><th class="num hide-sm">Incidencias</th></tr></thead>
           <tbody>${rows.map((b) => fila(b)).join('')}${rows.length > 1 ? fila(t, 'total') : ''}</tbody>
         </table>` : emptyHtml('Sin datos', 'No hay ventas sincronizadas para ese mes.');
       utils.renderIcons();
     } catch (err) {
       if (seq !== cierreSeq) return;
       utils.showToast(err.message || 'No se pudo cargar el cierre.', 'error');
-      $('cierreTable').innerHTML = emptyHtml('No se pudo cargar', 'Probá de nuevo en unos segundos.');
+      $('cierreTable').innerHTML = emptyHtml('No se pudo cargar', 'Prueba de nuevo en unos segundos.');
     }
   }
 

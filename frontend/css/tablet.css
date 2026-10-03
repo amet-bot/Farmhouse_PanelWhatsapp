@@ -1,15 +1,14 @@
 /* Farmhouse Link — Operación de Sucursal (Fase 4, quinto bloque)
-   El armazón (gate, header) viene de inventory.css. Acá solo la grilla de botones grandes,
+   El armazón (gate, header) viene de inventory.css. Aquí solo la grilla de botones grandes,
    pensada para un dedo en una tablet: mucho aire, texto grande, un toque y listo. */
 
 /* `width: 100%`: .inv-app es flex en columna, y un hijo con `margin: 0 auto` se encoge al ancho
-   de su contenido — la grilla auto-fit quedaba en una sola columna de 220px con 7 botones
-   apilados, aunque hubiera espacio para tres por fila. */
+   de su contenido — la grilla quedaba en una sola columna aunque hubiera espacio para tres. */
 .tablet-body {
   width: 100%;
-  max-width: 900px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 32px 20px 60px;
+  padding: 28px 24px 60px;
 }
 
 .tablet-branch-badge {
@@ -22,42 +21,56 @@
   color: var(--green-soft-text);
   border: 1px solid var(--green-border);
   font-weight: 600;
-  font-size: 0.95rem;
-  margin-bottom: 24px;
+  font-size: 1rem;
+  margin-bottom: 22px;
 }
 
+/* Nueve mosaicos: 3 × 3 en la tablet parada y acostada (con 4 por fila quedaba uno solo en la
+   última fila). En el celular, dos por fila. */
 .tablet-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
 }
 
 .tablet-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 36px 20px;
-  min-height: 160px;
+  gap: 12px;
+  padding: 24px 16px;
+  min-height: 184px;
   border-radius: 20px;
   border: 1px solid var(--line);
   background: var(--panel-bg);
   color: var(--text-primary);
+  font: inherit;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.tablet-tile:hover,
+/* Solo con mouse: en la tablet el :hover se queda "pegado" después de tocar. */
+@media (hover: hover) {
+  .tablet-tile:hover {
+    transform: translateY(-2px);
+    border-color: var(--green-border);
+    box-shadow: var(--shadow-glow-green);
+  }
+}
+
 .tablet-tile:focus-visible {
-  transform: translateY(-2px);
   border-color: var(--green-border);
   box-shadow: var(--shadow-glow-green);
+  outline: none;
 }
 
 .tablet-tile:active {
-  transform: translateY(0);
+  transform: scale(0.98);
+  border-color: var(--green-border);
 }
 
 .tablet-tile:disabled {
@@ -67,6 +80,7 @@
 }
 
 .tablet-tile-icon {
+  flex: 0 0 auto;
   width: 64px;
   height: 64px;
   display: flex;
@@ -83,24 +97,92 @@
   height: 30px;
 }
 
+.tablet-tile-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
 .tablet-tile-label {
-  font-size: 1.05rem;
+  font-size: 1.12rem;
   font-weight: 700;
+  line-height: 1.25;
   text-align: center;
 }
 
-/* Celular: dos por fila (como los accesos del Panel General). Con la columna mínima de 220px
-   quedaban siete botones de 160px apilados y había que deslizar varias pantallas. */
+/* Una línea que dice para qué sirve, en palabras simples. */
+.tablet-tile-sub {
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Mosaico de Tareas: es un enlace, se ve igual que los botones, con contador de pendientes.
+   En los mosaicos verticales el contador va debajo del texto (arriba a la derecha tapaba el
+   ícono cuando decía "3 · 1 vencida"). */
+a.tablet-tile { text-decoration: none; color: inherit; }
+.tablet-tile-badge {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.tablet-tile-badge[hidden] { display: none; }
+.tablet-tile-badge.is-late { background: #dc2626; color: #fff; }
+
+.tablet-scope-note {
+  margin: 20px 0 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px dashed var(--line);
+  background: var(--panel-subtle);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+/* Tablet acostada y laptop: mosaicos horizontales (ícono a la izquierda) — las tres filas
+   entran sin deslizar en 1024 × 768. */
+@media (min-width: 1000px) {
+  .tablet-tile {
+    flex-direction: row;
+    justify-content: flex-start;
+    min-height: 132px;
+    padding: 22px 24px;
+    gap: 18px;
+  }
+  .tablet-tile-text { align-items: flex-start; }
+  .tablet-tile-label,
+  .tablet-tile-sub { text-align: left; }
+  .tablet-tile-label { font-size: 1.18rem; }
+  .tablet-tile-badge { position: absolute; top: 12px; right: 12px; }
+}
+
+/* Celular: dos por fila (como los accesos del Panel General). */
 @media (max-width: 560px) {
   .tablet-body { padding: 20px 16px 48px; }
   .tablet-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .tablet-tile { min-height: 124px; padding: 20px 10px; gap: 10px; border-radius: 16px; }
+  .tablet-tile { min-height: 140px; padding: 18px 10px; gap: 10px; border-radius: 16px; }
   .tablet-tile-icon { width: 52px; height: 52px; }
   .tablet-tile-icon i, .tablet-tile-icon svg { width: 24px; height: 24px; }
-  .tablet-tile-label { font-size: .95rem; line-height: 1.25; }
+  .tablet-tile-label { font-size: 1rem; }
+  .tablet-tile-sub { font-size: 0.8rem; }
 }
 
-/* ---- Modales chicos (Solicitar / Transferir / Reportar) ---- */
+/* ---- Modales chicos (Solicitar / Enviar / Reportar) ---- */
 .tablet-modal-overlay {
   position: fixed;
   inset: 0;
@@ -119,34 +201,63 @@
   display: none !important;
 }
 
+/* Con un modal abierto, la página de atrás no se desliza. */
+body:has(.tablet-modal-overlay:not([hidden])) { overflow: hidden; }
+
+/* Tablet con el dedo: la ventana arriba, no al centro — así el teclado (que tapa la mitad de
+   abajo) no esconde los campos ni el botón de enviar. */
+@media (pointer: coarse) and (min-width: 561px) {
+  .tablet-modal-overlay { align-items: flex-start; padding-top: 5vh; }
+}
+
 .tablet-modal {
   width: 100%;
-  max-width: 440px;
+  max-width: 520px;
   background: var(--panel-bg);
+  color: var(--text-primary);
   border-radius: 18px;
-  padding: 24px;
-  max-height: 90vh;
+  /* Sin relleno abajo: lo pone la barra pegajosa del botón (.tablet-modal-actions). */
+  padding: 20px 24px 0;
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: var(--shadow-lg);
 }
 
 .tablet-modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 6px;
 }
 
 .tablet-modal-head h2 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
+  line-height: 1.25;
 }
 
 .tablet-modal-close {
-  background: none;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  margin-right: -8px;
   border: none;
+  border-radius: 12px;
+  background: none;
   cursor: pointer;
   color: var(--text-muted);
-  padding: 4px;
+}
+.tablet-modal-close:hover { background: var(--panel-subtle); color: var(--text-primary); }
+
+.tablet-modal-intro {
+  margin: 0 0 16px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--text-muted);
 }
 
 .tablet-modal-error {
@@ -154,21 +265,24 @@
   border: 1px solid var(--danger-border);
   color: var(--danger-text);
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   margin-bottom: 14px;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .tablet-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-bottom: 16px;
+  margin: 0 0 16px;
   position: relative;
 }
 
-.tablet-field span {
-  font-size: 0.85rem;
+.tablet-field > label,
+.tablet-field > legend {
+  padding: 0;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -176,6 +290,9 @@
 .tablet-field input,
 .tablet-field select,
 .tablet-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 48px;
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 12px 14px;
@@ -184,54 +301,147 @@
   background: var(--bg-primary);
   color: var(--text-primary);
 }
+.tablet-field textarea { min-height: 0; resize: vertical; }
 
-.tablet-autocomplete {
+.tablet-field input:focus,
+.tablet-field select:focus,
+.tablet-field textarea:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.tablet-field-hint { display: block; font-size: 0.85rem; color: var(--text-muted, #6b7280); }
+.tablet-field label em { font-style: normal; font-weight: 500; color: var(--text-muted, #6b7280); }
+
+/* Cantidad con su unidad a la vista dentro del campo. */
+.tablet-qty { position: relative; display: flex; align-items: center; }
+.tablet-qty input { padding-right: 72px; font-size: 1.15rem; font-weight: 700; }
+.tablet-qty-unit {
   position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
+  right: 14px;
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.tablet-qty-unit[hidden] { display: none; }
+
+/* Urgencia: tres botones grandes en vez de un desplegable. */
+.tablet-seg-field { border: 0; padding: 0; min-width: 0; }
+.tablet-seg-field > legend { margin-bottom: 6px; }
+.tablet-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tablet-seg label { position: relative; cursor: pointer; }
+.tablet-seg input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.tablet-seg span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 62px;
+  padding: 8px 6px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+}
+.tablet-seg small { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
+.tablet-seg input:checked + span { border-color: var(--green); background: var(--green-soft); color: var(--green-soft-text); }
+.tablet-seg input[value="alta"]:checked + span { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
+.tablet-seg input:checked + span small { color: inherit; }
+.tablet-seg input:focus-visible + span { outline: 3px solid var(--green-border); outline-offset: 2px; }
+
+/* En el flujo (no flotando): dentro de una ventana con scroll, una lista flotante quedaba
+   cortada abajo; así empuja el resto hacia abajo y se ve entera. */
+.tablet-autocomplete {
   background: var(--panel-bg);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  margin-top: 4px;
-  max-height: 180px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  max-height: 260px;
   overflow-y: auto;
-  z-index: 5;
+  overscroll-behavior: contain;
 }
+.tablet-autocomplete[hidden] { display: none; }
 
 /* Cada resultado es un <button> (enfocable y usable con teclado), con aspecto de fila de lista. */
 .tablet-autocomplete-row {
   display: block;
   width: 100%;
-  padding: 10px 14px;
+  min-height: 50px;
+  padding: 12px 16px;
   border: 0;
+  border-bottom: 1px solid var(--line-light);
   background: transparent;
   color: inherit;
   font: inherit;
+  font-size: 1rem;
   text-align: left;
   cursor: pointer;
 }
+.tablet-autocomplete-row:last-child { border-bottom: 0; }
 
 .tablet-autocomplete-row:hover,
-.tablet-autocomplete-row:focus-visible {
+.tablet-autocomplete-row:focus-visible,
+.tablet-autocomplete-row:active {
   background: var(--panel-subtle);
   outline: none;
 }
+.tablet-autocomplete-row small { margin-left: 6px; color: var(--text-muted, #6b7280); }
 
-.tablet-submit-btn:disabled {
-  opacity: .6;
-  cursor: progress;
+.tablet-autocomplete-empty {
+  padding: 14px 16px;
+  font-size: 0.95rem;
+  color: var(--text-muted);
 }
+
+/* El botón de enviar queda pegado abajo de la ventana: se ve sin deslizar aunque el
+   formulario sea largo. */
+.tablet-modal-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 8px -24px 0;
+  padding: 12px 24px calc(18px + env(safe-area-inset-bottom, 0px));
+  background: var(--panel-bg);
+  border-top: 1px solid var(--line);
+}
+
+.tablet-summary {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.tablet-summary[hidden] { display: none; }
 
 .tablet-submit-btn {
   width: 100%;
+  min-height: 52px;
   padding: 14px;
   border: none;
   border-radius: 12px;
   background: var(--green);
   color: var(--text-inverse);
+  font-family: inherit;
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 1.05rem;
   cursor: pointer;
 }
 
@@ -239,13 +449,18 @@
   background: var(--green-dark);
 }
 
+.tablet-submit-btn:disabled {
+  opacity: .6;
+  cursor: progress;
+}
 
-/* Mosaico de Tareas: es un enlace, se ve igual que los botones, con contador de pendientes. */
-a.tablet-tile { text-decoration: none; color: inherit; }
-.tablet-tile-tasks { position: relative; }
-.tablet-tile-badge { position: absolute; top: 12px; right: 12px; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 999px; background: #f59e0b; color: #111827; font-size: 14px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
-.tablet-tile-badge.is-late { background: #dc2626; color: #fff; }
+/* Confirmación dentro de la página (tablet.js → askConfirm): botones grandes, lado a lado. */
+.tablet-ask .modal-footer { gap: 10px; }
+.tablet-ask .modal-footer button { flex: 1 1 0; justify-content: center; min-height: 48px; font-size: 15px; }
+.tablet-ask-msg { margin: 0; font-size: 1rem; line-height: 1.5; color: var(--text-secondary); }
 
-.tablet-field-hint { display: block; margin-top: 6px; font-size: 12.5px; color: var(--text-muted, #6b7280); }
-.tablet-field span em { font-style: normal; font-weight: 500; color: var(--text-muted, #6b7280); }
-.tablet-autocomplete-row small { margin-left: 6px; color: var(--text-muted, #6b7280); }
+@media (max-width: 560px) {
+  .tablet-modal-overlay { padding: 12px; }
+  .tablet-modal { padding: 18px 18px 0; max-height: calc(100dvh - 24px); }
+  .tablet-modal-actions { margin: 8px -18px 0; padding: 12px 18px calc(16px + env(safe-area-inset-bottom, 0px)); }
+}

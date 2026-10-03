@@ -52,17 +52,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Bloquea el botón de envío del formulario mientras corre la petición: un doble clic ya no
-  // registra dos dispositivos o dos sucursales.
+  // registra dos dispositivos o dos sucursales. Mientras tanto dice "Guardando…".
   async function withSubmitBusy(form, action) {
     const btn = form.querySelector('[type="submit"]');
     if (btn && btn.disabled) return;
-    if (btn) btn.disabled = true;
+    const prev = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
     try {
       await action();
     } finally {
-      if (btn) btn.disabled = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = prev; }
     }
   }
+  const roleLabel = (u) => usersModule.roleLabel(u);
+  const DEVICE_TYPES = { computadora: 'Computadora', tablet: 'Tablet', celular: 'Celular' };
 
   window.addEventListener('auth:unauthorized', () => { window.location.href = '/'; });
 
@@ -114,7 +117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!nameVal || nameVal.length < 2) return showError('El nombre completo es obligatorio.');
     if (!pwdVal || pwdVal.length < 4) return showError('La contraseña inicial debe tener al menos 4 caracteres.');
     if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) return showError('El correo electrónico no tiene un formato válido.');
-    if (roleVal === 'agent' && !branchVal) return showError('Para un agente debes seleccionar una sucursal.');
+    if (roleVal === 'agent' && !branchVal) return showError('Un empleado trabaja en una sucursal: elígela.');
     if (roleVal === 'supervisor' && !branchVal) return showError('Un encargado es de una sucursal: elígela. Para todas, usa "Gerente de logística".');
 
     const data = {
@@ -124,15 +127,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       active: true,
     };
 
+    if (saveBtn.disabled) return;
+    const prevLabel = saveBtn.innerHTML;
     saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando…';
     try {
       await usersModule.registerUser(data);
       $('modalAddUser').classList.remove('active');
       $('formAddUser').reset();
     } catch (err) {
-      showError(`Error creando usuario: ${err.message}`);
+      showError(`No se pudo crear el usuario: ${err.message}`);
     } finally {
       saveBtn.disabled = false;
+      saveBtn.innerHTML = prevLabel;
     }
   });
 
@@ -166,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await usersModule.updateUser(id, data);
         $('modalEditUser').classList.remove('active');
       } catch (err) {
-        showError(`Error actualizando usuario: ${err.message}`);
+        showError(`No se pudieron guardar los cambios: ${err.message}`);
       }
     });
   });
@@ -182,7 +189,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderDeviceTable() {
     const tbody = $('deviceTableBody');
     if (!devices.length) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">No hay dispositivos registrados.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="adm-empty">Todavía no hay dispositivos registrados. Registra la tablet o computadora de cada sucursal con "Registrar dispositivo".</td></tr>`;
       return;
     }
     tbody.innerHTML = devices.map((dev) => {
@@ -193,19 +200,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       else if (dev.status === 'revoked') statusBadge = '<span class="dev-badge disabled">✕ Revocado</span>';
       else if (dev.status === 'disabled') statusBadge = '<span class="dev-badge disabled">⏸ Deshabilitado</span>';
 
-      let actions = `<button class="btn-sm-action" onclick="adminModule.openEditDevice(${dev.id})" title="Editar"><i data-lucide="pencil"></i> Editar</button>`;
+      let actions = `<button type="button" class="btn-sm-action" onclick="adminModule.openEditDevice(${dev.id})"><i data-lucide="pencil"></i> Editar</button>`;
       if (dev.status === 'active') {
-        actions += ` <button class="btn-sm-action delete-action" onclick="adminModule.revokeDevice(${dev.id})" title="Revocar"><i data-lucide="ban"></i> Revocar</button>`;
+        actions += ` <button type="button" class="btn-sm-action delete-action" onclick="adminModule.revokeDevice(${dev.id})"><i data-lucide="ban"></i> Quitar acceso</button>`;
       }
 
       return `
         <tr>
-          <td><strong>${esc(dev.name)}</strong><div style="font-size:11px;color:var(--text-muted);font-family:monospace">ID: ${esc(dev.device_id)}</div></td>
-          <td><span class="tag-type">${esc(dev.device_type)}</span></td>
-          <td>${branchName}</td>
-          <td>${userName}</td>
-          <td>${statusBadge}</td>
-          <td style="white-space:nowrap">${actions}</td>
+          <td class="adm-td-main"><strong>${esc(dev.name)}</strong><div class="adm-sub" style="font-size:11px;color:var(--text-muted);font-family:monospace">Código: ${esc(dev.device_id)}</div></td>
+          <td data-label="Tipo"><span class="tag-type">${esc(DEVICE_TYPES[dev.device_type] || dev.device_type)}</span></td>
+          <td data-label="Sucursal">${branchName}</td>
+          <td data-label="Usuario asignado">${userName}</td>
+          <td data-label="Estado">${statusBadge}</td>
+          <td class="adm-td-actions" style="white-space:nowrap">${actions}</td>
         </tr>
       `;
     }).join('');
@@ -224,11 +231,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('modalEditDevice').classList.add('active');
   };
   adminModule.revokeDevice = async (devId) => {
-    if (!confirm('¿Estás seguro de que deseas revocar el acceso a este dispositivo?')) return;
+    const dev = devices.find((d) => d.id === devId);
+    if (!confirm(`¿Estás seguro de que quieres quitarle el acceso a ${dev ? `«${dev.name}»` : 'este dispositivo'}?\n\nDesde ese aparato ya no se podrá entrar hasta que lo vuelvas a activar en "Editar".`)) return;
     try {
       await api.post(`/devices/${devId}/revoke`, {});
       await loadDevices();
-      utils.showToast('Acceso del dispositivo revocado.', 'info');
+      utils.showToast('Acceso quitado: desde ese dispositivo ya no se puede entrar.', 'success');
     } catch (err) {
       utils.showToast(err.message || 'No se pudo revocar el dispositivo.', 'error');
     }
@@ -236,8 +244,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('btnOpenAddDevice').addEventListener('click', () => {
     const userSelect = $('addDevUser');
-    userSelect.innerHTML = '<option value="">-- Sin asignar / Agente de turno --</option>' +
-      usersModule.users.map((u) => `<option value="${u.id}">${esc(u.name)} (${esc(u.role)}${u.branch ? ' - ' + esc(u.branch.name) : ''})</option>`).join('');
+    userSelect.innerHTML = '<option value="">Sin asignar (lo usa quien esté de turno)</option>' +
+      usersModule.users.map((u) => `<option value="${u.id}">${esc(u.name)} (${esc(roleLabel(u))}${u.branch ? ' · ' + esc(u.branch.name) : ''})</option>`).join('');
     $('formAddDevice').reset();
     $('addDevError').style.display = 'none';
     $('modalAddDevice').classList.add('active');
@@ -256,7 +264,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       assigned_user_id: $('addDevUser').value ? parseInt($('addDevUser').value) : null,
     };
     if (!data.branch_id) {
-      errBox.textContent = '⚠️ Seleccioná la sucursal del dispositivo.';
+      errBox.textContent = '⚠️ Elige la sucursal del dispositivo.';
       errBox.style.display = 'block';
       return;
     }
@@ -264,7 +272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         const newDev = await api.post('/devices/', data);
         await loadDevices();
-        utils.showToast(`✓ Dispositivo '${newDev.name}' registrado.`, 'success');
+        utils.showToast(`Dispositivo «${newDev.name}» registrado.`, 'success');
         $('modalAddDevice').classList.remove('active');
       } catch (err) {
         errBox.textContent = `⚠️ ${err.message}`;
@@ -288,7 +296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         const updated = await api.put(`/devices/${id}`, data);
         await loadDevices();
-        utils.showToast(`✓ Dispositivo '${updated.name}' actualizado.`, 'success');
+        utils.showToast(`Cambios guardados en «${updated.name}».`, 'success');
         $('modalEditDevice').classList.remove('active');
       } catch (err) {
         errBox.textContent = `⚠️ ${err.message}`;
@@ -308,22 +316,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderBranchTable() {
     const tbody = $('branchTableBody');
     if (!branchesList.length) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">No hay sucursales registradas.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="adm-empty">No hay sucursales registradas.</td></tr>`;
       return;
     }
     tbody.innerHTML = branchesList.map((b) => {
       const statusBadge = b.active ? '<span class="dev-badge online">● Activa</span>' : '<span class="dev-badge disabled">✕ Inactiva</span>';
       return `
         <tr>
-          <td><strong style="color:${esc(b.color || 'inherit')}">${esc(b.name)}</strong></td>
-          <td><span class="tag-type">${esc(b.code)}</span></td>
-          <td>${esc(b.address || '-')}</td>
-          <td>${b.accepts_delivery ? 'Sí' : 'No'}</td>
-          <td>${esc(b.opens_at || '08:00')} – ${esc(b.closes_at || '21:30')}</td>
-          <td>${statusBadge}</td>
-          <td style="white-space:nowrap">
-            <button class="btn-sm-action" onclick="adminModule.openEditBranch(${b.id})" title="Editar"><i data-lucide="pencil"></i> Editar</button>
-            <button class="btn-sm-action" onclick="adminModule.toggleBranch(${b.id})" title="Cambiar estado"><i data-lucide="${b.active ? 'pause' : 'play'}"></i> ${b.active ? 'Desactivar' : 'Activar'}</button>
+          <td class="adm-td-main"><strong style="color:${esc(b.color || 'inherit')}">${esc(b.name)}</strong></td>
+          <td data-label="Código"><span class="tag-type">${esc(b.code)}</span></td>
+          <td data-label="Dirección">${esc(b.address || '—')}</td>
+          <td data-label="Delivery">${b.accepts_delivery ? 'Sí' : 'No'}</td>
+          <td data-label="Horario">${esc(hora12(b.opens_at || '10:30'))} a ${esc(hora12(b.closes_at || '21:30'))}</td>
+          <td data-label="Estado">${statusBadge}</td>
+          <td class="adm-td-actions" style="white-space:nowrap">
+            <button type="button" class="btn-sm-action" onclick="adminModule.openEditBranch(${b.id})"><i data-lucide="pencil"></i> Editar</button>
+            <button type="button" class="btn-sm-action${b.active ? ' delete-action' : ''}" onclick="adminModule.toggleBranch(${b.id})"><i data-lucide="${b.active ? 'pause' : 'play'}"></i> ${b.active ? 'Desactivar' : 'Activar'}</button>
           </td>
         </tr>
       `;
@@ -345,11 +353,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('editBranchError').style.display = 'none';
     $('modalEditBranch').classList.add('active');
   };
+  // "10:30" -> "10:30 am"
+  function hora12(t) {
+    const [h, m] = String(t).split(':').map(Number);
+    if (Number.isNaN(h)) return String(t);
+    return `${(h % 12) || 12}:${String(m || 0).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
+  }
   adminModule.toggleBranch = async (branchId) => {
+    const b = branchesList.find((x) => x.id === branchId);
+    // Desactivar una sucursal la saca de todas las listas: se confirma. Activarla, no.
+    if (b && b.active && !confirm(`¿Desactivar la sucursal «${b.name}»?\n\nDeja de aparecer en Inventario, Operación, reportes y en la lista de sucursales. Puedes volver a activarla cuando quieras.`)) return;
     try {
       await api.post(`/branches/${branchId}/toggle-active`, {});
       await Promise.all([loadBranchesTable(), loadBranchesForSelects()]);
-      utils.showToast('Estado de la sucursal actualizado.', 'info');
+      utils.showToast(b && b.active ? `Sucursal «${b.name}» desactivada.` : 'Sucursal activada.', 'success');
     } catch (err) {
       utils.showToast(err.message || 'No se pudo cambiar el estado.', 'error');
     }
@@ -382,7 +399,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         await api.post('/branches/', data);
         await Promise.all([loadBranchesTable(), loadBranchesForSelects()]);
-        utils.showToast('✓ Sucursal creada.', 'success');
+        utils.showToast('Sucursal creada.', 'success');
         $('modalAddBranch').classList.remove('active');
       } catch (err) {
         errBox.textContent = `⚠️ ${err.message}`;
@@ -409,7 +426,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         await api.put(`/branches/${id}`, data);
         await Promise.all([loadBranchesTable(), loadBranchesForSelects()]);
-        utils.showToast('✓ Sucursal actualizada.', 'success');
+        utils.showToast('Cambios guardados en la sucursal.', 'success');
         $('modalEditBranch').classList.remove('active');
       } catch (err) {
         errBox.textContent = `⚠️ ${err.message}`;

@@ -114,13 +114,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <span class="cie-fields">
                   <span class="cie-field">
                     <span class="cie-field-label">Queda</span>
-                    <input type="number" min="0" step="0.001" inputmode="decimal" value="${fmt(v.left)}" data-id="${it.inventory_item_id}" data-kind="left" class="${v.source === 'pieces' ? 'derived' : ''}" aria-label="Cuánto queda de ${esc(it.name)}" />
+                    <input type="number" min="0" step="0.001" inputmode="decimal" value="${fmt(v.left)}" data-id="${it.inventory_item_id}" data-kind="left" enterkeyhint="next" class="${v.source === 'pieces' ? 'derived' : ''}" aria-label="Cuánto queda de ${esc(it.name)}" />
                     <span class="cie-unit">${esc(shortUnit(it.unit))}</span>
                   </span>
                   ${it.unit_family !== 'unidad' ? `
                   <span class="cie-field">
                     <span class="cie-field-label">Piezas <small>(opcional)</small></span>
-                    <input type="number" min="0" step="0.5" inputmode="decimal" value="${fmt(v.pieces)}" data-id="${it.inventory_item_id}" data-kind="pieces" aria-label="Cuántas piezas enteras quedan de ${esc(it.name)}" />
+                    <input type="number" min="0" step="0.5" inputmode="decimal" value="${fmt(v.pieces)}" data-id="${it.inventory_item_id}" data-kind="pieces" enterkeyhint="next" aria-label="Cuántas piezas enteras quedan de ${esc(it.name)}" />
                     <span class="cie-unit">${it.piece_size ? `×${num(it.piece_size)}${pieceUnit(it)}` : 'pzas'}</span>
                   </span>` : ''}
                 </span>
@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <span class="cie-psize" data-psize="${it.inventory_item_id}" ${v.source === 'pieces' ? '' : 'hidden'}>
                   <span>¿Cuánto trae <strong>1 pieza</strong>? (bolsa, bandeja, botella)</span>
                   <span class="cie-field cie-psize-field">
-                    <input type="number" min="0" step="1" inputmode="decimal" value="${fmt(v.pieceSize)}" data-id="${it.inventory_item_id}" data-kind="psize" aria-label="Cuánto trae una pieza de ${esc(it.name)}" />
+                    <input type="number" min="0" step="1" inputmode="decimal" value="${fmt(v.pieceSize)}" data-id="${it.inventory_item_id}" data-kind="psize" enterkeyhint="next" aria-label="Cuánto trae una pieza de ${esc(it.name)}" />
                     <span class="cie-unit">${pieceUnit(it)}</span>
                   </span>
                 </span>` : ''}
@@ -210,6 +210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     row.className = `cie-row ${rowClass(v || {})}`;
     row.querySelector('[data-now]').innerHTML = rowNote(it, v || {});
+    setBarError('');
     updateBar();
   });
   // Enter salta al siguiente renglón: se llena de arriba a abajo sin tocar la pantalla.
@@ -231,6 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sinTamano = [...state.values.entries()].filter(([, v]) => v.source === 'pieces' && v.left == null);
     if (sinTamano.length) {
       const nombre = (state.sheet.items.find((i) => i.inventory_item_id === sinTamano[0][0]) || {}).name || 'un insumo';
+      setBarError(`Falta cuánto trae una pieza de ${nombre}.`);
       utils.showToast(`Falta cuánto trae una pieza de ${nombre}.`, 'error');
       const inp = $('sheetBox').querySelector(`input[data-kind="psize"][data-id="${sinTamano[0][0]}"]`);
       if (inp) inp.focus();
@@ -240,7 +242,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const faltan = total - listos.length;
     if (faltan > 0 && !confirm(`Faltan ${faltan} insumo${faltan === 1 ? '' : 's'} sin anotar. Los que quedan vacíos no se tocan. ¿Cerrar igual?`)) return;
     const btn = $('btnSubmit');
+    if (btn.dataset.busy) return;
+    btn.dataset.busy = '1';
     btn.disabled = true;
+    $('btnSubmitLabel').textContent = 'Guardando…';
+    setBarError('');
     try {
       const res = await api.post('/inventory/closing-sheet', {
         branch_id: Number(state.branchId), notes: $('notes').value.trim() || null,
@@ -250,10 +256,41 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('notes').value = '';
       showDone(res);
       loadHistory();
+      utils.showToast('Cierre guardado.', 'success');
     } catch (err) {
-      utils.showToast(err.message || 'No se pudo guardar el cierre.', 'error');
+      // Además del aviso (que se va solo), el error queda escrito en la barra, junto al botón:
+      // las cantidades siguen ahí y se puede volver a tocar "Cerrar turno".
+      const msg = `No se guardó el cierre. ${err.message || 'Prueba otra vez.'}`;
+      setBarError(msg);
+      utils.showToast(msg, 'error');
       btn.disabled = false;
+    } finally {
+      delete btn.dataset.busy;
+      $('btnSubmitLabel').textContent = 'Cerrar turno';
     }
+  });
+
+  function setBarError(msg) {
+    const el = $('barError');
+    el.textContent = msg;
+    el.hidden = !msg;
+  }
+
+  // ---- no perder lo anotado ----
+  // Con cantidades escritas y sin guardar: la flecha de volver, el enlace de gasto suelto o
+  // recargar la página preguntan antes de borrarlas.
+  let leaving = false;
+  window.addEventListener('beforeunload', (e) => {
+    if (leaving || !state.values.size) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]');
+    if (!a || a.target === '_blank' || !state.values.size) return;
+    const n = state.values.size;
+    if (!confirm(`Tienes ${n} cantidad${n === 1 ? '' : 'es'} anotada${n === 1 ? '' : 's'} sin guardar. Si sales ahora se pierde${n === 1 ? '' : 'n'}. ¿Salir igual?`)) { e.preventDefault(); return; }
+    leaving = true;
   });
 
   function showDone(res) {
@@ -342,22 +379,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modalConfig').addEventListener('click', (e) => { if (e.target === $('modalConfig')) closeConfig(); });
   $('btnConfigSave').addEventListener('click', async () => {
     const btn = $('btnConfigSave');
+    if (btn.disabled) return;
+    // Orden de la hoja: por categoría y nombre, que es como se ve en el estante.
+    const ids = state.catalog.filter((i) => state.chosen.has(i.id))
+      .sort((a, b) => (a.category || 'Otros').localeCompare(b.category || 'Otros') || a.name.localeCompare(b.name))
+      .map((i) => i.id);
+    // Guardar sin nada marcado vacía la hoja de la sucursal: antes pasaba sin preguntar.
+    if (!ids.length && !confirm('No marcaste ningún insumo. La hoja de cierre quedará vacía y el equipo no tendrá nada que anotar. ¿Vaciar la hoja?')) return;
+    if (state.values.size && !confirm('Hay cantidades anotadas en la hoja sin guardar. Al cambiar la hoja se borran. ¿Seguir?')) return;
     btn.disabled = true;
+    $('btnConfigSaveLabel').textContent = 'Guardando…';
     $('configError').hidden = true;
     try {
-      // Orden de la hoja: por categoría y nombre, que es como se ve en el estante.
-      const ids = state.catalog.filter((i) => state.chosen.has(i.id))
-        .sort((a, b) => (a.category || 'Otros').localeCompare(b.category || 'Otros') || a.name.localeCompare(b.name))
-        .map((i) => i.id);
       await api.put('/inventory/closing-sheet/config', { branch_id: Number(state.branchId), item_ids: ids });
       utils.showToast(ids.length ? `Hoja guardada: ${ids.length} insumo${ids.length === 1 ? '' : 's'}.` : 'Hoja vaciada.', 'success');
       closeConfig();
       state.values.clear();
       loadSheet();
     } catch (err) {
-      $('configError').textContent = err.message || 'No se pudo guardar la hoja.';
+      $('configError').textContent = `No se guardó la hoja. ${err.message || 'Prueba otra vez.'}`;
       $('configError').hidden = false;
-    } finally { btn.disabled = false; }
+    } finally { btn.disabled = false; $('btnConfigSaveLabel').textContent = 'Guardar hoja'; }
   });
 
   await loadSheet();

@@ -3903,3 +3903,64 @@ input:-webkit-autofill:focus {
     var(--bg-primary);
   background-attachment: fixed;
 }
+
+/* ============================================================================
+   PANTALLAS TÁCTILES (tablet y celular): todo lo que se toca con el dedo mide al menos 44 px,
+   que es lo mínimo cómodo (Apple y Google recomiendan 44-48). Se mira `pointer: coarse` y no el
+   ancho: una tablet acostada mide como una laptop, pero se usa con el dedo. `min-height` gana
+   sobre el `height` que ponga cada pantalla, así esta capa sirve para todas sin tocar sus CSS.
+   Los campos van en 16 px: con menos, el iPad y el iPhone hacen zoom al tocarlos.
+   ============================================================================ */
+@media (pointer: coarse) {
+  :where(.btn-primary, .btn-secondary, .inv-primary-btn, .inv-secondary-btn, .inv-danger-btn,
+         .inv-submit-btn, .inv-link-btn, .link-text-btn, .ops-btn, .hub-primary-btn, .hub-link-btn,
+         .adm-link-btn, .prep-text-btn, .tablet-submit-btn, .inv-add-line-btn, .inv-mode-btn,
+         .tar-photo-btn, .sup-step-btn, .confirm-btn, .confirm-btn-primary, .confirm-btn-secondary,
+         .inv-logout-btn, .int-logout-btn, .hub-logout-btn, .theme-toggle-btn, .sound-toggle-btn,
+         .inv-back, .ops-tab, .tar-tab, .prep-tab, .int-tab, .admin-tab, .tab-btn, .composer-tab,
+         .flow-insp-tab, .nav-btn) {
+    min-height: 44px;
+  }
+  :where(.inv-segmented button, .inv-dash-seg button, .link-segmented button, .filter-tabs button) {
+    min-height: 42px;
+  }
+  :where(.prep-chip, .inv-chip, .inv-reason-chip, .inv-recv-chip, .rec-sug, .header-chip,
+         .link-status-chip, .link-cov-chip, .link-variance-chip, .branch-filter-chip, .con-chip, .int-chip, .fopt-chip) {
+    min-height: 40px;
+  }
+  :where(.modal-close-btn, .tablet-modal-close, .lightbox-close-btn, .inv-photo-viewer-close,
+         .int-lightbox-close, .floating-notif-close, .btn-sidebar-close, .hub-icon-btn, .int-notif-btn,
+         .composer-tool-btn, .int-attach-btn, .header-cart-btn, .btn-close-details, .btn-toggle-details,
+         .btn-toggle-password, .hub-avatar-btn, .hub-sidebar-toggle, .btn-hamburger, .btn-mobile-back,
+         .notif-bell, .int-chat-back, .int-chat-action) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+         select, textarea, .modal-input, .inv-filter-select) {
+    min-height: 44px;
+  }
+  /* 16 px con !important: varias pantallas ponen 13 px en sus campos (.modal-input) y con eso el
+     iPad hace zoom al tocar un campo y descuadra la pantalla. Es la única excepción a propósito. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select, textarea {
+    font-size: 16px !important;
+  }
+  :where(input[type="checkbox"], input[type="radio"]) {
+    width: 22px;
+    height: 22px;
+  }
+  /* El aviso de "Guardado" / error: más grande y abajo al centro, donde se ve con la tablet en la mano. */
+  .toast-banner {
+    /* Centrado sin transform: la animación de entrada usa transform y lo pisaría. */
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    width: max-content;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    max-width: min(560px, calc(100vw - 32px));
+    font-size: 15px;
+    padding: 14px 18px;
+    border-radius: 12px;
+  }
+}

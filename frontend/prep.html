@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <title>Prep — Farmhouse Link</title>
+  <title>Preparación del día — Farmhouse Link</title>
   <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#16a34a">
@@ -14,10 +14,10 @@
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=4.13.1">
+  <link rel="stylesheet" href="css/style.css?v=5.0.1003">
   <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario, igual que tablet.html. -->
-  <link rel="stylesheet" href="css/inventory.css?v=4.23.0">
-  <link rel="stylesheet" href="css/prep.css?v=4.4.3">
+  <link rel="stylesheet" href="css/inventory.css?v=5.0.1003">
+  <link rel="stylesheet" href="css/prep.css?v=5.0.1003">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -36,7 +36,7 @@
         <span>Operación de Sucursal</span>
       </a>
       <div class="inv-header-titles">
-        <p class="inv-title">Prep de Bowls</p>
+        <p class="inv-title">Preparación del día</p>
         <span class="inv-subtitle" id="prepHeaderScope">—</span>
       </div>
       <div class="inv-header-actions">
@@ -60,60 +60,72 @@
 
     <main class="prep-body">
 
-      <select class="inv-filter-select" id="branchSelect" hidden></select>
+      <label class="prep-branch" id="branchPicker" hidden>
+        <span>Sucursal</span>
+        <select class="inv-filter-select" id="branchSelect"></select>
+      </label>
 
-      <!-- ---------- Sin plantilla todavía ---------- -->
+      <!-- ---------- Sin lista todavía (o no cargó) ---------- -->
       <div class="prep-empty" id="prepEmptyState" hidden>
         <i data-lucide="clipboard-list"></i>
-        <p id="prepEmptyMessage">Todavía no hay una plantilla de prep para esta sucursal.</p>
-        <button type="button" class="inv-primary-btn" id="btnCreateTemplate" hidden>Crear plantilla</button>
+        <p id="prepEmptyMessage">Todavía no hay una lista de preparación para esta sucursal.</p>
+        <button type="button" class="inv-primary-btn" id="btnCreateTemplate" hidden>Crear la lista</button>
+        <button type="button" class="inv-primary-btn" id="btnRetryLoad" hidden><i data-lucide="refresh-cw"></i> Reintentar</button>
       </div>
 
-      <!-- ---------- Con plantilla ---------- -->
+      <!-- ---------- Con lista ---------- -->
       <div id="prepWithTemplate" hidden>
         <div class="prep-tabs" id="prepTabs">
-          <button type="button" class="prep-tab active" data-tab="llenar">Llenar checklist</button>
-          <button type="button" class="prep-tab" data-tab="plantilla" id="tabPlantilla" hidden>Plantilla</button>
+          <button type="button" class="prep-tab active" data-tab="llenar">Anotar cantidades</button>
+          <button type="button" class="prep-tab" data-tab="plantilla" id="tabPlantilla" hidden>Editar la lista</button>
         </div>
 
-        <!-- ---------- Llenar ---------- -->
+        <!-- ---------- Anotar ---------- -->
         <div class="prep-view" id="viewLlenar">
+          <p class="prep-step-label">¿Qué revisión es?</p>
           <div class="prep-checkpoint-row" id="checkpointRow"></div>
+          <p class="prep-step-label">¿Cuánto hay preparado de cada cosa?</p>
           <div id="prepSections"></div>
-          <button type="button" class="tablet-submit-btn" id="btnSubmitCheck">Guardar</button>
+          <div class="prep-sticky-actions">
+            <button type="button" class="tablet-submit-btn" id="btnSubmitCheck">Guardar</button>
+          </div>
         </div>
 
-        <!-- ---------- Plantilla ---------- -->
+        <!-- ---------- Editar la lista (encargados) ---------- -->
         <div class="prep-view" id="viewPlantilla" hidden>
           <div class="prep-panel">
             <div class="prep-panel-head">
-              <h2>Checkpoints</h2>
-              <span class="inv-panel-note">Ej: 10am, 3pm, 8pm — o lo que uses (Congelador Grande, Congelador chico...)</span>
+              <h2>Revisiones</h2>
+              <span class="inv-panel-note">Los momentos en que se revisa: 10am, 3pm, 8pm — o lugares (Congelador grande, Congelador chico…)</span>
             </div>
             <div class="prep-checkpoint-edit" id="checkpointEditRow"></div>
-            <button type="button" class="prep-text-btn" id="btnAddCheckpoint"><i data-lucide="plus"></i> Agregar checkpoint</button>
+            <button type="button" class="prep-text-btn" id="btnAddCheckpoint"><i data-lucide="plus"></i> Agregar revisión</button>
           </div>
 
           <div class="prep-panel">
             <div class="prep-panel-head">
-              <h2>Ítems</h2>
-              <button type="button" class="prep-text-btn" id="btnBulkPaste"><i data-lucide="clipboard-paste"></i> Pegar en bloque</button>
+              <h2>Insumos de la lista</h2>
+              <button type="button" class="prep-text-btn" id="btnBulkPaste"><i data-lucide="clipboard-paste"></i> Pegar varias líneas</button>
             </div>
             <div class="prep-bulk-paste" id="bulkPasteBox" hidden>
-              <p>Una línea por ítem: <code>Sección | Nombre | Unidad | Par | Notas</code> (notas es opcional).</p>
-              <textarea id="bulkPasteInput" rows="6" placeholder="Base | Kale picado | cambro L | 3 | cortar el día que se sirve"></textarea>
+              <p>Una línea por insumo: <code>Sección | Nombre | Unidad | Cantidad ideal | Notas</code> (las notas son opcionales).</p>
+              <textarea id="bulkPasteInput" rows="6" aria-label="Líneas para pegar" placeholder="Base | Kale picado | cambro L | 3 | cortar el día que se sirve"></textarea>
               <button type="button" class="tablet-submit-btn" id="btnApplyBulkPaste">Agregar estas líneas</button>
             </div>
+            <p class="prep-edit-hint">Sección y nombre son obligatorios. La cantidad ideal es cuánto debería haber listo.</p>
             <table class="prep-item-table">
               <thead>
-                <tr><th>Sección</th><th>Nombre</th><th>Unidad</th><th>Par</th><th>Notas</th><th></th></tr>
+                <tr><th>Sección</th><th>Nombre</th><th>Unidad</th><th>Cantidad ideal</th><th>Notas</th><th><span class="prep-sr">Quitar</span></th></tr>
               </thead>
               <tbody id="itemEditRows"></tbody>
             </table>
-            <button type="button" class="prep-text-btn" id="btnAddItemRow"><i data-lucide="plus"></i> Agregar ítem</button>
+            <button type="button" class="prep-text-btn" id="btnAddItemRow"><i data-lucide="plus"></i> Agregar insumo</button>
           </div>
 
-          <button type="button" class="tablet-submit-btn" id="btnSaveTemplate">Guardar plantilla</button>
+          <div class="prep-sticky-actions">
+            <p class="prep-form-error" id="templateError" role="alert" hidden></p>
+            <button type="button" class="tablet-submit-btn" id="btnSaveTemplate">Guardar la lista</button>
+          </div>
         </div>
       </div>
     </main>
@@ -124,11 +136,11 @@
     <span id="toastMessage">Operación realizada con éxito.</span>
   </div>
 
-  <script src="js/utils.js?v=3.5.0"></script>
-  <script src="js/api.js?v=4.1.0"></script>
+  <script src="js/utils.js?v=5.0.1003"></script>
+  <script src="js/api.js?v=5.0.1003"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/prep.js?v=4.0.0"></script>
+  <script src="js/shared/shell.js?v=5.0.1003"></script>
+  <script src="js/shared/native-app.js?v=5.0.1003"></script>
+  <script src="js/modules/prep.js?v=5.0.1003"></script>
 </body>
 </html>

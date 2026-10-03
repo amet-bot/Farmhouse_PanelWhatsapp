@@ -28,8 +28,21 @@
   // a la pantalla anterior; en el inicio, sale de la app.
   if (App) {
     App.addListener('backButton', ({ canGoBack }) => {
-      const abierto = document.querySelector('.modal-backdrop.active');
-      if (abierto) { abierto.classList.remove('active'); return; }
+      // Lo que esté abierto encima se cierra como con Escape: así cada pantalla hace lo suyo
+      // (preguntar "¿Salir sin guardar?", volver a Operación...). Si nadie lo cerró ni abrió
+      // otra cosa, se cierra a mano como antes.
+      const ENCIMA = '.modal-backdrop.active, .tablet-modal-overlay:not([hidden]), .mr-sheet:not([hidden]), .mr-done:not([hidden])';
+      const antes = document.querySelectorAll(ENCIMA).length;
+      if (antes) {
+        const abierto = document.querySelector('.modal-backdrop.active');
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        setTimeout(() => {
+          if (abierto && abierto.classList.contains('active') && document.querySelectorAll(ENCIMA).length === antes) {
+            abierto.classList.remove('active');
+          }
+        }, 60);
+        return;
+      }
       const visor = document.querySelector('.inv-photo-viewer:not([hidden]), .inv-camera:not([hidden])');
       if (visor) { visor.hidden = true; return; }
       const enInicio = /^\/(hub\/?)?$/.test(location.pathname);

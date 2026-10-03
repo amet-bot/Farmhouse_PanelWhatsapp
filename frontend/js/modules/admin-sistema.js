@@ -30,12 +30,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       body.innerHTML = data.backups.map((b, i) => `
         <tr>
-          <td class="adm-mono">${esc(b.name)}${i === 0 ? '<span class="adm-tag">el más nuevo</span>' : ''}</td>
-          <td>${esc(fmtFecha(b.created_at))}</td>
-          <td>${b.tables}</td>
-          <td>${Number(b.rows).toLocaleString('es-PA')}</td>
-          <td>${size(b.size)}</td>
-          <td><button type="button" class="adm-link-btn" data-download="${esc(b.name)}"><i data-lucide="download"></i> Bajar</button></td>
+          <td class="adm-td-main adm-mono">${esc(b.name)}${i === 0 ? '<span class="adm-tag">el más nuevo</span>' : ''}</td>
+          <td data-label="Fecha">${esc(fmtFecha(b.created_at))}</td>
+          <td data-label="Tablas">${b.tables}</td>
+          <td data-label="Filas">${Number(b.rows).toLocaleString('es-PA')}</td>
+          <td data-label="Tamaño">${size(b.size)}</td>
+          <td class="adm-td-actions"><button type="button" class="adm-link-btn" data-download="${esc(b.name)}"><i data-lucide="download"></i> Bajar copia</button></td>
         </tr>`).join('');
       utils.renderIcons();
     } catch (err) {
@@ -48,6 +48,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const b = e.target.closest('button[data-download]');
     if (!b) return;
     b.disabled = true;
+    const prev = b.innerHTML;
+    b.textContent = 'Bajando…';
     try {
       const headers = { 'X-Requested-With': 'XMLHttpRequest' };
       const deviceId = api.getDeviceId();
@@ -61,9 +63,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      utils.showToast('Copia bajada. Guárdala fuera de Railway (Drive o un disco).', 'success');
     } catch (err) {
       utils.showToast(err.message || 'No se pudo bajar el respaldo.', 'error');
-    } finally { b.disabled = false; }
+    } finally { b.disabled = false; b.innerHTML = prev; utils.renderIcons(); }
   });
 
   $('btnBackupNow').addEventListener('click', async () => {

@@ -157,6 +157,17 @@ const utils = {
    * Muestra una notificación Toast flotante en pantalla con íconos SVG consistentes
    */
   showToast(message, type = 'info') {
+    // Siete pantallas no traían el aviso en su HTML y todos sus "Guardado" y errores se perdían
+    // sin que nadie los viera. Si falta, se crea aquí: una sola vez y para todas.
+    if (!document.getElementById('toastNotification') && document.body) {
+      const nuevo = document.createElement('div');
+      nuevo.id = 'toastNotification';
+      nuevo.className = 'toast-banner';
+      nuevo.setAttribute('role', 'status');
+      nuevo.setAttribute('aria-live', 'polite');
+      nuevo.innerHTML = '<span id="toastIconSlot"></span><span id="toastMessage"></span>';
+      document.body.appendChild(nuevo);
+    }
     const banner = document.getElementById('toastNotification');
     const msgElem = document.getElementById('toastMessage');
     const iconSlot = document.getElementById('toastIconSlot');
@@ -176,6 +187,6 @@ const utils = {
     clearTimeout(this._toastTimeout);
     this._toastTimeout = setTimeout(() => {
       banner.classList.remove('active');
-    }, 4000);
+    }, type === 'error' ? 6500 : 4000);
   }
 };

@@ -79,7 +79,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.done = hechas.filter((t) => esHoy(t.completed_at));
       render();
     } catch (err) {
-      $('taskBox').innerHTML = `<div class="ops-empty">No se pudieron cargar las tareas. ${esc(err.message || '')}</div>`;
+      // Si ya había tareas en pantalla (refresco de cada minuto), se dejan: solo se avisa abajo.
+      if (state.pending.length || state.done.length) return;
+      $('taskBox').innerHTML = `<div class="tar-empty"><i data-lucide="wifi-off"></i><h3>No se pudieron cargar las tareas</h3><p>${esc(err.message || 'Revisa la conexión.')}</p><button type="button" class="inv-primary-btn tar-retry" id="btnRetryTasks"><i data-lucide="refresh-cw"></i> Reintentar</button></div>`;
+      utils.renderIcons();
+      $('btnRetryTasks').addEventListener('click', () => { $('taskBox').innerHTML = '<div class="ops-loading">Cargando tareas…</div>'; load(); });
     }
   }
 
@@ -208,41 +212,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     const verFoto = e.target.closest('button[data-photo]');
     if (verFoto) { openProtectedPhoto(verFoto.dataset.photo); return; }
     const b = e.target.closest('button[data-act]');
-    if (!b) return;
+    if (!b || b.disabled) return;
     const id = Number(b.dataset.id);
     const accion = b.dataset.act;
     const tarea = state.pending.find((x) => x.id === id);
+    const original = b.innerHTML;
+    // Mientras trabaja, el botón dice qué está pasando (antes solo se ponía gris).
+    const ocupado = (texto) => { b.disabled = true; b.innerHTML = `<span class="tar-spinner" aria-hidden="true"></span> ${texto}`; };
+    const libre = () => { b.disabled = false; b.innerHTML = original; utils.renderIcons(); };
     // Si la tarea pide foto, primero la cámara: sin foto no se puede marcar hecha.
     if (accion === 'hecha' && tarea && tarea.requires_photo && !(tarea.photos || []).length) {
       const archivo = await pickPhoto();
       if (!archivo) return;
-      b.disabled = true;
+      ocupado('Subiendo foto…');
       try {
         const fd = new FormData();
         fd.append('file', await compressPhoto(archivo), 'tarea.jpg');
         const conFoto = await api.request(`/ops/tasks/${id}/photos`, { method: 'POST', body: fd });
         Object.assign(tarea, conFoto);
       } catch (err) {
-        utils.showToast(err.message || 'No se pudo subir la foto.', 'error');
-        b.disabled = false;
+        utils.showToast(`No se pudo subir la foto. ${err.message || ''} Prueba otra vez.`.trim(), 'error');
+        libre();
         return;
       }
     }
     state.busy.add(id);
-    b.disabled = true;
+    ocupado('Guardando…');
     try {
       const t = await api.post(`/ops/tasks/${id}/status`, { status: accion });
       state.pending = state.pending.filter((x) => x.id !== id);
       state.done = state.done.filter((x) => x.id !== id);
       if (t.status === 'hecha') { state.done.unshift(t); utils.showToast('¡Listo! Tarea marcada como hecha.', 'success'); }
-      else { state.pending.unshift(t); if (accion === 'en_proceso') utils.showToast('Marcada en proceso: el equipo sabe que la tomaste.', 'info'); }
+      else {
+        state.pending.unshift(t);
+        if (accion === 'en_proceso') utils.showToast('Marcada en proceso: el equipo sabe que la tomaste.', 'info');
+        else if (accion === 'pendiente') utils.showToast('La tarea volvió a "Por hacer".', 'info');
+      }
       if (state.focusId === id && t.status === 'hecha') state.focusId = null;
+      state.busy.delete(id);
       render();
     } catch (err) {
-      utils.showToast(err.message || 'No se pudo actualizar la tarea.', 'error');
-    } finally {
+      utils.showToast(`No se pudo guardar la tarea. ${err.message || ''}`.trim(), 'error');
       state.busy.delete(id);
-      b.disabled = false;
+      // Se vuelve a pintar (no solo se libera el botón): si la foto ya subió, el botón deja de
+      // decir "Tomar foto".
+      render();
     }
   });
 

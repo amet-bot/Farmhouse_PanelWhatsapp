@@ -1168,32 +1168,61 @@ body {
    TABLET (768–1099px): sidebar de íconos, grilla de 2
    ============================================================================ */
 @media (max-width: 1099px) {
-  .hub-shell { grid-template-columns: 76px minmax(0, 1fr); }
-  .hub-sidebar { padding: 18px 10px; align-items: center; }
+  /* Franja angosta con el ícono ARRIBA y el nombre DEBAJO. Antes era solo íconos: en la tablet
+     (sin mouse) los nombres vivían en el `title`, que con el dedo no aparece, y había que
+     adivinar qué era cada ícono — también los del sistema abierto (Ventas, Merma, Cierre…). */
+  .hub-shell { grid-template-columns: 96px minmax(0, 1fr); }
+  .hub-sidebar { padding: 16px 6px; align-items: center; gap: 16px; }
   .hub-sidebar-brand { padding: 0; }
-  /* En la franja de íconos el botón de ocultar va debajo del logo. */
-  .hub-sidebar-top { flex-direction: column; gap: 8px; }
+  /* En la franja el botón de ocultar va debajo del logo. */
+  .hub-sidebar-top { flex-direction: column; gap: 6px; }
   .hub-sidebar-brand-text,
-  .hub-nav-item span,
   .hub-sidebar-card { display: none; }
-  .hub-sidebar-nav { width: 100%; }
-  .hub-nav-item { justify-content: center; padding: 0; height: 44px; }
-
-  /* Menú del sistema en la franja de íconos: sin textos, las secciones pasan a ser una línea y
-     los contadores un globito sobre el ícono. Para cambiar de sistema: "Panel General". */
-  .hub-appnav { align-items: center; width: 100%; }
-  .hub-appnav-back { width: 44px; height: 40px; padding: 0; justify-content: center; }
-  .hub-appnav-back span,
-  .hub-switcher,
-  .hub-appnav-titles,
+  .hub-sidebar-nav { width: 100%; gap: 2px; }
+  .hub-nav-item,
+  .hub-appnav-item,
+  .hub-appnav-back {
+    position: relative;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    height: auto;
+    min-height: 54px;
+    padding: 7px 3px;
+    text-align: center;
+  }
+  /* Nombre en hasta dos líneas ("Centro de operación"); "Abastecimiento" entra en una. */
+  .hub-nav-item span,
   .hub-appnav-label,
+  .hub-appnav-back span {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    max-width: 100%;
+    flex: none;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -.01em;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+
+  /* Menú del sistema en la franja: las secciones pasan a ser una línea y los contadores un
+     globito sobre el ícono. Para cambiar de sistema: "Panel General" (vuelve al menú principal). */
+  .hub-appnav { align-items: center; width: 100%; }
+  .hub-switcher,
   .hub-appnav-soon,
   .hub-appnav-foot { display: none !important; }
-  .hub-appnav-head { padding: 0; justify-content: center; }
+  .hub-appnav-head { flex-direction: column; gap: 4px; padding: 0; justify-content: center; text-align: center; width: 100%; }
+  .hub-appnav-titles small { display: none; }
+  .hub-appnav-titles strong { font-size: 11px; }
   .hub-appnav-list { width: 100%; }
-  .hub-appnav-section { height: 1px; margin: 8px 10px; font-size: 0; background: rgba(255, 255, 255, .1); }
-  .hub-appnav-item { position: relative; justify-content: center; padding: 0; min-height: 42px; }
-  .hub-appnav-badge { position: absolute; top: 3px; right: 3px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 9.5px; }
+  .hub-appnav-section { height: 1px; margin: 8px 10px; font-size: 0; background: var(--sb-border, rgba(255, 255, 255, .1)); }
+  .hub-appnav-badge { position: absolute; top: 4px; right: 8px; min-width: 18px; height: 18px; padding: 0 5px; font-size: 10.5px; }
 
   .hub-topbar { padding: 0 24px; }
   .hub-user-text { display: none; }
@@ -1666,4 +1695,67 @@ body {
 @media (prefers-reduced-motion: reduce) {
   [data-theme="dark"] .hub-module-card:hover { transform: none; }
   [data-theme="dark"] :is(.hub-module-card, .hub-m-card, .hub-tag, .hub-nav-item, .hub-appnav-item) { transition: none; }
+}
+
+/* ============================================================================
+   TABLET Y PANTALLAS TÁCTILES (va al final: ajusta tamaños de lo de arriba)
+   ============================================================================ */
+
+/* Sistema abierto: el iframe ocupa justo lo que queda bajo la barra superior. Con una altura
+   fija de 100dvh − 72px y la barra flotante (68px + 12px de margen) se cortaban los últimos
+   8px del sistema — en la tablet, justo el borde de los botones de abajo. */
+.hub-shell.hub-app-mode .hub-main-col { height: 100%; min-height: 0; }
+.hub-shell.hub-app-mode .hub-apps { height: auto; flex: 1 1 auto; min-height: 0; margin-top: 12px; }
+
+/* Tablet acostada (900–1099px): tres columnas de módulos; con dos, nueve módulos eran cinco
+   filas y había que bajar para encontrar Reportes. */
+@media (min-width: 900px) and (max-width: 1099px) {
+  .hub-module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .hub-brand-card { grid-column: span var(--span, 1); min-height: 150px; }
+  .hub-module-card { min-height: 160px; padding: 18px; }
+}
+
+/* Celular: si los accesos rápidos son impares, el último va a lo ancho (sin hueco). */
+.hub-m-grid > .hub-m-card:last-child:nth-child(odd) { grid-column: 1 / -1; min-height: 0; }
+
+/* Título de la lista de módulos dentro de "Más". */
+.hub-sheet-title {
+  margin: 6px 6px 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--fh-muted);
+}
+
+@media (pointer: coarse) {
+  /* Todo lo que se toca, de al menos 44px de alto. */
+  .hub-nav-item { min-height: 46px; }
+  .hub-appnav-item,
+  .hub-appnav-back { min-height: 46px; }
+  .hub-sheet-row { min-height: 52px; }
+  .hub-search { height: 46px; }
+  /* 16px: con menos, el iPad hace zoom al tocar el buscador. */
+  .hub-search input { font-size: 16px; }
+  /* "Ctrl K" no existe sin teclado. */
+  .hub-search-kbd { display: none; }
+  /* La fila de íconos para cambiar de sistema (barra ancha, tablet acostada): en dos filas de
+     cinco y del alto de un dedo; en una sola fila cada ícono medía 22px de ancho. */
+  .hub-switcher { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .hub-switch-item { height: 44px; }
+  .hub-switch-item svg, .hub-switch-item i { width: 19px; height: 19px; }
+  /* Textos de la actividad un poco más grandes (se leen con la tablet en la mano). */
+  .hub-activity-text strong { font-size: 14px; }
+  .hub-activity-text small,
+  .hub-activity-when { font-size: 13px; }
+  .hub-module-desc { font-size: 14px; }
+  .hub-activity-row { min-height: 56px; }
+  /* Sin mouse no hay hover: que una tarjeta no quede "levantada" después de tocarla. */
+  .hub-module-card:hover { transform: none; }
+}
+
+@media (pointer: coarse) and (max-width: 1099px) {
+  .hub-nav-item,
+  .hub-appnav-item,
+  .hub-appnav-back { min-height: 56px; }
 }

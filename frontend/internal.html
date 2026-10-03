@@ -11,9 +11,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=4.13.1">
-  <link rel="stylesheet" href="css/internal.css?v=1.5.0">
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/style.css?v=5.0.1003">
+  <link rel="stylesheet" href="css/internal.css?v=5.0.1003">
+  <!-- Versión fija, como el resto de la suite: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 
@@ -80,7 +81,7 @@
         <div class="int-pane" id="paneConversaciones">
           <div class="int-search">
             <i data-lucide="search"></i>
-            <input type="text" id="threadSearch" placeholder="Buscar conversación...">
+            <input type="search" id="threadSearch" placeholder="Buscar conversación..." aria-label="Buscar conversación" enterkeyhint="search">
           </div>
           <div class="int-list" id="threadList"></div>
         </div>
@@ -89,7 +90,7 @@
         <div class="int-pane" id="paneDirectorio" hidden>
           <div class="int-search">
             <i data-lucide="search"></i>
-            <input type="text" id="peopleSearch" placeholder="Buscar persona o sucursal...">
+            <input type="search" id="peopleSearch" placeholder="Buscar persona o sucursal..." aria-label="Buscar persona o sucursal" enterkeyhint="search">
           </div>
           <div class="int-list" id="peopleList"></div>
         </div>
@@ -99,8 +100,8 @@
       <section class="int-chat" id="intChat">
         <div class="int-chat-empty" id="chatEmpty">
           <span class="int-empty-icon"><i data-lucide="messages-square"></i></span>
-          <strong>Elegí una conversación</strong>
-          <p>Escribile a cualquier compañero, de cualquier sucursal, o al canal de tu equipo.</p>
+          <strong>Elige una conversación</strong>
+          <p>Escríbele a cualquier compañero, de cualquier sucursal, o al canal de tu equipo.</p>
         </div>
 
         <div class="int-chat-live" id="chatLive" hidden>
@@ -114,7 +115,7 @@
               <small id="chatSubtitle"></small>
             </div>
             <span class="int-chat-kind" id="chatKind" hidden></span>
-            <button type="button" class="int-chat-action" id="btnClearChat" aria-label="Vaciar chat" title="Vaciar chat">
+            <button type="button" class="int-chat-action" id="btnClearChat" aria-label="Vaciar esta conversación (solo para ti)" title="Vaciar esta conversación (solo para ti)">
               <i data-lucide="trash-2"></i>
             </button>
           </header>
@@ -137,7 +138,7 @@
             <button type="button" class="int-attach-btn" id="btnAttach" aria-label="Adjuntar foto o PDF" title="Adjuntar foto o PDF">
               <i data-lucide="paperclip"></i>
             </button>
-            <textarea id="composerInput" rows="1" placeholder="Escribí un mensaje..." maxlength="4000"></textarea>
+            <textarea id="composerInput" rows="1" placeholder="Escribe un mensaje..." aria-label="Mensaje" maxlength="4000"></textarea>
             <button type="submit" class="int-send" id="btnSend" aria-label="Enviar mensaje">
               <i data-lucide="send-horizontal"></i>
             </button>
@@ -164,13 +165,13 @@
     <span id="toastMessage">Listo.</span>
   </div>
 
-  <script src="js/utils.js?v=3.5.0"></script>
-  <script src="js/api.js?v=4.1.0"></script>
+  <script src="js/utils.js?v=5.0.1003"></script>
+  <script src="js/api.js?v=5.0.1003"></script>
   <script src="js/ws.js?v=4.2.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/modules/push.js?v=4.0.0"></script>
-  <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/internal.js?v=1.3.0"></script>
+  <script src="js/shared/shell.js?v=5.0.1003"></script>
+  <script src="js/shared/native-app.js?v=5.0.1003"></script>
+  <script src="js/modules/internal.js?v=5.0.1003"></script>
 </body>
 </html>

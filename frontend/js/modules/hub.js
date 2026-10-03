@@ -31,7 +31,9 @@ const HUB_MODULES = [
     tags: ['Clientes', 'Pedidos', 'Soporte'], icon: 'message-square', route: '/app',
   },
   {
-    id: 'operacion', name: 'Operación de Sucursal', shortName: 'Operación',
+    // shortName distinto del de "Centro de operación": en el celular y en la barra de íconos
+    // las dos salían como "Operación" y no había cómo saber cuál era cuál.
+    id: 'operacion', name: 'Operación de Sucursal', shortName: 'Sucursal',
     description: 'Recibir mercancía, contar, registrar merma, solicitar insumos, transferir y reportar incidencias.',
     shortDescription: 'Lo del día en la sucursal',
     tags: ['Sucursales', 'Tareas'], icon: 'clipboard-list', route: '/operacion',
@@ -57,7 +59,7 @@ const HUB_MODULES = [
     requiredPermission: 'reports.view',
   },
   {
-    id: 'gestion', name: 'Centro de operación', shortName: 'Operación',
+    id: 'gestion', name: 'Centro de operación', shortName: 'Centro de operación',
     description: 'Incidencias, tareas, solicitudes, traslados y cargamentos de todas las sucursales, con sus acciones.',
     shortDescription: 'Pendientes de todas las sucursales',
     tags: ['Incidencias', 'Tareas', 'Traslados'], icon: 'layout-grid', route: '/gestion',
@@ -89,8 +91,8 @@ const HUB_MODULES = [
 const HUB_SIDEBAR = [
   { id: 'inicio', label: 'Inicio', icon: 'house', route: '/hub' },
   { id: 'whatsapp', label: 'WhatsApp', title: 'Centro WhatsApp', icon: 'message-square', route: '/app' },
-  { id: 'operacion', label: 'Operación', title: 'Operación de Sucursal', icon: 'clipboard-list', route: '/operacion' },
-  { id: 'gestion', label: 'Centro', title: 'Centro de operación', icon: 'layout-grid', route: '/gestion', requiredPermission: 'purchasing.approve' },
+  { id: 'operacion', label: 'Sucursal', title: 'Operación de Sucursal', icon: 'clipboard-list', route: '/operacion' },
+  { id: 'gestion', label: 'Centro de operación', title: 'Centro de operación', icon: 'layout-grid', route: '/gestion', requiredPermission: 'purchasing.approve' },
   { id: 'inventario', label: 'Inventario', title: 'Inventario', icon: 'package', route: '/inventario' },
   { id: 'abastecimiento', label: 'Abastecimiento', title: 'Abastecimiento', icon: 'shopping-cart', route: '/abastecimiento', requiredPermission: 'purchasing.approve' },
   { id: 'recetas', label: 'Recetas', title: 'Recetas y food cost', icon: 'chef-hat', route: '/recetas', requiredPermission: 'reports.view' },
@@ -128,8 +130,11 @@ const APP_NAV_SOURCES = {
   '/interno': { roots: ['.int-tabs'], item: '.int-tab', label: 'span:not([class])', badge: '.int-tab-count' },
 };
 
-// Los cuatro accesos del celular (en ese orden); el resto va dentro de "Perfil".
-const HUB_MOBILE_QUICK = ['whatsapp', 'operacion', 'inventario', 'equipo'];
+// Accesos rápidos del celular (en ese orden); el resto va dentro de "Más". Gerencia (quien ve
+// reportes o aprueba compras) tiene los suyos: antes le tocaban los mismos cuatro del personal y
+// Centro de operación, Abastecimiento, Reportes y Recetas quedaban escondidos en el perfil.
+const HUB_MOBILE_QUICK_STAFF = ['whatsapp', 'operacion', 'inventario', 'equipo'];
+const HUB_MOBILE_QUICK_GERENCIA = ['gestion', 'whatsapp', 'inventario', 'abastecimiento', 'reportes', 'recetas'];
 const ACTIVITY_VISIBLE = 3;
 const ACTIVITY_MAX = 8;
 
@@ -229,7 +234,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     allowedSidebar = HUB_SIDEBAR.filter(allowed);
     renderSidebar(allowedSidebar);
     renderModuleGrid(modules);
-    renderMobile(modules);
+    renderMobile(modules, user);
+    // "Tareas" (barra inferior) y "Ver todo" de Pendiente hoy: gerencia ve las de todas las
+    // sucursales en el Centro de operación; el resto, las suyas en /tareas. Antes los dos iban a
+    // /operacion, que no es la lista de tareas.
+    const gestor = (user.permissions || []).includes('purchasing.approve');
+    document.querySelector('[data-bottom="tareas"]').setAttribute('href', gestor ? '/gestion?tab=tareas' : '/tareas');
+    $('hubPendingAll').setAttribute('href', gestor ? '/gestion' : '/tareas');
     utils.renderIcons();
     loadDashboardData();
 
@@ -295,7 +306,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     ['/app', 'whatsapp'],
     ['/operacion', 'operacion'],
     ['/prep', 'operacion'],        // Prep se abre desde Operación
+    ['/tareas', 'operacion'],      // Tareas y merma rápida también
+    ['/merma', 'operacion'],
     ['/inventario', 'inventario'],
+    // Antes estos tres no estaban: en la tablet, tocarlos en la barra sacaba del Panel General
+    // (página completa, sin la barra lateral para volver o cambiar de sistema).
+    ['/gestion', 'gestion'],
+    ['/abastecimiento', 'abastecimiento'],
+    ['/recetas', 'recetas'],
     ['/link', 'reportes'],
     ['/interno', 'equipo'],
     ['/administracion', 'ajustes'],
@@ -667,20 +685,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   // Celular: accesos rápidos, perfil, navegación inferior
   // ==========================================================================
-  function renderMobile(modules) {
-    const byId = Object.fromEntries(modules.map((m) => [m.id, m]));
-    $('hubMobileGrid').innerHTML = HUB_MOBILE_QUICK.filter((id) => byId[id]).map((id) => C.mobileModuleCard(byId[id])).join('');
+  /** Qué módulos van como accesos rápidos en el celular, según lo que puede hacer cada uno. */
+  function quickIdsFor(user, modules) {
+    const perms = (user && user.permissions) || [];
+    const has = (id) => modules.some((m) => m.id === id);
+    const gerencia = perms.includes('reports.view') || perms.includes('purchasing.approve');
+    const ids = (gerencia ? HUB_MOBILE_QUICK_GERENCIA : HUB_MOBILE_QUICK_STAFF).filter(has);
+    // Si a alguien le tocan menos de cuatro, se completa con los de siempre.
+    HUB_MOBILE_QUICK_STAFF.forEach((id) => { if (ids.length < 4 && has(id) && !ids.includes(id)) ids.push(id); });
+    return ids;
+  }
 
-    // Lo que no entra en los cuatro accesos (Administración, Reportes, Integraciones) sigue a
-    // mano dentro de Perfil: ningún módulo queda sin entrada en el celular.
-    const extra = modules.filter((m) => !HUB_MOBILE_QUICK.includes(m.id));
+  function renderMobile(modules, user) {
+    const byId = Object.fromEntries(modules.map((m) => [m.id, m]));
+    const quick = quickIdsFor(user, modules);
+    $('hubMobileGrid').innerHTML = quick.map((id) => C.mobileModuleCard(byId[id])).join('');
+
+    // Lo que no entra en los accesos rápidos sigue a mano dentro de "Más": ningún módulo queda
+    // sin entrada en el celular.
+    const extra = modules.filter((m) => !quick.includes(m.id));
     const integ = HUB_SIDEBAR.find((s) => s.id === 'integraciones');
-    const user = auth.getUser();
     const extraLinks = extra.map((m) => ({ label: m.name, icon: m.icon, route: m.route }));
     if (integ && (user?.permissions || []).includes(integ.requiredPermission)) {
       extraLinks.push({ label: integ.label, icon: integ.icon, route: integ.route });
     }
-    $('hubProfileLinks').innerHTML = extraLinks.map((l) => `
+    $('hubProfileLinks').innerHTML = (extraLinks.length ? '<p class="hub-sheet-title">Más módulos</p>' : '') + extraLinks.map((l) => `
       <a class="hub-sheet-row" href="${utils.escapeHtml(l.route)}">
         <i data-lucide="${utils.escapeHtml(l.icon)}" aria-hidden="true"></i><span>${utils.escapeHtml(l.label)}</span>
       </a>`).join('');
@@ -691,8 +720,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnNativeTest = $('btnNativeTest');
   if (btnNativeTest && window.FarmhouseNative) {
     btnNativeTest.hidden = false;
+    const nativeTestLabel = btnNativeTest.querySelector('span');
     btnNativeTest.addEventListener('click', async () => {
       btnNativeTest.disabled = true;
+      nativeTestLabel.textContent = 'Enviando la prueba…';
       try {
         await window.FarmhouseNative.activar();
         await window.FarmhouseNative.test();
@@ -701,6 +732,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         utils.showToast(err.message || 'No se pudo mandar la prueba.', 'error');
       } finally {
         btnNativeTest.disabled = false;
+        nativeTestLabel.textContent = 'Probar notificaciones';
       }
     });
   }
@@ -844,7 +876,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       route: s.has_issues ? `/inventario?view=cargamentos&shipment=${s.id}` : '/inventario',
     }));
     (requests || []).slice(0, 3).forEach((r) => entries.push({
-      at: r.created_at, icon: 'package-plus', tone: 'orange', badge: 'Operación',
+      at: r.created_at, icon: 'package-plus', tone: 'orange', badge: 'Sucursal',
       title: `Solicitud de insumos: ${r.item_name}`, subtitle: r.branch_name, route: '/operacion',
     }));
     return entries

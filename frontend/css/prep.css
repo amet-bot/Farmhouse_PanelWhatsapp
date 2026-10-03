@@ -1,19 +1,32 @@
-/* Farmhouse Link — Prep de Bowls
-   El armazón (gate, header) viene de inventory.css. Acá el contenido propio: pestañas,
-   checkpoints tipo chip, secciones de ítems y el editor de plantilla. */
+/* Farmhouse Link — Preparación del día (antes "Prep de Bowls")
+   El armazón (gate, header) viene de inventory.css. Aquí el contenido propio: pestañas,
+   revisiones tipo chip, secciones de insumos y el editor de la lista. */
 
 /* width: 100% por lo mismo que .tablet-body: hijo de un flex en columna con margin auto. */
 .prep-body {
   width: 100%;
-  max-width: 720px;
+  max-width: 900px;
   margin: 0 auto;
-  padding: 24px 20px 60px;
+  padding: 24px 20px 40px;
 }
+
+.prep-branch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.prep-branch[hidden] { display: none; }
+.prep-branch select { min-height: 44px; max-width: 280px; font-size: 16px; }
 
 .prep-empty {
   text-align: center;
   padding: 60px 20px;
   color: var(--text-muted);
+  font-size: 16px;
 }
 
 .prep-empty i {
@@ -22,13 +35,23 @@
   margin-bottom: 12px;
 }
 
+.prep-empty .inv-primary-btn { min-height: 48px; padding: 0 22px; font-size: 15px; }
+
 .prep-empty-hint {
   color: var(--text-muted);
   padding: 20px;
   text-align: center;
+  font-size: 15px;
 }
 
-/* Dentro del Panel General las pestañas van en el sidebar del hub (hub.js las lee de acá). */
+.prep-step-label {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Dentro del Panel General las pestañas van en el sidebar del hub (hub.js las lee de aquí). */
 .fh-embedded .prep-tabs { display: none; }
 
 .prep-tabs {
@@ -39,9 +62,12 @@
 }
 
 .prep-tab {
-  padding: 10px 16px;
+  min-height: 48px;
+  padding: 10px 18px;
   border: none;
   background: none;
+  font-family: inherit;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
@@ -53,20 +79,23 @@
   border-bottom-color: var(--green);
 }
 
-/* ---- Checklist ---- */
+/* ---- Anotar cantidades ---- */
 .prep-checkpoint-row {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
 .prep-chip {
-  padding: 10px 18px;
+  min-height: 48px;
+  padding: 0 22px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--panel-bg);
   color: var(--text-primary);
+  font-family: inherit;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -83,11 +112,11 @@
 
 .prep-section-title {
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 13.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
-  margin: 0 0 10px;
+  margin: 0 0 6px;
 }
 
 .prep-item-row {
@@ -95,7 +124,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 12px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--line-light);
 }
 
@@ -103,10 +132,14 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
+
+.prep-item-info strong { font-size: 16px; line-height: 1.3; }
 
 .prep-item-info small {
   color: var(--text-muted);
+  font-size: 14px;
 }
 
 .prep-item-note {
@@ -114,17 +147,25 @@
 }
 
 .prep-item-input {
-  width: 90px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 1rem;
+  flex: 0 0 auto;
+  width: 120px;
+  height: 52px;
+  padding: 0 12px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 700;
   text-align: right;
   background: var(--bg-primary);
   color: var(--text-primary);
+  -moz-appearance: textfield;
 }
+.prep-item-input::-webkit-outer-spin-button,
+.prep-item-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.prep-item-input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15); }
 
-/* ---- Editor de plantilla ---- */
+/* ---- Editar la lista ---- */
 .prep-panel {
   background: var(--panel-bg);
   border: 1px solid var(--line);
@@ -144,51 +185,65 @@
 
 .prep-panel-head h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
 }
+
+.prep-panel-head .inv-panel-note { font-size: 14px; }
 
 .prep-checkpoint-edit {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 10px;
 }
 
 .prep-checkpoint-edit-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   background: var(--panel-subtle);
-  border-radius: 8px;
-  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0 0 0 12px;
 }
 
 .prep-checkpoint-input {
+  min-height: 44px;
   border: none;
   background: none;
-  font-size: 0.9rem;
-  width: 130px;
+  font-family: inherit;
+  font-size: 16px;
+  width: 140px;
   color: var(--text-primary);
 }
 
+/* Quitar revisión: 44 × 44 de área de toque. */
 .prep-checkpoint-edit-item button {
+  width: 44px;
+  height: 44px;
   border: none;
+  border-radius: 10px;
   background: none;
   cursor: pointer;
   color: var(--text-muted);
-  display: flex;
+  display: grid;
+  place-items: center;
 }
+.prep-checkpoint-edit-item button:hover { color: var(--red); }
 
 .prep-text-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 44px;
   border: none;
   background: none;
   color: var(--green-soft-text);
+  font-family: inherit;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  padding: 6px 0;
+  padding: 6px 4px;
 }
 
 .prep-bulk-paste {
@@ -200,20 +255,27 @@
 
 .prep-bulk-paste p {
   margin: 0 0 8px;
-  font-size: 0.85rem;
+  font-size: 14px;
   color: var(--text-muted);
 }
 
 .prep-bulk-paste textarea {
   width: 100%;
+  box-sizing: border-box;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px;
   font-family: monospace;
-  font-size: 0.85rem;
+  font-size: 15px;
   margin-bottom: 10px;
   background: var(--bg-primary);
   color: var(--text-primary);
+}
+
+.prep-edit-hint {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--text-muted);
 }
 
 .prep-item-table {
@@ -224,7 +286,7 @@
 
 .prep-item-table th {
   text-align: left;
-  font-size: 0.78rem;
+  font-size: 13px;
   color: var(--text-muted);
   padding: 6px 4px;
 }
@@ -235,36 +297,67 @@
 
 .prep-item-table input {
   width: 100%;
+  min-height: 44px;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-size: 0.85rem;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 16px;
   background: var(--bg-primary);
   color: var(--text-primary);
   box-sizing: border-box;
 }
 
+/* Renglón a medias que no se puede guardar (sin sección, sin nombre o cantidad no numérica). */
+.prep-item-table input.is-invalid {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+}
+
+/* Quitar insumo: 44 × 44 de área de toque. En la tabla ancha solo el ícono; en la tarjeta
+   (tablet parada / celular) también la palabra. */
 .prep-row-delete {
+  min-width: 44px;
+  min-height: 44px;
   border: none;
+  border-radius: 10px;
   background: none;
   color: var(--red);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  padding: 4px;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+}
+.prep-row-delete:hover { background: var(--danger-bg); }
+.prep-row-delete span { display: none; }
+
+.prep-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
-/* Botón de guardar — mismo estilo que tablet.css usa para sus formularios, copiado acá para no
+/* Botón de guardar — mismo estilo que tablet.css usa para sus formularios, copiado aquí para no
    tener que cargar esa hoja entera solo por esta clase. */
 .tablet-submit-btn {
   width: 100%;
+  min-height: 52px;
   padding: 14px;
   border: none;
   border-radius: 12px;
   background: var(--green);
   color: var(--text-inverse);
+  font-family: inherit;
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 1.05rem;
   cursor: pointer;
   margin-top: 4px;
 }
@@ -273,8 +366,84 @@
   background: var(--green-dark);
 }
 
-@media (max-width: 640px) {
+.tablet-submit-btn:disabled { opacity: .6; cursor: progress; }
+
+/* El botón de guardar queda pegado abajo mientras se baja por la lista. */
+.prep-sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin-top: 8px;
+  padding: 12px 0 calc(14px + env(safe-area-inset-bottom, 0px));
+  background: var(--inv-bg, var(--bg-primary));
+  border-top: 1px solid var(--line);
+}
+
+.prep-form-error {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+.prep-form-error[hidden] { display: none; }
+
+/* Confirmación dentro de la página (prep.js → askConfirm). */
+.prep-ask .modal-footer { gap: 10px; }
+.prep-ask .modal-footer button { flex: 1 1 0; justify-content: center; min-height: 48px; font-size: 15px; }
+.prep-ask-msg { margin: 0; font-size: 1rem; line-height: 1.5; color: var(--text-secondary); }
+
+/* Tablet parada y celular: cada insumo es una tarjeta con sus campos rotulados (seis columnas
+   no entran cómodas en 768 px). */
+@media (max-width: 900px) {
+  .prep-item-table, .prep-item-table tbody { display: block; }
   .prep-item-table thead { display: none; }
-  .prep-item-table tr { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); padding: 8px 0; }
-  .prep-item-table td { flex: 1 1 45%; }
+  .prep-item-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "sec name"
+      "unit par"
+      "notes notes"
+      "del del";
+    gap: 10px 12px;
+    margin-bottom: 12px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel-subtle);
+  }
+  .prep-item-table td { padding: 0; min-width: 0; }
+  .prep-item-table td:nth-child(1) { grid-area: sec; }
+  .prep-item-table td:nth-child(2) { grid-area: name; }
+  .prep-item-table td:nth-child(3) { grid-area: unit; }
+  .prep-item-table td:nth-child(4) { grid-area: par; }
+  .prep-item-table td:nth-child(5) { grid-area: notes; }
+  .prep-item-table td.prep-del-cell { grid-area: del; justify-self: end; }
+  .prep-item-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .prep-row-delete span { display: inline; }
+}
+
+/* Tablet acostada / laptop: las secciones en dos columnas (se llenan de arriba a abajo, primero
+   la izquierda), para no dejar media pantalla vacía. */
+@media (min-width: 1000px) {
+  .prep-body { max-width: 1100px; }
+  #prepSections { columns: 2; column-gap: 36px; }
+  .prep-section { break-inside: avoid; }
+}
+
+@media (max-width: 560px) {
+  .prep-body { padding: 18px 14px 32px; }
+  .prep-item-input { width: 100px; height: 50px; font-size: 18px; }
+  .prep-chip { padding: 0 18px; }
+  .prep-branch select { flex: 1; max-width: none; }
 }

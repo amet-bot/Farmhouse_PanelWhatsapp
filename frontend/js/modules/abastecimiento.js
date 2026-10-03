@@ -1,9 +1,10 @@
 /**
  * Farmhouse Link — Abastecimiento
  *
- * Cinco pestañas: cuánto le queda a cada sucursal de cada insumo (una columna por sucursal),
- * mínimos y pares por sucursal, el pedido sugerido por proveedor según el ritmo de uso, las
- * órdenes de compra (cargamentos agendados con líneas) y los precios por proveedor.
+ * Seis pestañas: cuánto le queda a cada sucursal de cada insumo (una columna por sucursal),
+ * mínimos y cantidad ideal ("par" en el servidor) por sucursal, el pedido sugerido por proveedor
+ * según el ritmo de uso, las órdenes de compra (cargamentos agendados con líneas), los precios
+ * por proveedor y los primeros pasos de cada sucursal (código interno "arranque").
  *
  * Sin datos todavía (ninguna sucursal cargó cargamentos ni conteos) la pantalla lo dice tal cual
  * y explica de dónde saldrán, en vez de mostrar ceros como si fueran reales.
@@ -30,7 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     tab: params.get('tab') || 'existencias',
     branchId: Number(params.get('branch')) || user.branch_id || null,
     branches: [], suppliers: [],
-    settingsRows: [], settingsDirty: new Map(),
+    settingsRows: [], settingsDirty: new Map(), settingsBranchId: null,
     suggested: null, orders: [],
   };
   const numFmt = new Intl.NumberFormat('es-PA', { maximumFractionDigits: 2 });
@@ -54,9 +55,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     sel.value = id === 'ordBranch' && isGlobal ? '' : String(state.branchId || '');
     sel.disabled = !isGlobal;
     sel.addEventListener('change', () => {
-      if (id !== 'ordBranch') { state.branchId = Number(sel.value); branchSelects.filter((x) => x !== 'ordBranch').forEach((x) => { $(x).value = String(state.branchId); }); }
+      if (id !== 'ordBranch') {
+        // Cambiar de sucursal recarga los mínimos: si había cambios sin guardar, se pregunta antes.
+        if (!confirmDiscardSettings()) { sel.value = String(state.branchId || ''); return; }
+        state.branchId = Number(sel.value);
+        branchSelects.filter((x) => x !== 'ordBranch').forEach((x) => { $(x).value = String(state.branchId); });
+        // Mínimos y pedido sugerido dependen de la sucursal: lo cargado de la otra ya no sirve.
+        ['minimos', 'sugerido'].forEach((t) => { if (t !== state.tab) loaded.delete(t); });
+        const u = new URL(location.href);
+        u.searchParams.set('branch', state.branchId);
+        history.replaceState(null, '', u);
+      }
       loadTab(state.tab);
     });
+  });
+
+  // ---- cambios sin guardar en Mínimos ----
+  function confirmDiscardSettings() {
+    if (!state.settingsDirty.size) return true;
+    const n = state.settingsDirty.size;
+    if (!confirm(`Tienes ${n} insumo${n === 1 ? '' : 's'} con cambios sin guardar en Mínimos. ¿Descartar esos cambios?`)) return false;
+    state.settingsDirty.clear();
+    updateSaveBtn();
+    return true;
+  }
+  window.addEventListener('beforeunload', (e) => {
+    if (!state.settingsDirty.size) return;
+    e.preventDefault();
+    e.returnValue = '';
   });
 
   // ---- pestañas ----
@@ -86,7 +112,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!loaded.has(tab)) loadTab(tab);
   }
   $('supTabs').addEventListener('click', (e) => { const b = e.target.closest('.ops-tab'); if (b) showTab(b.dataset.tab); });
-  $('btnRefresh').addEventListener('click', () => loadTab(state.tab));
+  $('btnRefresh').addEventListener('click', () => {
+    if (state.tab === 'minimos' && !confirmDiscardSettings()) return;
+    loadTab(state.tab);
+  });
   function loadTab(tab) {
     loaded.add(tab);
     ({ existencias: loadStock, minimos: loadSettings, sugerido: loadSuggested, ordenes: loadOrders, precios: loadPrices, arranque: loadSetup })[tab]();
@@ -162,7 +191,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('stockOnlyLow').addEventListener('change', loadStock);
 
   function daysChip(cell) {
-    if (cell.days_left == null) return '<span class="sup-days-chip none" title="Sin ritmo de uso todavía">sin ritmo</span>';
+    if (cell.days_left == null) return '<span class="sup-days-chip none" title="Todavía no hay uso registrado para calcularlo">sin uso aún</span>';
     const d = Number(cell.days_left);
     const cls = d < 2 ? 'bad' : d < 5 ? 'warn' : '';
     return `<span class="sup-days-chip ${cls}" title="Para cuántos días alcanza al ritmo de los últimos 14 días">${d < 1 ? '<1' : Math.round(d)} d</span>`;
@@ -192,7 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="sup-empty">
           <i data-lucide="warehouse"></i>
           <h3>Todavía no hay datos de existencias</h3>
-          <p>Cuando cada sucursal registre su primer conteo de inventario o reciba su primer cargamento, acá verás cuánto le queda de cada insumo, para cuántos días le alcanza y qué está bajo el mínimo.</p>
+          <p>Cuando cada sucursal registre su primer conteo de inventario o reciba su primer cargamento, aquí verás cuánto le queda de cada insumo, para cuántos días le alcanza y qué está bajo el mínimo.</p>
           <div class="sup-branch-pills">${data.branches.map((b) => `<span>${esc(b.name)} · sin datos</span>`).join('')}</div>
           <div class="sup-empty-actions">
             <a class="inv-primary-btn" href="/inventario?view=conteos"><i data-lucide="clipboard-check"></i> Hacer el conteo de arranque</a>
@@ -235,15 +264,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     box.innerHTML = '<div class="ops-loading">Cargando…</div>';
     state.settingsDirty.clear();
     updateSaveBtn();
+    const branchId = state.branchId;
     try {
-      const data = await api.get(`/supply/settings?branch_id=${state.branchId}`);
+      const data = await api.get(`/supply/settings?branch_id=${branchId}`);
+      if (branchId !== state.branchId) return;   // cambiaron de sucursal mientras cargaba
       state.settingsRows = data.rows;
+      state.settingsBranchId = branchId;
       renderSettings();
     } catch (err) { box.innerHTML = `<div class="ops-empty">${esc(err.message || 'No se pudieron cargar los mínimos.')}</div>`; }
   }
 
   function supplierOptions(selected) {
-    return '<option value="">—</option>' + state.suppliers.map((s) => `<option value="${s.id}" ${Number(selected) === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+    return '<option value="">Sin proveedor</option>' + state.suppliers.map((s) => `<option value="${s.id}" ${Number(selected) === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
   }
 
   function renderSettings() {
@@ -251,27 +283,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     const q = $('minSearch').value.trim().toLowerCase();
     const rows = state.settingsRows.filter((r) => !q || `${r.name} ${r.category || ''}`.toLowerCase().includes(q));
     if (!state.settingsRows.length) { box.innerHTML = '<div class="ops-empty">El catálogo de insumos está vacío.</div>'; return; }
-    if (!rows.length) { box.innerHTML = '<div class="ops-empty">Ningún insumo coincide.</div>'; return; }
+    if (!rows.length) { box.innerHTML = '<div class="ops-empty">Ningún insumo coincide con la búsqueda.</div>'; return; }
     const ro = canEdit ? '' : 'disabled';
-    box.innerHTML = `
-      <table class="ops-table">
-        <thead><tr><th>Insumo</th><th class="num">Queda</th><th class="num">Uso/día</th><th class="num">Alcanza</th><th class="num">Mínimo</th><th class="num">Par</th><th>Proveedor</th><th class="num">Días entrega</th></tr></thead>
+    const nombre = (r) => esc(r.name);
+    box.innerHTML = `${canEdit ? '' : '<p class="sup-tab-hint">Solo puedes ver los mínimos: cambiarlos es para encargados con permiso de ajustar inventario.</p>'}
+      <table class="ops-table ops-cards sup-min-table">
+        <thead><tr><th>Insumo</th><th class="num">Queda</th><th class="num">Uso por día</th><th class="num">Alcanza para</th><th class="num">Mínimo</th><th class="num">Cantidad ideal</th><th>Proveedor</th><th class="num">Días de entrega</th></tr></thead>
         <tbody>${rows.map((r) => {
           const d = state.settingsDirty.get(r.inventory_item_id) || {};
           const v = (k) => (k in d ? d[k] : r[k]);
           return `<tr class="${r.below_min ? 'is-low' : ''}" data-id="${r.inventory_item_id}">
-            <td><strong>${esc(r.name)}</strong><br><small>${esc(r.category || '')} · ${esc(r.unit)}</small></td>
-            <td class="num">${num(r.stock)}${Number(r.in_transit) > 0 ? `<br><small>+${num(r.in_transit)} en camino</small>` : ''}</td>
-            <td class="num">${r.usage_per_day != null ? num(r.usage_per_day) : '—'}</td>
-            <td class="num">${r.days_left != null ? `${Math.round(Number(r.days_left))} d` : '—'}</td>
-            <td class="num"><input class="sup-min-input ${'min_quantity' in d ? 'changed' : ''}" data-field="min_quantity" type="number" min="0" step="0.001" inputmode="decimal" value="${v('min_quantity') ?? ''}" ${ro} /></td>
-            <td class="num"><input class="sup-min-input ${'par_quantity' in d ? 'changed' : ''}" data-field="par_quantity" type="number" min="0" step="0.001" inputmode="decimal" value="${v('par_quantity') ?? ''}" ${ro} /></td>
-            <td><select class="sup-min-select ${'supplier_id' in d ? 'changed' : ''}" data-field="supplier_id" ${ro}>${supplierOptions(v('supplier_id'))}</select></td>
-            <td class="num"><input class="sup-min-input ${'lead_days' in d ? 'changed' : ''}" data-field="lead_days" type="number" min="0" max="60" step="1" inputmode="numeric" value="${v('lead_days') ?? ''}" ${ro} /></td>
+            <td class="ops-td-main"><strong>${nombre(r)}</strong>${r.below_min ? ' <span class="ops-chip overdue">Bajo el mínimo</span>' : ''}<br><small>${esc(r.category || 'Sin categoría')} · en ${esc(r.unit)}</small></td>
+            <td class="num" data-label="Queda">${num(r.stock)} <small>${esc(r.unit)}</small>${Number(r.in_transit) > 0 ? `<br><small>+${num(r.in_transit)} en camino</small>` : ''}</td>
+            <td class="num" data-label="Uso por día">${r.usage_per_day != null ? num(r.usage_per_day) : '—'}</td>
+            <td class="num" data-label="Alcanza para">${r.days_left != null ? `${Math.round(Number(r.days_left))} días` : '—'}</td>
+            <td class="num" data-label="Mínimo"><input class="sup-min-input ${'min_quantity' in d ? 'changed' : ''}" data-field="min_quantity" type="number" min="0" step="0.001" inputmode="decimal" value="${v('min_quantity') ?? ''}" aria-label="Mínimo de ${nombre(r)}" ${ro} /></td>
+            <td class="num" data-label="Cantidad ideal"><input class="sup-min-input ${'par_quantity' in d ? 'changed' : ''}" data-field="par_quantity" type="number" min="0" step="0.001" inputmode="decimal" value="${v('par_quantity') ?? ''}" aria-label="Cantidad ideal de ${nombre(r)}" ${ro} /></td>
+            <td data-label="Proveedor"><select class="sup-min-select ${'supplier_id' in d ? 'changed' : ''}" data-field="supplier_id" aria-label="Proveedor de ${nombre(r)}" ${ro}>${supplierOptions(v('supplier_id'))}</select></td>
+            <td class="num" data-label="Días de entrega"><input class="sup-min-input ${'lead_days' in d ? 'changed' : ''}" data-field="lead_days" type="number" min="0" max="60" step="1" inputmode="numeric" pattern="[0-9]*" value="${v('lead_days') ?? ''}" aria-label="Días de entrega de ${nombre(r)}" ${ro} /></td>
           </tr>`;
         }).join('')}</tbody>
       </table>`;
   }
+  $('minBox').addEventListener('change', (e) => { if (e.target.matches('select[data-field]')) e.target.dispatchEvent(new Event('input', { bubbles: true })); });
   $('minBox').addEventListener('input', (e) => {
     const inp = e.target.closest('[data-field]');
     if (!inp) return;
@@ -282,26 +316,60 @@ document.addEventListener('DOMContentLoaded', async () => {
     inp.classList.add('changed');
     updateSaveBtn();
   });
+  let savingSettings = false;
   function updateSaveBtn() {
-    const btn = $('btnSaveSettings');
-    btn.disabled = !canEdit || !state.settingsDirty.size;
-    btn.innerHTML = `<i data-lucide="check"></i> Guardar cambios${state.settingsDirty.size ? ` (${state.settingsDirty.size})` : ''}`;
+    const n = state.settingsDirty.size;
+    const label = savingSettings ? 'Guardando…' : `<i data-lucide="check"></i> Guardar cambios${n ? ` (${n})` : ''}`;
+    ['btnSaveSettings', 'btnSaveSettingsBar'].forEach((id) => {
+      const btn = $(id);
+      btn.disabled = savingSettings || !canEdit || !n;
+      btn.innerHTML = label;
+    });
+    $('btnDiscardSettings').disabled = savingSettings;
+    $('minSaveBar').hidden = !n || !canEdit;
+    $('minSaveBarText').textContent = `${n} insumo${n === 1 ? '' : 's'} con cambios sin guardar`;
     utils.renderIcons();
   }
-  $('btnSaveSettings').addEventListener('click', async () => {
+  async function saveSettings() {
+    if (savingSettings || !state.settingsDirty.size) return;
+    // Validación antes de mandar: números no negativos y el ideal no por debajo del mínimo.
     const payload = [];
     for (const [id, d] of state.settingsDirty) {
       const r = state.settingsRows.find((x) => x.inventory_item_id === id);
+      if (!r) continue;
       const v = (k) => (k in d ? d[k] : r[k]);
-      payload.push({ inventory_item_id: id, branch_id: state.branchId, min_quantity: v('min_quantity') ?? null, par_quantity: v('par_quantity') ?? null, supplier_id: v('supplier_id') || null, lead_days: v('lead_days') ?? null });
+      const min = v('min_quantity'), par = v('par_quantity'), lead = v('lead_days');
+      if ([min, par, lead].some((x) => x != null && x !== '' && (Number.isNaN(Number(x)) || Number(x) < 0))) {
+        utils.showToast(`Revisa «${r.name}»: los números no pueden ser negativos.`, 'error'); return;
+      }
+      if (min != null && min !== '' && par != null && par !== '' && Number(par) < Number(min)) {
+        utils.showToast(`Revisa «${r.name}»: la cantidad ideal no puede ser menor que el mínimo.`, 'error'); return;
+      }
+      payload.push({ inventory_item_id: id, branch_id: state.settingsBranchId || state.branchId, min_quantity: min ?? null, par_quantity: par ?? null, supplier_id: v('supplier_id') || null, lead_days: lead ?? null });
     }
-    $('btnSaveSettings').disabled = true;
+    savingSettings = true;
+    updateSaveBtn();
     try {
       const res = await api.put('/supply/settings', payload);
-      utils.showToast(`Guardado: ${res.saved} insumo${res.saved === 1 ? '' : 's'}.`, 'success');
+      utils.showToast(`Cambios guardados: ${res.saved} insumo${res.saved === 1 ? '' : 's'}.`, 'success');
+      state.settingsDirty.clear();
       loaded.delete('sugerido'); loaded.delete('existencias');
+      savingSettings = false;
       loadSettings();
-    } catch (err) { utils.showToast(err.message || 'No se pudo guardar.', 'error'); updateSaveBtn(); }
+    } catch (err) {
+      utils.showToast(err.message || 'No se pudieron guardar los cambios. Intenta de nuevo.', 'error');
+    } finally {
+      savingSettings = false;
+      updateSaveBtn();
+    }
+  }
+  $('btnSaveSettings').addEventListener('click', saveSettings);
+  $('btnSaveSettingsBar').addEventListener('click', saveSettings);
+  $('btnDiscardSettings').addEventListener('click', () => {
+    if (!confirm('¿Descartar los cambios sin guardar?')) return;
+    state.settingsDirty.clear();
+    updateSaveBtn();
+    renderSettings();
   });
 
   // =========================================================================
@@ -319,7 +387,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const s = state.suggested;
     $('countSugerido').textContent = s.lines;
     $('countSugerido').hidden = !s.lines;
-    $('sugNote').textContent = `Según el uso de los últimos ${s.usage_days} días, lo que ya viene en órdenes y lo que pidió el equipo.`;
+    $('sugNote').textContent = `Según el uso de los últimos ${s.usage_days} días, lo que ya viene en órdenes y lo que pidió el equipo. Puedes cambiar la cantidad antes de crear la orden.`;
     if (!s.groups.length) {
       box.innerHTML = `
         <div class="sup-empty">
@@ -333,22 +401,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       s.groups.map((g, gi) => `
         <div class="sup-group" data-group="${gi}">
           <div class="sup-group-head">
-            <label class="sup-check"><input type="checkbox" class="sup-group-check" checked /></label>
-            <strong>${esc(g.supplier_name)}</strong>
-            <span class="sup-group-cost">${g.lines.length} línea${g.lines.length === 1 ? '' : 's'} · ${money(g.est_cost)}</span>
-            ${canEdit ? `<button type="button" class="ops-btn primary" data-order-group="${gi}">Crear orden</button>` : ''}
+            <label class="sup-check sup-group-label"><input type="checkbox" class="sup-group-check" checked aria-label="Marcar o desmarcar todo ${esc(g.supplier_name)}" /> <strong>${esc(g.supplier_name)}</strong></label>
+            <span class="sup-group-cost">${g.lines.length} insumo${g.lines.length === 1 ? '' : 's'} · ${money(g.est_cost)}</span>
+            ${canEdit ? `<button type="button" class="ops-btn primary" data-order-group="${gi}"><i data-lucide="file-plus-2"></i> Crear orden de este proveedor</button>` : ''}
           </div>
-          <table class="ops-table">
-            <thead><tr><th></th><th>Insumo</th><th class="num">Queda</th><th class="num">Alcanza</th><th class="num">En camino</th><th class="num">Pedir</th><th class="num">Costo est.</th></tr></thead>
+          <table class="ops-table ops-cards">
+            <thead><tr><th>Insumo</th><th class="num">Queda</th><th class="num">Alcanza para</th><th class="num">En camino</th><th class="num">Pedir</th><th class="num">Costo estimado</th></tr></thead>
             <tbody>${g.lines.map((l, li) => `
               <tr class="${l.reasons.includes('bajo el mínimo') ? 'is-low' : ''}" data-line="${li}">
-                <td><input type="checkbox" class="sup-line-check" checked /></td>
-                <td><strong>${esc(l.name)}</strong><br>${l.reasons.map((r) => `<span class="sup-reason ${r === 'bajo el mínimo' ? 'low' : ''}">${esc(r)}</span>`).join('')}</td>
-                <td class="num">${num(l.stock)} ${esc(l.unit)}${l.min_quantity != null ? `<br><small>mín. ${num(l.min_quantity)}${l.par_quantity != null ? ` · par ${num(l.par_quantity)}` : ''}</small>` : ''}</td>
-                <td class="num">${l.days_left != null ? `${Math.round(Number(l.days_left))} d` : '—'}</td>
-                <td class="num">${Number(l.in_transit) > 0 ? num(l.in_transit) : '—'}</td>
-                <td class="num"><input class="sup-qty-input" type="number" min="0" step="0.001" inputmode="decimal" value="${l.suggested_qty}" /> <small>${esc(l.unit)}</small></td>
-                <td class="num">${l.est_cost != null ? money(l.est_cost) : '—'}</td>
+                <td class="ops-td-main"><label class="sup-line-label"><input type="checkbox" class="sup-line-check" checked aria-label="Incluir ${esc(l.name)} en la orden" /> <span><strong>${esc(l.name)}</strong>${l.reasons.map((r) => `<span class="sup-reason ${r === 'bajo el mínimo' ? 'low' : ''}">${esc(r)}</span>`).join('')}</span></label></td>
+                <td class="num" data-label="Queda">${num(l.stock)} ${esc(l.unit)}${l.min_quantity != null ? `<br><small>mín. ${num(l.min_quantity)}${l.par_quantity != null ? ` · ideal ${num(l.par_quantity)}` : ''}</small>` : ''}</td>
+                <td class="num" data-label="Alcanza para">${l.days_left != null ? `${Math.round(Number(l.days_left))} días` : '—'}</td>
+                <td class="num" data-label="En camino">${Number(l.in_transit) > 0 ? `${num(l.in_transit)} ${esc(l.unit)}` : '—'}</td>
+                <td class="num" data-label="Pedir"><input class="sup-qty-input" type="number" min="0" step="0.001" inputmode="decimal" value="${l.suggested_qty}" aria-label="Cantidad a pedir de ${esc(l.name)}" /> <small>${esc(l.unit)}</small></td>
+                <td class="num" data-label="Costo estimado">${l.est_cost != null ? money(l.est_cost) : '—'}</td>
               </tr>`).join('')}</tbody>
           </table>
         </div>`).join('');
@@ -375,6 +441,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const n = selectedLines().length;
     $('btnCreateOrder').disabled = !canEdit || !n;
   }
+  $('sugBox').addEventListener('input', (e) => { if (e.target.classList.contains('sup-qty-input')) updateOrderBtn(); });
   $('sugBox').addEventListener('change', (e) => {
     if (e.target.classList.contains('sup-group-check')) {
       e.target.closest('.sup-group').querySelectorAll('.sup-line-check').forEach((c) => { c.checked = e.target.checked; });
@@ -390,7 +457,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---- modal de orden ----
   let orderDraft = [];
   function openOrderModal(lines) {
-    if (!lines.length) { utils.showToast('Marca al menos un insumo con cantidad.', 'error'); return; }
+    if (!lines.length) { utils.showToast('Marca al menos un insumo y ponle una cantidad mayor que cero.', 'error'); return; }
     orderDraft = lines;
     const provs = [...new Set(lines.map((l) => l.supplier_id).filter(Boolean))];
     $('orderSupplier').innerHTML = '<option value="">Sin proveedor</option>' + state.suppliers.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
@@ -412,8 +479,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modalOrder').addEventListener('click', (e) => { if (e.target === $('modalOrder')) $('modalOrder').classList.remove('active'); });
   $('btnConfirmOrder').addEventListener('click', async () => {
     const btn = $('btnConfirmOrder');
-    btn.disabled = true;
     $('orderError').hidden = true;
+    if (!$('orderDate').value) { $('orderError').textContent = 'Elige el día en que llega la orden.'; $('orderError').hidden = false; return; }
+    if ($('orderDate').value < hoyIso()) { $('orderError').textContent = 'Ese día ya pasó. Elige hoy o un día después.'; $('orderError').hidden = false; return; }
+    const prev = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = 'Creando orden…';
     try {
       const res = await api.post('/supply/orders', {
         branch_id: state.branchId,
@@ -430,7 +501,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       $('orderError').textContent = err.message || 'No se pudo crear la orden.';
       $('orderError').hidden = false;
-    } finally { btn.disabled = false; }
+      utils.showToast(err.message || 'No se pudo crear la orden.', 'error');
+    } finally { btn.disabled = false; btn.innerHTML = prev; utils.renderIcons(); }
   });
 
   // =========================================================================
@@ -455,18 +527,24 @@ document.addEventListener('DOMContentLoaded', async () => {
           <strong>${esc(o.supplier_name || 'Sin proveedor')}</strong>
           <span class="ops-chip st-${o.status}">${st[o.status] || o.status}</span>
           <span class="sup-order-meta">${esc(o.branch_name)} · llega ${fecha(o.expected_date)}${o.time_from ? ` desde ${o.time_from}` : ''}${o.created_by_name ? ` · por ${esc(o.created_by_name)}` : ''}${o.est_cost != null ? ` · ${money(o.est_cost)}` : ''}${o.notes ? ` · ${esc(o.notes)}` : ''}</span>
-          ${o.status === 'pendiente' ? `<a class="ops-btn" href="/inventario?view=cargamentos">Ver en Inventario</a>` : ''}
-          ${o.status === 'pendiente' && canEdit ? `<button type="button" class="ops-btn danger" data-cancel="${o.id}">Cancelar</button>` : ''}
+          <span class="sup-order-actions">
+            ${o.status === 'pendiente' ? `<a class="ops-btn primary" href="/inventario?view=cargamentos"><i data-lucide="truck"></i> Recibir mercancía</a>` : ''}
+            ${o.status === 'pendiente' && canEdit ? `<button type="button" class="ops-btn danger" data-cancel="${o.id}">Cancelar orden</button>` : ''}
+          </span>
         </div>
-        ${o.items.length ? `<ul class="sup-order-items">${o.items.map((i) => `<li>${num(i.quantity)} ${esc(i.unit)} ${esc(i.item_name)}${i.unit_cost != null ? ` <small>· ${money(Number(i.quantity) * Number(i.unit_cost))}</small>` : ''}</li>`).join('')}</ul>` : '<p class="ops-hint">Agendado sin líneas (cargamento a mano).</p>'}
+        ${o.items.length ? `<ul class="sup-order-items">${o.items.map((i) => `<li>${num(i.quantity)} ${esc(i.unit)} ${esc(i.item_name)}${i.unit_cost != null ? ` <small>· ${money(Number(i.quantity) * Number(i.unit_cost))}</small>` : ''}</li>`).join('')}</ul>` : '<p class="ops-hint">Programado sin insumos: se anota todo al recibir la mercancía.</p>'}
       </div>`).join('');
   }
   $('ordBox').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-cancel]');
-    if (!b || !confirm('¿Cancelar esta orden? Se quita de los cargamentos esperados de la sucursal.')) return;
+    if (!b) return;
+    const o = state.orders.find((x) => String(x.id) === b.dataset.cancel);
+    const quien = o ? `${o.supplier_name || 'Sin proveedor'} · ${o.branch_name} · llega el ${fecha(o.expected_date)}` : '';
+    if (!confirm(`¿Cancelar esta orden?\n${quien}\n\nSe quita de los cargamentos esperados de la sucursal. No cambia el inventario.`)) return;
     b.disabled = true;
-    try { await api.post(`/inventory/expected-shipments/${b.dataset.cancel}/cancel`, {}); utils.showToast('Orden cancelada.', 'info'); loaded.delete('sugerido'); loadOrders(); }
-    catch (err) { utils.showToast(err.message || 'No se pudo cancelar.', 'error'); b.disabled = false; }
+    b.textContent = 'Cancelando…';
+    try { await api.post(`/inventory/expected-shipments/${b.dataset.cancel}/cancel`, {}); utils.showToast('Orden cancelada.', 'success'); loaded.delete('sugerido'); loadOrders(); }
+    catch (err) { utils.showToast(err.message || 'No se pudo cancelar la orden.', 'error'); b.disabled = false; b.textContent = 'Cancelar orden'; }
   });
 
   // =========================================================================
@@ -494,22 +572,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="sup-empty">
           <i data-lucide="tags"></i>
           <h3>Sin precios registrados en este período</h3>
-          <p>Los precios salen de los cargamentos recibidos con costo por unidad y proveedor. A medida que se reciban con factura, acá verás qué cobra cada proveedor por cada insumo y quién tiene el mejor precio.</p>
+          <p>Los precios salen de los cargamentos recibidos con costo por unidad y proveedor. A medida que se reciban con factura, aquí verás qué cobra cada proveedor por cada insumo y quién tiene el mejor precio.</p>
         </div>`;
       utils.renderIcons(); return;
     }
     box.innerHTML = `
-      <table class="ops-table">
-        <thead><tr><th>Insumo</th><th>Proveedor</th><th class="num">Último precio</th><th class="num">Promedio</th><th class="num">Mín. / Máx.</th><th class="num">Compras</th><th class="num">Comprado</th></tr></thead>
+      <table class="ops-table ops-cards">
+        <thead><tr><th>Insumo</th><th>Proveedor</th><th class="num">Último precio</th><th class="num">Promedio</th><th class="num">Más bajo / más alto</th><th class="num">Compras</th><th class="num">Comprado</th></tr></thead>
         <tbody>${data.rows.map((r) => `
           <tr>
-            <td><strong>${esc(r.name)}</strong><br><small>${esc(r.category || '')} · por ${esc(r.unit)}</small></td>
-            <td>${esc(r.supplier_name)}${r.suppliers_for_item > 1 ? (r.best_price ? ' <span class="sup-best">mejor precio</span>' : ` <span class="sup-worse">+${r.vs_best_pct}% vs. el mejor</span>`) : ''}</td>
-            <td class="num"><strong>$${Number(r.last_cost).toFixed(4)}</strong><br><small>${r.last_date ? utils.formatDateTime(r.last_date).split(' ')[0] : ''}</small></td>
-            <td class="num">${r.avg_cost != null ? `$${Number(r.avg_cost).toFixed(4)}` : '—'}</td>
-            <td class="num">$${Number(r.min_cost).toFixed(2)} / $${Number(r.max_cost).toFixed(2)}</td>
-            <td class="num">${r.purchases}</td>
-            <td class="num">${num(r.quantity)} ${esc(r.unit)}<br><small>${money(r.amount)}</small></td>
+            <td class="ops-td-main"><strong>${esc(r.name)}</strong><br><small>${esc(r.category || 'Sin categoría')} · precio por ${esc(r.unit)}</small></td>
+            <td data-label="Proveedor">${esc(r.supplier_name)}${r.suppliers_for_item > 1 ? (r.best_price ? ' <span class="sup-best">mejor precio</span>' : ` <span class="sup-worse">${r.vs_best_pct}% más caro que el mejor</span>`) : ''}</td>
+            <td class="num" data-label="Último precio"><strong>$${Number(r.last_cost).toFixed(4)}</strong><br><small>${r.last_date ? esc(utils.formatDate(r.last_date)) : ''}</small></td>
+            <td class="num" data-label="Promedio">${r.avg_cost != null ? `$${Number(r.avg_cost).toFixed(4)}` : '—'}</td>
+            <td class="num" data-label="Más bajo / más alto">$${Number(r.min_cost).toFixed(2)} / $${Number(r.max_cost).toFixed(2)}</td>
+            <td class="num" data-label="Compras">${r.purchases}</td>
+            <td class="num" data-label="Comprado">${num(r.quantity)} ${esc(r.unit)}<br><small>${money(r.amount)}</small></td>
           </tr>`).join('')}</tbody>
       </table>`;
   }

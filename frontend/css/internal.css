@@ -1145,3 +1145,26 @@ body {
   .int-notif-btn .int-notif-label { display: none; }
   .int-lightbox { padding: 64px 12px 12px; }
 }
+
+/* ============================================================================
+   7. PANTALLAS TÁCTILES (tablet y celular)
+   Botones de la conversación del tamaño del dedo (volver, vaciar y quitar el archivo medían
+   28-34px) y campos en 16px: con menos, el iPad y el iPhone hacen zoom al tocarlos.
+   ============================================================================ */
+@media (pointer: coarse) {
+  .int-chat-back,
+  .int-chat-action { width: 44px; height: 44px; }
+  .int-attach-drop { width: 44px; height: 44px; }
+  .int-send,
+  .int-attach-btn { width: 48px; height: 48px; }
+  .int-composer textarea { min-height: 48px; font-size: 16px; }
+  .int-search { padding: 4px 12px; }
+  .int-search input { min-height: 40px; font-size: 16px; }
+  .int-tab { font-size: 14px; }
+  .int-row { min-height: 64px; }
+  .int-row-name { font-size: 15px; }
+  .int-row-preview { font-size: 13.5px; }
+  .int-group-label { font-size: 11.5px; }
+  .int-chat-headings small { font-size: 13px; }
+  .int-bubble { font-size: 15px; }
+}

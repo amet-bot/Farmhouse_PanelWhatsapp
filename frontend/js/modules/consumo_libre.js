@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!item.tracked || item.stock == null) p.textContent = 'Sin existencia cargada todavía: igual se registra el gasto.';
     else {
       const s = Number(item.stock);
-      p.textContent = s < 0 ? `Falta ${num(-s)} ${item.unit} según los registros (revisar arranque de inventario).` : `Quedan ${num(s)} ${item.unit}${item.below_min ? ` · bajo el mínimo de ${num(item.min_quantity)}` : ''}.`;
+      p.textContent = s < 0 ? `Según el sistema faltan ${num(-s)} ${item.unit} (avisa al encargado para revisar el inventario).` : `Quedan ${num(s)} ${item.unit}${item.below_min ? ` · bajo el mínimo de ${num(item.min_quantity)}` : ''}.`;
       p.className = s < 0 ? 'is-neg' : item.below_min ? 'is-low' : '';
     }
     const presets = [];
@@ -219,7 +219,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   function addFromSheet() {
     const item = state.sheetItem;
     const qty = Number($('sheetQty').value);
-    if (!(qty > 0)) { utils.showToast('Escribe cuánto se gastó.', 'error'); $('sheetQty').focus(); return; }
+    if (!(qty > 0)) {
+      // También escrito en la hoja misma: el aviso de abajo puede quedar tapado por el teclado.
+      $('sheetAfter').textContent = 'Escribe cuánto se gastó (un número mayor que 0).';
+      $('sheetAfter').className = 'con-sheet-after is-neg';
+      utils.showToast('Escribe cuánto se gastó.', 'error');
+      $('sheetQty').focus();
+      return;
+    }
     state.cart.set(item.inventory_item_id, { item, qty: Number(qty.toFixed(3)) });
     closeSheet();
     renderCart();
@@ -240,6 +247,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button type="button" data-remove="${l.item.inventory_item_id}" aria-label="Quitar ${esc(l.item.name)}">×</button></span>`).join('');
     $('btnSaveLabel').textContent = lines.length ? `Guardar (${lines.length})` : 'Guardar';
     $('btnSave').disabled = !lines.length;
+    setCartError('');
+  }
+  function setCartError(msg) {
+    $('cartError').textContent = msg;
+    $('cartError').hidden = !msg;
   }
   $('cartLines').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-remove]');
@@ -255,8 +267,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('btnSave').addEventListener('click', async () => {
     const btn = $('btnSave');
-    if (!state.cart.size) return;
+    if (!state.cart.size || btn.dataset.busy) return;
+    btn.dataset.busy = '1';
     btn.disabled = true;
+    $('btnSaveLabel').textContent = 'Guardando…';
+    setCartError('');
     try {
       const res = await api.post('/inventory/consumption', {
         branch_id: Number(state.branchId), notes: $('notes').value.trim() || null,
@@ -274,7 +289,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         it.below_min = it.min_quantity != null && Number(it.stock) < Number(it.min_quantity);
       }
       const negativos = res.items.filter((i) => i.stock_after != null && Number(i.stock_after) < 0).map((i) => i.item_name);
-      utils.showToast(negativos.length ? `Guardado. Ojo: ${negativos.join(', ')} queda en negativo (falta cargar el arranque de inventario).` : `Consumo guardado: ${res.items.length} insumo${res.items.length === 1 ? '' : 's'}. Existencia actualizada.`, negativos.length ? 'warning' : 'success');
+      utils.showToast(negativos.length
+        ? `Guardado. Ojo: según el sistema ${negativos.join(', ')} ${negativos.length === 1 ? 'quedó' : 'quedaron'} en negativo. Avisa al encargado para revisar el inventario.`
+        : `Gasto guardado: ${res.items.length} insumo${res.items.length === 1 ? '' : 's'}. Ya se descontó del inventario.`, negativos.length ? 'warning' : 'success');
+      delete btn.dataset.busy;
       state.cart.clear();
       $('notes').value = '';
       renderCart();
@@ -282,9 +300,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderBoard();
       loadHistory();
     } catch (err) {
-      utils.showToast(err.message || 'No se pudo guardar el consumo.', 'error');
-      btn.disabled = false;
+      // Además del aviso, el error queda escrito en la barra: lo anotado sigue ahí para reintentar.
+      const msg = `No se guardó. ${err.message || 'Prueba otra vez.'}`;
+      delete btn.dataset.busy;
+      renderCart();
+      setCartError(msg);
+      utils.showToast(msg, 'error');
     }
+  });
+
+  // ---- no perder lo anotado ----
+  // Con insumos por guardar: la flecha de volver o recargar la página preguntan antes de borrarlos.
+  let leaving = false;
+  window.addEventListener('beforeunload', (e) => {
+    if (leaving || !state.cart.size) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]');
+    if (!a || a.target === '_blank' || !state.cart.size) return;
+    if (!confirm('Tienes insumos anotados sin guardar. Si sales ahora se pierden. ¿Salir igual?')) { e.preventDefault(); return; }
+    leaving = true;
   });
 
   // ---- historial ----
@@ -307,7 +344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="con-record">
           <div class="con-record-head">
             <span><strong>${esc(r.recorded_by_name)}</strong> · ${esc(ago(r.occurred_at))}${r.notes ? ` · ${esc(r.notes)}` : ''}${r.total_cost != null ? ` · $${Number(r.total_cost).toFixed(2)}` : ''}</span>
-            ${r.can_delete ? `<button type="button" class="ops-btn danger" data-del="${r.id}">Borrar</button>` : ''}
+            ${r.can_delete ? `<button type="button" class="ops-btn danger con-del-btn" data-del="${r.id}"><i data-lucide="trash-2"></i> Borrar</button>` : ''}
           </div>
           <ul class="con-record-items">${r.items.map((i) => `<li>${num(i.quantity)} ${esc(i.unit)} ${esc(i.item_name)}</li>`).join('')}</ul>
         </div>`).join('');
@@ -318,14 +355,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   $('history').addEventListener('click', async (e) => {
     const b = e.target.closest('button[data-del]');
-    if (!b || !confirm('¿Borrar este registro de consumo? La existencia vuelve a subir.')) return;
+    if (!b || b.disabled || !confirm('¿Borrar este registro? Lo que se había descontado vuelve al inventario.')) return;
     b.disabled = true;
+    b.textContent = 'Borrando…';
     try {
       await api.delete(`/inventory/consumption/${b.dataset.del}`);
-      utils.showToast('Registro borrado. Existencia actualizada.', 'info');
+      utils.showToast('Registro borrado. Lo descontado volvió al inventario.', 'success');
       await loadBoard();
       loadHistory();
-    } catch (err) { utils.showToast(err.message || 'No se pudo borrar.', 'error'); b.disabled = false; }
+    } catch (err) {
+      utils.showToast(`No se pudo borrar. ${err.message || 'Prueba otra vez.'}`, 'error');
+      b.disabled = false;
+      b.textContent = 'Borrar';
+    }
   });
 
   renderCart();

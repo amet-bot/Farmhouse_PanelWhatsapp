@@ -12,11 +12,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=4.13.1">
+  <link rel="stylesheet" href="css/style.css?v=5.0.1003">
   <!-- Mismo armazón (cabecera, gate de sesión, botones, pestañas y tablas) que Inventario y el Centro de operación. -->
-  <link rel="stylesheet" href="css/inventory.css?v=4.23.0">
-  <link rel="stylesheet" href="css/gestion.css?v=1.5.0">
-  <link rel="stylesheet" href="css/abastecimiento.css?v=1.1.2">
+  <link rel="stylesheet" href="css/inventory.css?v=5.0.1003">
+  <link rel="stylesheet" href="css/gestion.css?v=5.0.1003">
+  <link rel="stylesheet" href="css/abastecimiento.css?v=5.0.1003">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -61,48 +61,59 @@
       <div class="ops-toolbar">
         <nav class="ops-tabs" id="supTabs" aria-label="Secciones">
           <button type="button" class="ops-tab active" data-tab="existencias"><i data-lucide="warehouse"></i> Existencias</button>
-          <button type="button" class="ops-tab" data-tab="minimos"><i data-lucide="sliders-horizontal"></i> Mínimos y pares</button>
+          <button type="button" class="ops-tab" data-tab="minimos"><i data-lucide="sliders-horizontal"></i> Mínimos</button>
           <button type="button" class="ops-tab" data-tab="sugerido"><i data-lucide="shopping-cart"></i> Pedido sugerido <span class="ops-tab-count" id="countSugerido" hidden></span></button>
           <button type="button" class="ops-tab" data-tab="ordenes"><i data-lucide="truck"></i> Órdenes <span class="ops-tab-count" id="countOrdenes" hidden></span></button>
           <button type="button" class="ops-tab" data-tab="precios"><i data-lucide="tags"></i> Precios</button>
-          <button type="button" class="ops-tab" data-tab="arranque"><i data-lucide="rocket"></i> Puesta en marcha <span class="ops-tab-count" id="countArranque" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="arranque"><i data-lucide="rocket"></i> Primeros pasos <span class="ops-tab-count" id="countArranque" hidden></span></button>
         </nav>
-        <button type="button" class="inv-secondary-btn ops-refresh" id="btnRefresh" title="Actualizar"><i data-lucide="refresh-cw"></i></button>
+        <button type="button" class="inv-secondary-btn ops-refresh" id="btnRefresh" aria-label="Actualizar"><i data-lucide="refresh-cw"></i> <span class="ops-refresh-label">Actualizar</span></button>
       </div>
 
-      <!-- ---------- Puesta en marcha: qué le falta a cada sucursal ---------- -->
+      <!-- ---------- Primeros pasos (antes "Puesta en marcha"): qué le falta a cada sucursal ---------- -->
       <section class="sup-view" id="viewArranque" hidden>
-        <p class="sup-setup-intro">Para que existencias, mínimos y pedido sugerido digan la verdad, cada sucursal necesita estos cuatro pasos. Toca el botón de cada paso para hacerlo.</p>
+        <p class="sup-setup-intro">Lo que cada sucursal tiene que hacer una vez para que Existencias, Mínimos y Pedido sugerido muestren números reales. Son cuatro pasos: toca el botón de cada uno para hacerlo.</p>
         <div id="setupBox"><div class="ops-loading">Cargando…</div></div>
       </section>
 
       <!-- ---------- Existencias: cuánto le queda a cada sucursal ---------- -->
       <section class="sup-view" id="viewExistencias">
         <div class="sup-filters">
-          <input class="modal-input" id="stockSearch" placeholder="Buscar insumo…" autocomplete="off" />
+          <input class="modal-input" id="stockSearch" type="search" placeholder="Buscar insumo…" autocomplete="off" aria-label="Buscar insumo" enterkeyhint="search" />
           <select class="inv-filter-select" id="stockCategory" aria-label="Categoría"><option value="">Todas las categorías</option></select>
-          <label class="sup-check"><input type="checkbox" id="stockOnlyLow" /> Solo bajo el mínimo</label>
+          <label class="sup-check" for="stockOnlyLow"><input type="checkbox" id="stockOnlyLow" /> Solo bajo el mínimo</label>
           <span class="sup-filters-note" id="stockNote"></span>
         </div>
+        <p class="sup-tab-hint">Cuánto le queda a cada sucursal de cada insumo. <span class="sup-days-chip">5 d</span> = para cuántos días alcanza al ritmo de uso de los últimos 14 días. <span class="sup-legend-low">En rojo</span>: está bajo el mínimo.</p>
         <div id="stockBox"><div class="ops-loading">Cargando…</div></div>
       </section>
 
-      <!-- ---------- Mínimos y pares por sucursal ---------- -->
+      <!-- ---------- Mínimos y cantidad ideal ("par" en el servidor) por sucursal ---------- -->
       <section class="sup-view" id="viewMinimos" hidden>
         <div class="sup-filters">
           <select class="inv-filter-select" id="minBranch" aria-label="Sucursal"></select>
-          <input class="modal-input" id="minSearch" placeholder="Buscar insumo…" autocomplete="off" />
-          <span class="sup-filters-note">Mínimo: por debajo avisa. Par: hasta cuánto se repone. Se guardan por sucursal.</span>
+          <input class="modal-input" id="minSearch" type="search" placeholder="Buscar insumo…" autocomplete="off" aria-label="Buscar insumo" enterkeyhint="search" />
           <button type="button" class="inv-primary-btn sup-save" id="btnSaveSettings" disabled><i data-lucide="check"></i> Guardar cambios</button>
         </div>
+        <div class="sup-tab-hint sup-help">
+          <p><b>Mínimo:</b> si la existencia baja de esta cantidad, la app avisa y el insumo entra al pedido sugerido.</p>
+          <p><b>Cantidad ideal:</b> hasta cuánto se repone al pedir (lo que debería haber después de recibir).</p>
+          <p><b>Días de entrega:</b> cuánto tarda el proveedor en traerlo. Todo se guarda por sucursal.</p>
+        </div>
         <div id="minBox"><div class="ops-loading">Cargando…</div></div>
+        <!-- Con muchos insumos el botón de arriba queda lejos: esta barra aparece abajo en cuanto hay cambios. -->
+        <div class="sup-savebar" id="minSaveBar" hidden>
+          <span id="minSaveBarText">Cambios sin guardar</span>
+          <button type="button" class="inv-secondary-btn" id="btnDiscardSettings">Descartar</button>
+          <button type="button" class="inv-primary-btn" id="btnSaveSettingsBar"><i data-lucide="check"></i> Guardar cambios</button>
+        </div>
       </section>
 
       <!-- ---------- Pedido sugerido ---------- -->
       <section class="sup-view" id="viewSugerido" hidden>
         <div class="sup-filters">
           <select class="inv-filter-select" id="sugBranch" aria-label="Sucursal"></select>
-          <label class="sup-inline">Cubrir <select class="inv-filter-select sup-days" id="sugDays"><option value="3">3 días</option><option value="7" selected>7 días</option><option value="14">14 días</option></select></label>
+          <label class="sup-inline" for="sugDays">Pedir para <select class="inv-filter-select sup-days" id="sugDays"><option value="3">3 días</option><option value="7" selected>7 días</option><option value="14">14 días</option></select></label>
           <span class="sup-filters-note" id="sugNote"></span>
           <button type="button" class="inv-primary-btn sup-save" id="btnCreateOrder" disabled><i data-lucide="file-plus-2"></i> Crear orden con lo marcado</button>
         </div>
@@ -119,7 +130,7 @@
             <option value="cancelado">Canceladas</option>
             <option value="todos">Todas</option>
           </select>
-          <span class="sup-filters-note">Al llegar, se reciben desde Inventario → Cargamentos: la recepción arranca con estas líneas.</span>
+          <span class="sup-filters-note">Cuando llegan, se reciben con "Recibir mercancía" en Inventario: la recepción arranca con estas líneas.</span>
         </div>
         <div id="ordBox"><div class="ops-loading">Cargando…</div></div>
       </section>
@@ -127,14 +138,14 @@
       <!-- ---------- Precios por proveedor ---------- -->
       <section class="sup-view" id="viewPrecios" hidden>
         <div class="sup-filters">
-          <input class="modal-input" id="priceSearch" placeholder="Buscar insumo…" autocomplete="off" />
+          <input class="modal-input" id="priceSearch" type="search" placeholder="Buscar insumo…" autocomplete="off" aria-label="Buscar insumo" enterkeyhint="search" />
           <select class="inv-filter-select" id="priceSupplier" aria-label="Proveedor"><option value="">Todos los proveedores</option></select>
           <select class="inv-filter-select sup-days" id="priceDays" aria-label="Período">
             <option value="90">Últimos 90 días</option>
             <option value="180" selected>Últimos 6 meses</option>
             <option value="365">Último año</option>
           </select>
-          <span class="sup-filters-note">Sale de los cargamentos recibidos con costo. Mejor precio: el último más bajo entre proveedores.</span>
+          <span class="sup-filters-note">Sale de los cargamentos recibidos con costo. "Mejor precio": el proveedor con el último precio más bajo para ese insumo.</span>
         </div>
         <div id="priceBox"><div class="ops-loading">Cargando…</div></div>
       </section>
@@ -158,8 +169,8 @@
         <p class="sup-modal-sub" id="orderSummary"></p>
         <div class="sup-form-grid">
           <label class="inv-field"><span>Proveedor</span><select class="inv-filter-select" id="orderSupplier"></select></label>
-          <label class="inv-field"><span>Llega el</span><input class="modal-input" type="date" id="orderDate" /></label>
-          <label class="inv-field"><span>Desde (opcional)</span><input class="modal-input" type="time" id="orderTime" /></label>
+          <label class="inv-field"><span>Llega el</span><input class="modal-input" type="date" id="orderDate" required /></label>
+          <label class="inv-field"><span>Desde la hora (opcional)</span><input class="modal-input" type="time" id="orderTime" /></label>
         </div>
         <label class="inv-field"><span>Nota (opcional)</span><input class="modal-input" id="orderNotes" maxlength="500" placeholder="Ej: confirmar con el vendedor por WhatsApp" /></label>
         <ul class="sup-order-lines" id="orderLines"></ul>
@@ -172,11 +183,11 @@
     </div>
   </div>
 
-  <script src="js/utils.js?v=3.5.0"></script>
-  <script src="js/api.js?v=4.1.0"></script>
+  <script src="js/utils.js?v=5.0.1003"></script>
+  <script src="js/api.js?v=5.0.1003"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/abastecimiento.js?v=1.1.3"></script>
+  <script src="js/shared/shell.js?v=5.0.1003"></script>
+  <script src="js/shared/native-app.js?v=5.0.1003"></script>
+  <script src="js/modules/abastecimiento.js?v=5.0.1003"></script>
 </body>
 </html>

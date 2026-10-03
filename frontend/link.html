@@ -14,11 +14,11 @@
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=4.13.1">
+  <link rel="stylesheet" href="css/style.css?v=5.0.1003">
   <!-- El armazón (cabecera, rail, fichas, paneles) es el mismo de Inventario: se reusa su hoja
        tal cual y link.css solo agrega lo que Inventario no tiene (gráficos y tablas). -->
-  <link rel="stylesheet" href="css/inventory.css?v=4.23.0">
-  <link rel="stylesheet" href="css/link.css?v=4.13.0">
+  <link rel="stylesheet" href="css/inventory.css?v=5.0.1003">
+  <link rel="stylesheet" href="css/link.css?v=5.0.1003">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -81,11 +81,11 @@
         <nav class="inv-nav" id="linkNav">
           <button type="button" class="inv-nav-item active" data-view="ventas"><i data-lucide="line-chart"></i> <span>Ventas</span></button>
           <button type="button" class="inv-nav-item" data-view="analisis"><i data-lucide="bar-chart-3"></i> <span>Análisis</span></button>
-          <button type="button" class="inv-nav-item" data-view="compras" data-short="Compras" aria-label="Compras y merma"><i data-lucide="shopping-cart"></i> <span>Compras y merma</span></button>
+          <button type="button" class="inv-nav-item" data-view="compras"><i data-lucide="shopping-cart"></i> <span>Compras</span></button>
           <button type="button" class="inv-nav-item" data-view="merma"><i data-lucide="trending-down"></i> <span>Merma</span></button>
           <button type="button" class="inv-nav-item" data-view="cierre" data-short="Cierre" aria-label="Cierre de mes"><i data-lucide="calendar-check"></i> <span>Cierre de mes</span></button>
           <button type="button" class="inv-nav-item" data-view="inventario"><i data-lucide="warehouse"></i> <span>Inventario</span></button>
-          <button type="button" class="inv-nav-item" data-view="sincronizacion" data-short="Sincro" aria-label="Sincronización"><i data-lucide="refresh-cw"></i> <span>Sincronización</span></button>
+          <button type="button" class="inv-nav-item" data-view="sincronizacion" data-short="Invu" aria-label="Sincronización con Invu"><i data-lucide="refresh-cw"></i> <span>Sincronización</span></button>
         </nav>
         <div class="inv-sidebar-foot">
           <span class="inv-scope-label">Alcance</span>
@@ -96,7 +96,7 @@
       <!-- ================= Contenido ================= -->
       <section class="inv-content">
 
-        <!-- Filtros: una sola fila arriba de todo; mandan sobre Ventas, Análisis y Compras. En
+        <!-- Filtros: una sola fila arriba de todo; mandan sobre Ventas, Análisis, Compras e Inventario. En
              Cierre de mes el período es el mes elegido ahí; en Merma (tiene los suyos) y en
              Sincronización no aplican. -->
         <div class="link-filters" id="linkFilters">
@@ -110,10 +110,11 @@
               <button type="button" data-range="prev-month">Mes anterior</button>
             </div>
             <div class="link-custom-range" aria-label="Rango personalizado">
+              <span class="link-custom-label">Otras fechas:</span>
               <input type="date" id="dateFrom" aria-label="Desde" />
               <span>a</span>
               <input type="date" id="dateTo" aria-label="Hasta" />
-              <button type="button" class="link-text-btn" id="btnApplyRange"><i data-lucide="check"></i> <span>Aplicar</span></button>
+              <button type="button" class="link-text-btn" id="btnApplyRange"><i data-lucide="check"></i> <span>Ver</span></button>
             </div>
           </div>
           <select class="inv-filter-select" id="branchFilter" aria-label="Sucursal" hidden></select>
@@ -209,30 +210,33 @@
             <div class="inv-panel">
               <div class="inv-panel-head"><h2>Por hora del día</h2><span class="inv-panel-note" id="hourNote">Venta neta</span></div>
               <div class="link-hours" id="hourChart"></div>
+              <p class="link-chart-pick" id="hourPick">Toca una barra para ver la venta de esa hora.</p>
             </div>
             <div class="inv-panel">
               <div class="inv-panel-head"><h2>Por día de la semana</h2><span class="inv-panel-note">Promedio de venta por día</span></div>
               <div class="inv-bars" id="weekdayBars"></div>
             </div>
           </div>
-          <div class="inv-panel-grid">
-            <div class="inv-panel">
-              <div class="inv-panel-head"><h2>Por categoría</h2><span class="inv-panel-note" id="categoryNote"></span></div>
-              <div class="inv-bars" id="categoryBars"></div>
-            </div>
-            <div class="inv-panel">
-              <div class="inv-panel-head"><h2>Platos por sucursal</h2><span class="inv-panel-note">Cantidad vendida · los 25 más vendidos</span></div>
-              <div class="link-table-wrap" id="matrixTable"></div>
-            </div>
+          <div class="inv-panel">
+            <div class="inv-panel-head"><h2>Por categoría</h2><span class="inv-panel-note" id="categoryNote"></span></div>
+            <div class="inv-bars" id="categoryBars"></div>
+          </div>
+          <!-- A lo ancho: una columna por sucursal no entraba en media pantalla (en la tablet había
+               que deslizar de lado para ver cada sucursal). -->
+          <div class="inv-panel">
+            <div class="inv-panel-head"><h2>Platos por sucursal</h2><span class="inv-panel-note">Cantidad vendida · los 25 más vendidos</span></div>
+            <div class="link-table-wrap" id="matrixTable"></div>
           </div>
         </div>
 
-        <!-- ---------- Compras y merma ---------- -->
+        <!-- ---------- Compras ----------
+             La merma tenía aquí dos paneles que repetían (con otros filtros) lo de la vista Merma:
+             ahora vive en un solo lugar y aquí queda solo el acceso. -->
         <div class="inv-view" id="viewCompras" hidden>
           <div class="inv-view-head">
             <div>
-              <h1>Compras y merma</h1>
-              <p id="comprasSubtitle">Lo que entró por cargamentos y lo que se perdió, en plata y contra la venta.</p>
+              <h1>Compras</h1>
+              <p id="comprasSubtitle">Lo que entró por cargamentos, por proveedor y por categoría, y cuánto es contra la venta.</p>
             </div>
           </div>
           <div class="inv-kpi-row" id="comprasKpis"></div>
@@ -246,15 +250,10 @@
               <div class="inv-bars" id="purchaseCategoryBars"></div>
             </div>
           </div>
-          <div class="inv-panel-grid">
-            <div class="inv-panel">
-              <div class="inv-panel-head"><h2>Merma por motivo</h2><span class="inv-panel-note" id="wasteNote"></span></div>
-              <div class="inv-bars" id="wasteReasonBars"></div>
-            </div>
-            <div class="inv-panel">
-              <div class="inv-panel-head"><h2>Merma por categoría</h2><span class="inv-panel-note">En plata</span></div>
-              <div class="inv-bars" id="wasteCategoryBars"></div>
-            </div>
+          <div class="inv-panel link-goto">
+            <span class="link-goto-icon" aria-hidden="true"><i data-lucide="trending-down"></i></span>
+            <p><strong>¿Y lo que se perdió?</strong> La merma (qué se pierde, por qué y en qué sucursal) está en su propia sección.</p>
+            <button type="button" class="inv-secondary-btn" data-goto-view="merma"><i data-lucide="arrow-right"></i> Ver Merma</button>
           </div>
         </div>
 
@@ -265,22 +264,22 @@
           <div class="inv-view-head">
             <div>
               <h1>Merma</h1>
-              <p>Qué se pierde, por qué y dónde. Se registra en Operación → Registrar merma.</p>
+              <p>Qué se pierde, por qué y dónde. Tiene su propio período y sucursal (aquí abajo). Se registra en Operación de Sucursal → Registrar merma.</p>
             </div>
           </div>
 
           <div class="inv-waste-analysis" id="wasteAnalysis">
             <div class="inv-analysis-filters">
-              <div class="inv-segmented" id="wastePeriod" aria-label="Período">
+              <div class="inv-segmented" id="wastePeriod" role="group" aria-label="Período">
                 <button type="button" data-period="7">7 días</button>
                 <button type="button" class="active" data-period="30">30 días</button>
                 <button type="button" data-period="mes">Este mes</button>
                 <button type="button" data-period="mes-anterior">Mes anterior</button>
               </div>
               <select id="wasteAnalysisBranch" class="inv-filter-select" hidden aria-label="Sucursal"></select>
-              <div class="inv-segmented inv-segmented-sm" id="wasteMetric" aria-label="Medir en">
-                <button type="button" class="active" data-metric="cost">$</button>
-                <button type="button" data-metric="kg">kg</button>
+              <div class="inv-segmented inv-segmented-sm" id="wasteMetric" role="group" aria-label="Medir en">
+                <button type="button" class="active" data-metric="cost">En dólares</button>
+                <button type="button" data-metric="kg">En kilos</button>
               </div>
             </div>
             <p class="inv-analysis-range" id="wasteAnalysisRange"></p>
@@ -294,6 +293,7 @@
               </div>
               <p class="inv-chart-headline" id="wasteDayHeadline"></p>
               <div class="inv-trend" id="wasteDayChart"></div>
+              <p class="link-chart-pick" id="wasteDayPick">Toca una barra para ver el detalle de ese tramo.</p>
               <p class="inv-chart-help inv-chart-help-after">El número arriba de cada barra es lo que se perdió en ese tramo. La línea punteada es el promedio: lo que queda por encima es lo que conviene revisar (un pedido que llegó mal, una nevera, un feriado).</p>
             </div>
 
@@ -379,9 +379,9 @@
           <div class="inv-view-head">
             <div>
               <h1>Cierre de mes</h1>
-              <p id="cierreSubtitle">Venta, compras, merma, faltantes e incidencias por sucursal, comparado con el mes anterior.</p>
+              <p id="cierreSubtitle">El resumen del mes: venta, compras, merma, faltantes e incidencias por sucursal, comparado con el mes anterior. (No es el cierre de turno de las sucursales.)</p>
             </div>
-            <input type="month" class="inv-filter-select" id="monthInput" aria-label="Mes" />
+            <label class="link-month"><span>Mes</span><input type="month" class="inv-filter-select" id="monthInput" /></label>
           </div>
           <div class="inv-kpi-row" id="cierreKpis"></div>
           <div class="inv-panel">
@@ -408,7 +408,7 @@
             </div>
             <div class="link-stock-tools">
               <input type="search" class="inv-filter-select" id="stockSearch" placeholder="Buscar insumo o categoría…" aria-label="Buscar insumo" />
-              <label class="link-check"><input type="checkbox" id="stockOnlyValue" checked /> Solo con valor conocido</label>
+              <label class="link-check"><input type="checkbox" id="stockOnlyValue" checked /> Solo los que tienen costo</label>
             </div>
             <div class="link-table-wrap" id="stockTable"></div>
           </div>
@@ -417,7 +417,7 @@
             <div class="inv-panel">
               <div class="inv-panel-head"><h2>¿Cuánto se gastó?</h2><span class="inv-panel-note" id="spentNote">Consumo por insumo: lo que registró el equipo y lo estimado por ventas</span></div>
               <div class="link-table-wrap" id="spentTable"></div>
-              <p class="muted" style="font-size:12px;margin:8px 0 0">El equipo registra lo que queda en la hoja de cierre (Operación → Cierre de turno). Lo que no se registra a mano se estima con las ventas de Invu y las recetas.</p>
+              <p class="link-foot-note">El equipo registra lo que queda en la hoja de cierre de turno (Operación de Sucursal → Cierre de turno). Lo que no se registra a mano se estima con las ventas de Invu y las recetas.</p>
             </div>
             <div class="inv-panel">
               <div class="inv-panel-head"><h2>¿Cuánto llegó?</h2><span class="inv-panel-note" id="arrivedNote"></span></div>
@@ -426,15 +426,15 @@
           </div>
 
           <div class="inv-panel">
-            <div class="inv-panel-head"><h2>¿Dónde se pierde?</h2><span class="inv-panel-note" id="varianceNote">Lo que se fue según las hojas de cierre, contra lo que justifican las ventas</span></div>
+            <div class="inv-panel-head"><h2>¿Dónde se pierde?</h2><span class="inv-panel-note" id="varianceNote">Lo que se fue según las hojas de cierre de turno, contra lo que justifican las ventas</span></div>
             <div id="varianceBox"></div>
-            <p class="muted" style="font-size:12px;margin:8px 0 0">Faltante sin explicar = lo que desapareció entre cierres (sin contar lo anotado como merma o consumo) menos lo que usaron los platos vendidos según las recetas de Invu. No se comparan los insumos sin receta, los que se anotan a mano en consumo ni el primer conteo de cada insumo.</p>
+            <p class="link-foot-note">Faltante sin explicar = lo que desapareció entre cierres de turno (sin contar lo anotado como merma o consumo) menos lo que usaron los platos vendidos según las recetas de Invu. No se comparan los insumos sin receta, los que se anotan a mano en consumo ni el primer conteo de cada insumo.</p>
           </div>
 
           <div class="inv-panel">
             <div class="inv-panel-head"><h2>Recetas: ¿qué platos tienen?</h2><span class="inv-panel-note" id="coverageNote">Lo vendido en el período</span></div>
             <div id="coverageBox"></div>
-            <p class="muted" style="font-size:12px;margin:8px 0 0">Las recetas salen de Invu. Si un plato no tiene en esa sucursal, se usa la del mismo plato en otra sucursal; si es un producto que se vende tal cual (una Coca Cola) y existe como insumo con el mismo nombre, cuenta 1 unidad. Los platos <b>sin receta</b> hay que cargarlos en Invu: empieza por los de arriba.</p>
+            <p class="link-foot-note">Las recetas salen de Invu. Si un plato no tiene en esa sucursal, se usa la del mismo plato en otra sucursal; si es un producto que se vende tal cual (una Coca Cola) y existe como insumo con el mismo nombre, cuenta 1 unidad. Los platos <b>sin receta</b> hay que cargarlos en Invu: empieza por los de arriba.</p>
           </div>
 
           <div class="inv-panel">
@@ -470,12 +470,12 @@
     <span id="toastMessage">Operación realizada con éxito.</span>
   </div>
 
-  <script src="js/utils.js?v=3.5.0"></script>
-  <script src="js/api.js?v=4.1.0"></script>
+  <script src="js/utils.js?v=5.0.1003"></script>
+  <script src="js/api.js?v=5.0.1003"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/waste-analysis.js?v=1.0.0"></script>
-  <script src="js/modules/link.js?v=4.14.0"></script>
+  <script src="js/shared/shell.js?v=5.0.1003"></script>
+  <script src="js/shared/native-app.js?v=5.0.1003"></script>
+  <script src="js/modules/waste-analysis.js?v=5.0.1003"></script>
+  <script src="js/modules/link.js?v=5.0.1003"></script>
 </body>
 </html>

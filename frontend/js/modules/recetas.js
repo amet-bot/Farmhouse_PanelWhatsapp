@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!user) { window.location.href = '/'; return; }
   const perms = user.permissions || [];
   if (!perms.includes('reports.view')) {
-    $('recGate').innerHTML = '<p>Esta pantalla es para encargados y gerencia.</p><a class="inv-primary-btn" href="/hub">Volver</a>';
+    $('recGate').innerHTML = '<p>Esta pantalla es para encargados y gerencia.</p><a class="inv-primary-btn" href="/hub">Volver al Panel General</a>';
     return;
   }
   const canEdit = perms.includes('inventory.adjust');
@@ -34,6 +34,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   const money = (n) => (n == null ? '—' : `$${Number(n).toFixed(2)}`);
   const num = (n) => new Intl.NumberFormat('es-PA', { maximumFractionDigits: 2 }).format(Number(n) || 0);
   const state = { tab: 'recetas', recipes: [], ingredients: [], dishes: [], expanded: new Set() };
+  // Sin tildes ni mayúsculas, para buscar "pina" y encontrar "Piña".
+  const plain = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  // ---- "Deshacer" ----
+  // Tocar una sugerencia guarda en el acto (es lo cómodo con el dedo), pero un toque sin querer
+  // dejaba un emparejamiento mal hecho sin forma fácil de volver atrás. Después de cada cambio
+  // aparece abajo un aviso con "Deshacer" durante unos segundos.
+  const undoBar = document.createElement('div');
+  undoBar.className = 'rec-undo';
+  undoBar.setAttribute('role', 'status');
+  undoBar.setAttribute('aria-live', 'polite');
+  undoBar.hidden = true;
+  undoBar.innerHTML = '<span class="rec-undo-msg"></span><button type="button" class="rec-undo-btn">Deshacer</button>';
+  document.body.appendChild(undoBar);
+  let undoFn = null;
+  let undoTimer = null;
+  function hideUndo() { undoBar.hidden = true; undoFn = null; clearTimeout(undoTimer); }
+  function offerUndo(message, fn) {
+    undoBar.querySelector('.rec-undo-msg').textContent = message;
+    undoFn = fn;
+    undoBar.hidden = false;
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(hideUndo, 9000);
+  }
+  undoBar.querySelector('.rec-undo-btn').addEventListener('click', async () => {
+    const fn = undoFn;
+    hideUndo();
+    if (fn) await fn();
+  });
 
   // ---- pestañas ----
   const VIEWS = { recetas: 'viewRecetas', ingredientes: 'viewIngredientes', platos: 'viewPlatos', unidades: 'viewUnidades', preparaciones: 'viewPreparaciones', precios: 'viewPrecios' };
@@ -66,7 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   function mapChip(r) {
     const cls = r.total_lines && r.mapped_lines === r.total_lines ? 'full' : r.mapped_lines ? 'part' : 'zero';
-    return `<span class="rec-map ${cls}">${r.mapped_lines}/${r.total_lines}</span>`;
+    return `<span class="rec-map ${cls}">${r.mapped_lines} de ${r.total_lines}</span>`;
   }
   async function loadRecipes() {
     const box = $('recBox');
@@ -96,20 +125,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rows = state.recipes.filter((r) => (!q || r.name.toLowerCase().includes(q) || (r.category || '').toLowerCase().includes(q))
       && (!f || (f === 'ok' ? !r.flag : r.flag === f)));
     if (!rows.length) { box.innerHTML = '<div class="ops-empty">Ninguna receta con ese filtro.</div>'; return; }
-    box.innerHTML = `<table class="ops-table"><thead><tr><th>Plato</th><th>Ingredientes</th><th>Costo</th><th>Precio</th><th>Food cost</th><th>Platos que la usan</th></tr></thead><tbody>${rows.map((r) => `
-      <tr class="rec-row" data-rec="${r.id}">
-        <td><span class="ops-title">${esc(r.name)}</span><span class="ops-sub">${esc(r.category || '')}</span></td>
-        <td data-label="Ingredientes">${mapChip(r)}</td>
-        <td data-label="Costo"><span>${money(r.cost)}${r.cost_complete ? '' : ' <small class="ops-sub" title="Hay ingredientes sin costo">parcial</small>'}</span></td>
+    box.innerHTML = `<table class="ops-table ops-cards rec-table"><thead><tr><th>Plato</th><th>Ingredientes emparejados</th><th>Costo</th><th>Precio</th><th>Food cost</th><th>Platos que la usan</th></tr></thead><tbody>${rows.map((r) => {
+      const open = state.expanded.has(r.id);
+      return `
+      <tr class="rec-row${open ? ' is-open' : ''}" data-rec="${r.id}">
+        <td class="ops-td-main"><button type="button" class="rec-toggle" aria-expanded="${open}"><i data-lucide="chevron-right" aria-hidden="true"></i><span><span class="ops-title">${esc(r.name)}</span><span class="ops-sub">${esc(r.category || '')}${r.category ? ' · ' : ''}${open ? 'Ocultar ingredientes' : 'Ver ingredientes'}</span></span></button></td>
+        <td data-label="Ingredientes emparejados">${mapChip(r)}</td>
+        <td data-label="Costo"><span>${money(r.cost)}${r.cost_complete ? '' : ' <small class="ops-sub">parcial: faltan costos</small>'}</span></td>
         <td data-label="Precio">${money(r.sale_price)}</td>
         <td data-label="Food cost">${fcChip(r)}</td>
-        <td data-label="Platos"><span class="ops-sub">${r.dishes.length ? esc(r.dishes.join(', ')) : (r.mapped_lines ? 'Por nombre' : '—')}</span></td>
+        <td class="ops-td-wide" data-label="Platos que la usan"><span class="ops-sub">${r.dishes.length ? esc(r.dishes.join(', ')) : (r.mapped_lines ? 'Por nombre' : '—')}</span></td>
       </tr>
-      ${state.expanded.has(r.id) ? `<tr class="rec-detail"><td colspan="6"><ul class="rec-lines">${r.lines.map((l) => `
+      ${open ? `<tr class="rec-detail"><td class="ops-td-wide" colspan="6"><ul class="rec-lines">${r.lines.map((l) => `
         <li><span>${esc(l.name)} · ${num(l.quantity)} ${esc(l.unit)}${l.item ? ` → <b>${esc(l.item.name)}</b>` : ''}</span>
           <span class="st ${l.unit_issue ? 'sin_unidad' : l.status}">${l.unit_issue ? 'falta la unidad' : l.status === 'emparejado' ? 'emparejado' : l.status === 'ignorado' ? 'no se descuenta' : 'sin emparejar'}</span>
           <span>${l.cost != null ? money(l.cost) : '—'}</span></li>`).join('')}</ul>
-        ${r.ref_food_cost_pct != null ? `<p class="ops-sub" style="margin:8px 0 0">En el dashboard anterior: costo ${money(r.ref_cost)}, food cost ${num(r.ref_food_cost_pct)}%.</p>` : ''}</td></tr>` : ''}`).join('')}</tbody></table>`;
+        ${r.ref_food_cost_pct != null ? `<p class="ops-sub" style="margin:8px 0 0">En el sistema anterior: costo ${money(r.ref_cost)}, food cost ${num(r.ref_food_cost_pct)}%.</p>` : ''}</td></tr>` : ''}`;
+    }).join('')}</tbody></table>`;
+    utils.renderIcons();
   }
   $('recBox').addEventListener('click', (e) => {
     const tr = e.target.closest('tr[data-rec]');
@@ -117,6 +150,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const id = Number(tr.dataset.rec);
     if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
     renderRecipes();
+    // Con teclado, el foco sigue en la misma receta después de repintar.
+    if (e.detail === 0) $('recBox').querySelector(`tr[data-rec="${id}"] .rec-toggle`)?.focus();
   });
   $('recSearch').addEventListener('input', renderRecipes);
   $('recFilter').addEventListener('change', renderRecipes);
@@ -146,9 +181,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${i.status === 'emparejado' ? `<span class="rec-mapped">→ <b>${esc(i.item.name)}</b> <small class="ops-sub">(${esc(i.item.unit)})</small></span>` : ''}
           ${i.status === 'ignorado' ? '<span class="rec-mapped ops-sub">No se descuenta del inventario</span>' : ''}
           ${canEdit ? `
-          ${i.suggestions.length ? `<div class="rec-sugs">${i.suggestions.map((s) => `<button type="button" class="rec-sug" data-map="${s.id}">${esc(s.name)} <small>${esc(s.unit || '')}</small></button>`).join('')}</div>` : ''}
+          ${i.suggestions.length ? `<p class="rec-sugs-label">${i.status === 'pendiente' ? 'Toca el insumo que corresponde:' : 'Cambiar por:'}</p><div class="rec-sugs">${i.suggestions.map((s) => `<button type="button" class="rec-sug" data-map="${s.id}" data-name="${esc(s.name)}">${esc(s.name)} <small>${esc(s.unit || '')}</small></button>`).join('')}</div>` : ''}
           <div class="rec-search-row">
-            <input class="modal-input" data-search placeholder="${i.status === 'pendiente' ? 'Buscar insumo del catálogo…' : 'Cambiar por otro insumo…'}" autocomplete="off" />
+            <input class="modal-input" type="search" enterkeyhint="search" data-search placeholder="${i.status === 'pendiente' ? 'Buscar insumo del catálogo…' : 'Cambiar por otro insumo…'}" aria-label="Buscar insumo para ${esc(i.name)}" autocomplete="off" />
             ${i.status === 'ignorado' ? '<button type="button" class="ops-btn" data-unignore>Volver a pendiente</button>' : '<button type="button" class="ops-btn" data-ignore>No se descuenta</button>'}
           </div>
           <div class="rec-results" data-results hidden></div>` : ''}
@@ -156,13 +191,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`).join('');
     utils.renderIcons();
   }
-  async function mapIngredient(id, body) {
+  /** Lo que hay que mandar para dejar un ingrediente como estaba antes de un cambio. */
+  function ingredientRestoreBody(prev) {
+    if (prev.status === 'emparejado' && prev.item) return { inventory_item_id: prev.item.id };
+    if (prev.status === 'ignorado') return { ignored: true };
+    return { ignored: false, inventory_item_id: null };
+  }
+  async function mapIngredient(id, body, { itemName = '', isUndo = false } = {}) {
+    const i = state.ingredients.find((x) => x.id === id);
+    const prev = i ? { status: i.status, item: i.item } : null;
     try {
       await api.put(`/recipes/ingredients/${id}`, body);
-      const i = state.ingredients.find((x) => x.id === id);
-      utils.showToast(body.ignored ? `"${i.name}" no se descontará.` : body.inventory_item_id ? `"${i.name}" emparejado.` : `"${i.name}" vuelve a pendiente.`, 'success');
+      const name = i ? i.name : 'El ingrediente';
+      const msg = body.ignored ? `"${name}" no se descontará del inventario.`
+        : body.inventory_item_id ? `"${name}" emparejado${itemName ? ` con ${itemName}` : ''}.`
+          : `"${name}" vuelve a pendiente.`;
+      if (isUndo) utils.showToast('Listo, se deshizo el cambio.', 'success');
+      else if (prev) offerUndo(msg, () => mapIngredient(id, ingredientRestoreBody(prev), { isUndo: true }));
+      else utils.showToast(msg, 'success');
       await loadIngredients();
-    } catch (err) { utils.showToast(err.message || 'No se pudo guardar.', 'error'); }
+    } catch (err) { utils.showToast(err.message || 'No se pudo guardar.', 'error'); renderIngredients(); }
   }
   let ingTimer = null;
   $('ingBox').addEventListener('input', (e) => {
@@ -173,12 +221,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearTimeout(ingTimer);
     const q = inp.value.trim();
     if (q.length < 2) { box.hidden = true; return; }
+    box.innerHTML = '<button type="button" disabled>Buscando…</button>';
+    box.hidden = false;
     ingTimer = setTimeout(async () => {
       try {
         const items = await api.get(`/inventory/items?q=${encodeURIComponent(q)}&limit=8`);
-        box.innerHTML = items.length ? items.map((it) => `<button type="button" data-map="${it.id}">${esc(it.name)}<small>${esc(it.unit || '')}${it.category ? ` · ${esc(it.category)}` : ''}</small></button>`).join('') : '<button type="button" disabled>Nada coincide</button>';
+        box.innerHTML = items.length ? items.map((it) => `<button type="button" data-map="${it.id}" data-name="${esc(it.name)}">${esc(it.name)}<small>${esc(it.unit || '')}${it.category ? ` · ${esc(it.category)}` : ''}</small></button>`).join('') : '<button type="button" disabled>Nada coincide</button>';
         box.hidden = false;
-      } catch (err) { box.hidden = true; }
+      } catch (err) { box.innerHTML = '<button type="button" disabled>No se pudo buscar. Revisa la conexión.</button>'; }
     }, 200);
   });
   $('ingBox').addEventListener('click', (e) => {
@@ -186,7 +236,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!row) return;
     const id = Number(row.dataset.ing);
     const m = e.target.closest('[data-map]');
-    if (m) { mapIngredient(id, { inventory_item_id: Number(m.dataset.map) }); return; }
+    if (m) {
+      // Doble toque: el segundo llegaba antes de repintar y guardaba dos veces.
+      row.querySelectorAll('[data-map]').forEach((b) => { b.disabled = true; });
+      mapIngredient(id, { inventory_item_id: Number(m.dataset.map) }, { itemName: m.dataset.name || '' });
+      return;
+    }
     if (e.target.closest('[data-ignore]')) { mapIngredient(id, { ignored: true }); return; }
     if (e.target.closest('[data-unignore]')) { mapIngredient(id, { ignored: false, inventory_item_id: null }); }
   });
@@ -210,29 +265,105 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rows = state.dishes.filter((d) => !f || (f === 'sin' ? !d.recipe : !!d.recipe));
     const box = $('dishBox');
     if (!rows.length) { box.innerHTML = '<div class="ops-empty">Nada con ese filtro.</div>'; return; }
-    const opciones = (sel) => '<option value="">— Sin receta (cargar en Invu) —</option>' + state.recipes.map((r) => `<option value="${r.id}" ${sel === r.id ? 'selected' : ''}>${esc(r.name)}</option>`).join('');
-    box.innerHTML = `<table class="ops-table"><thead><tr><th>Plato vendido</th><th>Vendidos 30 d</th><th>Receta</th></tr></thead><tbody>${rows.map((d) => `
+    box.innerHTML = `<table class="ops-table ops-cards"><thead><tr><th>Plato vendido</th><th>Vendidos en 30 días</th><th>Receta</th></tr></thead><tbody>${rows.map((d) => `
       <tr data-dish="${esc(d.dish_name)}">
-        <td><span class="ops-title">${esc(d.dish_name)}</span>${d.auto ? '<span class="ops-sub">enlazado solo por nombre</span>' : ''}</td>
-        <td data-label="Vendidos 30 d">${num(d.sold)}</td>
-        <td class="rec-td-wide">${canEdit ? `<select class="inv-filter-select rec-dish-select" data-link>${opciones(d.recipe ? d.recipe.id : null)}</select>` : esc(d.recipe ? d.recipe.name : '—')}
-          ${!d.recipe && d.suggestions.length && canEdit ? `<div class="rec-sugs" style="margin-top:6px">${d.suggestions.map((s) => `<button type="button" class="rec-sug" data-quick="${s.id}">${esc(s.name)}</button>`).join('')}</div>` : ''}</td>
+        <td class="ops-td-main"><span class="ops-title">${esc(d.dish_name)}</span>${d.auto ? '<span class="ops-sub">enlazado solo por nombre, revísalo</span>' : ''}</td>
+        <td data-label="Vendidos en 30 días">${num(d.sold)}</td>
+        <td class="rec-td-wide ops-td-wide" data-label="Receta">${canEdit
+          ? `<button type="button" class="rec-pick-btn${d.recipe ? '' : ' is-empty'}" data-pick aria-expanded="false">
+               <span>${d.recipe ? esc(d.recipe.name) : 'Elegir receta…'}</span><i data-lucide="chevron-down" aria-hidden="true"></i>
+             </button>`
+          : esc(d.recipe ? d.recipe.name : '—')}
+          ${!d.recipe && d.suggestions.length && canEdit ? `<p class="rec-sugs-label">Parecidas (tócala para usarla):</p><div class="rec-sugs">${d.suggestions.map((s) => `<button type="button" class="rec-sug" data-quick="${s.id}">${esc(s.name)}</button>`).join('')}</div>` : ''}</td>
       </tr>`).join('')}</tbody></table>`;
+    utils.renderIcons();
   }
-  async function linkDish(name, recipeId) {
+  async function linkDish(name, recipeId, { isUndo = false } = {}) {
+    const d = state.dishes.find((x) => x.dish_name === name);
+    // Para "Deshacer": si tenía una receta enlazada, se vuelve a esa; si la tenía solo por
+    // nombre (o ninguna), se quita el enlace y queda como estaba.
+    const prevId = d && d.linked && d.recipe ? d.recipe.id : null;
+    const recipeName = recipeId ? (state.recipes.find((r) => r.id === recipeId)?.name || 'la receta elegida') : '';
     try {
       await api.put('/recipes/dishes', { dish_name: name, recipe_id: recipeId });
-      utils.showToast(recipeId ? `"${name}" usa la receta elegida.` : `"${name}" queda sin receta.`, 'success');
+      if (isUndo) utils.showToast('Listo, se deshizo el cambio.', 'success');
+      else offerUndo(recipeId ? `"${name}" usa la receta ${recipeName}.` : `"${name}" queda sin receta.`, () => linkDish(name, prevId, { isUndo: true }));
       await loadDishes();
-    } catch (err) { utils.showToast(err.message || 'No se pudo guardar.', 'error'); }
+    } catch (err) { utils.showToast(err.message || 'No se pudo guardar.', 'error'); renderDishes(); }
   }
-  $('dishBox').addEventListener('change', (e) => {
-    const s = e.target.closest('select[data-link]');
-    if (s) linkDish(s.closest('[data-dish]').dataset.dish, s.value ? Number(s.value) : null);
+
+  // Buscador de recetas para un plato: un campo para escribir y la lista filtrada, todo del
+  // tamaño del dedo. Antes era un <select> con cientos de recetas, imposible de recorrer en la tablet.
+  const PICK_MAX = 40;
+  function closePickers() {
+    $('dishBox').querySelectorAll('.rec-picker').forEach((p) => p.remove());
+    $('dishBox').querySelectorAll('[data-pick]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+  }
+  function pickerOptions(dish, q) {
+    const qq = plain(q.trim());
+    const sugIds = new Set((dish?.suggestions || []).map((s) => s.id));
+    let list = state.recipes.filter((r) => !qq || plain(`${r.name} ${r.category || ''}`).includes(qq));
+    // Sin texto: primero las parecidas al plato.
+    if (!qq) list = [...list.filter((r) => sugIds.has(r.id)), ...list.filter((r) => !sugIds.has(r.id))];
+    const shown = list.slice(0, PICK_MAX);
+    const current = dish?.recipe?.id;
+    return (dish?.linked ? '<button type="button" class="rec-picker-opt is-none" data-pick-id="">Quitar la receta (cargarla en Invu)</button>' : '')
+      + (shown.length
+        ? shown.map((r) => `<button type="button" class="rec-picker-opt${r.id === current ? ' is-current' : ''}" data-pick-id="${r.id}">${esc(r.name)}${r.category ? `<small>${esc(r.category)}</small>` : ''}</button>`).join('')
+        : '<p class="rec-picker-empty">Ninguna receta con ese nombre.</p>')
+      + (list.length > PICK_MAX ? `<p class="rec-picker-empty">Hay ${num(list.length - PICK_MAX)} más: escribe parte del nombre para encontrarla.</p>` : '');
+  }
+  function openPicker(btn) {
+    const tr = btn.closest('[data-dish]');
+    const dish = state.dishes.find((x) => x.dish_name === tr.dataset.dish);
+    closePickers();
+    btn.setAttribute('aria-expanded', 'true');
+    const p = document.createElement('div');
+    p.className = 'rec-picker';
+    p.innerHTML = `
+      <div class="rec-picker-top">
+        <input class="modal-input" type="search" enterkeyhint="search" data-pick-q placeholder="Buscar receta por nombre…" aria-label="Buscar receta para ${esc(tr.dataset.dish)}" autocomplete="off" />
+        <button type="button" class="ops-btn" data-pick-close>Cancelar</button>
+      </div>
+      <div class="rec-picker-list" data-pick-list>${pickerOptions(dish, '')}</div>`;
+    btn.insertAdjacentElement('afterend', p);
+    p.querySelector('[data-pick-q]').focus({ preventScroll: true });
+    p.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  $('dishBox').addEventListener('input', (e) => {
+    const q = e.target.closest('[data-pick-q]');
+    if (!q) return;
+    const tr = q.closest('[data-dish]');
+    const dish = state.dishes.find((x) => x.dish_name === tr.dataset.dish);
+    q.closest('.rec-picker').querySelector('[data-pick-list]').innerHTML = pickerOptions(dish, q.value);
+  });
+  $('dishBox').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && e.target.closest('.rec-picker')) {
+      const btn = e.target.closest('td').querySelector('[data-pick]');
+      closePickers();
+      btn?.focus();
+    }
   });
   $('dishBox').addEventListener('click', (e) => {
+    const tr = e.target.closest('[data-dish]');
+    if (!tr) return;
+    const pickBtn = e.target.closest('[data-pick]');
+    if (pickBtn) {
+      if (pickBtn.getAttribute('aria-expanded') === 'true') closePickers(); else openPicker(pickBtn);
+      return;
+    }
+    if (e.target.closest('[data-pick-close]')) { closePickers(); return; }
+    const opt = e.target.closest('[data-pick-id]');
+    if (opt) {
+      opt.disabled = true;
+      linkDish(tr.dataset.dish, opt.dataset.pickId ? Number(opt.dataset.pickId) : null);
+      return;
+    }
     const b = e.target.closest('[data-quick]');
-    if (b) linkDish(b.closest('[data-dish]').dataset.dish, Number(b.dataset.quick));
+    if (b) {
+      tr.querySelectorAll('[data-quick]').forEach((x) => { x.disabled = true; });
+      linkDish(tr.dataset.dish, Number(b.dataset.quick));
+    }
   });
   $('dishFilter').addEventListener('change', renderDishes);
 
@@ -347,9 +478,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const d = await api.get('/recipes?kind=interna');
       if (!d.recipes.length) { box.innerHTML = '<div class="ops-empty">No hay preparaciones cargadas.</div>'; return; }
-      box.innerHTML = `<table class="ops-table"><thead><tr><th>Preparación</th><th>Lote</th><th>Porciones</th><th>Porción</th><th>Costo del lote</th><th>Costo por 100 g</th></tr></thead><tbody>${d.recipes.map((r) => `
+      box.innerHTML = `<table class="ops-table ops-cards"><thead><tr><th>Preparación</th><th>Lote</th><th>Porciones</th><th>Porción</th><th>Costo del lote</th><th>Costo por 100 g</th></tr></thead><tbody>${d.recipes.map((r) => `
         <tr>
-          <td><span class="ops-title">${esc(r.name)}</span><span class="ops-sub">${esc(r.category || '')}${r.notes ? ` · ${esc(r.notes)}` : ''}</span></td>
+          <td class="ops-td-main"><span class="ops-title">${esc(r.name)}</span><span class="ops-sub">${esc(r.category || '')}${r.notes ? ` · ${esc(r.notes)}` : ''}</span></td>
           <td data-label="Lote">${r.yield_weight_g != null ? `${num(r.yield_weight_g)} g` : '—'}</td>
           <td data-label="Porciones">${r.yield_portions != null ? num(r.yield_portions) : '—'}</td>
           <td data-label="Porción">${r.portion_g != null ? `${num(r.portion_g)} g` : '—'}</td>
@@ -368,10 +499,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const q = $('priceSearch').value.trim();
       const d = await api.get(`/recipes/prices${q ? `?q=${encodeURIComponent(q)}` : ''}`);
       if (!d.ingredients.length) { box.innerHTML = '<div class="ops-empty">No hay precios cargados.</div>'; return; }
-      box.innerHTML = `<table class="ops-table"><thead><tr><th>Ingrediente</th><th>Proveedores</th><th>Mejor por kg</th></tr></thead><tbody>${d.ingredients.map((g) => `
+      box.innerHTML = `<table class="ops-table ops-cards"><thead><tr><th>Ingrediente</th><th>Proveedores</th><th>Mejor por kg</th></tr></thead><tbody>${d.ingredients.map((g) => `
         <tr>
-          <td><span class="ops-title">${esc(g.name)}</span><span class="ops-sub">${esc(g.category || '')}</span></td>
-          <td class="rec-td-wide"><div class="rec-offers">${g.offers.map((o) => `<span class="rec-offer ${o.best ? 'best' : ''}">${esc(o.supplier)}: ${money(o.price)}${o.package_grams ? ` / ${num(o.package_grams)} g` : ''}${o.brand ? ` · ${esc(o.brand)}` : ''}</span>`).join('')}</div></td>
+          <td class="ops-td-main"><span class="ops-title">${esc(g.name)}</span><span class="ops-sub">${esc(g.category || '')}</span></td>
+          <td class="rec-td-wide ops-td-wide" data-label="Proveedores"><div class="rec-offers">${g.offers.map((o) => `<span class="rec-offer ${o.best ? 'best' : ''}">${esc(o.supplier)}: ${money(o.price)}${o.package_grams ? ` / ${num(o.package_grams)} g` : ''}${o.brand ? ` · ${esc(o.brand)}` : ''}</span>`).join('')}</div></td>
           <td data-label="Mejor por kg">${g.best_price_per_kg != null ? money(g.best_price_per_kg) : '—'}</td>
         </tr>`).join('')}</tbody></table>`;
     } catch (err) { box.innerHTML = `<div class="ops-empty">${esc(err.message || 'No se pudieron cargar.')}</div>`; }
@@ -382,6 +513,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('importFile').addEventListener('change', async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    utils.showToast('Importando las recetas… puede tardar unos segundos.', 'info');
     try {
       const data = JSON.parse(await file.text());
       const r = await api.post('/recipes/import', data);
@@ -389,7 +521,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.recipes = [];
       LOADERS[state.tab]();
     } catch (err) {
-      utils.showToast(err instanceof SyntaxError ? 'El archivo no es un JSON válido.' : (err.message || 'No se pudo importar.'), 'error');
+      utils.showToast(err instanceof SyntaxError ? 'Ese archivo no es el de recetas: no se pudo leer. Elige el archivo .json que exporta el sistema anterior.' : (err.message || 'No se pudo importar.'), 'error');
     } finally { e.target.value = ''; }
   });
 

@@ -12,10 +12,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=4.13.1">
+  <link rel="stylesheet" href="css/style.css?v=5.0.1003">
   <!-- Mismo armazón (cabecera, gate de sesión, botones) que Inventario y Prep. -->
-  <link rel="stylesheet" href="css/inventory.css?v=4.23.0">
-  <link rel="stylesheet" href="css/gestion.css?v=1.5.0">
+  <link rel="stylesheet" href="css/inventory.css?v=5.0.1003">
+  <link rel="stylesheet" href="css/gestion.css?v=5.0.1003">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -57,7 +57,7 @@
 
     <main class="ops-body">
 
-      <div class="ops-toolbar">
+      <div class="ops-toolbar ops-toolbar-stack">
         <select class="inv-filter-select" id="branchSelect" aria-label="Sucursal"></select>
         <nav class="ops-tabs" id="opsTabs" aria-label="Secciones">
           <button type="button" class="ops-tab active" data-tab="resumen"><i data-lucide="layout-grid"></i> <span>Resumen</span></button>
@@ -68,12 +68,18 @@
           <button type="button" class="ops-tab" data-tab="cargamentos"><i data-lucide="truck"></i> <span>Cargamentos</span> <span class="ops-tab-count" id="countCargamentos" hidden></span></button>
           <button type="button" class="ops-tab" data-tab="actividad"><i data-lucide="history"></i> <span>Actividad</span></button>
         </nav>
-        <button type="button" class="inv-secondary-btn ops-refresh" id="btnRefresh" title="Actualizar"><i data-lucide="refresh-cw"></i></button>
+        <button type="button" class="inv-secondary-btn ops-refresh" id="btnRefresh" aria-label="Actualizar"><i data-lucide="refresh-cw"></i> <span class="ops-refresh-label">Actualizar</span></button>
       </div>
 
       <!-- ---------- Resumen ---------- -->
       <section class="ops-view" id="viewResumen">
         <div class="ops-totals" id="opsTotals"></div>
+        <p class="ops-legend" id="opsLegend">
+          <span>Las sucursales con más pendientes salen primero.</span>
+          <span><i class="high"></i> Urgente: incidencias graves o cosas vencidas</span>
+          <span><i class="mid"></i> Hay cosas por revisar</span>
+          <span><i class="ok"></i> Al día</span>
+        </p>
         <div class="ops-branch-grid" id="opsBranchGrid"></div>
         <p class="ops-updated" id="opsUpdated"></p>
       </section>
@@ -81,15 +87,15 @@
       <!-- ---------- Incidencias ---------- -->
       <section class="ops-view" id="viewIncidencias" hidden>
         <div class="ops-filters">
-          <select class="inv-filter-select" id="incStatus">
+          <select class="inv-filter-select" id="incStatus" aria-label="Estado">
             <option value="pendientes">Pendientes</option>
             <option value="abierta">Abiertas</option>
             <option value="en_proceso">En proceso</option>
             <option value="resuelta">Resueltas</option>
             <option value="">Todas</option>
           </select>
-          <select class="inv-filter-select" id="incSeverity">
-            <option value="">Toda severidad</option>
+          <select class="inv-filter-select" id="incSeverity" aria-label="Severidad">
+            <option value="">Todas las severidades</option>
             <option value="alta">Alta</option>
             <option value="media">Media</option>
             <option value="baja">Baja</option>
@@ -102,13 +108,13 @@
       <!-- ---------- Tareas ---------- -->
       <section class="ops-view" id="viewTareas" hidden>
         <div class="ops-filters">
-          <select class="inv-filter-select" id="taskStatus">
+          <select class="inv-filter-select" id="taskStatus" aria-label="Estado">
             <option value="pendientes">Pendientes</option>
             <option value="hecha">Hechas</option>
             <option value="cancelada">Canceladas</option>
             <option value="">Todas</option>
           </select>
-          <label class="ops-check"><input type="checkbox" id="taskOverdue" /> Solo vencidas</label>
+          <label class="ops-check" for="taskOverdue"><input type="checkbox" id="taskOverdue" /> Solo vencidas</label>
           <button type="button" class="inv-primary-btn" id="btnNewTask"><i data-lucide="plus"></i> Nueva tarea</button>
         </div>
         <div id="taskList"></div>
@@ -124,7 +130,7 @@
       <!-- ---------- Solicitudes ---------- -->
       <section class="ops-view" id="viewSolicitudes" hidden>
         <div class="ops-filters">
-          <select class="inv-filter-select" id="reqStatus">
+          <select class="inv-filter-select" id="reqStatus" aria-label="Estado">
             <option value="pendientes">Pendientes</option>
             <option value="open">Sin aprobar</option>
             <option value="approved">Aprobadas</option>
@@ -139,7 +145,7 @@
       <!-- ---------- Traslados ---------- -->
       <section class="ops-view" id="viewTraslados" hidden>
         <div class="ops-filters">
-          <select class="inv-filter-select" id="trfStatus">
+          <select class="inv-filter-select" id="trfStatus" aria-label="Estado">
             <option value="activos">Activos</option>
             <option value="requested">Por aprobar</option>
             <option value="approved">Por despachar</option>
@@ -155,8 +161,8 @@
       <!-- ---------- Cargamentos esperados ---------- -->
       <section class="ops-view" id="viewCargamentos" hidden>
         <div class="ops-filters">
-          <span class="ops-hint">Cargamentos programados y pendientes de recibir. Se reciben contra factura en Inventario.</span>
-          <a class="inv-secondary-btn" href="/inventario?view=cargamentos"><i data-lucide="truck"></i> Ir a recepción</a>
+          <span class="ops-hint">Cargamentos programados que todavía no llegan. Cuando lleguen, se reciben con la factura en Inventario.</span>
+          <a class="inv-secondary-btn" href="/inventario?view=cargamentos"><i data-lucide="truck"></i> Recibir mercancía</a>
         </div>
         <div id="expList"></div>
       </section>
@@ -168,7 +174,7 @@
             <option value="">Todo</option>
             <option value="task">Tareas</option>
             <option value="recurring_task">Tareas recurrentes</option>
-            <option value="prep_check">Prep de bowls</option>
+            <option value="prep_check">Preparación del día</option>
             <option value="closing_sheet">Cierres de turno</option>
             <option value="count">Conteos</option>
             <option value="waste">Merma</option>
@@ -176,7 +182,7 @@
             <option value="shipment">Cargamentos recibidos</option>
             <option value="expected_shipment">Cargamentos programados</option>
             <option value="purchase_order">Órdenes de compra</option>
-            <option value="supply_setting">Mínimos y pares</option>
+            <option value="supply_setting">Mínimos y cantidad ideal</option>
             <option value="supply_request">Solicitudes de insumos</option>
             <option value="transfer">Traslados</option>
             <option value="incident">Incidencias</option>
@@ -185,8 +191,8 @@
             <option value="backup" data-admin>Respaldos</option>
           </select>
           <select class="inv-filter-select" id="actActor" aria-label="Persona"><option value="">Todas las personas</option></select>
-          <label class="ops-date-field">Desde <input type="date" class="modal-input" id="actFrom" /></label>
-          <label class="ops-date-field">Hasta <input type="date" class="modal-input" id="actTo" /></label>
+          <label class="ops-date-field" for="actFrom">Desde <input type="date" class="modal-input" id="actFrom" /></label>
+          <label class="ops-date-field" for="actTo">Hasta <input type="date" class="modal-input" id="actTo" /></label>
         </div>
         <div id="actList"></div>
         <div class="ops-more"><button type="button" class="inv-secondary-btn" id="btnActMore" hidden>Ver más</button></div>
@@ -257,11 +263,13 @@
           </select>
           <div id="rtDayOfMonthWrap" hidden>
             <label class="modal-label" for="rtDayOfMonth" style="margin-top:10px">Día del mes</label>
-            <input class="modal-input" id="rtDayOfMonth" type="number" min="1" max="31" placeholder="Ej: 30" />
+            <input class="modal-input" id="rtDayOfMonth" type="number" min="1" max="31" inputmode="numeric" pattern="[0-9]*" placeholder="Ej: 30" />
+            <span class="modal-hint">Si el mes es más corto (por ejemplo, el 31 en febrero), se crea el último día del mes.</span>
           </div>
-          <label class="modal-label" for="rtTimes" style="margin-top:10px">Hora(s)</label>
-          <input class="modal-input" id="rtTimes" required placeholder="Ej: 07:00  o  08:00, 15:00, 20:00" />
-          <span class="modal-hint">Una o varias, separadas por coma. Formato 24 horas (HH:MM).</span>
+          <p class="modal-label" id="rtTimesLabel" style="margin-top:10px">A qué hora se crea</p>
+          <div class="rt-times" id="rtTimes" role="group" aria-labelledby="rtTimesLabel"></div>
+          <button type="button" class="ops-btn rt-add-time" id="btnAddRtTime"><i data-lucide="plus"></i> Agregar otra hora</button>
+          <span class="modal-hint">Puedes poner varias horas en el mismo día (hasta 10).</span>
           <p class="ops-form-error" id="rtError" hidden></p>
         </div>
         <div class="modal-footer" style="display:flex;gap:10px">
@@ -289,8 +297,9 @@
           <select class="modal-select" id="incSev">
             <option value="baja">Baja</option>
             <option value="media" selected>Media</option>
-            <option value="alta">Alta (grave)</option>
+            <option value="alta">Alta</option>
           </select>
+          <span class="modal-hint">Alta: impide trabajar o es un riesgo. Media: hay que arreglarlo pronto. Baja: puede esperar.</span>
           <label class="modal-label" for="incDesc" style="margin-top:10px">Detalle (opcional)</label>
           <textarea class="modal-input" id="incDesc" rows="2"></textarea>
           <p class="ops-form-error" id="incError" hidden></p>
@@ -325,7 +334,7 @@
 
   <!-- Modal: nuevo traslado -->
   <div class="modal-backdrop" id="modalTransfer">
-    <div class="modal-card modal-sm">
+    <div class="modal-card">
       <div class="modal-header">
         <div><h3><i data-lucide="repeat"></i> Nuevo traslado</h3><span class="modal-subtitle">La sucursal de origen lo aprueba y despacha; la de destino lo recibe</span></div>
         <button class="modal-close-btn" type="button" data-close="modalTransfer" aria-label="Cerrar">&times;</button>
@@ -336,16 +345,24 @@
             <div><label class="modal-label" for="trfFrom">Sale de</label><select class="modal-select" id="trfFrom" required></select></div>
             <div><label class="modal-label" for="trfTo">Llega a</label><select class="modal-select" id="trfTo" required></select></div>
           </div>
-          <label class="modal-label" for="trfItemSearch" style="margin-top:10px">Insumos</label>
+          <p class="modal-label" style="margin-top:12px">Insumos a trasladar</p>
+          <span class="modal-hint" style="margin:0 0 6px">Busca el insumo, escribe la cantidad y toca "Agregar". Repite por cada uno.</span>
           <div class="ops-item-picker">
-            <input class="modal-input" id="trfItemSearch" placeholder="Buscar insumo..." autocomplete="off" />
-            <input class="modal-input ops-qty" id="trfItemQty" type="number" min="0.01" step="0.01" placeholder="Cant." />
-            <button type="button" class="inv-secondary-btn" id="btnAddTrfItem">Agregar</button>
-            <div class="ops-autocomplete" id="trfItemResults" hidden></div>
+            <div class="ops-field ops-field-search">
+              <label class="modal-label" for="trfItemSearch">Insumo</label>
+              <input class="modal-input" id="trfItemSearch" type="search" placeholder="Escribe para buscar…" autocomplete="off" enterkeyhint="search" />
+              <div class="ops-autocomplete" id="trfItemResults" hidden></div>
+            </div>
+            <div class="ops-field">
+              <label class="modal-label" for="trfItemQty" id="trfItemQtyLabel">Cantidad</label>
+              <input class="modal-input ops-qty" id="trfItemQty" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0" enterkeyhint="done" />
+            </div>
+            <button type="button" class="inv-secondary-btn" id="btnAddTrfItem"><i data-lucide="plus"></i> Agregar</button>
           </div>
           <ul class="ops-item-list" id="trfItems"></ul>
+          <p class="modal-hint" id="trfItemsEmpty">Todavía no agregaste insumos.</p>
           <label class="modal-label" for="trfNotes" style="margin-top:10px">Nota (opcional)</label>
-          <input class="modal-input" id="trfNotes" maxlength="300" />
+          <input class="modal-input" id="trfNotes" maxlength="300" placeholder="Ej: urgente para el fin de semana" />
           <p class="ops-form-error" id="trfError" hidden></p>
         </div>
         <div class="modal-footer" style="display:flex;gap:10px">
@@ -356,11 +373,29 @@
     </div>
   </div>
 
-  <script src="js/utils.js?v=3.5.0"></script>
-  <script src="js/api.js?v=4.1.0"></script>
+  <!-- Modal: confirmar una acción (despachar, recibir, rechazar, cancelar...). Reemplaza a
+       confirm()/prompt() del navegador: con el dedo, botones grandes y se ve qué se mueve. -->
+  <div class="modal-backdrop" id="modalConfirm">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div><h3 id="confirmTitle">¿Confirmar?</h3><span class="modal-subtitle" id="confirmSubtitle"></span></div>
+        <button class="modal-close-btn" type="button" data-close="modalConfirm" aria-label="Cerrar">&times;</button>
+      </div>
+      <form id="confirmForm">
+        <div class="modal-body" id="confirmBody"></div>
+        <div class="modal-footer" style="display:flex;gap:10px">
+          <button type="button" class="btn-cancel" data-close="modalConfirm" style="flex:1" id="confirmCancel">Volver</button>
+          <button type="submit" class="btn-primary" style="flex:1" id="confirmOk">Confirmar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/utils.js?v=5.0.1003"></script>
+  <script src="js/api.js?v=5.0.1003"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
-  <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/gestion.js?v=1.3.1"></script>
+  <script src="js/shared/shell.js?v=5.0.1003"></script>
+  <script src="js/shared/native-app.js?v=5.0.1003"></script>
+  <script src="js/modules/gestion.js?v=5.0.1003"></script>
 </body>
 </html>

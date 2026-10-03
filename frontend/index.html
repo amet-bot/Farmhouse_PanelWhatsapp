@@ -14,12 +14,38 @@
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=4.13.1">
+  <link rel="stylesheet" href="css/style.css?v=5.0.1003">
   <!-- Componente propio de la pestaña "Flujo visual" (contenido real + mapa parcial del bot). -->
   <link rel="stylesheet" href="css/flow-editor.css?v=4.1.0">
   <!-- Tipografía de marca (ABC Ginto / PP Eiko), después de style.css para ganarle en cascada
        sin tocar esa regla compartida por el resto de la suite. Ver el comentario del archivo. -->
   <link rel="stylesheet" href="css/chat-brand-fonts.css?v=1.0.0">
+  <!-- Solo de esta pantalla (por eso aquí y no en style.css, que comparte toda la suite):
+       · "Panel General": en la tablet y el celular la única forma de volver era el logo, dentro
+         del menú lateral que en esos tamaños está escondido. Dentro del hub no hace falta.
+       · Pantallas táctiles: botones de la barra y del chat del tamaño del dedo, y campos en 16px
+         (con menos, el iPad y el iPhone hacen zoom al tocarlos). -->
+  <style>
+    .wa-hub-back {
+      display: none; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0;
+      min-height: 40px; padding: 0 12px; border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.08);
+      color: #eef5f3; font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap;
+    }
+    .wa-hub-back:hover { background: rgba(255, 255, 255, 0.16); }
+    .wa-hub-back svg, .wa-hub-back i { width: 16px; height: 16px; }
+    @media (max-width: 1100px) { .wa-hub-back { display: inline-flex; } }
+    @media (max-width: 480px) {
+      .wa-hub-back { width: 40px; padding: 0; }
+      .wa-hub-back span { display: none; }
+    }
+    .fh-embedded .wa-hub-back { display: none !important; }
+    @media (pointer: coarse) {
+      .wa-hub-back, .btn-hamburger, .btn-mobile-back, .notif-bell { min-height: 44px; min-width: 44px; }
+      .header-chip { min-height: 44px; }
+      .search-box input, #branchSelect, .chat-composer textarea { font-size: 16px; }
+    }
+  </style>
   <!-- Lucide Icons CDN -->
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
@@ -94,6 +120,9 @@
     <!-- 2. MAIN AREA & TOPBAR -->
     <main class="main-area">
       <header class="topbar">
+        <a class="wa-hub-back" href="/hub" aria-label="Volver al Panel General">
+          <i data-lucide="arrow-left"></i><span>Panel General</span>
+        </a>
         <button class="btn-hamburger" id="btnHamburgerMenu" aria-label="Abrir menú de navegación" title="Menú">
           <i data-lucide="menu"></i>
         </button>
@@ -878,21 +907,21 @@
   </div>
 
   <!-- Scripts JavaScript Modularizados y Seguros -->
-  <script src="js/utils.js?v=3.5.0"></script>
-  <script src="js/api.js?v=4.1.0"></script>
+  <script src="js/utils.js?v=5.0.1003"></script>
+  <script src="js/api.js?v=5.0.1003"></script>
   <script src="js/ws.js?v=4.2.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/modules/branches.js?v=4.5.0"></script>
-  <script src="js/modules/users.js?v=4.1.0"></script>
-  <script src="js/modules/devices.js?v=4.0.1"></script>
+  <script src="js/modules/users.js?v=5.0.1003"></script>
+  <script src="js/modules/devices.js?v=5.0.1003"></script>
   <script src="js/modules/contacts.js?v=1.0.0"></script>
   <script src="js/modules/conversations.js?v=4.5.0"></script>
   <script src="js/modules/chat.js?v=4.3.1"></script>
   <script src="js/modules/push.js?v=4.0.0"></script>
   <script src="js/modules/notifications.js?v=4.0.0"></script>
   <script src="js/modules/flow_editor.js?v=4.1.0"></script>
-  <script src="js/shared/shell.js?v=4.2.0"></script>
-  <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/app.js?v=4.1.2"></script>
+  <script src="js/shared/shell.js?v=5.0.1003"></script>
+  <script src="js/shared/native-app.js?v=5.0.1003"></script>
+  <script src="js/app.js?v=5.0.1003"></script>
 </body>
 </html>
