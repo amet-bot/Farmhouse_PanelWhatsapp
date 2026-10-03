@@ -261,3 +261,35 @@ def test_crear_sucursal_guarda_el_horario(client, admin_user):
     r = client.post("/api/branches/", json={"name": "Santa María", "code": "SMA", "opens_at": "07:00", "closes_at": "22:00"}, headers=_h(admin_user))
     assert r.status_code == 201, r.text
     assert (r.json()["opens_at"], r.json()["closes_at"]) == ("07:00", "22:00")
+
+
+JPG = b"\xff\xd8\xff\xe0" + b"0" * 200   # basta con la firma de JPEG
+
+
+def test_tarea_con_foto_como_prueba(client, db_session, clayton_branch, obarrio_agent, clayton_agent, clayton_device, supervisor_user, avisos):
+    hs = _h(supervisor_user, clayton_device)
+    t = client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Limpiar campana", "requires_photo": True}, headers=hs).json()
+    assert t["requires_photo"] is True and t["photos"] == []
+
+    ha = _h(clayton_agent, clayton_device)
+    # Sin foto no se marca hecha.
+    r = client.post(f"/api/ops/tasks/{t['id']}/status", json={"status": "hecha"}, headers=ha)
+    assert r.status_code == 400 and "foto" in r.json()["detail"]
+
+    # Algo que no es foto se rechaza; otra sucursal no puede subir.
+    assert client.post(f"/api/ops/tasks/{t['id']}/photos", files={"file": ("x.txt", b"hola", "text/plain")}, headers=ha).status_code == 415
+    assert client.post(f"/api/ops/tasks/{t['id']}/photos", files={"file": ("f.jpg", JPG, "image/jpeg")}, headers=_h(obarrio_agent)).status_code == 403
+
+    r = client.post(f"/api/ops/tasks/{t['id']}/photos", files={"file": ("f.jpg", JPG, "image/jpeg")}, headers=ha)
+    assert r.status_code == 201, r.text
+    foto = r.json()["photos"][0]
+    assert foto["uploaded_by_name"] == clayton_agent.name
+    img = client.get(f"/api/ops/tasks/{t['id']}/photos/{foto['id']}", headers=hs)
+    assert img.status_code == 200 and img.headers["content-type"] == "image/jpeg" and img.content == JPG
+
+    assert client.post(f"/api/ops/tasks/{t['id']}/status", json={"status": "hecha"}, headers=ha).json()["status"] == "hecha"
+
+    # Una tarea normal sigue marcándose hecha sin foto, y se puede pedir foto después al editarla.
+    n = client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Barrer"}, headers=hs).json()
+    assert client.patch(f"/api/ops/tasks/{n['id']}", json={"requires_photo": True}, headers=hs).json()["requires_photo"] is True
+    assert client.post(f"/api/ops/tasks/{n['id']}/status", json={"status": "hecha"}, headers=ha).status_code == 400

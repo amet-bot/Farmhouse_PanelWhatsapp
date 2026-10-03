@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
   <link rel="stylesheet" href="css/gestion.css?v=1.0.0">
-  <link rel="stylesheet" href="css/tareas.css?v=1.0.1">
+  <link rel="stylesheet" href="css/tareas.css?v=1.1.0">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -62,6 +62,7 @@
         <button type="button" class="tar-tab" data-tab="hechas" role="tab">Hechas hoy <span id="countDone">0</span></button>
       </div>
       <div id="taskBox"><div class="ops-loading">Cargando tareas…</div></div>
+      <input type="file" id="taskPhotoInput" accept="image/*" capture="environment" hidden />
       <p class="tar-foot">Las tareas las manda el encargado o la oficina desde el Centro de operación. Te llega un aviso al celular o a la tablet cuando hay una nueva.</p>
     </main>
   </div>
@@ -71,6 +72,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/tareas.js?v=1.0.0"></script>
+  <script src="js/modules/tareas.js?v=1.1.0"></script>
 </body>
 </html>

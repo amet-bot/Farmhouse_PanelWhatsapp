@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, Numeric, String, DateTime, ForeignKey, Text, Index, Boolean
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, Numeric, String, DateTime, ForeignKey, Text, Index, Boolean, LargeBinary
+from sqlalchemy.dialects.mysql import MEDIUMBLOB
+from sqlalchemy.orm import relationship, deferred
 from datetime import datetime, timezone
 from database import Base
 
@@ -99,10 +100,13 @@ class Task(Base):
     due_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     completed_at = Column(DateTime, nullable=True)
+    # La tarea pide una foto como prueba para marcarse hecha (migración 064).
+    requires_photo = Column(Boolean, nullable=False, default=False, server_default="0")
 
     branch = relationship("Branch")
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     assigned_to_user = relationship("User", foreign_keys=[assigned_to_user_id])
+    photos = relationship("TaskPhoto", back_populates="task", cascade="all, delete-orphan", order_by="TaskPhoto.id")
 
     __table_args__ = (
         Index("ix_task_branch_status", "branch_id", "status"),
@@ -146,3 +150,23 @@ class RecurringTaskTemplate(Base):
     __table_args__ = (
         Index("ix_recurring_task_branch_active", "branch_id", "active"),
     )
+
+
+class TaskPhoto(Base):
+    """
+    Foto de prueba de una tarea hecha (la campana limpia, el refri ordenado). Va DENTRO de la
+    base, igual que las de merma (models/waste.py, WastePhoto): el navegador la achica antes de
+    subirla y `data` es diferida, así que listar tareas nunca trae los bytes.
+    """
+    __tablename__ = "task_photos"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    content_type = Column(String(40), nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    data = deferred(Column(LargeBinary().with_variant(MEDIUMBLOB(), "mysql"), nullable=False))
+    uploaded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    task = relationship("Task", back_populates="photos")
+    uploaded_by_user = relationship("User", foreign_keys=[uploaded_by_user_id])

@@ -14,7 +14,7 @@ import re
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -22,7 +22,7 @@ from database import get_db
 from models.branch import Branch
 from models.conversation import Conversation
 from models.inventory_item import InventoryItem
-from models.ops import SupplyRequest, Incident, Task, RecurringTaskTemplate
+from models.ops import SupplyRequest, Incident, Task, TaskPhoto, RecurringTaskTemplate
 from models.prep import PrepTemplate, PrepCheck
 from models.shipment import ExpectedShipment
 from models.stock_count import StockCount
@@ -186,6 +186,8 @@ def _task_out(t: Task) -> TaskResponse:
         title=t.title, description=t.description, status=t.status,
         due_date=t.due_date, overdue=_task_overdue(t),
         created_at=t.created_at, completed_at=t.completed_at,
+        requires_photo=bool(t.requires_photo),
+        photos=[{"id": p.id, "created_at": p.created_at, "uploaded_by_name": p.uploaded_by_user.name if p.uploaded_by_user else None} for p in t.photos],
     )
 
 
@@ -442,6 +444,7 @@ def create_task(
         title=task_in.title,
         description=task_in.description,
         due_date=task_in.due_date,
+        requires_photo=task_in.requires_photo,
     )
     db.add(task)
     db.flush()
@@ -517,6 +520,9 @@ def update_task(
         nuevo_asignado = _assignee_or_400(db, update.assigned_to_user_id, task.branch_id)
         task.assigned_to_user_id = nuevo_asignado.id
         cambios["assigned_to_user_id"] = nuevo_asignado.id
+    if update.requires_photo is not None and bool(update.requires_photo) != bool(task.requires_photo):
+        task.requires_photo = bool(update.requires_photo)
+        cambios["requires_photo"] = task.requires_photo
     if update.clear_due_date:
         task.due_date = None
         cambios["due_date"] = None
@@ -545,6 +551,8 @@ def update_task_status(
     if update.status not in Task.STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Estado no válido.")
 
+    if update.status == "hecha" and task.requires_photo and not task.photos:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Esta tarea pide una foto como prueba: súbela para marcarla hecha.")
     anterior = task.status
     task.status = update.status
     task.completed_at = _now() if update.status == "hecha" else None
@@ -756,6 +764,56 @@ def delete_recurring_task(
     log_audit_event(db, current_user.id, template.branch_id, "recurring_task.delete", "recurring_task_template", template.id, {"title": template.title})
     db.delete(template)
     db.commit()
+
+
+TASK_PHOTO_MAX_BYTES = 8 * 1024 * 1024
+TASK_PHOTOS_PER_TASK = 4
+
+
+@router.post("/tasks/{task_id}/photos", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+async def add_task_photo(
+    task_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """Foto de prueba de una tarea (la de antes de marcarla hecha). Solo JPG, PNG o WebP,
+    verificado por su contenido; hasta TASK_PHOTOS_PER_TASK por tarea."""
+    from routers.inventory import _image_type
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarea no encontrada.")
+    _require_own_branch_or_admin(current_user, task.branch_id, "No tienes permiso sobre esta tarea.")
+    if len(task.photos) >= TASK_PHOTOS_PER_TASK:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Una tarea admite hasta {TASK_PHOTOS_PER_TASK} fotos.")
+    data = await file.read(TASK_PHOTO_MAX_BYTES + 1)
+    if len(data) > TASK_PHOTO_MAX_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="La foto supera los 8 MB.")
+    tipo = _image_type(data)
+    if not tipo:
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Solo se aceptan fotos (JPG, PNG o WebP).")
+    task.photos.append(TaskPhoto(content_type=tipo, size_bytes=len(data), data=data, uploaded_by_user_id=current_user.id))
+    log_audit_event(db, current_user.id, task.branch_id, "task.photo_add", "task", task.id, {"size_bytes": len(data)})
+    db.commit()
+    db.refresh(task)
+    return _task_out(task)
+
+
+@router.get("/tasks/{task_id}/photos/{photo_id}")
+def get_task_photo(
+    task_id: int,
+    photo_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarea no encontrada.")
+    _require_own_branch_or_admin(current_user, task.branch_id, "No tienes permiso sobre esta tarea.")
+    foto = db.query(TaskPhoto).filter(TaskPhoto.id == photo_id, TaskPhoto.task_id == task.id).first()
+    if not foto:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Foto no encontrada.")
+    return Response(content=foto.data, media_type=foto.content_type, headers={"Cache-Control": "private, max-age=86400"})
 
 
 # ==========================================================================

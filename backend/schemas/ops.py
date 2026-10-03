@@ -86,6 +86,7 @@ class TaskCreate(BaseModel):
     description: Optional[str] = None
     assigned_to_user_id: Optional[int] = None
     due_date: Optional[datetime] = None
+    requires_photo: bool = False
 
 
 class TaskUpdate(BaseModel):
@@ -95,10 +96,17 @@ class TaskUpdate(BaseModel):
     clear_assignee: bool = False
     due_date: Optional[datetime] = None
     clear_due_date: bool = False
+    requires_photo: Optional[bool] = None
 
 
 class TaskStatusUpdate(BaseModel):
     status: str
+
+
+class TaskPhotoOut(BaseModel):
+    id: int
+    created_at: datetime
+    uploaded_by_name: Optional[str] = None
 
 
 class TaskResponse(BaseModel):
@@ -116,6 +124,8 @@ class TaskResponse(BaseModel):
     overdue: bool = False
     created_at: datetime
     completed_at: Optional[datetime] = None
+    requires_photo: bool = False
+    photos: List[TaskPhotoOut] = []
 
 
 # ==========================================================================

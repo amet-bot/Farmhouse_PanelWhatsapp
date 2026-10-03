@@ -48,3 +48,7 @@
   .tar-card-title { font-size: 16px; }
   .inv-header #branchSelect { max-width: 120px; font-size: 13px; }
 }
+
+.tar-photos { display: flex; flex-wrap: wrap; gap: 6px; }
+.tar-photo-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--green, #15803d); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.tar-photo-btn i { width: 15px; height: 15px; }

@@ -89,16 +89,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       : t.assigned_to_user_id ? `<span class="tar-chip"><i data-lucide="user"></i> Para ${esc(t.assigned_to_name || '—')}</span>`
       : '<span class="tar-chip"><i data-lucide="users"></i> Para todo el equipo</span>';
     const sucursal = isGlobal && !state.branchId ? `<span class="tar-chip"><i data-lucide="store"></i> ${esc(t.branch_name)}</span>` : '';
+    const fotos = t.photos || [];
+    const pideFoto = t.requires_photo && !fotos.length && t.status !== 'hecha';
+    const chipFoto = pideFoto ? '<span class="tar-chip soon"><i data-lucide="camera"></i> Pide foto</span>' : '';
+    const verFotos = fotos.map((p, i) => `<button type="button" class="tar-photo-btn" data-photo="/ops/tasks/${t.id}/photos/${p.id}"><i data-lucide="image"></i> Ver foto${fotos.length > 1 ? ` ${i + 1}` : ''}</button>`).join('');
+    const hechaLabel = pideFoto ? '<i data-lucide="camera"></i> Tomar foto y marcar hecha' : '<i data-lucide="check"></i> Marcar hecha';
     const busy = state.busy.has(t.id) ? 'disabled' : '';
     let acciones = '';
     if (t.status === 'hecha') {
       acciones = `<div class="tar-actions single"><button type="button" class="inv-secondary-btn tar-undo" data-act="pendiente" data-id="${t.id}" ${busy}>Deshacer</button></div>`;
     } else if (t.status === 'en_proceso') {
-      acciones = `<div class="tar-actions single"><button type="button" class="inv-primary-btn" data-act="hecha" data-id="${t.id}" ${busy}><i data-lucide="check"></i> Marcar hecha</button></div>`;
+      acciones = `<div class="tar-actions single"><button type="button" class="inv-primary-btn" data-act="hecha" data-id="${t.id}" ${busy}>${hechaLabel}</button></div>`;
     } else {
       acciones = `<div class="tar-actions">
           <button type="button" class="inv-secondary-btn" data-act="en_proceso" data-id="${t.id}" ${busy}>Empezar</button>
-          <button type="button" class="inv-primary-btn" data-act="hecha" data-id="${t.id}" ${busy}><i data-lucide="check"></i> Marcar hecha</button>
+          <button type="button" class="inv-primary-btn" data-act="hecha" data-id="${t.id}" ${busy}>${hechaLabel}</button>
         </div>`;
     }
     const clases = ['tar-card', mine ? 'is-mine' : '', t.overdue && t.status !== 'hecha' ? 'is-late' : '', t.status === 'hecha' ? 'is-done' : '', state.focusId === t.id ? 'is-focus' : ''].join(' ');
@@ -107,11 +112,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         <h3 class="tar-card-title">${esc(t.title)}</h3>
         ${t.description ? `<p class="tar-card-desc">${esc(t.description)}</p>` : ''}
         <div class="tar-meta">
-          ${para}${sucursal}
+          ${para}${sucursal}${chipFoto}
           ${t.status === 'en_proceso' ? '<span class="tar-chip doing"><i data-lucide="loader"></i> En proceso</span>' : ''}
           ${t.status === 'hecha' ? `<span class="tar-chip mine"><i data-lucide="check"></i> Hecha ${esc(t.completed_at ? ago(t.completed_at) : '')}</span>` : dueChip(t)}
         </div>
         <span class="tar-from">Enviada por ${esc(t.created_by_name)} · ${esc(ago(t.created_at))}</span>
+        ${verFotos ? `<div class="tar-photos">${verFotos}</div>` : ''}
         ${acciones}
       </article>`;
   }
@@ -152,12 +158,76 @@ document.addEventListener('DOMContentLoaded', async () => {
     render();
   });
 
+  // ---- fotos ----
+  const PHOTO_MAX_SIDE = 1600;
+  async function compressPhoto(file) {
+    let tmpUrl = null;
+    try {
+      let source;
+      if (window.createImageBitmap) source = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      else {
+        tmpUrl = URL.createObjectURL(file);
+        source = await new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = tmpUrl; });
+      }
+      const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(source.width, source.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(source.width * scale);
+      canvas.height = Math.round(source.height * scale);
+      canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+      if (source.close) source.close();
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+      if (blob) return blob;
+    } catch (e) { /* formato que el navegador no dibuja: va el original y el servidor decide */ }
+    finally { if (tmpUrl) URL.revokeObjectURL(tmpUrl); }
+    return file;
+  }
+  function pickPhoto() {
+    return new Promise((resolve) => {
+      const input = $('taskPhotoInput');
+      input.value = '';
+      const onChange = () => { input.removeEventListener('change', onChange); resolve(input.files && input.files[0] ? input.files[0] : null); };
+      input.addEventListener('change', onChange);
+      input.click();
+    });
+  }
+  async function openProtectedPhoto(url) {
+    const w = window.open('', '_blank');
+    try {
+      const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+      const dev = api.getDeviceId();
+      if (dev) headers['X-Device-ID'] = dev;
+      const res = await fetch(`${api.baseUrl}${url}`, { credentials: 'include', headers });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const blobUrl = URL.createObjectURL(await res.blob());
+      if (w) w.location.href = blobUrl; else window.location.href = blobUrl;
+    } catch (err) { if (w) w.close(); utils.showToast('No se pudo abrir la foto.', 'error'); }
+  }
+
   // ---- acciones ----
   $('taskBox').addEventListener('click', async (e) => {
+    const verFoto = e.target.closest('button[data-photo]');
+    if (verFoto) { openProtectedPhoto(verFoto.dataset.photo); return; }
     const b = e.target.closest('button[data-act]');
     if (!b) return;
     const id = Number(b.dataset.id);
     const accion = b.dataset.act;
+    const tarea = state.pending.find((x) => x.id === id);
+    // Si la tarea pide foto, primero la cámara: sin foto no se puede marcar hecha.
+    if (accion === 'hecha' && tarea && tarea.requires_photo && !(tarea.photos || []).length) {
+      const archivo = await pickPhoto();
+      if (!archivo) return;
+      b.disabled = true;
+      try {
+        const fd = new FormData();
+        fd.append('file', await compressPhoto(archivo), 'tarea.jpg');
+        const conFoto = await api.request(`/ops/tasks/${id}/photos`, { method: 'POST', body: fd });
+        Object.assign(tarea, conFoto);
+      } catch (err) {
+        utils.showToast(err.message || 'No se pudo subir la foto.', 'error');
+        b.disabled = false;
+        return;
+      }
+    }
     state.busy.add(id);
     b.disabled = true;
     try {

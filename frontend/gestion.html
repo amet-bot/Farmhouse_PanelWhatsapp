@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
   <!-- Mismo armazón (cabecera, gate de sesión, botones) que Inventario y Prep. -->
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
-  <link rel="stylesheet" href="css/gestion.css?v=1.4.0">
+  <link rel="stylesheet" href="css/gestion.css?v=1.4.1">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -211,6 +211,7 @@
           <textarea class="modal-input" id="taskDescription" rows="2"></textarea>
           <label class="modal-label" for="taskAssignee" style="margin-top:10px">Asignar a</label>
           <select class="modal-select" id="taskAssignee"><option value="">Todo el equipo de la sucursal</option></select>
+          <label class="ops-check task-photo-check"><input type="checkbox" id="taskRequiresPhoto" /> Pedir foto al terminar <small>(no se puede marcar hecha sin foto)</small></label>
           <label class="modal-label" for="taskDueDate" style="margin-top:10px">Vence (opcional)</label>
           <div class="task-due-quick" role="group" aria-label="Elegir rápido">
             <button type="button" class="task-due-chip" data-due="hoy">Hoy</button>
@@ -360,6 +361,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/gestion.js?v=1.2.3"></script>
+  <script src="js/modules/gestion.js?v=1.3.0"></script>
 </body>
 </html>

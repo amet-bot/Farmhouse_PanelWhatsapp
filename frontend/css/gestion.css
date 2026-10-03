@@ -147,3 +147,8 @@ textarea.modal-input { resize: vertical; min-height: 60px; }
 .ops-more { display: flex; justify-content: center; margin-top: 12px; }
 .ops-link { color: var(--green, #15803d); font-weight: 600; text-decoration: none; }
 .ops-link:hover { text-decoration: underline; }
+
+.task-photo-check { margin-top: 12px; display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.task-photo-check small { color: var(--text-muted, #6b7280); }
+.ops-task-photos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ops-task-photos .ops-chip i, .ops-task-photos .ops-btn i { width: 13px; height: 13px; }

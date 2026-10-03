@@ -130,13 +130,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     utils.renderIcons();
   }
 
+  // Abre una foto protegida (tarea) en otra pestaña: se baja con la sesión, porque un enlace
+  // directo no lleva el dispositivo que el servidor exige a encargados y agentes.
+  async function openProtectedPhoto(url) {
+    const w = window.open('', '_blank');
+    try {
+      const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+      const dev = api.getDeviceId();
+      if (dev) headers['X-Device-ID'] = dev;
+      const res = await fetch(`${api.baseUrl}${url}`, { credentials: 'include', headers });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const blobUrl = URL.createObjectURL(await res.blob());
+      if (w) w.location.href = blobUrl; else window.location.href = blobUrl;
+    } catch (err) {
+      if (w) w.close();
+      utils.showToast('No se pudo abrir la foto.', 'error');
+    }
+  }
+
   // ==========================================================================
   // Actividad: quién hizo qué, cuándo y en qué sucursal (auditoría)
   // ==========================================================================
   const ACT_LABELS = {
     'task.create': 'Creó una tarea', 'task.update': 'Editó una tarea', 'task.hecha': 'Marcó una tarea hecha',
     'task.en_proceso': 'Empezó una tarea', 'task.cancelada': 'Canceló una tarea', 'task.pendiente': 'Reabrió una tarea',
-    'task.remind': 'Recordó una tarea', 'task.delete': 'Eliminó una tarea',
+    'task.remind': 'Recordó una tarea', 'task.delete': 'Eliminó una tarea', 'task.photo_add': 'Subió la foto de una tarea',
     'closing_sheet.create': 'Cerró turno', 'closing_sheet.config': 'Armó la hoja de cierre',
     'count.create': 'Hizo un conteo', 'waste.create': 'Registró merma', 'waste.delete': 'Borró una merma',
     'consumption.create': 'Anotó consumo', 'consumption.delete': 'Borró un consumo',
@@ -366,7 +384,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const abierta = (t) => t.status === 'pendiente' || t.status === 'en_proceso';
     box.innerHTML = `<table class="ops-table"><thead><tr><th>Tarea</th><th>Sucursal</th><th>Asignada a</th><th>Vence</th><th>Estado</th><th></th></tr></thead><tbody>${rows.map((t) => `
       <tr class="${t.overdue ? 'overdue' : ''}">
-        <td><span class="ops-title">${esc(t.title)}</span>${t.description ? `<span class="ops-sub">${esc(t.description)}</span>` : ''}<span class="ops-sub">creada por ${esc(t.created_by_name)} · ${esc(ago(t.created_at))}</span></td>
+        <td><span class="ops-title">${esc(t.title)}</span>${t.description ? `<span class="ops-sub">${esc(t.description)}</span>` : ''}<span class="ops-sub">creada por ${esc(t.created_by_name)} · ${esc(ago(t.created_at))}</span>${t.requires_photo || (t.photos || []).length ? `<span class="ops-task-photos">${t.requires_photo && !(t.photos || []).length ? '<span class="ops-chip st-pendiente"><i data-lucide="camera"></i> Pide foto</span>' : ''}${(t.photos || []).map((p, i) => `<button type="button" class="ops-btn" data-task-photo="/ops/tasks/${t.id}/photos/${p.id}"><i data-lucide="image"></i> Foto ${i + 1}</button>`).join('')}</span>` : ''}</td>
         <td>${esc(t.branch_name)}</td>
         <td>${abierta(t) ? `<select class="ops-select" data-task-assign="${t.id}">${teamOptions(teams[t.branch_id] || [], t.assigned_to_user_id)}</select>` : esc(t.assigned_to_name || '—')}</td>
         <td><span class="ops-due ${t.overdue ? 'overdue' : ''}">${t.due_date ? esc(fmt(t.due_date)) : 'Sin fecha'}</span>${t.overdue ? ' ' + chip('overdue', 'vencida') : ''}</td>
@@ -383,6 +401,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('taskStatus').addEventListener('change', loadTareas);
   $('taskOverdue').addEventListener('change', loadTareas);
   $('taskList').addEventListener('click', (e) => {
+    const foto = e.target.closest('button[data-task-photo]');
+    if (foto) { openProtectedPhoto(foto.dataset.taskPhoto); return; }
     const remind = e.target.closest('button[data-task-remind]');
     if (remind) {
       act(remind, () => api.post(`/ops/tasks/${remind.dataset.taskRemind}/remind`, {}), 'Recordatorio enviado.');
@@ -485,6 +505,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           branch_id: Number($('taskBranch').value), title: $('taskTitle').value.trim(),
           description: $('taskDescription').value.trim() || null,
           assigned_to_user_id: $('taskAssignee').value ? Number($('taskAssignee').value) : null, due_date: due,
+          requires_photo: $('taskRequiresPhoto').checked,
         });
         closeModal('modalTask');
       } catch (err) { $('taskError').textContent = err.message; $('taskError').hidden = false; throw err; }
