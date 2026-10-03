@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Numeric
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Numeric, ForeignKey, LargeBinary
+from sqlalchemy.dialects.mysql import MEDIUMBLOB
+from sqlalchemy.orm import relationship, deferred
 from datetime import datetime, timezone
 from database import Base
 
@@ -46,3 +47,20 @@ class InventoryItem(Base):
     grams_per_ml = Column(Numeric(8, 4), nullable=True)
 
     shipment_items = relationship("ShipmentItem", back_populates="inventory_item")
+
+
+class ItemPhoto(Base):
+    """
+    La foto de un insumo, para reconocerlo de un vistazo en la pantalla de merma rápida (/merma).
+    Una por insumo. Va DENTRO de la base como las de merma y tareas (en Railway el disco se pierde
+    en cada deploy); el navegador la achica antes de subirla y `data` es diferida.
+    """
+    __tablename__ = "item_photos"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    inventory_item_id = Column(Integer, ForeignKey("inventory_items.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    content_type = Column(String(40), nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    data = deferred(Column(LargeBinary().with_variant(MEDIUMBLOB(), "mysql"), nullable=False))
+    uploaded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

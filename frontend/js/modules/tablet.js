@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---- Los tres que reusan Inventario ----
   $('btnGoShipment').addEventListener('click', () => { window.location.href = '/inventario?open=shipment'; });
   $('btnGoCount').addEventListener('click', () => { window.location.href = '/inventario?open=count'; });
-  $('btnGoWaste').addEventListener('click', () => { window.location.href = '/inventario?open=waste'; });
+  $('btnGoWaste').addEventListener('click', () => { window.location.href = '/merma'; });   // merma rápida: pantalla aparte
   $('btnGoPrep').addEventListener('click', () => { window.location.href = '/prep'; });
   $('btnGoConsumo').addEventListener('click', () => { window.location.href = '/consumo'; });
 

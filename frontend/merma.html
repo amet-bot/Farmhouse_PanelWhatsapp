@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>Merma — Farmhouse Link</title>
+  <link rel="icon" type="image/png" href="/assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="/assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
+  <link rel="stylesheet" href="/css/style.css?v=4.13.1">
+  <link rel="stylesheet" href="/css/merma.css?v=1.1.0">
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
+</head>
+<body class="mr-body">
+
+  <div class="mr-gate" id="mrGate">
+    <span class="mr-spinner" aria-hidden="true"></span>
+    <p>Cargando…</p>
+  </div>
+
+  <div class="mr-app" id="mrApp" hidden>
+    <!-- Paso 1: ¿qué se botó? -->
+    <header class="mr-top">
+      <a class="mr-icon-btn" href="/operacion" id="mrBack" aria-label="Volver" title="Volver"><i data-lucide="arrow-left"></i></a>
+      <div class="mr-top-title">
+        <h1>Merma</h1>
+        <span id="mrBranchName">—</span>
+      </div>
+      <select class="mr-branch-select" id="mrBranchSelect" aria-label="Sucursal" hidden></select>
+    </header>
+
+    <main class="mr-main">
+      <p class="mr-ask">¿Qué se botó?</p>
+      <div class="mr-search">
+        <i data-lucide="search"></i>
+        <input id="mrSearch" type="search" placeholder="Buscar insumo…" autocomplete="off" enterkeyhint="search" />
+      </div>
+      <nav class="mr-cats" id="mrCats" aria-label="Categorías"></nav>
+      <div class="mr-grid" id="mrGrid"></div>
+    </main>
+  </div>
+
+  <!-- Paso 2: cuánto y por qué -->
+  <div class="mr-sheet" id="mrSheet" hidden role="dialog" aria-modal="true" aria-labelledby="mrItemName">
+    <div class="mr-sheet-card">
+      <header class="mr-sheet-head">
+        <button type="button" class="mr-icon-btn" id="mrClose" aria-label="Cerrar"><i data-lucide="x"></i></button>
+      </header>
+      <div class="mr-item">
+        <div class="mr-item-img" id="mrItemImg"></div>
+        <div class="mr-item-text">
+          <h2 id="mrItemName">—</h2>
+          <span id="mrItemUnit"></span>
+          <button type="button" class="mr-photo-btn" id="mrPhotoBtn" hidden><i data-lucide="camera"></i> <span>Poner foto</span></button>
+        </div>
+      </div>
+
+      <div class="mr-sheet-body">
+      <div class="mr-col">
+      <p class="mr-label" id="mrAmountLabel">¿Cuánto pesa?</p>
+      <div class="mr-amount">
+        <output id="mrAmount" aria-live="polite">0</output>
+        <div class="mr-units" id="mrUnits"></div>
+      </div>
+      <div class="mr-keypad" id="mrKeypad">
+        <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+        <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+        <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+        <button type="button" data-k=".">.</button><button type="button" data-k="0">0</button>
+        <button type="button" data-k="del" aria-label="Borrar"><i data-lucide="delete"></i></button>
+      </div>
+
+      </div>
+      <div class="mr-col">
+      <p class="mr-label">¿Por qué?</p>
+      <div class="mr-reasons" id="mrReasons"></div>
+
+      <button type="button" class="mr-submit" id="mrSubmit" disabled>
+        <i data-lucide="check"></i> <span>Registrar merma</span>
+      </button>
+      <p class="mr-hint" id="mrHint">Pon cuánto y elige el motivo.</p>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Paso 3: listo -->
+  <div class="mr-done" id="mrDone" hidden role="status">
+    <div class="mr-done-card">
+      <span class="mr-done-icon"><i data-lucide="check"></i></span>
+      <h2>Merma registrada</h2>
+      <p id="mrDoneText"></p>
+      <div class="mr-done-actions">
+        <button type="button" class="mr-btn-ghost" id="mrUndo"><i data-lucide="undo-2"></i> Deshacer</button>
+        <button type="button" class="mr-btn-main" id="mrAgain">Registrar otra</button>
+      </div>
+      <div class="mr-done-bar"><span id="mrDoneBar"></span></div>
+    </div>
+  </div>
+
+  <input type="file" id="mrPhotoInput" accept="image/*" capture="environment" hidden />
+
+  <div id="toastNotification" class="toast-banner">
+    <span id="toastIconSlot"><i data-lucide="check" id="toastIcon"></i></span>
+    <span id="toastMessage"></span>
+  </div>
+
+  <script src="/js/utils.js?v=3.5.0"></script>
+  <script src="/js/api.js?v=4.1.0"></script>
+  <script src="/js/modules/auth.js?v=3.4.0"></script>
+  <script src="/js/shared/shell.js?v=4.2.0"></script>
+  <script src="/js/shared/native-app.js?v=1.1.0"></script>
+  <script src="/js/modules/merma.js?v=1.0.0"></script>
+</body>
+</html>
