@@ -40,7 +40,7 @@ from routers import (
     system,
 )
 from services.bot_followup import run_followup_sweep_loop
-from services import db_backup, invu_recipes_sync, invu_sync, invu_sales_sync, supply_alerts, weekly_digest, recurring_tasks
+from services import db_backup, ops_alerts, invu_recipes_sync, invu_sync, invu_sales_sync, supply_alerts, weekly_digest, recurring_tasks
 
 logging.basicConfig(
     level=logging.INFO,
@@ -119,9 +119,15 @@ async def lifespan(app: FastAPI):
     if "PYTEST_CURRENT_TEST" not in os.environ:
         backup_task = asyncio.create_task(db_backup.run_backup_loop())
 
+    # Noveno loop: avisos automáticos de operación — tarea vencida, cierre de turno que falta y
+    # resumen diario a gerencia (ver services/ops_alerts).
+    ops_alerts_task = None
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        ops_alerts_task = asyncio.create_task(ops_alerts.run_ops_alerts_loop())
+
     yield
 
-    for task in (followup_task, invu_task, ventas_task, recetas_task, digest_task, lowstock_task, recurring_tasks_task, backup_task):
+    for task in (followup_task, invu_task, ventas_task, recetas_task, digest_task, lowstock_task, recurring_tasks_task, backup_task, ops_alerts_task):
         if task:
             task.cancel()
             try:

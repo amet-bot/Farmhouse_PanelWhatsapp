@@ -154,7 +154,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     'item.piece_size': 'Cambió el tamaño de pieza', 'user.create': 'Creó un usuario', 'user.update': 'Editó un usuario',
     'user.delete': 'Eliminó un usuario', 'user.toggle_active': 'Activó/desactivó un usuario',
     'backup.create': 'Hizo un respaldo', 'backup.download': 'Bajó un respaldo',
-    'alert.low_stock': 'Aviso de stock bajo', 'digest.weekly': 'Resumen semanal',
+    'alert.low_stock': 'Aviso de stock bajo', 'digest.weekly': 'Resumen semanal', 'digest.daily': 'Resumen diario',
+    'task.overdue_alert': 'Aviso: tarea vencida', 'alert.closing_missing': 'Aviso: faltó el cierre de turno',
     'recurring_task.update': 'Editó una tarea recurrente', 'recurring_task.delete': 'Eliminó una tarea recurrente',
     'prep_template.create': 'Creó una plantilla de prep', 'prep_template.update': 'Editó una plantilla de prep', 'prep_template.delete': 'Eliminó una plantilla de prep',
   };
