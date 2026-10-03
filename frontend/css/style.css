@@ -126,112 +126,128 @@
 /* Oscuro: negro verdoso, el mismo del Panel General (hub.css --fh-*). Antes era azul marino
    (#090e17 / #111a26): con los sistemas abiertos dentro del hub, cada uno se veía de otra app. */
 [data-theme="dark"] {
+  /* ==========================================================================
+     MODO OSCURO TINTA + ACENTOS VIVOS (2026-10-03): fondo tinta neutro y profundo (sin tinte
+     verde) para que resalten colores vivos: verde esmeralda para marca y acciones, y ámbar,
+     coral, celeste, violeta y turquesa repartidos para distinguir cada cosa. Nada apagado.
+     ========================================================================== */
+
   /* Fondos y Superficies */
-  --bg-primary: #0a1411;
-  --bg-secondary: #0d1814;
-  --panel-bg: #101c18;
-  --panel-elevated: #16241f;
-  --panel-subtle: #0d1814;
-  --panel-footer: #0c1713;
-  --line: #1f302a;
-  --line-light: #17241f;
+  --bg-primary: #0b1020;
+  --bg-secondary: #0f1528;
+  --panel-bg: #141b30;
+  --panel-elevated: #1b2440;
+  --panel-subtle: #10172b;
+  --panel-footer: #121a30;
+  --line: #27335a;
+  --line-light: #1e2848;
 
-  /* Textos */
-  --text-primary: #eef5f1;
-  --text-secondary: #c3d2cb;
-  --text-muted: #93a79f;
-  --text-inverse: #0a1411;
+  /* Textos (marfil cálido, no blanco puro) */
+  --text-primary: #f5f7fa;
+  --text-secondary: #c7cfe6;
+  --text-muted: #93a0c4;
+  --text-inverse: #0b0e11;
 
-  /* Marca Farmhouse */
+  /* Marca Farmhouse: verde esmeralda calmo, solo para acciones y marca */
   --green: #22c983;
-  --green-dark: #1aa86c;
-  --green-soft: rgba(34, 201, 131, 0.14);
-  --green-soft-text: #3ddc97;
-  --green-border: rgba(34, 201, 131, 0.32);
+  --green-dark: #17a86b;
+  --green-soft: rgba(34, 201, 131, 0.16);
+  --green-soft-text: #4ade9a;
+  --green-border: rgba(34, 201, 131, 0.45);
 
-  /* Sidebar: el verde bosque oscuro del sidebar del hub */
-  --nav-bg: #052a21;
-  --nav-bg-embedded: #0a3a2e;
-  --nav-border: rgba(255, 255, 255, 0.07);
-  --nav-hover: rgba(255, 255, 255, 0.07);
-  --nav-active: linear-gradient(90deg, #1aa86c, #22c983);
-  --nav-text: #e3eee8;
-  --nav-text-muted: #8fb0a3;
+  /* Sidebar: grafito más oscuro (antes verde bosque) */
+  --nav-bg: #080c1a;
+  --nav-bg-embedded: #0e1428;
+  --nav-border: rgba(255, 255, 255, 0.06);
+  --nav-hover: rgba(255, 255, 255, 0.05);
+  --nav-active: linear-gradient(90deg, #17a86b, #22c983);
+  --nav-text: #eef2f6;
+  --nav-text-muted: #9aa6cc;
 
-  /* Acentos y Semántica */
-  --blue: #3b82f6;
-  --blue-soft: rgba(59, 130, 246, 0.15);
+  /* Acentos (combinan con el verde): azul petróleo, dorado, terracota, lavanda, salvia */
+  --blue: #38bdf8;
+  --blue-soft: rgba(56, 189, 248, 0.16);
   --orange: #fbbf24;
-  --orange-soft: rgba(245, 158, 11, 0.15);
-  --red: #f87171;
-  --red-soft: rgba(239, 68, 68, 0.15);
+  --orange-soft: rgba(251, 191, 36, 0.16);
+  --red: #ff6b6b;
+  --red-soft: rgba(255, 107, 107, 0.16);
+  --accent-gold: #fbbf24;
+  --accent-gold-soft: rgba(251, 191, 36, 0.16);
+  --accent-terracotta: #ff7a59;
+  --accent-terracotta-soft: rgba(255, 122, 89, 0.16);
+  --accent-petrol: #38bdf8;
+  --accent-petrol-soft: rgba(56, 189, 248, 0.16);
+  --accent-lavender: #a78bfa;
+  --accent-lavender-soft: rgba(167, 139, 250, 0.18);
+  --accent-sage: #2dd4bf;
+  --accent-sage-soft: rgba(45, 212, 191, 0.16);
 
   /* Semántica de Alertas & Estados (Dark) */
-  --danger-bg: rgba(239, 68, 68, 0.12);
-  --danger-border: rgba(239, 68, 68, 0.35);
-  --danger-text: #fca5a5;
-  --danger-text-strong: #f87171;
-  --danger-badge-bg: rgba(239, 68, 68, 0.2);
-  --danger-icon: #ef4444;
+  --danger-bg: rgba(255, 107, 107, 0.12);
+  --danger-border: rgba(255, 107, 107, 0.42);
+  --danger-text: #ff9b9b;
+  --danger-text-strong: #ff6b6b;
+  --danger-badge-bg: rgba(255, 107, 107, 0.2);
+  --danger-icon: #ff6b6b;
 
-  --warning-bg: rgba(245, 158, 11, 0.12);
-  --warning-border: rgba(245, 158, 11, 0.35);
-  --warning-text: #fde047;
-  --warning-badge-bg: rgba(245, 158, 11, 0.2);
-  --warning-icon: #f59e0b;
+  --warning-bg: rgba(251, 191, 36, 0.12);
+  --warning-border: rgba(251, 191, 36, 0.42);
+  --warning-text: #fcd34d;
+  --warning-badge-bg: rgba(251, 191, 36, 0.2);
+  --warning-icon: #fbbf24;
 
-  --success-bg: rgba(34, 197, 94, 0.12);
-  --success-border: rgba(34, 197, 94, 0.35);
-  --success-text: #86efac;
-  --success-badge-bg: rgba(34, 197, 94, 0.2);
-  --success-icon: #22c55e;
+  --success-bg: rgba(34, 201, 131, 0.12);
+  --success-border: rgba(34, 201, 131, 0.42);
+  --success-text: #4ade9a;
+  --success-badge-bg: rgba(34, 201, 131, 0.2);
+  --success-icon: #22c983;
 
-  --info-bg: rgba(59, 130, 246, 0.12);
-  --info-border: rgba(59, 130, 246, 0.35);
-  --info-text: #93c5fd;
-  --info-badge-bg: rgba(59, 130, 246, 0.2);
-  --info-icon: #3b82f6;
+  --info-bg: rgba(56, 189, 248, 0.12);
+  --info-border: rgba(56, 189, 248, 0.42);
+  --info-text: #7dd3fc;
+  --info-badge-bg: rgba(56, 189, 248, 0.2);
+  --info-icon: #38bdf8;
 
-  /* Badges de Roles */
-  --badge-admin-bg: rgba(239, 68, 68, 0.2);
-  --badge-admin-text: #fca5a5;
-  --badge-supervisor-bg: rgba(245, 158, 11, 0.2);
-  --badge-supervisor-text: #fde047;
-  --badge-agent-bg: rgba(34, 197, 94, 0.2);
-  --badge-agent-text: #86efac;
+  /* Badges de Roles: cada rol con su color */
+  --badge-admin-bg: rgba(255, 122, 89, 0.2);
+  --badge-admin-text: #ffa48c;
+  --badge-supervisor-bg: rgba(251, 191, 36, 0.2);
+  --badge-supervisor-text: #fcd34d;
+  --badge-agent-bg: rgba(56, 189, 248, 0.2);
+  --badge-agent-text: #7dd3fc;
 
   /* Form / Inputs */
-  --input-bg: #0b1512;
-  --input-border: #25392f;
-  --input-text: #eef5f1;
+  --input-bg: #0d1326;
+  --input-border: #2e3b66;
+  --input-text: #f5f7fa;
   --input-focus: #22c983;
 
-  /* Chat y Burbujas */
-  --chat-bg: radial-gradient(circle at 10px 10px, rgba(34, 201, 131, 0.04) 1px, transparent 1px) 0 0 / 20px 20px, #08110e;
-  --msg-in-bg: #15241f;
-  --msg-in-text: #eef5f1;
-  --msg-in-border: #21352d;
-  --msg-out-bg: #12402c;
-  --msg-out-text: #dcfce7;
-  --msg-out-border: #1d5a3e;
-  --msg-note-bg: #2d2612;
-  --msg-note-border: #a16207;
-  --msg-note-text: #fef08a;
+  /* Chat y Burbujas: fondo grafito; lo enviado en verde petróleo profundo */
+  --chat-bg: radial-gradient(circle at 10px 10px, rgba(56, 189, 248, 0.05) 1px, transparent 1px) 0 0 / 20px 20px, #0a0f1f;
+  --msg-in-bg: #18213c;
+  --msg-in-text: #f5f7fa;
+  --msg-in-border: #27335a;
+  --msg-out-bg: #0f5132;
+  --msg-out-text: #eafff4;
+  --msg-out-border: #17744a;
+  --msg-note-bg: #3a2e0a;
+  --msg-note-border: #d4a017;
+  --msg-note-text: #fde68a;
 
   /* Tablas y Modales */
-  --table-header-bg: #0d1814;
-  --table-row-hover: #15231e;
-  --modal-backdrop: rgba(0, 0, 0, 0.78);
+  --table-header-bg: #111830;
+  --table-row-hover: #1a2340;
+  --modal-backdrop: rgba(0, 0, 0, 0.72);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 10px 24px -6px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 16px 24px -8px rgba(0, 0, 0, 0.5), 0 28px 56px -12px rgba(0, 0, 0, 0.6);
-  --shadow-glow-green: 0 4px 18px rgba(34, 201, 131, 0.25);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.32), 0 10px 24px -6px rgba(0, 0, 0, 0.42);
+  --shadow-lg: 0 16px 24px -8px rgba(0, 0, 0, 0.48), 0 28px 56px -12px rgba(0, 0, 0, 0.58);
+  --shadow-glow-green: 0 4px 18px rgba(34, 201, 131, 0.28);
   --radius: 16px;
   --radius-sm: 10px;
 
   /* Toast */
-  --toast-bg: #1b2d27;
-  --toast-text: #eef5f1;
+  --toast-bg: #1d2747;
+  --toast-text: #f5f7fa;
 }
 
 /* ----------------------------------------------------------------------------
@@ -3795,3 +3811,95 @@ input:-webkit-autofill:focus {
 .fh-native-banner.is-in { transform: translateY(0); }
 .fh-native-banner strong { font-size: 15px; }
 .fh-native-banner span { font-size: 13.5px; opacity: .9; }
+
+
+/* ============================================================================
+   MODO OSCURO — ACENTOS VARIADOS (2026-10-03). En oscuro no todo es verde: cada cosa toma un
+   color de la paleta grafito para distinguirse de un vistazo. El verde sigue en botones
+   principales, la pestaña activa y lo que está "listo".
+   ============================================================================ */
+/* Operación de Sucursal: cada botón de la tablet con su color. */
+[data-theme="dark"] .tablet-grid > .tablet-tile:nth-child(6n+1) .tablet-tile-icon { background: var(--accent-gold-soft); color: var(--accent-gold); }
+[data-theme="dark"] .tablet-grid > .tablet-tile:nth-child(6n+2) .tablet-tile-icon { background: var(--accent-petrol-soft); color: var(--accent-petrol); }
+[data-theme="dark"] .tablet-grid > .tablet-tile:nth-child(6n+3) .tablet-tile-icon { background: var(--accent-sage-soft); color: var(--accent-sage); }
+[data-theme="dark"] .tablet-grid > .tablet-tile:nth-child(6n+4) .tablet-tile-icon { background: var(--accent-terracotta-soft); color: var(--accent-terracotta); }
+[data-theme="dark"] .tablet-grid > .tablet-tile:nth-child(6n+5) .tablet-tile-icon { background: var(--accent-lavender-soft); color: var(--accent-lavender); }
+[data-theme="dark"] .tablet-grid > .tablet-tile:nth-child(6n+6) .tablet-tile-icon { background: var(--green-soft); color: var(--green-soft-text); }
+[data-theme="dark"] .tablet-tile:hover,
+[data-theme="dark"] .tablet-tile:focus-visible { border-color: var(--line); box-shadow: 0 10px 26px -12px rgba(0, 0, 0, .6); }
+
+/* Tarjetas de indicadores (Reportes, Inventario): el ícono de cada una en otro tono. */
+[data-theme="dark"] .inv-kpi:nth-child(4n+1) .inv-kpi-label i,
+[data-theme="dark"] .inv-kpi:nth-child(4n+1) .inv-kpi-label svg { color: var(--accent-gold); }
+[data-theme="dark"] .inv-kpi:nth-child(4n+2) .inv-kpi-label i,
+[data-theme="dark"] .inv-kpi:nth-child(4n+2) .inv-kpi-label svg { color: var(--accent-terracotta); }
+[data-theme="dark"] .inv-kpi:nth-child(4n+3) .inv-kpi-label i,
+[data-theme="dark"] .inv-kpi:nth-child(4n+3) .inv-kpi-label svg { color: var(--accent-petrol); }
+[data-theme="dark"] .inv-kpi:nth-child(4n+4) .inv-kpi-label i,
+[data-theme="dark"] .inv-kpi:nth-child(4n+4) .inv-kpi-label svg { color: var(--accent-lavender); }
+
+/* Contadores de pestañas: dorado (avisan sin competir con el verde de la activa). */
+[data-theme="dark"] .ops-tab:not(.active) .ops-tab-count { background: var(--accent-gold-soft); color: var(--accent-gold); }
+[data-theme="dark"] .tar-tab:not(.active) span { background: var(--accent-gold-soft); color: var(--accent-gold); }
+
+/* Chips de estado del Centro de operación y de Tareas: un color por significado. */
+[data-theme="dark"] .ops-chip.st-en_proceso,
+[data-theme="dark"] .tar-chip.doing { background: var(--accent-petrol-soft); color: var(--accent-petrol); }
+[data-theme="dark"] .tar-chip.soon { background: var(--accent-gold-soft); color: var(--accent-gold); }
+[data-theme="dark"] .tar-chip.late { background: var(--accent-terracotta-soft); color: var(--accent-terracotta); }
+
+/* Abastecimiento — puesta en marcha: aviso en dorado. Cierre de turno: lo usado en terracota. */
+[data-theme="dark"] .sup-step-text .sup-step-warn { color: var(--accent-gold); }
+[data-theme="dark"] .cie-row-now strong { color: var(--accent-terracotta); }
+[data-theme="dark"] .cie-row-prev .in { color: var(--accent-petrol); }
+[data-theme="dark"] .cie-psize { background: var(--accent-gold-soft); }
+
+/* Reportes — ¿dónde se pierde?: faltante en terracota, sobra en petróleo. */
+[data-theme="dark"] .link-variance-chip.faltante { background: var(--accent-terracotta-soft); color: var(--accent-terracotta); }
+[data-theme="dark"] .link-variance-chip.sobra { background: var(--accent-petrol-soft); color: var(--accent-petrol); }
+[data-theme="dark"] .link-variance-total.bad { color: var(--accent-terracotta); }
+
+/* Mosaico de Tareas: contador en dorado; vencidas en terracota. */
+[data-theme="dark"] .tablet-tile-badge { background: var(--accent-gold); color: #1f1600; }
+[data-theme="dark"] .tablet-tile-badge.is-late { background: var(--accent-terracotta); color: #1c0f0a; }
+
+
+/* Colores fijos de modo claro (texto oscuro sobre fondo suave) que en oscuro se veían apagados. */
+[data-theme="dark"] :is(.ops-chip.sev-alta, .ops-chip.overdue) { background: var(--red-soft); color: #ff8a8a; }
+[data-theme="dark"] :is(.ops-chip.sev-media, .ops-chip.st-en_proceso, .ops-chip.st-approved, .ops-chip.st-dispatched) { background: var(--accent-gold-soft); color: var(--accent-gold); }
+[data-theme="dark"] :is(.ops-chip.sev-baja, .ops-chip.st-cancelled, .ops-chip.st-cancelada, .ops-chip.st-rejected) { background: rgba(148, 163, 184, .16); color: #cbd5e1; }
+[data-theme="dark"] :is(.ops-chip.st-abierta, .ops-chip.st-open, .ops-chip.st-requested, .ops-chip.st-pendiente) { background: var(--accent-petrol-soft); color: #7dd3fc; }
+[data-theme="dark"] :is(.ops-chip.st-resuelta, .ops-chip.st-fulfilled, .ops-chip.st-received, .ops-chip.st-hecha) { background: var(--green-soft); color: var(--green-soft-text); }
+[data-theme="dark"] :is(.ops-due.overdue, .ops-row.bad b, .ops-form-error, .task-due-hint.is-error, .ops-item-list button) { color: #ff8a8a; }
+[data-theme="dark"] .ops-btn.danger { color: #ff8a8a; border-color: rgba(255, 107, 107, .35); }
+[data-theme="dark"] .ops-btn.primary { background: var(--green); color: #06130d; }
+[data-theme="dark"] .ops-tab.active { background: var(--green); color: #06130d; }
+[data-theme="dark"] .ops-tab.active .ops-tab-count { background: rgba(6, 19, 13, .22); color: #06130d; }
+[data-theme="dark"] .inv-primary-btn { color: #06130d; }
+
+[data-theme="dark"] .sup-matrix td.sup-cell.is-low .sup-qty,
+[data-theme="dark"] .sup-reason.low { color: #ff8a8a; }
+[data-theme="dark"] .sup-days-chip.warn { background: var(--accent-gold-soft); color: var(--accent-gold); }
+[data-theme="dark"] .sup-days-chip.bad { background: var(--red-soft); color: #ff8a8a; }
+[data-theme="dark"] .sup-days-chip.none { background: rgba(148, 163, 184, .16); color: #cbd5e1; }
+[data-theme="dark"] .sup-branch-pills span.ok { background: var(--green-soft); color: var(--green-soft-text); }
+[data-theme="dark"] .sup-best { color: var(--green-soft-text); }
+[data-theme="dark"] .sup-worse { color: var(--accent-gold); }
+
+[data-theme="dark"] .con-card-stock.is-low { background: var(--accent-gold-soft); color: var(--accent-gold); }
+[data-theme="dark"] :is(.con-card-stock.is-neg, .con-card-stock.is-zero, .con-record-items li.neg) { background: var(--red-soft); color: #ff8a8a; }
+[data-theme="dark"] :is(.con-card-meta .pending, .con-sheet-head p.is-low) { color: var(--accent-gold); }
+[data-theme="dark"] :is(.con-sheet-head p.is-neg, .con-sheet-after.is-neg, .con-cart-line button) { color: #ff8a8a; }
+[data-theme="dark"] .con-card-meta .today { color: var(--green-soft-text); }
+[data-theme="dark"] .cie-row.filled { border-color: var(--green-border); background: rgba(34, 201, 131, .07); }
+
+/* Fondo con vida: azul noche con dos brillos suaves (esmeralda arriba a la izquierda, violeta a la
+   derecha). Fijo al hacer scroll para que no se repita. */
+[data-theme="dark"] body {
+  background:
+    radial-gradient(1100px 620px at -8% -12%, rgba(34, 201, 131, 0.13), transparent 62%),
+    radial-gradient(900px 560px at 108% -6%, rgba(139, 92, 246, 0.16), transparent 60%),
+    radial-gradient(800px 600px at 50% 120%, rgba(56, 189, 248, 0.08), transparent 60%),
+    var(--bg-primary);
+  background-attachment: fixed;
+}

@@ -1395,47 +1395,47 @@ body {
    ============================================================================ */
 [data-theme="dark"] {
   /* Fondos */
-  --color-bg: #151716;
-  --color-sidebar: #101311;
-  --color-topbar: #202321;
-  --color-surface: #242725;
-  --color-surface-raised: #292C29;
-  --color-surface-warm: #2B2823;
-  --color-input-bg: #181B19;
+  --color-bg: #0b1020;
+  --color-sidebar: #080c1a;
+  --color-topbar: #111831;
+  --color-surface: #141b30;
+  --color-surface-raised: #1b2440;
+  --color-surface-warm: #1f1d33;
+  --color-input-bg: #0d1326;
   /* Bordes */
-  --color-border: #3A403C;
-  --color-border-soft: #303632;
-  --color-border-active: #557566;
-  --color-border-warm: #49443B;
+  --color-border: #27335a;
+  --color-border-soft: #1e2848;
+  --color-border-active: #22c983;
+  --color-border-warm: #3a3570;
   /* Texto */
-  --color-text: #F4F0E7;
-  --color-text-secondary: #A9ADA8;
-  --color-text-muted: #858B86;
-  --color-text-inverse: #101311;
+  --color-text: #f5f7fa;
+  --color-text-secondary: #c0c9e2;
+  --color-text-muted: #8e9bc2;
+  --color-text-inverse: #06130d;
   /* Marca y estados */
-  --color-primary: #3FA77A;
-  --color-primary-hover: #4DB88A;
-  --color-primary-active: #328C66;
-  --color-primary-muted: #245F49;
-  --color-primary-soft: #263E35;
+  --color-primary: #22c983;
+  --color-primary-hover: #34d399;
+  --color-primary-active: #17a86b;
+  --color-primary-muted: #14603f;
+  --color-primary-soft: #133a2b;
   /* Acentos */
-  --color-gold: #D2A84B;
-  --color-gold-soft: #4D4023;
-  --color-gold-border: #756235;
-  --color-terracotta: #C87055;
-  --color-terracotta-soft: #4B3028;
-  --color-terracotta-border: #744737;
-  --color-petrol: #3D6970;
-  --color-petrol-soft: #263E42;
-  --color-petrol-text: #64A0A8;
-  --color-sage: #78A991;
-  --color-sage-soft: #29443A;
-  --color-sage-border: #3E6554;
+  --color-gold: #fbbf24;
+  --color-gold-soft: #3b2f0c;
+  --color-gold-border: #8a6a12;
+  --color-terracotta: #ff7a59;
+  --color-terracotta-soft: #3e1d14;
+  --color-terracotta-border: #8f3d26;
+  --color-petrol: #0ea5e9;
+  --color-petrol-soft: #0c2e40;
+  --color-petrol-text: #38bdf8;
+  --color-sage: #2dd4bf;
+  --color-sage-soft: #0f3532;
+  --color-sage-border: #13786b;
   /* Elementos pequeños */
-  --color-chip-bg: #303431;
-  --color-chip-border: #484E49;
-  --color-chip-text: #E8E8E3;
-  --color-chip-hover: #363B37;
+  --color-chip-bg: #1b2440;
+  --color-chip-border: #33416e;
+  --color-chip-text: #e6ebf1;
+  --color-chip-hover: #222d52;
   /* Sombras */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.18);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.22);
@@ -1576,6 +1576,9 @@ body {
 }
 [data-theme="dark"] :is(.hub-module-card, .hub-m-card)[data-module-id="gestion"] .hub-module-icon {
   background: var(--color-petrol-soft); color: var(--color-petrol-text); border-color: var(--color-petrol);
+}
+[data-theme="dark"] :is(.hub-module-card, .hub-m-card)[data-module-id="abastecimiento"] .hub-module-icon {
+  background: #2a1f4d; color: #a78bfa; border-color: #5b43b5;
 }
 
 /* Flecha circular: discreta; en hover, verde moderado. */
