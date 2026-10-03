@@ -365,7 +365,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ==========================================================================
-  // Venta diaria: una línea por sucursal
+  // Venta diaria: una barra por día, partida por sucursal, con el total arriba.
+  // (Antes eran líneas cruzadas: costaba leer cuánto se vendió cada día y el día de hoy, que va
+  // a medias, parecía un desplome.)
   // ==========================================================================
   function seriesFromDaily() {
     const byBranch = new Map();
@@ -381,7 +383,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (v <= 0) return 100;
     const pow = Math.pow(10, Math.floor(Math.log10(v)));
     const n = v / pow;
-    const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
+    // Topes que se dividen en cuartos redondos (8,000 → 2,000 por línea): el eje no queda
+    // con media gráfica vacía arriba.
+    const step = [1, 1.2, 1.6, 2, 2.4, 3, 4, 5, 6, 8, 10].find((t) => n <= t);
     return step * pow;
   }
 
@@ -395,90 +399,95 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (panel) panel.hidden = days.length === 1;
     if (days.length === 1) return;
 
+    const hoy = iso(new Date());
+    const totalDia = (d) => series.reduce((acc, s) => acc + (s.values.get(d) || 0), 0);
+    const totalSuc = (s) => days.reduce((acc, d) => acc + (s.values.get(d) || 0), 0);
+
     $('dailyTitle').textContent = single ? `Venta diaria · ${series[0].name}` : 'Venta diaria por sucursal';
+    // Leyenda con lo que vendió cada sucursal en el período: se lee sin pasar el mouse.
     $('dailyLegend').innerHTML = single ? '' : series.map((s) => `
-      <span class="link-legend-item"><span class="link-legend-swatch" style="background:${branchColorVar(s.id)}"></span>${esc(s.name)}</span>`).join('');
+      <span class="link-legend-item"><span class="link-legend-swatch" style="background:${branchColorVar(s.id)}"></span>${esc(s.name)} <b>${esc(moneyShort(totalSuc(s)))}</b></span>`).join('');
 
     if (!series.length) {
+      $('dailyNote').textContent = '';
       box.innerHTML = emptyHtml('Sin ventas en este período', 'Todavía no hay días sincronizados en estas fechas.');
       utils.renderIcons();
       return;
     }
 
+    // Resumen en palabras. El día de hoy va a medias: no cuenta para el promedio ni el mejor día.
+    const completos = days.filter((d) => d !== hoy && series.some((s) => s.values.has(d)));
+    if (completos.length > 1) {
+      const mejor = completos.reduce((m, d) => (totalDia(d) > totalDia(m) ? d : m), completos[0]);
+      const prom = completos.reduce((acc, d) => acc + totalDia(d), 0) / completos.length;
+      $('dailyNote').innerHTML = `Promedio por día <b>${esc(money(prom))}</b> · mejor día <b>${esc(dayLabelLong(mejor))}</b> con ${esc(money(totalDia(mejor)))}`;
+    } else {
+      $('dailyNote').textContent = '';
+    }
+
     const W = Math.max(box.clientWidth, 280);
-    const H = W < 560 ? 220 : 280;
-    const m = { top: 12, right: 16, bottom: 28, left: 56 };
+    const H = W < 560 ? 230 : 290;
+    const m = { top: 22, right: 8, bottom: 28, left: 52 };
     const iw = W - m.left - m.right;
     const ih = H - m.top - m.bottom;
-    const maxV = niceMax(Math.max(...series.flatMap((s) => Array.from(s.values.values()))) * 1.05);
-    const x = (i) => m.left + (days.length === 1 ? iw / 2 : (i / (days.length - 1)) * iw);
+    const maxV = niceMax(Math.max(...days.map(totalDia)) * 1.08);
+    const slot = iw / days.length;
+    const barW = Math.max(4, Math.min(slot * 0.66, 64));
+    const cx = (i) => m.left + slot * (i + 0.5);
     const y = (v) => m.top + ih - (v / maxV) * ih;
 
     const ticks = [0, .25, .5, .75, 1].map((f) => f * maxV);
     const labelEvery = Math.ceil(days.length / Math.max(2, Math.floor(iw / 64)));
+    const conTotal = slot >= 34;   // con muchos días no entra el total arriba de cada barra
 
     let svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Venta diaria">`;
     ticks.forEach((t) => {
       svg += `<line class="link-grid" x1="${m.left}" x2="${W - m.right}" y1="${y(t)}" y2="${y(t)}"/>`;
       svg += `<text class="link-axis" x="${m.left - 8}" y="${y(t) + 4}" text-anchor="end">${moneyShort(t)}</text>`;
     });
+    svg += `<rect class="link-bar-focus" id="barFocus" y="${m.top}" height="${ih}" x="0" width="${slot}" visibility="hidden"/>`;
     days.forEach((d, i) => {
       if (i % labelEvery === 0 || i === days.length - 1) {
-        svg += `<text class="link-axis" x="${x(i)}" y="${H - 8}" text-anchor="middle">${esc(dayLabel(d))}</text>`;
+        svg += `<text class="link-axis${d === hoy ? ' link-axis-today' : ''}" x="${cx(i)}" y="${H - 8}" text-anchor="middle">${esc(d === hoy ? 'Hoy' : dayLabel(d))}</text>`;
       }
-    });
-
-    // Una línea por sucursal; un día sin sincronizar corta la línea en vez de inventar un cero.
-    series.forEach((s) => {
-      let path = '';
-      let pen = false;
-      days.forEach((d, i) => {
-        if (s.values.has(d)) {
-          path += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(s.values.get(d)).toFixed(1)}`;
-          pen = true;
-        } else {
-          pen = false;
-        }
+      // Una barra por día: cada sucursal es un tramo, la primera abajo.
+      let base = 0;
+      const parcial = d === hoy;
+      svg += `<g class="link-bar${parcial ? ' is-partial' : ''}">`;
+      series.forEach((s) => {
+        const v = s.values.get(d) || 0;
+        if (v <= 0) return;
+        const y0 = y(base), y1 = y(base + v);
+        svg += `<rect x="${(cx(i) - barW / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0.5, y0 - y1 - 1).toFixed(1)}" rx="2" style="fill:${branchColorVar(s.id)}"/>`;
+        base += v;
       });
-      svg += `<path class="link-line" d="${path}" style="stroke:${branchColorVar(s.id)}"/>`;
-    });
-
-    svg += `<line class="link-crosshair" id="crosshair" y1="${m.top}" y2="${m.top + ih}" x1="0" x2="0" visibility="hidden"/>`;
-    series.forEach((s) => {
-      svg += `<circle class="link-dot" data-branch="${s.id}" r="4.5" cx="0" cy="0" visibility="hidden" style="fill:${branchColorVar(s.id)}"/>`;
+      svg += '</g>';
+      if (conTotal && base > 0) {
+        svg += `<text class="link-bar-total${parcial ? ' is-partial' : ''}" x="${cx(i)}" y="${(y(base) - 6).toFixed(1)}" text-anchor="middle">${esc(moneyShort(base))}${parcial ? ' · va' : ''}</text>`;
+      }
     });
     svg += `<rect class="link-hit" x="${m.left}" y="${m.top}" width="${iw}" height="${ih}" tabindex="0" aria-label="Recorrer días con el mouse o las flechas"/>`;
     svg += '</svg>';
     box.innerHTML = svg;
 
-    // ---- Capa de hover: cruz + un globo con todas las sucursales de ese día ----
+    // ---- Capa de hover: resalta el día y un globo con todas las sucursales ----
     const hit = box.querySelector('.link-hit');
-    const cross = box.querySelector('#crosshair');
-    const dots = box.querySelectorAll('.link-dot');
+    const focus = box.querySelector('#barFocus');
     const tip = $('chartTooltip');
     let current = -1;
 
     function show(i, clientX, clientY) {
       current = i;
       const d = days[i];
-      cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i));
-      cross.setAttribute('visibility', 'visible');
-      dots.forEach((dot) => {
-        const s = series.find((ss) => String(ss.id) === dot.dataset.branch);
-        if (s && s.values.has(d)) {
-          dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(s.values.get(d)));
-          dot.setAttribute('visibility', 'visible');
-        } else {
-          dot.setAttribute('visibility', 'hidden');
-        }
-      });
+      focus.setAttribute('x', m.left + slot * i);
+      focus.setAttribute('visibility', 'visible');
 
       const rows = series.filter((s) => s.values.has(d)).sort((a, b) => b.values.get(d) - a.values.get(d));
       const total = rows.reduce((acc, s) => acc + s.values.get(d), 0);
       tip.replaceChildren();
       const head = document.createElement('div');
       head.className = 'link-tip-head';
-      head.textContent = dayLabelLong(d) + (d === iso(new Date()) ? ' (parcial)' : '');
+      head.textContent = dayLabelLong(d) + (d === hoy ? ' (va, el día no termina)' : '');
       tip.appendChild(head);
       if (!rows.length) {
         const none = document.createElement('div');
@@ -520,14 +529,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     function hide() {
       current = -1;
       tip.hidden = true;
-      cross.setAttribute('visibility', 'hidden');
-      dots.forEach((dot) => dot.setAttribute('visibility', 'hidden'));
+      focus.setAttribute('visibility', 'hidden');
     }
 
     function indexAt(clientX) {
       const rect = box.querySelector('svg').getBoundingClientRect();
       const px = (clientX - rect.left) * (W / rect.width);
-      const i = days.length === 1 ? 0 : Math.round(((px - m.left) / iw) * (days.length - 1));
+      const i = Math.floor((px - m.left) / slot);
       return Math.min(days.length - 1, Math.max(0, i));
     }
 
@@ -539,7 +547,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
       const i = current < 0 ? days.length - 1 : Math.min(days.length - 1, Math.max(0, current + (e.key === 'ArrowRight' ? 1 : -1)));
       const rect = box.querySelector('svg').getBoundingClientRect();
-      show(i, rect.left + (x(i) / W) * rect.width, rect.top + rect.height / 3);
+      show(i, rect.left + (cx(i) / W) * rect.width, rect.top + rect.height / 3);
     });
   }
 

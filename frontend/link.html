@@ -18,7 +18,7 @@
   <!-- El armazón (cabecera, rail, fichas, paneles) es el mismo de Inventario: se reusa su hoja
        tal cual y link.css solo agrega lo que Inventario no tiene (gráficos y tablas). -->
   <link rel="stylesheet" href="css/inventory.css?v=4.22.0">
-  <link rel="stylesheet" href="css/link.css?v=4.11.2">
+  <link rel="stylesheet" href="css/link.css?v=4.12.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -170,6 +170,7 @@
               </button>
             </div>
             <div class="link-legend" id="dailyLegend"></div>
+            <p class="link-chart-note" id="dailyNote"></p>
             <div class="link-chart" id="dailyChart" aria-label="Venta diaria"></div>
             <div class="link-table-wrap" id="dailyTableWrap" hidden></div>
           </div>
@@ -362,6 +363,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/link.js?v=4.12.0"></script>
+  <script src="js/modules/link.js?v=4.13.0"></script>
 </body>
 </html>

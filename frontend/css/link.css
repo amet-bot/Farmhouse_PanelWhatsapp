@@ -140,6 +140,17 @@
 .inv-bar-name .link-legend-swatch { margin-right: 7px; }
 .inv-bar-value small { font-weight: 500; color: var(--inv-text-muted); margin-left: 4px; }
 
+/* ---- Venta diaria: barras apiladas por día ---- */
+.link-legend-item b { font-weight: 700; color: var(--inv-text); margin-left: 2px; font-variant-numeric: tabular-nums; }
+.link-chart-note { margin: -4px 0 10px; font-size: 13px; color: var(--inv-text-secondary); }
+.link-chart-note:empty { display: none; }
+.link-chart-note b { color: var(--inv-text); }
+.link-bar.is-partial rect { opacity: .45; }
+.link-bar-total { fill: var(--inv-text); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.link-bar-total.is-partial { fill: var(--inv-text-muted); font-weight: 600; }
+.link-axis-today { font-weight: 700; fill: var(--inv-text-secondary); }
+.link-bar-focus { fill: var(--inv-text); opacity: .06; }
+
 /* ---- Gráfico de líneas ---- */
 .link-chart {
   position: relative;
