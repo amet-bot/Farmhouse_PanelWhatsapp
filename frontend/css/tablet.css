@@ -206,7 +206,7 @@ body:has(.tablet-modal-overlay:not([hidden])) { overflow: hidden; }
 
 /* Tablet con el dedo: la ventana arriba, no al centro — así el teclado (que tapa la mitad de
    abajo) no esconde los campos ni el botón de enviar. */
-@media (pointer: coarse) and (min-width: 561px) {
+@media (pointer: coarse) and (min-width: 561px), (min-width: 561px) and (max-width: 1199px) {
   .tablet-modal-overlay { align-items: flex-start; padding-top: 5vh; }
 }
 

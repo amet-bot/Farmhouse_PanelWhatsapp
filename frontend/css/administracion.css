@@ -118,7 +118,7 @@
   .device-table.adm-cards td.adm-mono { word-break: break-all; }
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 1199px) {
   .admin-tab { font-size: 15px; padding: 10px 18px; }
   .btn-sm-action { min-height: 44px; padding: 8px 14px; font-size: 14px; border-radius: 10px; gap: 6px; }
   .btn-sm-action svg, .btn-sm-action i { width: 16px; height: 16px; }

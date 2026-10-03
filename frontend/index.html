@@ -14,7 +14,7 @@
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=5.0.1003">
+  <link rel="stylesheet" href="css/style.css?v=5.0.1005">
   <!-- Componente propio de la pestaña "Flujo visual" (contenido real + mapa parcial del bot). -->
   <link rel="stylesheet" href="css/flow-editor.css?v=4.1.0">
   <!-- Tipografía de marca (ABC Ginto / PP Eiko), después de style.css para ganarle en cascada
@@ -40,7 +40,7 @@
       .wa-hub-back span { display: none; }
     }
     .fh-embedded .wa-hub-back { display: none !important; }
-    @media (pointer: coarse) {
+    @media (pointer: coarse), (max-width: 1199px) {
       .wa-hub-back, .btn-hamburger, .btn-mobile-back, .notif-bell { min-height: 44px; min-width: 44px; }
       .header-chip { min-height: 44px; }
       .search-box input, #branchSelect, .chat-composer textarea { font-size: 16px; }

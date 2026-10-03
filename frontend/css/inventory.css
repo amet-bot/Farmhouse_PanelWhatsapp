@@ -3457,7 +3457,7 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 
 /* ---- 1. Tamaños de toque que le ganaban a la capa táctil de style.css ----
    Esa capa va con :where() (especificidad 0) y estas clases traen su propio alto o ancho. */
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 1199px) {
   .inv-recv-chip { min-height: 44px; padding: 6px 14px; font-size: 14px; }
   .inv-recv-chips { gap: 8px; }
   .inv-expected-receive { min-height: 44px; }
@@ -3501,7 +3501,7 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 }
 
 /* En la tabla del cargamento (escritorio/tablet acostada) la columna de quitar pasa a 44 px. */
-@media (pointer: coarse) and (min-width: 901px) {
+@media (pointer: coarse) and (min-width: 901px), (min-width: 901px) and (max-width: 1199px) {
   #modalShipment .inv-lines-head,
   #modalShipment .inv-line-row { grid-template-columns: minmax(0, 2.2fr) 110px 120px 92px 44px; }
   #modalShipment.inv-invoice-mode .inv-lines-head,
@@ -3514,7 +3514,7 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
    40 cm no se leía. Con el dedo: cuerpo 14-15 px, etiquetas 12 px, campos 16 px (con menos, el
    iPad hace zoom al tocarlos: la regla de 16 px de style.css solo llega hasta 900 px y la capa
    táctil pierde contra el `font-size` de .modal-input). */
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 1199px) {
   .inv-inventario .modal-input,
   .inv-inventario .inv-filter-select,
   .inv-inventario .inv-search input { font-size: 16px; }
@@ -3592,7 +3592,7 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
   .inv-inventario .inv-recv-result { font-size: 15px; }
 }
 
-@media (pointer: coarse) and (min-width: 641px) {
+@media (pointer: coarse) and (min-width: 641px), (min-width: 641px) and (max-width: 1199px) {
   .inv-inventario .inv-view-head h1 { font-size: 24px; }
 }
 
@@ -4032,7 +4032,7 @@ button.inv-photo-thumb { padding: 0; cursor: zoom-in; }
 .inv-count-row.is-invalid .inv-count-input { border-color: var(--inv-loss); }
 .inv-count-diff-bad { color: var(--inv-loss-text); font-weight: 700; }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 1199px) {
   .inv-count-row { min-height: 60px; padding: 8px 10px; }
   .inv-count-name strong { white-space: normal; }
   .inv-count-progress { font-size: 14px; }

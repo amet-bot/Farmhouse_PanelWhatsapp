@@ -3911,7 +3911,7 @@ input:-webkit-autofill:focus {
    sobre el `height` que ponga cada pantalla, así esta capa sirve para todas sin tocar sus CSS.
    Los campos van en 16 px: con menos, el iPad y el iPhone hacen zoom al tocarlos.
    ============================================================================ */
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 1199px) {
   :where(.btn-primary, .btn-secondary, .inv-primary-btn, .inv-secondary-btn, .inv-danger-btn,
          .inv-submit-btn, .inv-link-btn, .link-text-btn, .ops-btn, .hub-primary-btn, .hub-link-btn,
          .adm-link-btn, .prep-text-btn, .tablet-submit-btn, .inv-add-line-btn, .inv-mode-btn,
@@ -3962,5 +3962,17 @@ input:-webkit-autofill:focus {
     font-size: 15px;
     padding: 14px 18px;
     border-radius: 12px;
+  }
+}
+
+/* Los que quedaban chicos en la medición de tablet (768 y 1024 px): sus propias reglas les
+   ponían 30-37 px y ganaban sobre la capa de arriba (que usa :where, sin peso). */
+@media (pointer: coarse), (max-width: 1199px) {
+  .sound-toggle-btn { min-width: 44px; min-height: 44px; }
+  .btn-quick-act, .quick-reply-pill, .btn-send, .status-indicator { min-height: 44px; }
+  .rec-toggle { min-height: 44px; align-items: center; padding: 4px 0; }
+  /* La X para cerrar cada ventana: 31 px era difícil de acertar con el dedo. */
+  .modal-close-btn, .tablet-modal-close, .lightbox-close-btn, .inv-photo-viewer-close, .int-lightbox-close {
+    min-width: 44px; min-height: 44px; font-size: 26px;
   }
 }

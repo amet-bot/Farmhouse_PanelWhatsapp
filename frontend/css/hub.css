@@ -1728,7 +1728,7 @@ body {
   color: var(--fh-muted);
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 1199px) {
   /* Todo lo que se toca, de al menos 44px de alto. */
   .hub-nav-item { min-height: 46px; }
   .hub-appnav-item,
@@ -1754,7 +1754,7 @@ body {
   .hub-module-card:hover { transform: none; }
 }
 
-@media (pointer: coarse) and (max-width: 1099px) {
+@media (pointer: coarse) and (max-width: 1099px), (max-width: 1099px) {
   .hub-nav-item,
   .hub-appnav-item,
   .hub-appnav-back { min-height: 56px; }

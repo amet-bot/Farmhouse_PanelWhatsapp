@@ -584,7 +584,7 @@
 }
 
 /* ---- Pantallas táctiles: letra y botones del tamaño del dedo ---- */
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 1199px) {
   .link-segmented button { font-size: 14px; padding: 9px 14px; }
   .link-text-btn { font-size: 13.5px; padding: 8px 12px; }
   .link-text-btn i, .link-text-btn svg { width: 16px; height: 16px; }
@@ -625,7 +625,7 @@
   #linkMain .inv-kpi:hover { transform: none; }
 }
 
-@media (pointer: coarse) and (max-width: 900px) {
+@media (pointer: coarse) and (max-width: 900px), (max-width: 900px) {
   /* En tarjeta, las celdas no llevan el relleno lateral de la tabla. */
   .link-cards td,
   .link-table-wrap > .link-cards td:first-child { padding: 5px 0; }

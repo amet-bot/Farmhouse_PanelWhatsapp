@@ -1151,7 +1151,7 @@ body {
    Botones de la conversación del tamaño del dedo (volver, vaciar y quitar el archivo medían
    28-34px) y campos en 16px: con menos, el iPad y el iPhone hacen zoom al tocarlos.
    ============================================================================ */
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 1199px) {
   .int-chat-back,
   .int-chat-action { width: 44px; height: 44px; }
   .int-attach-drop { width: 44px; height: 44px; }

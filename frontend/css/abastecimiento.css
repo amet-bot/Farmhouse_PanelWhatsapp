@@ -178,7 +178,7 @@
   .sup-group-head .ops-btn { width: 100%; }
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 1199px) {
   .sup-filters .modal-input { height: auto; }
   .sup-save { height: auto; }
   .sup-filters-note, .sup-check, .sup-inline, .sup-tab-hint { font-size: 14px; }

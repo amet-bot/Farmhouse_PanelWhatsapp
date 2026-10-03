@@ -140,7 +140,7 @@
 [data-theme="dark"] .rec-undo-btn { background: rgba(0,0,0,.08); color: #15803d; }
 
 /* ---- Pantallas táctiles: todo del tamaño del dedo y letra que se lee con la tablet en la mano ---- */
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 1199px) {
   .rec-intro { font-size: 14.5px; line-height: 1.5; }
   .rec-body .ops-tab { font-size: 14px; padding: 10px 14px; }
   .rec-body .ops-table { font-size: 14px; }
