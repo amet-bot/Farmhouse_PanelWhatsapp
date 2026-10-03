@@ -38,12 +38,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---- pestañas ----
   const VIEWS = { recetas: 'viewRecetas', ingredientes: 'viewIngredientes', platos: 'viewPlatos', preparaciones: 'viewPreparaciones', precios: 'viewPrecios' };
   const LOADERS = { recetas: loadRecipes, ingredientes: loadIngredients, platos: loadDishes, preparaciones: loadPreps, precios: loadPrices };
+  // En celular la fila de pestañas se desplaza de lado: que la activa quede a la vista.
+  function revealActiveTab() {
+    const fila = $('recTabs');
+    const activa = fila.querySelector('.ops-tab.active');
+    if (!activa || fila.scrollWidth <= fila.clientWidth) return;
+    const x = activa.getBoundingClientRect(), f = fila.getBoundingClientRect();
+    if (x.left < f.left || x.right > f.right) fila.scrollLeft += x.left - f.left - 12;
+  }
   function showTab(tab) {
     if (!VIEWS[tab]) tab = 'recetas';
     state.tab = tab;
     document.querySelectorAll('#recTabs .ops-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
     Object.entries(VIEWS).forEach(([k, id]) => { $(id).hidden = k !== tab; });
     const u = new URL(location.href); u.searchParams.set('tab', tab); history.replaceState(null, '', u);
+    revealActiveTab();
     LOADERS[tab]();
   }
   $('recTabs').addEventListener('click', (e) => { const b = e.target.closest('.ops-tab'); if (b) showTab(b.dataset.tab); });
@@ -90,11 +99,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     box.innerHTML = `<table class="ops-table"><thead><tr><th>Plato</th><th>Ingredientes</th><th>Costo</th><th>Precio</th><th>Food cost</th><th>Platos que la usan</th></tr></thead><tbody>${rows.map((r) => `
       <tr class="rec-row" data-rec="${r.id}">
         <td><span class="ops-title">${esc(r.name)}</span><span class="ops-sub">${esc(r.category || '')}</span></td>
-        <td>${mapChip(r)}</td>
-        <td>${money(r.cost)}${r.cost_complete ? '' : ' <small class="ops-sub" title="Hay ingredientes sin costo">parcial</small>'}</td>
-        <td>${money(r.sale_price)}</td>
-        <td>${fcChip(r)}</td>
-        <td><span class="ops-sub">${r.dishes.length ? esc(r.dishes.join(', ')) : (r.mapped_lines ? 'Por nombre' : '—')}</span></td>
+        <td data-label="Ingredientes">${mapChip(r)}</td>
+        <td data-label="Costo">${money(r.cost)}${r.cost_complete ? '' : ' <small class="ops-sub" title="Hay ingredientes sin costo">parcial</small>'}</td>
+        <td data-label="Precio">${money(r.sale_price)}</td>
+        <td data-label="Food cost">${fcChip(r)}</td>
+        <td data-label="Platos"><span class="ops-sub">${r.dishes.length ? esc(r.dishes.join(', ')) : (r.mapped_lines ? 'Por nombre' : '—')}</span></td>
       </tr>
       ${state.expanded.has(r.id) ? `<tr class="rec-detail"><td colspan="6"><ul class="rec-lines">${r.lines.map((l) => `
         <li><span>${esc(l.name)} · ${num(l.quantity)} ${esc(l.unit)}${l.item ? ` → <b>${esc(l.item.name)}</b>` : ''}</span>
@@ -205,8 +214,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     box.innerHTML = `<table class="ops-table"><thead><tr><th>Plato vendido</th><th>Vendidos 30 d</th><th>Receta</th></tr></thead><tbody>${rows.map((d) => `
       <tr data-dish="${esc(d.dish_name)}">
         <td><span class="ops-title">${esc(d.dish_name)}</span>${d.auto ? '<span class="ops-sub">enlazado solo por nombre</span>' : ''}</td>
-        <td>${num(d.sold)}</td>
-        <td>${canEdit ? `<select class="inv-filter-select rec-dish-select" data-link>${opciones(d.recipe ? d.recipe.id : null)}</select>` : esc(d.recipe ? d.recipe.name : '—')}
+        <td data-label="Vendidos 30 d">${num(d.sold)}</td>
+        <td class="rec-td-wide">${canEdit ? `<select class="inv-filter-select rec-dish-select" data-link>${opciones(d.recipe ? d.recipe.id : null)}</select>` : esc(d.recipe ? d.recipe.name : '—')}
           ${!d.recipe && d.suggestions.length && canEdit ? `<div class="rec-sugs" style="margin-top:6px">${d.suggestions.map((s) => `<button type="button" class="rec-sug" data-quick="${s.id}">${esc(s.name)}</button>`).join('')}</div>` : ''}</td>
       </tr>`).join('')}</tbody></table>`;
   }
@@ -237,11 +246,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       box.innerHTML = `<table class="ops-table"><thead><tr><th>Preparación</th><th>Lote</th><th>Porciones</th><th>Porción</th><th>Costo del lote</th><th>Costo por 100 g</th></tr></thead><tbody>${d.recipes.map((r) => `
         <tr>
           <td><span class="ops-title">${esc(r.name)}</span><span class="ops-sub">${esc(r.category || '')}${r.notes ? ` · ${esc(r.notes)}` : ''}</span></td>
-          <td>${r.yield_weight_g != null ? `${num(r.yield_weight_g)} g` : '—'}</td>
-          <td>${r.yield_portions != null ? num(r.yield_portions) : '—'}</td>
-          <td>${r.portion_g != null ? `${num(r.portion_g)} g` : '—'}</td>
-          <td>${money(r.batch_cost)}</td>
-          <td>${r.cost_per_g != null ? money(Number(r.cost_per_g) * 100) : '—'}</td>
+          <td data-label="Lote">${r.yield_weight_g != null ? `${num(r.yield_weight_g)} g` : '—'}</td>
+          <td data-label="Porciones">${r.yield_portions != null ? num(r.yield_portions) : '—'}</td>
+          <td data-label="Porción">${r.portion_g != null ? `${num(r.portion_g)} g` : '—'}</td>
+          <td data-label="Costo del lote">${money(r.batch_cost)}</td>
+          <td data-label="Costo por 100 g">${r.cost_per_g != null ? money(Number(r.cost_per_g) * 100) : '—'}</td>
         </tr>`).join('')}</tbody></table>`;
     } catch (err) { box.innerHTML = `<div class="ops-empty">${esc(err.message || 'No se pudieron cargar.')}</div>`; }
   }
@@ -258,8 +267,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       box.innerHTML = `<table class="ops-table"><thead><tr><th>Ingrediente</th><th>Proveedores</th><th>Mejor por kg</th></tr></thead><tbody>${d.ingredients.map((g) => `
         <tr>
           <td><span class="ops-title">${esc(g.name)}</span><span class="ops-sub">${esc(g.category || '')}</span></td>
-          <td><div class="rec-offers">${g.offers.map((o) => `<span class="rec-offer ${o.best ? 'best' : ''}">${esc(o.supplier)}: ${money(o.price)}${o.package_grams ? ` / ${num(o.package_grams)} g` : ''}${o.brand ? ` · ${esc(o.brand)}` : ''}</span>`).join('')}</div></td>
-          <td>${g.best_price_per_kg != null ? money(g.best_price_per_kg) : '—'}</td>
+          <td class="rec-td-wide"><div class="rec-offers">${g.offers.map((o) => `<span class="rec-offer ${o.best ? 'best' : ''}">${esc(o.supplier)}: ${money(o.price)}${o.package_grams ? ` / ${num(o.package_grams)} g` : ''}${o.brand ? ` · ${esc(o.brand)}` : ''}</span>`).join('')}</div></td>
+          <td data-label="Mejor por kg">${g.best_price_per_kg != null ? money(g.best_price_per_kg) : '—'}</td>
         </tr>`).join('')}</tbody></table>`;
     } catch (err) { box.innerHTML = `<div class="ops-empty">${esc(err.message || 'No se pudieron cargar.')}</div>`; }
   }
@@ -281,6 +290,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   showTab(new URLSearchParams(location.search).get('tab') || 'recetas');
+  setTimeout(revealActiveTab, 400);   // otra vez cuando ya están los íconos y contadores
   // Contadores de las otras pestañas.
   if (state.tab !== 'ingredientes') api.get('/recipes/ingredients').then((d) => { $('countIng').textContent = d.pending; $('countIng').hidden = !d.pending; }).catch(() => {});
   utils.renderIcons();

@@ -98,10 +98,17 @@
   .cie-row { grid-template-columns: 1fr; gap: 8px; padding: 10px 12px; }
   .cie-fields { padding-top: 8px; }
   .cie-psize { grid-template-columns: 1fr 112px; }
-  .inv-header #branchSelect { max-width: 120px; font-size: 13px; }
   .cie-field input { height: 50px; font-size: 20px; }
   .cie-row-name { font-size: 15px; }
   .cie-field input { height: 50px; font-size: 20px; }
   .cie-bar { grid-template-columns: 1fr auto; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); }
   .cie-bar-notes { grid-column: 1 / -1; }
+}
+
+/* Celular: si hay selector de sucursal (admin / logística), va en su propia fila a todo lo ancho
+   para que no se coma el título ni el nombre de la sucursal. */
+@media (max-width: 640px) {
+  .inv-header:has(#branchSelect:not([hidden])) { flex-wrap: wrap; row-gap: 8px; }
+  .inv-header:has(#branchSelect:not([hidden])) .inv-header-actions { display: contents; }
+  .inv-header #branchSelect:not([hidden]) { order: 99; flex: 1 0 100%; max-width: none; width: 100%; }
 }

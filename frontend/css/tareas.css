@@ -46,9 +46,16 @@
   .tar-body { padding: 12px 12px 32px; }
   .tar-card { padding: 12px 14px; }
   .tar-card-title { font-size: 16px; }
-  .inv-header #branchSelect { max-width: 120px; font-size: 13px; }
 }
 
 .tar-photos { display: flex; flex-wrap: wrap; gap: 6px; }
 .tar-photo-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--green, #15803d); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .tar-photo-btn i { width: 15px; height: 15px; }
+
+/* Celular: si hay selector de sucursal (admin / logística), va en su propia fila a todo lo ancho
+   para que no se coma el título ni el nombre de la sucursal. */
+@media (max-width: 640px) {
+  .inv-header:has(#branchSelect:not([hidden])) { flex-wrap: wrap; row-gap: 8px; }
+  .inv-header:has(#branchSelect:not([hidden])) .inv-header-actions { display: contents; }
+  .inv-header #branchSelect:not([hidden]) { order: 99; flex: 1 0 100%; max-width: none; width: 100%; }
+}

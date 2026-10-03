@@ -3,7 +3,7 @@
    Reusa el armazón de Inventario (inv-*) y define solo lo propio: barra de pestañas, grilla
    de sucursales, tablas de trabajo y chips de estado.
    ============================================================================ */
-.ops-body { padding: 16px 20px 40px; max-width: 1400px; margin: 0 auto; }
+.ops-body { padding: 16px 20px 40px; max-width: 1400px; margin: 0 auto; width: 100%; box-sizing: border-box; min-width: 0; }
 
 .ops-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .ops-toolbar .inv-filter-select { max-width: 240px; }
@@ -122,6 +122,9 @@ textarea.modal-input { resize: vertical; min-height: 60px; }
   .ops-table td { display: block; border-bottom: 0; padding: 6px 12px; }
   .ops-table td:first-child { padding-top: 12px; }
   .ops-table td:last-child { padding-bottom: 12px; }
+  /* Celdas con etiqueta: "Costo ...... $0.48" en vez de números sueltos. */
+  .ops-table td[data-label] { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; text-align: right; }
+  .ops-table td[data-label]::before { content: attr(data-label); flex: 0 0 auto; font-size: 12px; font-weight: 600; color: var(--text-muted, #6b7280); text-align: left; }
   .ops-actions { justify-content: flex-start; }
   .ops-two-cols { grid-template-columns: 1fr; }
   .ops-item-picker { grid-template-columns: 1fr 80px; }

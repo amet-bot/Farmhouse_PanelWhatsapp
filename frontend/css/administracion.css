@@ -37,12 +37,13 @@
   border-bottom-color: var(--green);
 }
 
-/* Celular: las tres pestañas en partes iguales. Con 16px de aire a cada lado sumaban 362px en
-   una pantalla de 335 y "Sucursales" quedaba cortada contra el borde. */
+/* Celular: las pestañas (cuatro con Respaldos) se reparten el ancho con letra más chica; si en
+   una pantalla muy angosta igual no entran, la fila se desliza de lado en vez de cortarse. */
 @media (max-width: 480px) {
   .admin-body { padding: 18px 14px 48px; }
-  .admin-tabs { gap: 0; }
-  .admin-tab { flex: 1; min-width: 0; padding: 10px 4px; font-size: .95rem; }
+  .admin-tabs { gap: 2px; overflow-x: auto; scrollbar-width: none; }
+  .admin-tabs::-webkit-scrollbar { display: none; }
+  .admin-tab { flex: 1 0 auto; padding: 10px 6px; font-size: .86rem; white-space: nowrap; }
 }
 
 .admin-view-head {

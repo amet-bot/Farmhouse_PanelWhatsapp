@@ -355,6 +355,16 @@
 .link-export-menu button:hover { background: var(--inv-panel-2); }
 .link-export-menu button:disabled { opacity: .5; cursor: default; }
 
+@media (max-width: 720px) {
+  /* Las dos fechas + Aplicar no entraban en 375 px y empujaban los períodos fuera de la pantalla. */
+  .link-range-group { width: 100%; min-width: 0; }
+  .link-custom-range { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; width: 100%; }
+  .link-custom-range input[type="date"] { width: 100%; min-width: 0; padding: 0 6px; }
+  /* El botón queda a la izquierda: el menú abre hacia la derecha para no salirse de la pantalla. */
+  .link-export { margin-left: 0; }
+  .link-export-menu { right: auto; left: 0; max-width: calc(100vw - 28px); }
+}
+
 .link-hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; align-items: end; height: 150px; padding-top: 6px; }
 .link-hour-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; min-width: 0; }
 .link-hour-bar { width: 100%; border-radius: 4px 4px 2px 2px; background: var(--link-series-1, #2f8f6a); min-height: 2px; opacity: .85; transition: height .25s ease; }

@@ -65,4 +65,17 @@
 
 @media (max-width: 760px) {
   .rec-ing { grid-template-columns: 1fr; gap: 6px; }
+  .rec-body .ops-toolbar { flex-wrap: nowrap; gap: 8px; }
+  .rec-body .ops-tabs { flex: 1 1 auto; width: auto; }
+  .rec-import { flex: 0 0 auto; }
+  .rec-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .rec-kpi { padding: 10px 12px; }
+  .rec-kpi strong { font-size: 19px; }
+  #viewRecetas .ops-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  #viewRecetas .ops-filters .inv-filter-select { width: auto; max-width: 48vw; }
+  .rec-body .ops-filters .ops-hint { flex-basis: 100%; }
+  .rec-dish-select { max-width: none; width: 100%; }
+  .rec-detail td { padding: 10px 12px !important; }
+  .rec-lines li { grid-template-columns: minmax(0, 1fr) auto; }
+  .rec-lines li > span:first-child { grid-column: 1 / -1; }
 }

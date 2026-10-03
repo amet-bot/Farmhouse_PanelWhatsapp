@@ -18,7 +18,7 @@
   <!-- El armazón (cabecera, rail, fichas, paneles) es el mismo de Inventario: se reusa su hoja
        tal cual y link.css solo agrega lo que Inventario no tiene (gráficos y tablas). -->
   <link rel="stylesheet" href="css/inventory.css?v=4.22.0">
-  <link rel="stylesheet" href="css/link.css?v=4.11.0">
+  <link rel="stylesheet" href="css/link.css?v=4.11.2">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -81,10 +81,10 @@
         <nav class="inv-nav" id="linkNav">
           <button type="button" class="inv-nav-item active" data-view="ventas"><i data-lucide="line-chart"></i> <span>Ventas</span></button>
           <button type="button" class="inv-nav-item" data-view="analisis"><i data-lucide="bar-chart-3"></i> <span>Análisis</span></button>
-          <button type="button" class="inv-nav-item" data-view="compras"><i data-lucide="shopping-cart"></i> <span>Compras y merma</span></button>
-          <button type="button" class="inv-nav-item" data-view="cierre"><i data-lucide="calendar-check"></i> <span>Cierre de mes</span></button>
+          <button type="button" class="inv-nav-item" data-view="compras" data-short="Compras" aria-label="Compras y merma"><i data-lucide="shopping-cart"></i> <span>Compras y merma</span></button>
+          <button type="button" class="inv-nav-item" data-view="cierre" data-short="Cierre" aria-label="Cierre de mes"><i data-lucide="calendar-check"></i> <span>Cierre de mes</span></button>
           <button type="button" class="inv-nav-item" data-view="inventario"><i data-lucide="warehouse"></i> <span>Inventario</span></button>
-          <button type="button" class="inv-nav-item" data-view="sincronizacion"><i data-lucide="refresh-cw"></i> <span>Sincronización</span></button>
+          <button type="button" class="inv-nav-item" data-view="sincronizacion" data-short="Sincro" aria-label="Sincronización"><i data-lucide="refresh-cw"></i> <span>Sincronización</span></button>
         </nav>
         <div class="inv-nav-sep">Próximamente</div>
         <nav class="inv-nav inv-nav-soon">
