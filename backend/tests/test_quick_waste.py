@@ -85,3 +85,27 @@ def test_registrar_como_lo_manda_la_pantalla(client, db_session, clayton_agent, 
     # Deshacer: quien la registró la borra enseguida.
     ultima = db_session.query(WasteRecord).order_by(WasteRecord.id.desc()).first()
     assert client.delete(f"/api/inventory/waste/{ultima.id}", headers=h).status_code == 204
+
+
+def test_historial_por_dia_y_merma_por_numero(client, db_session, clayton_agent, clayton_device, clayton_branch, obarrio_agent, obarrio_device):
+    from datetime import timedelta
+    palta, _pan, _leche = _catalogo(db_session)
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    hoy = WasteRecord(branch_id=clayton_branch.id, recorded_by_user_id=clayton_agent.id, occurred_at=ahora, reason="vencido")
+    hoy.items = [WasteItem(inventory_item_id=palta.id, quantity=Decimal("100"))]
+    vieja = WasteRecord(branch_id=clayton_branch.id, recorded_by_user_id=clayton_agent.id, occurred_at=ahora - timedelta(days=3), reason="danado")
+    vieja.items = [WasteItem(inventory_item_id=palta.id, quantity=Decimal("50"))]
+    db_session.add_all([hoy, vieja]); db_session.commit()
+
+    h = auth_headers_for(clayton_agent, clayton_device.device_id)
+    from services.invu_sales_sync import hoy_panama
+    dia = hoy_panama().isoformat()
+    filas = client.get(f"/api/inventory/waste?date_from={dia}&date_to={dia}", headers=h).json()
+    assert [f["id"] for f in filas] == [hoy.id]
+    assert len(client.get("/api/inventory/waste", headers=h).json()) == 2
+
+    # Una por número: la ve quien ve esa sucursal; la de otra sucursal, no.
+    assert client.get(f"/api/inventory/waste/{vieja.id}", headers=h).json()["reason"] == "danado"
+    assert client.get(f"/api/inventory/waste/{vieja.id}", headers=auth_headers_for(obarrio_agent, obarrio_device.device_id)).status_code in (403, 404)
+    # Las rutas con nombre siguen funcionando (no las tapa /waste/{id}).
+    assert client.get("/api/inventory/waste/reasons", headers=h).status_code == 200

@@ -58,7 +58,7 @@ def test_merma_cara_avisa_al_encargado(client, clayton_branch, supervisor_user, 
     assert cara["notified"] is False           # nadie tiene notificaciones activadas en la prueba
     assert len(avisos) == 1
     assert avisos[0][1].startswith("Merma importante") and "Salmón" in avisos[0][2]
-    assert avisos[0][3] == f"/inventario?view=merma&waste={cara['id']}"
+    assert avisos[0][3] == f"/merma?waste={cara['id']}"
 
 
 def test_el_mismo_motivo_repetido_avisa(client, clayton_branch, supervisor_user, clayton_device, avisos):

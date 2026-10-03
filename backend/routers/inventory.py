@@ -1219,7 +1219,7 @@ def create_waste(
             _avisar_merma_background, record.branch_id,
             f"Merma importante · {record.branch.name}",
             f"{insumos} ({WASTE_REASON_LABELS.get(record.reason, record.reason)}). " + "; ".join(razones),
-            f"/inventario?view=merma&waste={record.id}", f"fh-waste-{record.id}",
+            f"/merma?waste={record.id}", f"fh-waste-{record.id}",
         )
     logger.info(
         f"Merma #{record.id} ({record.reason}) en sucursal {record.branch_id} por {current_user.name}"
@@ -1379,6 +1379,8 @@ def waste_insights(
 def list_waste(
     branch_id: Optional[int] = Query(None),
     reason: Optional[str] = Query(None, max_length=40),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -1397,6 +1399,12 @@ def list_waste(
         query = query.filter(WasteRecord.branch_id == efectiva)
     if reason:
         query = query.filter(WasteRecord.reason == reason)
+    # Días de Panamá (occurred_at se guarda en UTC sin huso), como en el análisis.
+    tz = invu_sales_sync.PANAMA_TZ
+    if date_from:
+        query = query.filter(WasteRecord.occurred_at >= datetime.combine(date_from, datetime.min.time(), tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None))
+    if date_to:
+        query = query.filter(WasteRecord.occurred_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time(), tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None))
 
     records = query.order_by(WasteRecord.occurred_at.desc(), WasteRecord.id.desc()).offset(offset).limit(limit).all()
     return [_serialize_waste(r) for r in records]
@@ -2901,3 +2909,13 @@ def sync_suppliers_from_invu(
         updated=resumen["actualizados"],
         synced_at=resumen["sincronizado_en"],
     )
+
+
+@router.get("/waste/{waste_id:int}", response_model=WasteResponse)
+def get_waste(
+    waste_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user),
+):
+    """Una merma (si quien pregunta ve esa sucursal): la abre el aviso de "merma importante"."""
+    return _serialize_waste(_waste_for_user(db, waste_id, current_user))

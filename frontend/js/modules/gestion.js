@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     'prep_template.create': 'Creó una plantilla de prep', 'prep_template.update': 'Editó una plantilla de prep', 'prep_template.delete': 'Eliminó una plantilla de prep',
   };
   const ACT_LINKS = {
-    task: () => '/gestion?tab=tareas', recurring_task: () => '/gestion?tab=tareas', stock_count: () => '/inventario?view=conteos', waste: (id) => `/inventario?view=merma&waste=${id}`,
+    task: () => '/gestion?tab=tareas', recurring_task: () => '/gestion?tab=tareas', stock_count: () => '/inventario?view=conteo', waste: (id) => `/merma?waste=${id}`,
     shipment: () => '/inventario?view=cargamentos', transfer: () => '/gestion?tab=traslados', incident: () => '/gestion?tab=incidencias',
     supply_request: () => '/gestion?tab=solicitudes', expected_shipment: () => '/abastecimiento?tab=ordenes',
   };

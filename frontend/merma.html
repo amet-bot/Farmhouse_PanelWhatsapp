@@ -13,7 +13,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="/css/style.css?v=4.13.1">
-  <link rel="stylesheet" href="/css/merma.css?v=1.1.1">
+  <link rel="stylesheet" href="/css/merma.css?v=1.2.1">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="mr-body">
@@ -32,6 +32,9 @@
         <span id="mrBranchName">—</span>
       </div>
       <select class="mr-branch-select" id="mrBranchSelect" aria-label="Sucursal" hidden></select>
+      <button type="button" class="mr-today-btn" id="mrHistoryBtn" title="Lo registrado">
+        <i data-lucide="list"></i> <span>Hoy</span> <b id="mrTodayCount">0</b>
+      </button>
     </header>
 
     <main class="mr-main">
@@ -103,6 +106,23 @@
     </div>
   </div>
 
+  <!-- Lo registrado: ver, revisar y corregir -->
+  <div class="mr-sheet" id="mrHistory" hidden role="dialog" aria-modal="true" aria-labelledby="mrHistoryTitle">
+    <div class="mr-sheet-card mr-history-card">
+      <header class="mr-history-head">
+        <h2 id="mrHistoryTitle">Lo registrado</h2>
+        <button type="button" class="mr-icon-btn" id="mrHistoryClose" aria-label="Cerrar"><i data-lucide="x"></i></button>
+      </header>
+      <div class="mr-days" id="mrDays">
+        <button type="button" data-day="0" class="active">Hoy</button>
+        <button type="button" data-day="1">Ayer</button>
+        <label class="mr-day-pick"><i data-lucide="calendar"></i><input type="date" id="mrDayInput" aria-label="Otro día" /></label>
+      </div>
+      <p class="mr-history-total" id="mrHistoryTotal"></p>
+      <div class="mr-history-list" id="mrHistoryList"></div>
+    </div>
+  </div>
+
   <input type="file" id="mrPhotoInput" accept="image/*" capture="environment" hidden />
 
   <div id="toastNotification" class="toast-banner">
@@ -115,6 +135,6 @@
   <script src="/js/modules/auth.js?v=3.4.0"></script>
   <script src="/js/shared/shell.js?v=4.2.0"></script>
   <script src="/js/shared/native-app.js?v=1.1.0"></script>
-  <script src="/js/modules/merma.js?v=1.0.0"></script>
+  <script src="/js/modules/merma.js?v=1.1.0"></script>
 </body>
 </html>

@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   $('mrBranchSelect').addEventListener('change', async (e) => {
     guardar(BRANCH_KEY, e.target.value);
-    try { await cargar(e.target.value); } catch (err) { utils.showToast(err.message || 'No se pudo cambiar de sucursal.', 'error'); }
+    try { await cargar(e.target.value); contarHoy(); } catch (err) { utils.showToast(err.message || 'No se pudo cambiar de sucursal.', 'error'); }
   });
 
   // ---- paso 2: cuánto y por qué ----
@@ -196,6 +196,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   $('mrClose').addEventListener('click', cerrar);
   document.addEventListener('keydown', (e) => {
+    if (!$('mrHistory').hidden && e.key === 'Escape') { cerrarHistorial(); return; }
     if ($('mrSheet').hidden) return;
     if (e.key === 'Escape') cerrar();
     else if (/^[0-9.]$/.test(e.key)) $('mrKeypad').querySelector(`[data-k="${e.key}"]`)?.click();
@@ -228,6 +229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.last = { id: r.id, texto: `${texto} de ${item.name}` };
       item.times += 1;
       cerrar();
+      contarHoy();
       listo(`${texto} de ${item.name} · ${motivo}`);
     } catch (err) {
       utils.showToast(err.message || 'No se pudo registrar. Revisa la conexión e intenta de nuevo.', 'error');
@@ -266,6 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       utils.showToast(`Se deshizo: ${state.last.texto}.`, 'success');
       state.last = null;
       otra();
+      contarHoy();
     } catch (err) {
       utils.showToast(err.message || 'No se pudo deshacer.', 'error');
       doneTimer = setTimeout(otra, 4000);
@@ -317,6 +320,139 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // ---- lo registrado: historial por día, con detalle, fotos y borrar ----
+  const puedeAjustar = (user.permissions || []).includes('inventory.adjust');
+  const hist = { day: null, rows: [], open: null };
+  const hoyPanama = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+  function isoMenos(iso, dias) {
+    const d = new Date(`${iso}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - dias);
+    return d.toISOString().slice(0, 10);
+  }
+  const money = (n) => (n == null ? '' : `$${Number(n).toFixed(2)}`);
+  const hora = (iso) => new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`).toLocaleTimeString('es-PA', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Panama' });
+  function cuanto(w) {
+    if (w.weight_value != null && w.items.length === 1) return `${num(w.weight_value)} ${w.weight_unit || 'kg'}`;
+    return w.items.map((l) => `${num(l.quantity)} ${l.unit}`).join(' + ');
+  }
+  function puedeBorrar(w) {
+    if (puedeAjustar) return true;
+    const creada = new Date(w.created_at.endsWith('Z') || w.created_at.includes('+') ? w.created_at : `${w.created_at}Z`);
+    return w.recorded_by_user_id === user.id && (Date.now() - creada.getTime()) < 24 * 3600 * 1000;
+  }
+  async function contarHoy() {
+    try {
+      const hoy = hoyPanama();
+      const rows = await api.get(`/inventory/waste?branch_id=${state.data.branch.id}&date_from=${hoy}&date_to=${hoy}&limit=200`);
+      $('mrTodayCount').textContent = rows.length;
+    } catch (e) { /* el contador es un extra */ }
+  }
+  async function cargarDia(iso, abrirId = null) {
+    hist.day = iso;
+    hist.open = abrirId;
+    const hoy = hoyPanama();
+    document.querySelectorAll('#mrDays [data-day]').forEach((b) => b.classList.toggle('active', isoMenos(hoy, Number(b.dataset.day)) === iso));
+    $('mrDayInput').value = iso;
+    $('mrHistoryList').innerHTML = '<p class="mr-empty">Cargando…</p>';
+    $('mrHistoryTotal').textContent = '';
+    try {
+      hist.rows = await api.get(`/inventory/waste?branch_id=${state.data.branch.id}&date_from=${iso}&date_to=${iso}&limit=200`);
+      if (iso === hoy) $('mrTodayCount').textContent = hist.rows.length;
+      renderHist();
+    } catch (err) {
+      $('mrHistoryList').innerHTML = `<p class="mr-empty">${esc(err.message || 'No se pudo cargar lo registrado.')}</p>`;
+    }
+  }
+  function renderHist() {
+    const rows = hist.rows;
+    const total = rows.reduce((s, w) => s + Number(w.display_cost || 0), 0);
+    const estimado = rows.some((w) => w.cost_estimated);
+    $('mrHistoryTotal').textContent = rows.length
+      ? `${rows.length} ${rows.length === 1 ? 'merma' : 'mermas'} · ${estimado ? '≈ ' : ''}${money(total)} · ${state.data.branch.name}`
+      : '';
+    $('mrHistoryList').innerHTML = rows.length ? rows.map((w) => {
+      const abierta = hist.open === w.id;
+      const item = w.items.length === 1 ? state.data.items.find((i) => i.id === w.items[0].inventory_item_id) : null;
+      const nombre = w.items.map((l) => l.item_name).join(', ');
+      return `<div class="mr-rec${abierta ? ' is-open' : ''}" data-rec="${w.id}">
+        <button type="button" class="mr-rec-main" data-toggle aria-expanded="${abierta}">
+          <span class="mr-rec-img">${item ? imagenHtml(item) : '<span class="mr-img mr-img-icon" style="--c:#64748b"><i data-lucide="layers"></i></span>'}</span>
+          <span class="mr-rec-text">
+            <strong>${esc(cuanto(w))} de ${esc(nombre)}</strong>
+            <small>${esc(w.reason_label)} · ${esc(hora(w.occurred_at))} · ${esc(w.recorded_by_name)}</small>
+          </span>
+          <span class="mr-rec-cost">${w.display_cost != null ? `${w.cost_estimated ? '≈ ' : ''}${money(w.display_cost)}` : ''}${w.photos.length ? ' <i data-lucide="camera"></i>' : ''}</span>
+        </button>
+        ${abierta ? `<div class="mr-rec-detail">
+          ${w.items.length > 1 ? `<ul>${w.items.map((l) => `<li>${esc(num(l.quantity))} ${esc(l.unit)} de ${esc(l.item_name)}</li>`).join('')}</ul>` : ''}
+          ${w.notes ? `<p class="mr-rec-notes">“${esc(w.notes)}”</p>` : ''}
+          ${w.photos.length ? `<div class="mr-rec-photos">${w.photos.map((ph) => `<span class="mr-rec-photo" data-wphoto="${w.id}/${ph.id}"></span>`).join('')}</div>` : ''}
+          ${puedeBorrar(w) ? `<div class="mr-rec-actions"><button type="button" class="mr-btn-danger" data-del>Borrar esta merma</button></div>` : ''}
+        </div>` : ''}
+      </div>`;
+    }).join('') : '<p class="mr-empty">No se registró merma este día.</p>';
+    utils.renderIcons();
+    cargarFotos($('mrHistoryList'));
+    $('mrHistoryList').querySelectorAll('[data-wphoto]').forEach(fotoMerma);
+    if (hist.open) $('mrHistoryList').querySelector(`[data-rec="${hist.open}"]`)?.scrollIntoView({ block: 'nearest' });
+  }
+  async function fotoMerma(el) {
+    try {
+      const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+      const deviceId = api.getDeviceId();
+      if (deviceId) headers['X-Device-ID'] = deviceId;
+      const [wid, pid] = el.dataset.wphoto.split('/');
+      const res = await fetch(`${api.baseUrl}/inventory/waste/${wid}/photos/${pid}`, { credentials: 'include', headers });
+      if (!res.ok) return;
+      el.style.backgroundImage = `url("${URL.createObjectURL(await res.blob())}")`;
+    } catch (e) { /* queda el recuadro vacío */ }
+  }
+  function abrirHistorial(iso = hoyPanama(), abrirId = null) {
+    $('mrHistory').hidden = false;
+    document.body.classList.add('mr-locked');
+    cargarDia(iso, abrirId);
+  }
+  function cerrarHistorial() {
+    $('mrHistory').hidden = true;
+    document.body.classList.remove('mr-locked');
+  }
+  $('mrHistoryBtn').addEventListener('click', () => abrirHistorial());
+  $('mrHistoryClose').addEventListener('click', cerrarHistorial);
+  $('mrDays').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-day]');
+    if (b) cargarDia(isoMenos(hoyPanama(), Number(b.dataset.day)));
+  });
+  $('mrDayInput').addEventListener('change', (e) => { if (e.target.value) cargarDia(e.target.value); });
+  $('mrHistoryList').addEventListener('click', async (e) => {
+    const rec = e.target.closest('[data-rec]');
+    if (!rec) return;
+    const id = Number(rec.dataset.rec);
+    if (e.target.closest('[data-toggle]')) {
+      hist.open = hist.open === id ? null : id;
+      renderHist();
+      return;
+    }
+    const del = e.target.closest('[data-del]');
+    if (!del) return;
+    if (!del.classList.contains('is-confirm')) {
+      del.classList.add('is-confirm');
+      del.textContent = '¿Seguro? Toca otra vez para borrar';
+      return;
+    }
+    del.disabled = true;
+    del.textContent = 'Borrando…';
+    try {
+      await api.delete(`/inventory/waste/${id}?motivo=${encodeURIComponent('Borrada desde merma rápida')}`);
+      utils.showToast('Merma borrada.', 'success');
+      await cargarDia(hist.day);
+    } catch (err) {
+      utils.showToast(err.message || 'No se pudo borrar.', 'error');
+      del.disabled = false;
+      del.classList.remove('is-confirm');
+      del.textContent = 'Borrar esta merma';
+    }
+  });
+
   // ---- arranque ----
   try {
     await cargar(leer(BRANCH_KEY));
@@ -329,4 +465,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('mrGate').hidden = true;
   $('mrApp').hidden = false;
   utils.renderIcons();
+  contarHoy();
+
+  const desdeAviso = Number(new URLSearchParams(location.search).get('waste'));
+  if (desdeAviso) {
+    try {
+      const w = await api.get(`/inventory/waste/${desdeAviso}`);
+      if (w.branch_id !== state.data.branch.id) await cargar(w.branch_id);
+      const dia = new Date(w.occurred_at.endsWith('Z') || w.occurred_at.includes('+') ? w.occurred_at : `${w.occurred_at}Z`)
+        .toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+      abrirHistorial(dia, w.id);
+    } catch (err) { utils.showToast(err.message || 'No se encontró esa merma.', 'error'); }
+  }
 });
