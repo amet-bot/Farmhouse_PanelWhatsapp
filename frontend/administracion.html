@@ -19,7 +19,7 @@
        modales de Usuarios/Dispositivos son los mismos de Centro WhatsApp (style.css ya los
        define global) — este panel es el lugar dedicado que faltaba, no un sistema nuevo. -->
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
-  <link rel="stylesheet" href="css/administracion.css?v=4.4.7">
+  <link rel="stylesheet" href="css/administracion.css?v=4.5.0">
   <!-- Versión fija: con @latest un release que renombre o quite íconos los rompía sin aviso. -->
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -70,10 +70,11 @@
         <button type="button" class="admin-tab active" data-tab="usuarios">Usuarios</button>
         <button type="button" class="admin-tab" data-tab="dispositivos">Dispositivos</button>
         <button type="button" class="admin-tab" data-tab="sucursales">Sucursales</button>
+        <button type="button" class="admin-tab" data-tab="respaldos" hidden>Respaldos</button>
       </div>
 
       <!-- ================= Usuarios ================= -->
-      <div class="admin-view" id="viewUsuarios">
+      <div class="admin-view" id="viewUsuarios" data-view="usuarios">
         <div class="admin-view-head">
           <span class="inv-panel-note">Usuarios registrados en el sistema</span>
           <button class="btn-primary" id="btnOpenAddUser"><i data-lucide="user-plus"></i> Crear Nuevo Agente / Usuario</button>
@@ -89,7 +90,7 @@
       </div>
 
       <!-- ================= Dispositivos ================= -->
-      <div class="admin-view" id="viewDispositivos" hidden>
+      <div class="admin-view" id="viewDispositivos" data-view="dispositivos" hidden>
         <div class="admin-view-head">
           <span class="inv-panel-note">Dispositivos autorizados de acceso</span>
           <button class="btn-primary" id="btnOpenAddDevice"><i data-lucide="plus-circle"></i> Registrar Nuevo Dispositivo</button>
@@ -105,7 +106,7 @@
       </div>
 
       <!-- ================= Sucursales ================= -->
-      <div class="admin-view" id="viewSucursales" hidden>
+      <div class="admin-view" id="viewSucursales" data-view="sucursales" hidden>
         <div class="admin-view-head">
           <span class="inv-panel-note">Sucursales de Farmhouse</span>
           <button class="btn-primary" id="btnOpenAddBranch"><i data-lucide="plus-circle"></i> Nueva Sucursal</button>
@@ -116,6 +117,23 @@
               <tr><th>Nombre</th><th>Código</th><th>Dirección</th><th>Delivery</th><th>Horario</th><th>Estado</th><th>Acción</th></tr>
             </thead>
             <tbody id="branchTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= Respaldos (solo admin) ================= -->
+      <div class="admin-view" id="viewRespaldos" data-view="respaldos" hidden>
+        <div class="admin-view-head">
+          <span class="inv-panel-note" id="backupNote">Copias de la base de datos</span>
+          <button class="btn-primary" id="btnBackupNow"><i data-lucide="database-backup"></i> Hacer respaldo ahora</button>
+        </div>
+        <p class="adm-hint">El servidor respalda la base todos los días de madrugada y guarda los últimos 14. Baja una copia de vez en cuando y guárdala fuera de Railway (Drive, un disco): si algún día se pierde la cuenta, esa copia es lo que queda.</p>
+        <div class="device-table-wrap">
+          <table class="device-table">
+            <thead>
+              <tr><th>Respaldo</th><th>Fecha</th><th>Tablas</th><th>Filas</th><th>Tamaño</th><th>Acción</th></tr>
+            </thead>
+            <tbody id="backupTableBody"><tr><td colspan="6" class="adm-empty">Cargando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -445,6 +463,7 @@
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
   <script src="js/modules/users.js?v=4.0.1"></script>
-  <script src="js/modules/administracion.js?v=4.0.3"></script>
+  <script src="js/modules/administracion.js?v=4.1.0"></script>
+  <script src="js/modules/admin-sistema.js?v=1.0.0"></script>
 </body>
 </html>

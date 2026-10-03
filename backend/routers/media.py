@@ -110,6 +110,11 @@ def get_authenticated_media(
     if not target_path.exists() or not target_path.is_file():
         target_path = (MEDIA_DIR / clean_name).resolve()
 
+    # Los respaldos de la base viven en media/_backups (el único disco persistente) y solo los
+    # baja un admin por /system/backups: por aquí nunca, aunque se tenga sesión.
+    if "_backups" in Path(file_name).parts or target_path.parent.name == "_backups":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El archivo multimedia no fue encontrado en el servidor.")
+
     # Seguridad contra Path Traversal
     try:
         target_path.relative_to(MEDIA_DIR)

@@ -68,3 +68,12 @@
   font-size: 0.9rem;
   color: var(--text-secondary);
 }
+
+
+/* Respaldos (admin-sistema.js) */
+.adm-hint { margin: 0 0 12px; font-size: 13px; color: var(--text-muted, #6b7280); max-width: 760px; }
+.adm-empty { text-align: center; color: var(--text-muted, #6b7280); padding: 18px !important; }
+.adm-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+.adm-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: rgba(22,163,74,.12); color: var(--green, #15803d); font-size: 11.5px; font-weight: 700; }
+.adm-link-btn { border: 0; background: transparent; color: var(--green, #15803d); font: inherit; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.adm-link-btn:disabled { opacity: .5; cursor: default; }

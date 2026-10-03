@@ -37,9 +37,10 @@ from routers import (
     prep,
     supply,
     closing_sheet,
+    system,
 )
 from services.bot_followup import run_followup_sweep_loop
-from services import invu_recipes_sync, invu_sync, invu_sales_sync, supply_alerts, weekly_digest, recurring_tasks
+from services import db_backup, invu_recipes_sync, invu_sync, invu_sales_sync, supply_alerts, weekly_digest, recurring_tasks
 
 logging.basicConfig(
     level=logging.INFO,
@@ -113,9 +114,14 @@ async def lifespan(app: FastAPI):
     if "PYTEST_CURRENT_TEST" not in os.environ:
         recurring_tasks_task = asyncio.create_task(recurring_tasks.run_recurring_tasks_loop())
 
+    # Octavo loop: respaldo diario de la base a las 3:30 a. m. (ver services/db_backup).
+    backup_task = None
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        backup_task = asyncio.create_task(db_backup.run_backup_loop())
+
     yield
 
-    for task in (followup_task, invu_task, ventas_task, recetas_task, digest_task, lowstock_task, recurring_tasks_task):
+    for task in (followup_task, invu_task, ventas_task, recetas_task, digest_task, lowstock_task, recurring_tasks_task, backup_task):
         if task:
             task.cancel()
             try:
@@ -215,6 +221,7 @@ app.include_router(ops.router, prefix=settings.API_V1_STR)
 app.include_router(prep.router, prefix=settings.API_V1_STR)
 app.include_router(supply.router, prefix=settings.API_V1_STR)
 app.include_router(closing_sheet.router, prefix=settings.API_V1_STR)
+app.include_router(system.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)
 
 # -----------------------------------------------------------------------------

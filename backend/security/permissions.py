@@ -31,6 +31,7 @@ PERMISSIONS: Set[str] = {
     "users.manage",
     "devices.manage",
     "integrations.manage",
+    "system.backup",
 }
 
 _AGENT_PERMISSIONS: Set[str] = {

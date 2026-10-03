@@ -25,9 +25,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================================================
   function setTab(tab) {
     document.querySelectorAll('#adminTabs .admin-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-    $('viewUsuarios').hidden = tab !== 'usuarios';
-    $('viewDispositivos').hidden = tab !== 'dispositivos';
-    $('viewSucursales').hidden = tab !== 'sucursales';
+    document.querySelectorAll('.admin-view').forEach((v) => { v.hidden = v.dataset.view !== tab; });
+    // Las pestañas que viven en otro archivo (admin-sistema.js) se cargan al abrirse.
+    document.dispatchEvent(new CustomEvent('admin:tab', { detail: tab }));
   }
   document.querySelectorAll('#adminTabs .admin-tab').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
 
