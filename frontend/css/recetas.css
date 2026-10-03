@@ -57,6 +57,11 @@
 .rec-unit-q p { margin: 0 0 6px; font-size: 13.5px; }
 .rec-unit-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rec-unit-form .modal-input { width: 110px; height: 38px; }
+.rec-unit-avg label { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; }
+.rec-unit-avg .modal-input { width: 84px; }
+.rec-unit-result { font-weight: 700; font-size: 14px; color: var(--green-soft-text, #15803d); }
+.rec-unit-now { margin: 0 0 6px; font-size: 13px; color: var(--text-secondary, #4b5563); }
+[data-theme="dark"] .rec-unit-result { color: #4ade9a; }
 .rec-unit-suffix { font-size: 13px; color: var(--text-muted, #6b7280); margin-left: -4px; }
 .rec-unit-ok { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: rgba(22,163,74,.12); color: #15803d; }
 .rec-unit-done { margin-top: 18px; }

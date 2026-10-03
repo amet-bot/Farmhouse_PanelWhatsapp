@@ -250,9 +250,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const u = FAM[fam] || 'g';
       const verbo = fam === 'volumen' ? 'trae' : 'pesa';
       const pieza = c.recipe_family === 'unidad' ? esc(c.recipe_unit) : esc(it.unit);
-      return { field: 'piece_size', value: it.piece_size, unit: u,
-        text: `La receta lo pide en <b>${esc(c.recipe_unit)}</b> y se lleva en <b>${esc(it.unit)}</b>. ¿Cuántos ${u} ${verbo} 1 ${pieza}?`,
-        hint: 'Pésalo una vez (o mira la etiqueta) y anótalo.' };
+      // No todas las piezas pesan igual (hay limones más grandes): se pesan varias juntas y se
+      // guarda el promedio. Con muchas ventas las diferencias se compensan y el cierre de turno
+      // corrige con lo que de verdad queda.
+      return { field: 'piece_size', value: it.piece_size, unit: u, average: true, verb: verbo,
+        text: `La receta lo pide en <b>${esc(c.recipe_unit)}</b> y se lleva en <b>${esc(it.unit)}</b>. ¿Cuántos ${u} ${verbo} 1 ${pieza}, en promedio?`,
+        hint: `Como no todas ${verbo === 'trae' ? 'traen' : 'pesan'} igual, ${verbo === 'trae' ? 'mide' : 'pesa'} varias juntas (por ejemplo 10) y el sistema saca el promedio.` };
     }
     return null;
   }
@@ -268,8 +271,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       vistos.add(q.field);
       return `<div class="rec-unit-q" data-field="${q.field}">
           <p>${q.text}${c.ok ? ' <span class="rec-unit-ok">resuelto</span>' : ''}</p>
-          ${canEdit ? `<div class="rec-unit-form">
-            <input class="modal-input" type="number" inputmode="decimal" step="0.01" min="0.01" value="${q.value != null ? Number(q.value) : ''}" placeholder="${q.unit}" aria-label="${q.unit}" />
+          ${q.average && q.value != null ? `<p class="rec-unit-now">Hoy: <b>${num(q.value)} ${q.unit}</b> por pieza.</p>` : ''}
+          ${canEdit && q.average ? `<div class="rec-unit-form rec-unit-avg">
+            <label>${q.verb === 'trae' ? 'Medí' : 'Pesé'} <input class="modal-input" data-count type="number" inputmode="numeric" step="1" min="1" placeholder="10" aria-label="Cuántas piezas" /> juntas</label>
+            <label>y ${q.verb === 'trae' ? 'trajeron' : 'pesaron'} <input class="modal-input" data-total type="number" inputmode="decimal" step="0.1" min="0.1" placeholder="${q.unit}" aria-label="Total en ${q.unit}" /> ${q.unit}</label>
+            <span class="rec-unit-result" data-result></span>
+            <button type="button" class="inv-primary-btn" data-save>Guardar</button>
+          </div><small class="ops-sub">${esc(q.hint)}</small>` : ''}
+          ${canEdit && !q.average ? `<div class="rec-unit-form">
+            <input class="modal-input" data-value type="number" inputmode="decimal" step="0.01" min="0.01" value="${q.value != null ? Number(q.value) : ''}" placeholder="${q.unit}" aria-label="${q.unit}" />
             <span class="rec-unit-suffix">${q.unit}</span>
             ${q.water ? '<button type="button" class="ops-btn" data-water>Como agua (1)</button>' : ''}
             <button type="button" class="inv-primary-btn" data-save>Guardar</button>
@@ -294,15 +304,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         + (d.resolved.length ? `<details class="rec-unit-done"><summary>Ya resueltos (${d.resolved.length})</summary>${d.resolved.map((f) => unitCard(f, true)).join('')}</details>` : '');
     } catch (err) { box.innerHTML = `<div class="ops-empty">${esc(err.message || 'No se pudieron cargar.')}</div>`; }
   }
+  // Promedio de las piezas pesadas juntas: total / cuántas.
+  function promedio(q) {
+    const n = Number(q.querySelector('[data-count]').value);
+    const total = Number(q.querySelector('[data-total]').value);
+    return n >= 1 && total > 0 ? Math.round((total / n) * 1000) / 1000 : null;
+  }
+  $('unitBox').addEventListener('input', (e) => {
+    const q = e.target.closest('.rec-unit-avg');
+    if (!q) return;
+    const v = promedio(q);
+    const u = q.querySelector('[data-total]').placeholder;
+    q.querySelector('[data-result]').textContent = v ? `= ${num(v)} ${u} cada una` : '';
+  });
   $('unitBox').addEventListener('click', async (e) => {
     const q = e.target.closest('[data-field]');
     if (!q) return;
-    const input = q.querySelector('input');
     const agua = e.target.closest('[data-water]');
-    if (agua) input.value = '1';
+    if (agua) q.querySelector('[data-value]').value = '1';
     if (!agua && !e.target.closest('[data-save]')) return;
-    const v = Number(input.value);
-    if (!(v > 0)) { utils.showToast('Pon un número mayor que cero.', 'error'); input.focus(); return; }
+    const avg = q.querySelector('.rec-unit-avg');
+    const v = avg ? promedio(avg) : Number(q.querySelector('[data-value]').value);
+    if (!(v > 0)) {
+      utils.showToast(avg ? 'Pon cuántas pesaste y cuánto pesaron juntas.' : 'Pon un número mayor que cero.', 'error');
+      (avg ? avg.querySelector('[data-count]') : q.querySelector('[data-value]')).focus();
+      return;
+    }
     const id = q.closest('[data-item]').dataset.item;
     const field = q.dataset.field;
     try {
