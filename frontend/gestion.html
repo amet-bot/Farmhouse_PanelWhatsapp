@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="css/style.css?v=4.12.0.1">
   <!-- Mismo armazón (cabecera, gate de sesión, botones) que Inventario y Prep. -->
   <link rel="stylesheet" href="css/inventory.css?v=4.20.0">
-  <link rel="stylesheet" href="css/gestion.css?v=1.3.1">
+  <link rel="stylesheet" href="css/gestion.css?v=1.4.0">
   <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -66,6 +66,7 @@
           <button type="button" class="ops-tab" data-tab="solicitudes"><i data-lucide="package-plus"></i> <span>Solicitudes</span> <span class="ops-tab-count" id="countSolicitudes" hidden></span></button>
           <button type="button" class="ops-tab" data-tab="traslados"><i data-lucide="repeat"></i> <span>Traslados</span> <span class="ops-tab-count" id="countTraslados" hidden></span></button>
           <button type="button" class="ops-tab" data-tab="cargamentos"><i data-lucide="truck"></i> <span>Cargamentos</span> <span class="ops-tab-count" id="countCargamentos" hidden></span></button>
+          <button type="button" class="ops-tab" data-tab="actividad"><i data-lucide="history"></i> <span>Actividad</span></button>
         </nav>
         <button type="button" class="inv-secondary-btn ops-refresh" id="btnRefresh" title="Actualizar"><i data-lucide="refresh-cw"></i></button>
       </div>
@@ -158,6 +159,37 @@
           <a class="inv-secondary-btn" href="/inventario?view=cargamentos"><i data-lucide="truck"></i> Ir a recepción</a>
         </div>
         <div id="expList"></div>
+      </section>
+
+      <!-- ---------- Actividad: quién hizo qué ---------- -->
+      <section class="ops-view" id="viewActividad" hidden>
+        <div class="ops-filters">
+          <select class="inv-filter-select" id="actGroup" aria-label="Tipo de acción">
+            <option value="">Todo</option>
+            <option value="task">Tareas</option>
+            <option value="recurring_task">Tareas recurrentes</option>
+            <option value="prep_check">Prep de bowls</option>
+            <option value="closing_sheet">Cierres de turno</option>
+            <option value="count">Conteos</option>
+            <option value="waste">Merma</option>
+            <option value="consumption">Consumo</option>
+            <option value="shipment">Cargamentos recibidos</option>
+            <option value="expected_shipment">Cargamentos programados</option>
+            <option value="purchase_order">Órdenes de compra</option>
+            <option value="supply_setting">Mínimos y pares</option>
+            <option value="supply_request">Solicitudes de insumos</option>
+            <option value="transfer">Traslados</option>
+            <option value="incident">Incidencias</option>
+            <option value="item">Catálogo</option>
+            <option value="user" data-admin>Usuarios</option>
+            <option value="backup" data-admin>Respaldos</option>
+          </select>
+          <select class="inv-filter-select" id="actActor" aria-label="Persona"><option value="">Todas las personas</option></select>
+          <label class="ops-date-field">Desde <input type="date" class="modal-input" id="actFrom" /></label>
+          <label class="ops-date-field">Hasta <input type="date" class="modal-input" id="actTo" /></label>
+        </div>
+        <div id="actList"></div>
+        <div class="ops-more"><button type="button" class="inv-secondary-btn" id="btnActMore" hidden>Ver más</button></div>
       </section>
     </main>
   </div>
@@ -328,6 +360,6 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=4.2.0"></script>
   <script src="js/shared/native-app.js?v=1.1.0"></script>
-  <script src="js/modules/gestion.js?v=1.1.2"></script>
+  <script src="js/modules/gestion.js?v=1.2.2"></script>
 </body>
 </html>

@@ -39,8 +39,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     transferItems: [],  // líneas del traslado nuevo
     refreshTimer: null,
   };
-  const TABS = ['resumen', 'incidencias', 'tareas', 'solicitudes', 'traslados', 'cargamentos'];
-  const VIEW = { resumen: 'viewResumen', incidencias: 'viewIncidencias', tareas: 'viewTareas', solicitudes: 'viewSolicitudes', traslados: 'viewTraslados', cargamentos: 'viewCargamentos' };
+  const TABS = ['resumen', 'incidencias', 'tareas', 'solicitudes', 'traslados', 'cargamentos', 'actividad'];
+  const VIEW = { resumen: 'viewResumen', incidencias: 'viewIncidencias', tareas: 'viewTareas', solicitudes: 'viewSolicitudes', traslados: 'viewTraslados', cargamentos: 'viewCargamentos', actividad: 'viewActividad' };
 
   // ==========================================================================
   // Utilidades
@@ -125,10 +125,94 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btnRefresh').addEventListener('click', () => { loadTab(state.tab); loadOverviewCounts(); });
 
   async function loadTab(tab) {
-    const loaders = { resumen: loadResumen, incidencias: loadIncidencias, tareas: loadTareas, solicitudes: loadSolicitudes, traslados: loadTraslados, cargamentos: loadCargamentos };
+    const loaders = { resumen: loadResumen, incidencias: loadIncidencias, tareas: loadTareas, solicitudes: loadSolicitudes, traslados: loadTraslados, cargamentos: loadCargamentos, actividad: () => loadActividad(false) };
     await loaders[tab]();
     utils.renderIcons();
   }
+
+  // ==========================================================================
+  // Actividad: quién hizo qué, cuándo y en qué sucursal (auditoría)
+  // ==========================================================================
+  const ACT_LABELS = {
+    'task.create': 'Creó una tarea', 'task.update': 'Editó una tarea', 'task.hecha': 'Marcó una tarea hecha',
+    'task.en_proceso': 'Empezó una tarea', 'task.cancelada': 'Canceló una tarea', 'task.pendiente': 'Reabrió una tarea',
+    'task.remind': 'Recordó una tarea', 'task.delete': 'Eliminó una tarea',
+    'closing_sheet.create': 'Cerró turno', 'closing_sheet.config': 'Armó la hoja de cierre',
+    'count.create': 'Hizo un conteo', 'waste.create': 'Registró merma', 'waste.delete': 'Borró una merma',
+    'consumption.create': 'Anotó consumo', 'consumption.delete': 'Borró un consumo',
+    'shipment.create': 'Recibió un cargamento', 'shipment.delete': 'Borró un cargamento', 'shipment.photo_add': 'Agregó foto a un cargamento',
+    'expected_shipment.create': 'Programó un cargamento', 'expected_shipment.cancel': 'Canceló un cargamento programado',
+    'purchase_order.create': 'Creó una orden de compra', 'supply_setting.save': 'Cambió mínimos y pares',
+    'supply_request.create': 'Pidió insumos', 'supply_request.approved': 'Aprobó una solicitud', 'supply_request.fulfilled': 'Entregó una solicitud',
+    'supply_request.cancelled': 'Canceló una solicitud', 'supply_request.open': 'Reabrió una solicitud',
+    'transfer.create': 'Pidió un traslado', 'transfer.approve': 'Aprobó un traslado', 'transfer.dispatch': 'Despachó un traslado',
+    'transfer.receive': 'Recibió un traslado', 'transfer.reject': 'Rechazó un traslado', 'transfer.cancel': 'Canceló un traslado',
+    'incident.create': 'Reportó una incidencia', 'incident.assign': 'Asignó una incidencia', 'incident.resuelta': 'Resolvió una incidencia',
+    'incident.en_proceso': 'Tomó una incidencia', 'incident.abierta': 'Reabrió una incidencia',
+    'waste.photo_add': 'Agregó foto a una merma', 'prep_check.create': 'Llenó el prep de bowls', 'prep_check.update': 'Corrigió el prep de bowls',
+    'recurring_task.create': 'Creó una tarea recurrente', 'recurring_task.fire': 'Se creó sola una tarea recurrente',
+    'item.piece_size': 'Cambió el tamaño de pieza', 'user.create': 'Creó un usuario', 'user.update': 'Editó un usuario',
+    'user.delete': 'Eliminó un usuario', 'user.toggle_active': 'Activó/desactivó un usuario',
+    'backup.create': 'Hizo un respaldo', 'backup.download': 'Bajó un respaldo',
+    'alert.low_stock': 'Aviso de stock bajo', 'digest.weekly': 'Resumen semanal',
+    'recurring_task.update': 'Editó una tarea recurrente', 'recurring_task.delete': 'Eliminó una tarea recurrente',
+    'prep_template.create': 'Creó una plantilla de prep', 'prep_template.update': 'Editó una plantilla de prep', 'prep_template.delete': 'Eliminó una plantilla de prep',
+  };
+  const ACT_LINKS = {
+    task: () => '/gestion?tab=tareas', recurring_task: () => '/gestion?tab=tareas', stock_count: () => '/inventario?view=conteos', waste: (id) => `/inventario?view=merma&waste=${id}`,
+    shipment: () => '/inventario?view=cargamentos', transfer: () => '/gestion?tab=traslados', incident: () => '/gestion?tab=incidencias',
+    supply_request: () => '/gestion?tab=solicitudes', expected_shipment: () => '/abastecimiento?tab=ordenes',
+  };
+  const actLabel = (a) => ACT_LABELS[a] || a.replace(/[._]/g, ' ');
+  function actDetail(e) {
+    const m = e.metadata || {};
+    const partes = [];
+    for (const k of ['title', 'name', 'item_name', 'reason', 'role', 'status', 'from']) if (m[k] != null && m[k] !== '') partes.push(String(m[k]));
+    if (m.items != null) partes.push(`${m.items} insumo${Number(m.items) === 1 ? '' : 's'}`);
+    if (m.total_qty != null) partes.push(`total ${m.total_qty}`);
+    return partes.slice(0, 3).join(' · ');
+  }
+  const actState = { offset: 0, rows: [], actors: new Map() };
+  (function initActDates() {
+    const hoy = new Date();
+    const hace7 = new Date(hoy); hace7.setDate(hoy.getDate() - 7);
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    $('actFrom').value = iso(hace7);
+    $('actTo').value = iso(hoy);
+    if (user.role !== 'admin') document.querySelectorAll('#actGroup option[data-admin]').forEach((o) => o.remove());
+  })();
+  async function loadActividad(append) {
+    const box = $('actList');
+    if (!append) { actState.offset = 0; actState.rows = []; box.innerHTML = loading(); }
+    const p = new URLSearchParams({ limit: '100', offset: String(actState.offset) });
+    if (state.branch) p.set('branch_id', state.branch);
+    if ($('actGroup').value) p.set('group', $('actGroup').value);
+    if ($('actActor').value) p.set('actor_user_id', $('actActor').value);
+    if ($('actFrom').value) p.set('date_from', $('actFrom').value);
+    if ($('actTo').value) p.set('date_to', $('actTo').value);
+    let data;
+    try { data = await api.get(`/system/audit?${p}`); } catch (err) { box.innerHTML = empty(err.message || 'No se pudo cargar la actividad.'); return; }
+    actState.rows = actState.rows.concat(data.events);
+    actState.offset += data.events.length;
+    data.events.forEach((e) => { if (e.actor) actState.actors.set(e.actor.id, e.actor.name); });
+    const actual = $('actActor').value;
+    $('actActor').innerHTML = '<option value="">Todas las personas</option>' + [...actState.actors.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join('');
+    $('actActor').value = actual;
+    $('btnActMore').hidden = !data.has_more;
+    if (!actState.rows.length) { box.innerHTML = empty('No hay actividad con ese filtro.'); return; }
+    box.innerHTML = `<table class="ops-table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Sucursal</th><th>Qué hizo</th><th>Detalle</th></tr></thead><tbody>${actState.rows.map((e) => {
+      const link = ACT_LINKS[e.entity_type] ? ACT_LINKS[e.entity_type](e.entity_id) : null;
+      return `<tr>
+        <td><span class="ops-title">${esc(fmt(e.created_at))}</span><span class="ops-sub">${esc(ago(e.created_at))}</span></td>
+        <td>${esc(e.actor ? e.actor.name : 'Sistema')}</td>
+        <td>${esc(e.branch ? e.branch.name : '—')}</td>
+        <td>${link ? `<a class="ops-link" href="${link}">${esc(actLabel(e.action))}</a>` : esc(actLabel(e.action))}</td>
+        <td><span class="ops-sub">${esc(actDetail(e)) || '—'}</span></td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+  }
+  ['actGroup', 'actActor', 'actFrom', 'actTo'].forEach((id) => $(id).addEventListener('change', () => loadActividad(false)));
+  $('btnActMore').addEventListener('click', () => loadActividad(true));
 
   // ==========================================================================
   // Resumen

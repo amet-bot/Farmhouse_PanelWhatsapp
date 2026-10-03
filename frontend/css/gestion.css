@@ -139,3 +139,11 @@ textarea.modal-input { resize: vertical; min-height: 60px; }
 .task-due-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; }
 .task-due-hint { margin: 6px 0 0; font-size: 12.5px; color: var(--text-muted, #6b7280); }
 .task-due-hint.is-error { color: #dc2626; font-weight: 600; }
+
+
+/* Actividad (auditoría) */
+.ops-date-field { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted, #6b7280); }
+.ops-date-field .modal-input { width: auto; min-width: 140px; }
+.ops-more { display: flex; justify-content: center; margin-top: 12px; }
+.ops-link { color: var(--green, #15803d); font-weight: 600; text-decoration: none; }
+.ops-link:hover { text-decoration: underline; }

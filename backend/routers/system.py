@@ -55,3 +55,77 @@ def download_backup(name: str, db: Session = Depends(get_db), current_user: User
     _audit(db, current_user, "backup.download", name)
     return FileResponse(str(path), media_type="application/gzip", filename=name,
                         headers={"Cache-Control": "no-store"})
+
+
+# ==========================================================================
+# Actividad (auditoría): quién hizo qué, cuándo y en qué sucursal
+# ==========================================================================
+import json  # noqa: E402
+from datetime import date, datetime, timedelta  # noqa: E402
+from typing import Optional  # noqa: E402
+
+from fastapi import Query  # noqa: E402
+from sqlalchemy.orm import joinedload  # noqa: E402
+
+from models.audit import AuditEvent  # noqa: E402
+from routers.inventory import _visible_branch_filter  # noqa: E402
+from security.permissions import has_permission  # noqa: E402
+
+# Lo que es administración del sistema (usuarios, dispositivos, respaldos) solo lo ve un admin.
+ADMIN_ONLY_PREFIXES = ("user.", "device.", "backup.", "integration.", "permission.")
+PANAMA_OFFSET = timedelta(hours=5)
+
+
+@router.get("/audit")
+def list_audit(
+    branch_id: Optional[int] = Query(None),
+    actor_user_id: Optional[int] = Query(None),
+    group: Optional[str] = Query(None, max_length=30, description="Prefijo de la acción: task, waste, count, shipment…"),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    limit: int = Query(100, ge=1, le=300),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("reports.view")),
+):
+    """
+    La actividad registrada, lo más nuevo primero. Admin y gerente (supervisor sin sucursal) ven
+    todas las sucursales; un encargado, solo la suya. Lo de administración del sistema (usuarios,
+    dispositivos, respaldos) y los eventos sin sucursal solo los ve un admin.
+    """
+    es_admin = has_permission(current_user, "users.manage")
+    efectiva = _visible_branch_filter(current_user, branch_id)
+    q = db.query(AuditEvent).options(joinedload(AuditEvent.actor_user), joinedload(AuditEvent.branch))
+    if efectiva is not None:
+        q = q.filter(AuditEvent.branch_id == efectiva)
+    elif not es_admin:
+        q = q.filter(AuditEvent.branch_id.isnot(None))
+    if not es_admin:
+        for pref in ADMIN_ONLY_PREFIXES:
+            q = q.filter(~AuditEvent.action.like(f"{pref}%"))
+    if actor_user_id is not None:
+        q = q.filter(AuditEvent.actor_user_id == actor_user_id)
+    if group:
+        g = group.strip().rstrip(".")
+        q = q.filter(AuditEvent.action.like(f"{g}.%"))
+    if date_from:
+        q = q.filter(AuditEvent.created_at >= datetime.combine(date_from, datetime.min.time()) + PANAMA_OFFSET)
+    if date_to:
+        q = q.filter(AuditEvent.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()) + PANAMA_OFFSET)
+
+    filas = q.order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc()).offset(offset).limit(limit + 1).all()
+    hay_mas = len(filas) > limit
+    eventos = []
+    for e in filas[:limit]:
+        try:
+            meta = json.loads(e.metadata_json) if e.metadata_json else {}
+        except (ValueError, TypeError):
+            meta = {}
+        eventos.append({
+            "id": e.id, "created_at": e.created_at, "action": e.action,
+            "entity_type": e.entity_type, "entity_id": e.entity_id,
+            "actor": {"id": e.actor_user.id, "name": e.actor_user.name} if e.actor_user else None,
+            "branch": {"id": e.branch.id, "name": e.branch.name} if e.branch else None,
+            "metadata": meta if isinstance(meta, dict) else {},
+        })
+    return {"events": eventos, "has_more": hay_mas, "offset": offset, "limit": limit, "is_admin": es_admin}
