@@ -16,10 +16,33 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Firma de la versión para los celulares: la llave vive FUERA del repositorio (ver
+    // C:/Users/PC/android-tools/release/LEEME.txt). Se indica con la variable de entorno
+    // FARMHOUSE_KEYSTORE_PROPS (ruta a keystore.properties). Sin ella, el APK release sale sin
+    // firmar y el de debug sigue firmándose con la llave de pruebas de la PC.
+    def keystorePropsPath = System.getenv("FARMHOUSE_KEYSTORE_PROPS")
+    def keystoreProps = new Properties()
+    def tieneLlave = keystorePropsPath != null && file(keystorePropsPath).exists()
+    if (tieneLlave) {
+        file(keystorePropsPath).withInputStream { keystoreProps.load(it) }
+    }
+    signingConfigs {
+        if (tieneLlave) {
+            release {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (tieneLlave) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
