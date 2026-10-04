@@ -624,6 +624,8 @@
     smoothies: { bg: "#f4e1e4", ink: "#8a3f52", svg: '<path d="M18 20h28l-4 36H22z"/><path d="M15 20h34"/><path d="M36 20l6-14h6"/>' },
     vitrina: { bg: "#f2e6d2", ink: "#7a5634", svg: '<circle cx="32" cy="32" r="20"/><circle cx="25" cy="27" r="2"/><circle cx="37" cy="25" r="2"/><circle cx="34" cy="38" r="2"/><circle cx="24" cy="38" r="1.6"/>' },
     merch: { bg: "#e8e6e0", ink: "#3d4a42", svg: '<path d="M14 24h36l-3 32H17z"/><path d="M24 24v-4a8 8 0 0 1 16 0v4"/>' },
+    byo: { bg: "#e4eadc", ink: "#2f3d34", svg: '<path d="M8 30h48a24 22 0 0 1-48 0z"/><path d="M20 30c2-6 8-8 12-4 3-6 11-5 13 0 3-2 8 0 9 4"/><path d="M24 56h16"/>' },
+    acai: { bg: "#ece0ee", ink: "#5a2a5f", svg: '<path d="M8 30h48a24 22 0 0 1-48 0z"/><circle cx="22" cy="25" r="4"/><circle cx="33" cy="23" r="4"/><circle cx="43" cy="26" r="3.5"/><path d="M24 56h16"/>' },
     _: { bg: "#e9ece5", ink: "#3d4a42", svg: '<path d="M16 46c0-18 14-30 32-30 0 18-12 32-30 32"/><path d="M16 46c8-8 16-14 24-18"/>' },
   };
   function illusHtml(p, tabKey, big) {
@@ -637,7 +639,6 @@
     if (p.image_url) {
       return `<img class="product-card-photo" src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.parentElement.classList.add('img-error')">${FALLBACK_IMG_HTML}`;
     }
-    if (p.builder && p.builder.visual) return `<div class="card-bowl" data-sample-visual="${p.builder.visual}"></div>`;
     return illusHtml(p, tabKey);
   }
 
@@ -759,7 +760,6 @@
       `;
 
       state.currentProductList = filtered;
-      mountCardBowls();
       return;
     }
 
@@ -802,7 +802,6 @@
 
     grid.innerHTML = byoHeroHtml() + sectionsHtml;
     state.currentProductList = allProductsFlat;
-    mountCardBowls();
 
     setupScrollSpy();
   }
@@ -813,7 +812,7 @@
     return p ? { ...p, _tabKey: "byo" } : null;
   }
 
-  // Portada del menú: invita a armar tu bowl, con un bowl que se arma solo.
+  // Portada del menú: invita a armar tu bowl y muestra los 4 pasos.
   function byoHeroHtml() {
     const p = byoProduct();
     if (!p) return "";
@@ -823,26 +822,17 @@
         <div class="byo-hero-text">
           <span class="byo-hero-eyebrow">Build your own</span>
           <h2>Arma tu bowl <em>a tu manera</em></h2>
-          <p>Elige base, toppings, dressing y crunch, y súmale una proteína. Lo ves armarse mientras eliges.</p>
+          <p>Elige base, toppings, dressing y crunch, y súmale una proteína si quieres.</p>
           <button type="button" class="byo-hero-cta" data-open-byo>
             Armar mi bowl <span>desde ${money(from)}</span>
           </button>
         </div>
-        <div class="byo-hero-bowl" id="byoHeroBowl" data-open-byo role="button" tabindex="-1" aria-hidden="true"></div>
+        <ol class="byo-hero-steps" aria-hidden="true">
+          <li><b>1</b>Base</li><li><b>2</b>Toppings</li><li><b>3</b>Dressing</li><li><b>4</b>Crunch</li>
+        </ol>
       </section>`;
   }
 
-  function mountCardBowls() {
-    if (!window.FHBowl) return;
-    const hero = el("byoHeroBowl");
-    const p = byoProduct();
-    if (hero && p) window.FHBowl.mountSample(hero, p, true);
-    document.querySelectorAll(".card-bowl").forEach((host) => {
-      const card = host.closest(".product-card");
-      const product = card && (state.currentProductList || [])[Number(card.dataset.idx)];
-      if (product) window.FHBowl.mountSample(host, product, false);
-    });
-  }
 
   // ===================== MODAL DE PERSONALIZACIÓN =====================
 
