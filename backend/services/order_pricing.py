@@ -16,6 +16,7 @@ from decimal import Decimal
 from typing import List, Tuple
 
 from fastapi import HTTPException, status
+from services.menu_builders import resolve_choices
 from services.menu_catalog import get_item_by_sku, clean_item_title
 
 def compute_delivery_fee(delivery_type: str, distance_km: Decimal | None = None) -> Decimal:
@@ -31,7 +32,7 @@ def compute_delivery_fee(delivery_type: str, distance_km: Decimal | None = None)
 def price_cart_items(items: List) -> Tuple[list, Decimal]:
     """
     Recalcula cada línea (sku, cantidad, adicionales) contra el catálogo del servidor.
-    `items` es una lista de objetos con atributos .sku, .quantity, .addon_skus, .notes
+    `items` es una lista de objetos con atributos .sku, .quantity, .addon_skus, .notes, .choices
     (PublicOrderItem o CartItemIn, ambos con esa forma).
 
     Devuelve (line_items, subtotal) donde cada line_item es un dict serializable en
@@ -43,13 +44,20 @@ def price_cart_items(items: List) -> Tuple[list, Decimal]:
     for raw_item in items:
         catalog_item = get_item_by_sku(raw_item.sku)
         if not catalog_item:
+            retired = get_item_by_sku(raw_item.sku, include_unavailable=True)
+            if retired:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{retired['title']} ya no está en el menú. Quítalo de tu pedido para continuar.")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Producto no encontrado en el catálogo: {raw_item.sku}")
+
+        # Lo elegido dentro del producto (base, toppings, dressing... de "Arma tu bowl"). Las
+        # opciones con costo (chilli crunch) se cobran como un adicional más, con el precio del catálogo.
+        chosen = resolve_choices(catalog_item["sku"], getattr(raw_item, "choices", None), catalog_item["title"])
 
         # El frontend manda un SKU de adicional repetido una vez por cada unidad elegida (ej.
         # 2x Extra Queso = ese SKU dos veces en la lista) en vez de mandar la cantidad aparte,
         # así que aquí se agrupan las ocurrencias para saber cuántas unidades pidió de cada uno.
         addon_qty_by_sku: dict = {}
-        for addon_sku in raw_item.addon_skus:
+        for addon_sku in list(raw_item.addon_skus) + chosen["price_skus"]:
             addon_qty_by_sku[addon_sku] = addon_qty_by_sku.get(addon_sku, 0) + 1
 
         addons = []
@@ -76,6 +84,7 @@ def price_cart_items(items: List) -> Tuple[list, Decimal]:
             "quantity": raw_item.quantity,
             "unit_price": float(catalog_item["price"]),
             "addons": addons,
+            "choices": chosen["groups"],
             "notes": raw_item.notes,
             "line_total": float(line_total),
         })

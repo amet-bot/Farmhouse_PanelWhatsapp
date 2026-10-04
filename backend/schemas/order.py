@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 from decimal import Decimal
-from typing import Optional, List, Literal
+from typing import Dict, Optional, List, Literal
 from datetime import datetime
 from enum import Enum
 
@@ -55,6 +55,9 @@ class PublicOrderItem(BaseModel):
     quantity: int = Field(1, ge=1, le=20)
     addon_skus: List[str] = Field(default_factory=list, max_length=15)
     notes: Optional[str] = Field(None, max_length=300)
+    # Lo elegido dentro del producto: {"bases": ["quinoa"], "dressing": ["thai_peanut"], ...}
+    # (ver services/menu_builders). Se valida contra el menú en el servidor.
+    choices: Dict[str, List[str]] = Field(default_factory=dict, max_length=8)
 
 
 class PublicOrderCreate(BaseModel):
@@ -100,6 +103,7 @@ class CartItemIn(BaseModel):
     quantity: int = Field(1, ge=1, le=20)
     addon_skus: List[str] = Field(default_factory=list, max_length=15)
     notes: Optional[str] = Field(None, max_length=300)
+    choices: Dict[str, List[str]] = Field(default_factory=dict, max_length=8)
 
 
 class CartSyncRequest(BaseModel):

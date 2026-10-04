@@ -18,11 +18,13 @@ def test_menu_items_returns_expected_tabs(client):
     assert resp.status_code == 200
     data = resp.json()
     tab_keys = [t["key"] for t in data["tabs"]]
-    assert tab_keys == ["salads", "bowls", "wraps", "byo", "toasties", "smoothies", "drinks", "foamies", "vitrina", "merch"]
+    # Mismo orden que el menú impreso (farmhouse_menu_completo.pdf).
+    assert tab_keys == ["salads", "bowls", "byo", "toasties", "acai", "smoothies", "coffee", "foamies", "juices", "drinks", "vitrina", "merch"]
 
-    bowls_tab = next(t for t in data["tabs"] if t["key"] == "bowls")
-    acai = next(p for p in bowls_tab["products"] if p["title"] == "Açaí Bowl")
-    assert any(a["sku"] == "ACAI_ADDON_PROTEIN" for a in acai["addons"]["flat"]), "El Açaí trae sus toppings, no los Premiums"
+    acai_tab = next(t for t in data["tabs"] if t["key"] == "acai")
+    acai = next(p for p in acai_tab["products"] if p["title"] == "Açaí Bowl")
+    assert any(a["sku"] == "ACAI_ADDON_PROTEIN" for a in acai["addons"]["flat"]), "El Açaí trae sus add-ons, no los Premiums"
+    assert not acai["addons"]["warm"]
     foamies_tab = next(t for t in data["tabs"] if t["key"] == "foamies")
     assert foamies_tab["products"][0]["title"] == "Mont Blanc"
     drinks_tab = next(t for t in data["tabs"] if t["key"] == "drinks")

@@ -67,7 +67,7 @@
   // El backend cuenta ocurrencias repetidas del mismo SKU en addon_skus para saber la cantidad
   // de ese adicional (ver services/order_pricing.price_cart_items), así que un adicional con
   // quantity=2 se manda como ese SKU repetido 2 veces en la lista plana.
-  const flattenAddonSkus = (addons) => addons.flatMap((a) => Array(a.quantity || 1).fill(a.sku));
+  const flattenAddonSkus = (addons) => addons.filter((a) => !a.from_choice).flatMap((a) => Array(a.quantity || 1).fill(a.sku));
   function getCombinedDeliveryAddress() {
     return el("deliveryAddress") ? el("deliveryAddress").value.trim() : "";
   }
@@ -175,6 +175,7 @@
       applyCustomerInfoUI();
       renderCategoryPills();
       renderProducts();
+      sanitizeCart();
       prefillFromWhatsApp();
     } catch (err) {
       el("productsGrid").innerHTML = `<div class="menu-loading">No pudimos cargar el menú. Por favor recarga la página.</div>`;
@@ -611,7 +612,33 @@
   }
 
   function canQuickAdd(p) {
-    return !(p.has_sizes && p.sizes.length > 1);
+    return !p.builder && !(p.has_sizes && p.sizes.length > 1);
+  }
+
+  // ---------- tarjetas sin foto real: ilustración en vez de una foto que no corresponde ----------
+  const ILLUS = {
+    coffee: { bg: "#efe4d6", ink: "#6b4a33", svg: '<path d="M14 24h30v13a13 13 0 0 1-13 13h-4a13 13 0 0 1-13-13z"/><path d="M44 28h4a6 6 0 0 1 0 12h-5"/><path d="M10 56h40"/><path d="M24 10c-2 3 2 5 0 8M32 10c-2 3 2 5 0 8"/>' },
+    foamies: { bg: "#f1e7da", ink: "#6d5240", svg: '<path d="M18 22h28l-4 34H22z"/><path d="M16 22c0-7 7-10 10-8 2-5 10-5 12 0 4-2 10 1 10 8"/><path d="M21 38h22"/>' },
+    juices: { bg: "#e6edd9", ink: "#4f6b35", svg: '<path d="M25 8h14v8l5 7v31a4 4 0 0 1-4 4H24a4 4 0 0 1-4-4V23l5-7z"/><path d="M20 32h24"/><path d="M25 16h14"/>' },
+    drinks: { bg: "#e0eaec", ink: "#3f5f66", svg: '<path d="M20 12h24l-3 44H23z"/><path d="M21 24h22"/><circle cx="29" cy="36" r="2"/><circle cx="35" cy="44" r="1.6"/><circle cx="30" cy="48" r="1.2"/>' },
+    smoothies: { bg: "#f4e1e4", ink: "#8a3f52", svg: '<path d="M18 20h28l-4 36H22z"/><path d="M15 20h34"/><path d="M36 20l6-14h6"/>' },
+    vitrina: { bg: "#f2e6d2", ink: "#7a5634", svg: '<circle cx="32" cy="32" r="20"/><circle cx="25" cy="27" r="2"/><circle cx="37" cy="25" r="2"/><circle cx="34" cy="38" r="2"/><circle cx="24" cy="38" r="1.6"/>' },
+    merch: { bg: "#e8e6e0", ink: "#3d4a42", svg: '<path d="M14 24h36l-3 32H17z"/><path d="M24 24v-4a8 8 0 0 1 16 0v4"/>' },
+    _: { bg: "#e9ece5", ink: "#3d4a42", svg: '<path d="M16 46c0-18 14-30 32-30 0 18-12 32-30 32"/><path d="M16 46c8-8 16-14 24-18"/>' },
+  };
+  function illusHtml(p, tabKey, big) {
+    const it = ILLUS[tabKey] || ILLUS._;
+    return `<div class="card-illus${big ? " card-illus-lg" : ""}" style="--illus-bg:${it.bg};--illus-ink:${it.ink}" aria-hidden="true">
+      <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${it.svg}</svg>
+      <span class="card-illus-name">${escapeHtml(p.title)}</span>
+    </div>`;
+  }
+  function cardMediaHtml(p, tabKey) {
+    if (p.image_url) {
+      return `<img class="product-card-photo" src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.parentElement.classList.add('img-error')">${FALLBACK_IMG_HTML}`;
+    }
+    if (p.builder && p.builder.visual) return `<div class="card-bowl" data-sample-visual="${p.builder.visual}"></div>`;
+    return illusHtml(p, tabKey);
   }
 
   function simpleCartQty(sku) {
@@ -638,14 +665,14 @@
     const price = p.sizes[0] ? p.sizes[0].price : 0;
     const defaultSku = p.sizes[0] ? p.sizes[0].sku : "";
     const quickAddable = canQuickAdd(p);
+    const isBuild = p.builder && p.builder.visual;
     const footerControl = quickAddable
       ? `<div class="product-card-qty-zone" data-sku="${escapeHtml(defaultSku)}">${cardQtyControlHtml(defaultSku, simpleCartQty(defaultSku))}</div>`
-      : `<span class="product-card-add">Elegir</span>`;
+      : `<span class="product-card-add">${isBuild ? "Armar" : "Elegir"}</span>`;
     return `
-      <div class="product-card" data-idx="${globalIdx}" data-tab="${tabKey}" role="button" tabindex="0" aria-label="${escapeHtml(p.title)}, ${p.has_sizes ? "desde " : ""}${money(price)}">
-        <div class="product-card-img-wrap">
-          <img class="product-card-photo" src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.parentElement.classList.add('img-error')">
-          ${FALLBACK_IMG_HTML}
+      <div class="product-card${isBuild ? " is-build" : ""}" data-idx="${globalIdx}" data-tab="${tabKey}" role="button" tabindex="0" aria-label="${escapeHtml(p.title)}, ${p.has_sizes ? "desde " : ""}${money(price)}">
+        <div class="product-card-img-wrap${p.image_url ? "" : " no-photo"}">
+          ${cardMediaHtml(p, tabKey)}
         </div>
         <div class="product-card-body">
           <div class="product-card-title">${escapeHtml(p.title)}</div>
@@ -732,6 +759,7 @@
       `;
 
       state.currentProductList = filtered;
+      mountCardBowls();
       return;
     }
 
@@ -739,17 +767,28 @@
     if (emptyState) emptyState.hidden = true;
     const allProductsFlat = [];
 
+    let tabNum = 0;
     const sectionsHtml = state.tabs.map((tab) => {
       if (!tab.products || tab.products.length === 0) return "";
+      tabNum += 1;
+      const sectionNames = new Set(tab.products.map((p) => p.section || ""));
+      const showSub = sectionNames.size > 1;
+      let lastSection = null;
       const cardsHtml = tab.products.map((p) => {
         const globalIdx = allProductsFlat.length;
         allProductsFlat.push({ ...p, _tabKey: tab.key });
-        return renderProductCardHtml(p, tab.key, globalIdx);
+        let sub = "";
+        if (showSub && p.section !== lastSection) {
+          lastSection = p.section;
+          sub = `<h3 class="menu-subsection">${escapeHtml(p.section)}</h3>`;
+        }
+        return sub + renderProductCardHtml(p, tab.key, globalIdx);
       }).join("");
 
       return `
         <section class="menu-category-section" id="section-${tab.key}" data-tab="${tab.key}">
           <div class="menu-category-header">
+            <span class="menu-category-eyebrow">${String(tabNum).padStart(2, "0")}</span>
             <h2 class="menu-category-title">${escapeHtml(stripLeadingEmoji(tab.label))}</h2>
             <span class="menu-category-count">${tab.products.length} producto${tab.products.length === 1 ? "" : "s"}</span>
           </div>
@@ -761,15 +800,63 @@
       `;
     }).join("");
 
-    grid.innerHTML = sectionsHtml;
+    grid.innerHTML = byoHeroHtml() + sectionsHtml;
     state.currentProductList = allProductsFlat;
+    mountCardBowls();
 
     setupScrollSpy();
+  }
+
+  function byoProduct() {
+    const tab = state.tabs.find((t) => t.key === "byo");
+    const p = tab && tab.products.find((x) => x.builder && x.builder.visual === "bowl");
+    return p ? { ...p, _tabKey: "byo" } : null;
+  }
+
+  // Portada del menú: invita a armar tu bowl, con un bowl que se arma solo.
+  function byoHeroHtml() {
+    const p = byoProduct();
+    if (!p) return "";
+    const from = Math.min(...p.sizes.map((x) => x.price));
+    return `
+      <section class="byo-hero" aria-label="Arma tu bowl">
+        <div class="byo-hero-text">
+          <span class="byo-hero-eyebrow">Build your own</span>
+          <h2>Arma tu bowl <em>a tu manera</em></h2>
+          <p>Elige base, toppings, dressing y crunch, y súmale una proteína. Lo ves armarse mientras eliges.</p>
+          <button type="button" class="byo-hero-cta" data-open-byo>
+            Armar mi bowl <span>desde ${money(from)}</span>
+          </button>
+        </div>
+        <div class="byo-hero-bowl" id="byoHeroBowl" data-open-byo role="button" tabindex="-1" aria-hidden="true"></div>
+      </section>`;
+  }
+
+  function mountCardBowls() {
+    if (!window.FHBowl) return;
+    const hero = el("byoHeroBowl");
+    const p = byoProduct();
+    if (hero && p) window.FHBowl.mountSample(hero, p, true);
+    document.querySelectorAll(".card-bowl").forEach((host) => {
+      const card = host.closest(".product-card");
+      const product = card && (state.currentProductList || [])[Number(card.dataset.idx)];
+      if (product) window.FHBowl.mountSample(host, product, false);
+    });
   }
 
   // ===================== MODAL DE PERSONALIZACIÓN =====================
 
   function openProductModal(product) {
+    if (product.builder && window.FHBuilder) {
+      const tabIdx = state.tabs.findIndex((t) => t.key === product._tabKey);
+      const tab = state.tabs[tabIdx];
+      window.FHBuilder.open(product, {
+        eyebrow: tab ? `${String(tabIdx + 1).padStart(2, "0")} / ${stripLeadingEmoji(tab.label)}` : "",
+        illustration: product.image_url ? "" : illusHtml(product, product._tabKey, true),
+        onAdd: addBuiltItem,
+      });
+      return;
+    }
     const tab = state.tabs.find((t) => t.key === (product._tabKey || state.activeTabKey));
     state.modal.product = product;
     // Algunos productos traen sus propios adicionales (el Açaí dentro de Bowls), distintos a los de la pestaña.
@@ -964,6 +1051,39 @@
     scheduleCartSync();
   }
 
+  function addBuiltItem(item) {
+    state.cart.push({ uid: "item_" + Date.now() + "_" + Math.random().toString(36).substr(2, 6), ...item });
+    persistCart();
+    renderCart();
+    showToast(`Agregado al pedido: ${item.title}`);
+    scheduleCartSync();
+  }
+
+  // Al cargar el menú: quita del carrito guardado lo que ya no está en la carta, y los bowls
+  // armados antes de que existieran las opciones (el servidor los rechazaría al pedir).
+  function sanitizeCart() {
+    const products = new Map();
+    const addonSkus = new Set();
+    state.tabs.forEach((t) => t.products.forEach((p) => {
+      p.sizes.forEach((sz) => products.set(sz.sku, p));
+      const a = p.addons || {};
+      [...(a.warm || []), ...(a.cold || []), ...(a.flat || [])].forEach((x) => addonSkus.add(x.sku));
+    }));
+    const before = state.cart.length;
+    state.cart = state.cart.filter((it) => {
+      const p = products.get(it.sku);
+      if (!p) return false;
+      if (p.builder && !it.choices) return false;
+      it.addons = (it.addons || []).filter((a) => a.from_choice || addonSkus.has(a.sku));
+      return true;
+    });
+    if (state.cart.length !== before) {
+      persistCart();
+      showToast("Quitamos de tu pedido algo que ya no está en el menú.", true);
+    }
+    renderCart();
+  }
+
   function renderCart() {
     const list = el("cartItemsList");
     const countEl = el("cartCount");
@@ -1002,6 +1122,7 @@
               <span class="cart-item-title">${escapeHtml(it.title)}${it.size_label ? ` (${escapeHtml(it.size_label)})` : ""}</span>
               <span class="cart-item-price">${money(itemLineTotal)}</span>
             </div>
+            ${(it.choice_groups || []).length ? `<div class="cart-item-choices">${it.choice_groups.map((g) => `<span><b>${escapeHtml(g.title)}:</b> ${escapeHtml(g.items.join(", "))}</span>`).join("")}</div>` : ""}
             ${it.addons.length ? `<div class="cart-item-addons">${it.addons.map((a) => `+ ${a.quantity > 1 ? `${a.quantity}x ` : ""}${escapeHtml(a.title)} (${money(a.price * (a.quantity || 1))})`).join("<br>")}</div>` : ""}
             ${it.notes ? `<div class="cart-item-notes">Nota: ${escapeHtml(it.notes)}</div>` : ""}
             <div class="cart-item-controls">
@@ -1124,6 +1245,7 @@
         quantity: item.quantity,
         addon_skus: flattenAddonSkus(item.addons),
         notes: item.notes || null,
+        choices: item.choices || {},
       })),
     };
 
@@ -1155,6 +1277,7 @@
   // ===================== EVENTOS =====================
 
   function wireStaticEvents() {
+    window.FHMenuToast = (msg) => showToast(msg);
     const search = el("searchInput");
     if (search) {
       search.addEventListener("input", (e) => {
@@ -1166,6 +1289,11 @@
     const grid = el("productsGrid");
     if (grid) {
       grid.addEventListener("click", (e) => {
+        if (e.target.closest("[data-open-byo]")) {
+          const p = byoProduct();
+          if (p) openProductModal(p);
+          return;
+        }
         const qtyZone = e.target.closest(".product-card-qty-zone");
         const card = e.target.closest(".product-card");
         if (!card) return;
@@ -1521,6 +1649,7 @@
         quantity: item.quantity,
         addon_skus: flattenAddonSkus(item.addons),
         notes: item.notes || null,
+        choices: item.choices || {},
       })),
     };
 

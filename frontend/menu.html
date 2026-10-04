@@ -9,9 +9,9 @@
   <link rel="apple-touch-icon" href="/assets/images/farmhouse-logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Gelasio:ital,wght@0,500;1,400;1,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="/css/menu.css?v=4.2.0">
+  <link rel="stylesheet" href="/css/menu.css?v=5.1.3">
 </head>
 <body>
 
@@ -252,9 +252,42 @@
     </div>
   </div>
 
+  <!-- ===================== ARMA TU BOWL (y productos con opciones) ===================== -->
+  <div id="builderBackdrop" class="modal-backdrop builder-backdrop" hidden>
+    <div class="builder" role="dialog" aria-modal="true" aria-labelledby="builderTitle">
+      <button type="button" class="modal-close-btn builder-close" id="builderClose" aria-label="Cerrar">✕</button>
+      <div class="builder-stage">
+        <div class="builder-stage-head">
+          <span class="builder-eyebrow" id="builderEyebrow"></span>
+          <h2 id="builderTitle" class="builder-title"></h2>
+          <p id="builderDesc" class="builder-desc"></p>
+        </div>
+        <div class="bowl-wrap" id="bowlWrap"></div>
+        <div class="builder-recap" id="builderRecap" aria-live="polite"></div>
+      </div>
+      <div class="builder-panel">
+        <nav class="builder-steps" id="builderSteps" aria-label="Pasos"></nav>
+        <div class="builder-scroll" id="builderScroll">
+          <div class="builder-groups" id="builderGroups"></div>
+        </div>
+        <div class="builder-footer">
+          <div class="qty-stepper">
+            <button id="builderQtyMinus" type="button" aria-label="Restar cantidad">−</button>
+            <span id="builderQty">1</span>
+            <button id="builderQtyPlus" type="button" aria-label="Sumar cantidad">+</button>
+          </div>
+          <button id="builderAdd" type="button" class="btn-add-order builder-add">
+            <span id="builderAddLabel">Agregar</span><span class="builder-add-price" id="builderPrice">$0.00</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="menu-toast" hidden role="status" aria-live="polite"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="/js/modules/menu_app.js?v=4.2.0"></script>
+  <script src="/js/modules/menu_builder.js?v=5.1.4"></script>
+  <script src="/js/modules/menu_app.js?v=5.1.3"></script>
 </body>
 </html>

@@ -9,6 +9,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from services.menu_builders import OPTION_ONLY_SKUS, public_builder
+
 logger = logging.getLogger("farmhouse.menu_catalog")
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -16,36 +18,56 @@ PROJECT_ROOT = BACKEND_DIR.parent
 CSV_PATH = PROJECT_ROOT / "database" / "farmhouse_catalog_meta.csv"
 
 # Categorías del CSV (columna custom_label_0) que son adicionales/premiums, no platos independientes.
-ADDON_CATEGORIES = {"Premiums", "Toastie Add-ons", "Smoothie Extras", "Acai Add-ons"}
+ADDON_CATEGORIES = {"Premiums", "Toastie Add-ons", "Smoothie Extras", "Acai Add-ons", "Coffee Extras"}
 
-# Agrupación de categorías del CSV en las pestañas (pills) del menú digital. Mismo orden,
-# nombres y descripciones que el array `menu` de src/lib/site.ts de la página oficial.
+# Pestañas (pills) del menú digital, en el mismo orden que el menú impreso
+# (farmhouse_menu_completo.pdf). Si una pestaña junta varias categorías del CSV, cada una sale
+# como una sub-sección con su título (CATEGORY_LABELS).
 TAB_DEFINITIONS = [
-    {"key": "salads", "label": "Ensaladas", "categories": ["Salads"], "addon_category": "Premiums",
-     "description": "Mezclas frescas de vegetales de temporada con proteínas y aderezos hechos en casa."},
-    {"key": "bowls", "label": "Bowls", "categories": ["Bowls", "Acai Bowl"], "addon_category": "Premiums",
-     "description": "Bowls balanceados con granos, vegetales y proteína a la carta."},
-    {"key": "wraps", "label": "Wraps", "categories": ["Wraps"], "addon_category": None,
-     "description": "Wraps rellenos y envueltos al momento, ideales para llevar."},
+    {"key": "salads", "label": "Ensaladas y wraps", "categories": ["Salads", "Wraps"], "addon_category": "Premiums",
+     "description": "Ensaladas en tamaño R o L y wraps en tortilla de harina de trigo."},
+    {"key": "bowls", "label": "Bowls", "categories": ["Bowls"], "addon_category": "Premiums",
+     "description": "Combinaciones Farmhouse. Elige tu favorito y complétalo con premiums."},
     {"key": "byo", "label": "Arma tu bowl", "categories": ["Build Your Own"], "addon_category": "Premiums",
-     "description": "Elige tu base, toppings y dressing, y arma el bowl perfecto sumando una proteína o premium a tu gusto."},
+     "description": "Elige base, toppings, dressing y crunch, y súmale una proteína si quieres."},
     {"key": "toasties", "label": "Toasties", "categories": ["Toasties"], "addon_category": "Toastie Add-ons",
-     "description": "Sándwiches tostados con combinaciones frescas y saludables."},
+     "description": "En pan de masa madre."},
+    {"key": "acai", "label": "Açaí", "categories": ["Acai Bowl"], "addon_category": "Acai Add-ons",
+     "description": "Elige 3 toppings y 1 crunch. Spreads y add-ons tienen un cargo adicional."},
     {"key": "smoothies", "label": "Smoothies", "categories": ["Classic Smoothies", "Signature Smoothies"], "addon_category": "Smoothie Extras",
      "description": "Clásicos y signature, hechos con fruta fresca cada día."},
-    {"key": "drinks", "label": "Bebidas", "categories": ["Drinks"], "addon_category": None,
-     "description": "Café, jugos prensados en frío, refrescos artesanales y más — frías y calientes."},
+    {"key": "coffee", "label": "Café, matcha y té", "categories": ["Coffee", "Matcha", "Tea"], "addon_category": None,
+     "description": "Café de especialidad, matcha bar e infusiones."},
     {"key": "foamies", "label": "Foamies", "categories": ["Foamies"], "addon_category": None,
-     "description": "Cold brew, espresso, matcha y agua de pipa coronados con foamies llenos de sabor."},
-    {"key": "vitrina", "label": "Vitrina", "categories": ["Vitrina"], "addon_category": None,
-     "description": "Dulces y postres para el antojo del día."},
+     "description": "Selección fija de By the Park. Todos a $8.00."},
+    {"key": "juices", "label": "Jugos y shots", "categories": ["Juice Bar", "Shots"], "addon_category": None,
+     "description": "Jugos cold pressed y wellness shots."},
+    {"key": "drinks", "label": "Otras bebidas", "categories": ["Drinks", "Sodas"], "addon_category": None,
+     "description": "Aguas, sodas artesanales, chicha y más."},
+    {"key": "vitrina", "label": "Vitrina", "categories": ["Vitrina", "Cookies", "Loaves"], "addon_category": None,
+     "description": "Para acompañar: snacks, cookies y loaves del día."},
     {"key": "merch", "label": "Merch", "categories": ["Merch"], "addon_category": None,
-     "description": "Productos de marca farmhouse."},
+     "description": "Productos de marca Farmhouse."},
 ]
 
-# Productos cuya categoría trae sus propios adicionales, distintos a los de la pestaña
-# (el Açaí vive en la pestaña Bowls pero no lleva Premiums, sino sus toppings).
-PRODUCT_ADDON_CATEGORIES = {"Acai Bowl": "Acai Add-ons"}
+# Título de cada sub-sección cuando una pestaña junta varias categorías.
+CATEGORY_LABELS = {
+    "Salads": "Ensaladas", "Wraps": "Wraps",
+    "Classic Smoothies": "Classic", "Signature Smoothies": "Signature",
+    "Coffee": "Specialty coffee", "Matcha": "Matcha bar", "Tea": "Infusiones",
+    "Juice Bar": "Juice bar", "Shots": "Wellness shots",
+    "Drinks": "Otras bebidas", "Sodas": "Sodas artesanales",
+    "Vitrina": "Snacks", "Cookies": "Cookies del día", "Loaves": "Loaves del día",
+}
+
+# Adicionales de cada categoría (un wrap no lleva premiums aunque comparta pestaña con las
+# ensaladas; el café lleva sus extras aunque el matcha de la misma pestaña no).
+CATEGORY_ADDONS = {
+    "Salads": "Premiums", "Bowls": "Premiums", "Build Your Own": "Premiums",
+    "Toasties": "Toastie Add-ons", "Acai Bowl": "Acai Add-ons",
+    "Classic Smoothies": "Smoothie Extras", "Signature Smoothies": "Smoothie Extras",
+    "Coffee": "Coffee Extras",
+}
 
 _cache: Dict[str, Any] = {"mtime": None, "rows": None}
 
@@ -58,11 +80,11 @@ def _parse_price(raw: str) -> Decimal:
 
 
 def _image_url(row: Dict[str, str]) -> str:
+    """Solo fotos reales de Farmhouse (frontend/static/images/menu). Las de /static/catalog son
+    de banco de imágenes para el catálogo de Meta y varias no corresponden al plato (el açaí
+    salía como un bibimbap): sin foto real, /menu dibuja una tarjeta ilustrada."""
     link = (row.get("image_link") or "").strip()
-    if link.startswith("/frontend/static/"):
-        return link
-    sku = row.get("id", "").strip()
-    return f"/static/catalog/{sku}.jpg"
+    return link if link.startswith("/frontend/static/") else ""
 
 
 def _load_rows() -> List[Dict[str, Any]]:
@@ -90,6 +112,8 @@ def _load_rows() -> List[Dict[str, Any]]:
             "image_url": _image_url(row),
             "item_group_id": (row.get("item_group_id") or "").strip() or None,
             "category": (row.get("custom_label_0") or "").strip(),
+            # "out of stock" = ya no está en el menú impreso: no se lista ni se puede pedir.
+            "available": (row.get("availability") or "in stock").strip().lower() == "in stock",
         })
 
     _cache["rows"] = rows
@@ -97,12 +121,12 @@ def _load_rows() -> List[Dict[str, Any]]:
     return rows
 
 
-def get_item_by_sku(sku: str) -> Optional[Dict[str, Any]]:
+def get_item_by_sku(sku: str, include_unavailable: bool = False) -> Optional[Dict[str, Any]]:
     if not sku:
         return None
     for row in _load_rows():
         if row["sku"] == sku:
-            return row
+            return row if (row["available"] or include_unavailable) else None
     return None
 
 
@@ -119,7 +143,11 @@ def _base_name(title: str) -> str:
 
 
 def _build_products(categories: List[str]) -> List[Dict[str, Any]]:
-    rows = [r for r in _load_rows() if r["category"] in categories and r["category"] not in ADDON_CATEGORIES]
+    rows = [
+        r for r in _load_rows()
+        if r["available"] and r["category"] in categories and r["category"] not in ADDON_CATEGORIES
+        and r["sku"] not in OPTION_ONLY_SKUS
+    ]
     grouped: Dict[str, Dict[str, Any]] = {}
     standalone: List[Dict[str, Any]] = []
 
@@ -132,6 +160,7 @@ def _build_products(categories: List[str]) -> List[Dict[str, Any]]:
                 "description": row["description"],
                 "image_url": row["image_url"],
                 "category": row["category"],
+                "section": CATEGORY_LABELS.get(row["category"], ""),
                 "has_sizes": True,
                 "sizes": [],
             })
@@ -148,31 +177,33 @@ def _build_products(categories: List[str]) -> List[Dict[str, Any]]:
                 "description": row["description"],
                 "image_url": row["image_url"],
                 "category": row["category"],
+                "section": CATEGORY_LABELS.get(row["category"], ""),
                 "has_sizes": False,
                 "sizes": [{"code": "unico", "label": "Único", "sku": row["sku"], "price": float(row["price"])}],
             })
 
-    products = list(grouped.values()) + standalone
+    # Mismo orden que el CSV (que sigue el menú impreso), con los platos de tamaño R/L en su lugar.
+    order = {r["sku"]: i for i, r in enumerate(rows)}
+    products = sorted(list(grouped.values()) + standalone, key=lambda p: min(order[x["sku"]] for x in p["sizes"]))
     for p in products:
-        p["sizes"].sort(key=lambda s: 0 if s["code"] == "regular" else (1 if s["code"] == "large" else 2))
-        own_addons = PRODUCT_ADDON_CATEGORIES.get(p["category"])
-        if own_addons:
-            p["addons"] = _build_addon_group(own_addons)
+        p["sizes"].sort(key=lambda x: 0 if x["code"] == "regular" else (1 if x["code"] == "large" else 2))
+        p["addons"] = _build_addon_group(CATEGORY_ADDONS.get(p["category"]))
+        p["builder"] = public_builder(p["sizes"][0]["sku"])
     return products
 
 
 def clean_item_title(title: str) -> str:
     """Quita el sufijo interno del catálogo (ej. '(premium warm)', '(add-on)') del nombre mostrado al cliente."""
-    return title.split(" (premium")[0].split(" (add-on")[0].split(" (extra")[0]
+    return title.split(" (premium")[0].split(" (add-on")[0].split(" (extra")[0].split(" (crunch")[0]
 
 
 def _build_addon_group(category: Optional[str]) -> Dict[str, Any]:
     if not category:
         return {"warm": [], "cold": [], "flat": []}
-    rows = [r for r in _load_rows() if r["category"] == category]
+    rows = [r for r in _load_rows() if r["category"] == category and r["available"]]
     warm, cold, flat = [], [], []
     for row in rows:
-        item = {"sku": row["sku"], "title": clean_item_title(row["title"]), "price": float(row["price"])}
+        item = {"sku": row["sku"], "title": clean_item_title(row["title"]), "price": float(row["price"]), "image_url": row["image_url"]}
         title_lower = row["title"].lower()
         if "(premium warm)" in title_lower:
             warm.append(item)
