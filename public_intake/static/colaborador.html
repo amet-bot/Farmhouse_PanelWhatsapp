@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="color-scheme" content="light" />
+  <title>Datos del colaborador — Farmhouse</title>
+  <link rel="icon" type="image/png" href="/assets/logo.png" />
+  <!-- Política de seguridad estricta (ver main.py): solo recursos del propio sitio, sin scripts ni estilos
+       en línea, sin fuentes ni librerías de terceros. -->
+  <link rel="stylesheet" href="/assets/colaborador.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="brand">
+      <img src="/assets/logo.png" alt="" class="logo" />
+      <div>
+        <h1>Datos del colaborador</h1>
+        <p>Grupo Col Rizado</p>
+      </div>
+    </header>
+
+    <section class="card state" id="stateLoading" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <p>Verificando tu enlace…</p>
+    </section>
+
+    <section class="card state" id="stateInvalid" hidden>
+      <h2>Este enlace no es válido o ya venció</h2>
+      <p>Cada enlace sirve una sola vez y vence. Pídele a quien te lo envió uno nuevo.</p>
+    </section>
+
+    <section class="card state" id="stateDone" hidden>
+      <div class="check" aria-hidden="true">✓</div>
+      <h2>¡Listo, recibimos tus datos!</h2>
+      <p>Ya puedes cerrar esta página. Si algo cambia, avísale a quien te envió el enlace.</p>
+    </section>
+
+    <form class="card" id="form" hidden novalidate autocomplete="off">
+      <p class="hello" id="hello" hidden></p>
+      <p class="intro">Llena tus datos con calma. Los campos con <b>*</b> son obligatorios. Esta página no guarda nada en tu equipo hasta que presiones «Enviar».</p>
+
+      <div class="secure">
+        <span aria-hidden="true">🔒</span>
+        <span>Conexión protegida. Tus datos se cifran en tu propio equipo antes de enviarse: solo Recursos Humanos puede abrirlos, para preparar tu contrato.</span>
+      </div>
+
+      <h2 class="sec"><span>1</span> Datos personales</h2>
+      <div class="grid">
+        <div class="field"><label for="firstName">Nombre *</label><input id="firstName" autocomplete="off" autocapitalize="words" maxlength="100" /><small class="err"></small></div>
+        <div class="field"><label for="lastName">Apellido *</label><input id="lastName" autocomplete="off" autocapitalize="words" maxlength="100" /><small class="err"></small></div>
+        <div class="field"><label for="birth">Fecha de nacimiento *</label><input id="birth" type="date" autocomplete="off" /><small class="err"></small></div>
+        <div class="field"><label for="gender">Género *</label>
+          <select id="gender"><option value="">Selecciona…</option><option value="M">Hombre</option><option value="F">Mujer</option></select><small class="err"></small></div>
+        <div class="field"><label for="nationality">Nacionalidad *</label><input id="nationality" list="nationalities" autocomplete="off" maxlength="60" /><datalist id="nationalities"></datalist><small class="err"></small></div>
+        <div class="field"><label for="marital">Estado civil *</label>
+          <select id="marital"><option value="">Selecciona…</option><option>Soltero</option><option>Casado</option><option>Unido</option><option>Divorciado</option><option>Viudo</option></select><small class="err"></small></div>
+        <div class="field"><label for="blood">Tipo de sangre *</label>
+          <select id="blood"><option value="">Selecciona…</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select><small class="err"></small></div>
+        <div class="field"><label for="idType">Tipo de identificación *</label>
+          <select id="idType"><option value="">Selecciona…</option><option value="Cedula">Cédula</option><option value="Pasaporte">Pasaporte</option></select><small class="err"></small></div>
+        <div class="field"><label for="idNumber">Cédula / Pasaporte *</label><input id="idNumber" autocomplete="off" autocapitalize="characters" maxlength="30" /><small class="hint" id="idHint"></small><small class="err"></small></div>
+        <div class="field"><label for="dv">DV <span class="opt">(si lo tienes)</span></label><input id="dv" inputmode="numeric" maxlength="2" autocomplete="off" /><small class="err"></small></div>
+        <div class="field"><label for="phone">Teléfono *</label><input id="phone" type="tel" inputmode="tel" placeholder="6123-4567" autocomplete="off" /><small class="err"></small></div>
+        <div class="field"><label for="email">Correo electrónico *</label><input id="email" type="email" autocapitalize="none" autocomplete="off" maxlength="150" /><small class="err"></small></div>
+        <div class="field full"><label for="address">Dirección *</label><textarea id="address" rows="2" maxlength="500" placeholder="Calle, barriada, corregimiento, ciudad" autocomplete="off"></textarea><small class="err"></small></div>
+      </div>
+
+      <h2 class="sec"><span>2</span> Persona de contacto</h2>
+      <p class="note">Alguien a quien podamos llamar en caso de emergencia.</p>
+      <div class="grid">
+        <div class="field full"><label for="contactName">Nombre de la persona de contacto *</label><input id="contactName" autocomplete="off" autocapitalize="words" maxlength="150" /><small class="err"></small></div>
+        <div class="field"><label for="contactPhone">Teléfono del contacto *</label><input id="contactPhone" type="tel" inputmode="tel" placeholder="6123-4567" autocomplete="off" /><small class="err"></small></div>
+        <div class="field"><label for="contactRel">Parentesco *</label><input id="contactRel" list="relations" placeholder="Madre, Esposo, Hermana…" autocomplete="off" maxlength="40" /><small class="err"></small></div>
+      </div>
+
+      <h2 class="sec"><span>3</span> Datos bancarios</h2>
+      <p class="note">Para depositar tu pago.</p>
+      <div class="grid">
+        <div class="field"><label for="bank">Banco *</label>
+          <select id="bank"><option value="">Selecciona…</option>
+            <option>Banco General</option><option>Banistmo</option><option>Banco Nacional de Panamá</option><option>Caja de Ahorros</option>
+            <option>BAC International Bank</option><option>Global Bank</option><option>Multibank</option><option>Scotiabank</option><option>Banisi</option><option value="__otro">Otro</option></select><small class="err"></small></div>
+        <div class="field" id="bankOtherBox" hidden><label for="bankOther">¿Cuál banco? *</label><input id="bankOther" autocomplete="off" maxlength="80" /><small class="err"></small></div>
+        <div class="field"><label for="accountType">Tipo de cuenta *</label>
+          <select id="accountType"><option value="">Selecciona…</option><option>Ahorros</option><option>Corriente</option></select><small class="err"></small></div>
+        <div class="field"><label for="account">Número de cuenta *</label><input id="account" inputmode="numeric" autocomplete="off" maxlength="20" /><small class="hint">Solo números, sin guiones ni espacios.</small><small class="err"></small></div>
+      </div>
+
+      <h2 class="sec"><span>4</span> Dependientes</h2>
+      <div class="grid">
+        <div class="field full"><label for="hasDeps">¿Tienes dependientes?</label>
+          <select id="hasDeps"><option value="no">No</option><option value="si">Sí</option></select></div>
+        <div class="field full" id="depsBox" hidden>
+          <div id="depsList"></div>
+          <button type="button" class="btn ghost" id="addDep">+ Agregar dependiente</button>
+          <datalist id="relations"><option>Hijo<option>Hija<option>Cónyuge<option>Esposo<option>Esposa<option>Padre<option>Madre<option>Hermano<option>Hermana<option>Abuelo<option>Abuela<option>Tío<option>Tía<option>Amigo<option>Amiga</datalist>
+        </div>
+      </div>
+
+      <!-- Señuelo anti-robots: una persona nunca lo ve ni lo llena. -->
+      <div class="hp" aria-hidden="true"><label>No llenar este campo<input id="website" name="website" tabindex="-1" autocomplete="off" /></label></div>
+
+      <label class="consent"><input type="checkbox" id="consent" /> <span>Confirmo que los datos son verdaderos y autorizo a Grupo Col Rizado, S.A. a usarlos para preparar mi contrato de trabajo y pagarme. *</span></label>
+      <small class="err" id="consentErr"></small>
+
+      <div class="alert" id="formError" role="alert" hidden></div>
+      <button type="submit" class="btn primary" id="btnSend">Enviar mis datos</button>
+    </form>
+
+    <p class="foot">Farmhouse · Grupo Col Rizado, S.A.</p>
+  </main>
+  <script src="/assets/crypto.js"></script>
+  <script src="/assets/colaborador.js"></script>
+</body>
+</html>
