@@ -82,11 +82,8 @@ function paraXml(ppr, runs) { return "<w:p>" + ppr + runs.map(runXml).join("") +
 function documentXml(rec) {
   var nombreCompleto = (rec.nombre + " " + rec.apellido).replace(/\s+/g, " ").trim();
   var deps = rec.dependientes || [];
-  var depTxt = (rec.tieneDep && deps.length)
-    ? "sí tiene dependientes" + deps.map(function (d) {
-        return "\n\t" + d.nombre + ", " + (d.edad ? d.edad + " años, " : "") + d.parentesco;
-      }).join("")
-    : "no tiene dependientes";
+  var hasDeps = !!(rec.tieneDep && deps.length);
+  var depTxt = hasDeps ? "sí tiene dependientes" : "no tiene dependientes";
   var v = {
     NOMBRE: nombreCompleto.toUpperCase(),
     GENERO: rec.genero === "F" ? "mujer" : "hombre",
@@ -115,6 +112,23 @@ function documentXml(rec) {
     var runs = P[i].runs.map(function (r) {
       return { b: r.b, i: r.i, u: r.u, sz: r.sz, t: r.t.replace(/\{\{(\w+)\}\}/g, function (m, k) { return v[k]; }) };
     });
+    if (i === 32) {
+      // Cláusula DÉCIMO. La frase termina en ":" (o en "." si no hay dependientes) y cada dependiente va en SU
+      // propio párrafo, alineado a la izquierda: dentro del párrafo justificado, los saltos de línea estiraban
+      // el espacio entre palabras ("Mateo     Vega,     4     años").
+      runs[runs.length - 1].t = hasDeps ? ":" : ".";
+      body.push(paraXml(P[i].ppr, runs));
+      if (hasDeps) {
+        deps.forEach(function (d, k) {
+          var last = k === deps.length - 1;
+          var ppr = '<w:pPr><w:spacing' + (last ? '' : ' w:after="0"') + ' w:line="276" w:lineRule="auto"/><w:ind w:left="720" w:right="14"/><w:jc w:val="left"/>' +
+            '<w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:pPr>';
+          var text = d.nombre + ", " + (d.edad ? d.edad + " años, " : "") + d.parentesco + (last ? "." : ";");
+          body.push(paraXml(ppr, [{ b: false, i: false, u: false, sz: "20", t: text }]));
+        });
+      }
+      continue;
+    }
     body.push(paraXml(P[i].ppr, runs));
   }
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:document ' + TEMPLATE.ns + "><w:body>" + body.join("") + TEMPLATE.sect + "</w:body></w:document>";

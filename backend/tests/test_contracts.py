@@ -678,3 +678,34 @@ def test_rrhh_password_must_be_strong(client, admin_user):
     ok = client.post("/api/users/", json={**base, "password": "una-clave-larga-123"}, headers=headers)
     assert ok.status_code == 200, ok.text
     assert ok.json()["role"] == "rrhh" and ok.json()["branch_id"] is None
+
+
+def test_word_contract_lists_each_dependent_in_its_own_paragraph(tmp_path):
+    """El contrato en Word: cada dependiente va en su propio párrafo (en el justificado se estiraba el espacio) y cierra bien."""
+    node = shutil.which("node")
+    docx = pytest.importorskip("docx")
+    if not node:
+        pytest.skip("Node no está instalado")
+    builder = Path(__file__).resolve().parents[2] / "frontend" / "js" / "modules" / "contract_docx.js"
+    out = tmp_path / "c.docx"
+    script = tmp_path / "make.js"
+    script.write_text(
+        "globalThis.window = globalThis; require(%r); const CD = globalThis.ContractDocx;\n"
+        "const base = {nombre:'Ana', apellido:'Pérez', genero:'F', nacionalidad:'Panameña', numId:'8-100-200', puesto:'Cajera',"
+        " inicio:'2026-10-12', fin:'2027-04-12', salario:650, funciones:'Función uno,'};\n"
+        "const deps = [{nombre:'Mateo Vega', edad:'4', parentesco:'Hijo'}, {nombre:'Carmen Salazar', edad:'', parentesco:'Madre'}];\n"
+        "const fs = require('fs');\n"
+        "CD.buildDocx(Object.assign({}, base, {tieneDep:true, dependientes:deps})).arrayBuffer()"
+        ".then(b => { fs.writeFileSync(%r, Buffer.from(b)); return CD.buildDocx(Object.assign({}, base, {tieneDep:false, dependientes:[]})).arrayBuffer(); })"
+        ".then(b => fs.writeFileSync(%r, Buffer.from(b)));"
+        % (str(builder), str(out), str(tmp_path / "sin.docx")), encoding="utf-8")
+    run = subprocess.run([node, str(script)], capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, run.stderr
+    texts = [p.text for p in docx.Document(str(out)).paragraphs]
+    i = next(k for k, t in enumerate(texts) if t.startswith("DÉCIMO"))
+    assert texts[i].endswith("que sí tiene dependientes:")
+    assert texts[i + 1] == "Mateo Vega, 4 años, Hijo;" and texts[i + 2] == "Carmen Salazar, Madre."
+    assert "\n" not in texts[i] and "\t" not in texts[i]                    # sin saltos dentro del párrafo justificado
+    sin = [p.text for p in docx.Document(str(tmp_path / "sin.docx")).paragraphs]
+    j = next(k for k, t in enumerate(sin) if t.startswith("DÉCIMO"))
+    assert sin[j].endswith("que no tiene dependientes.") and sin[j + 1].startswith("En fe de lo pactado")
