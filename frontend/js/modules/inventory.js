@@ -2797,6 +2797,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const hayTraslados = rows.some((r) => Number(r.transferred));
     // Lo vendido desde el último conteo (ventas de Invu × recetas): solo si algún insumo lo tiene.
     const hayVendido = rows.some((r) => Number(r.sold_since_count));
+    // Lo registrado en "Registro de consumo": solo aparece si algún insumo lo tiene.
+    const hayConsumo = rows.some((r) => Number(r.consumed));
     // Cada número con su unidad al lado: un "692" solo no dice si son gramos, kilos o unidades.
     const cant = (n, unit, conSigno = false) =>
       `${esc(conSigno ? signedQty(n) : qty(n))} <small>${esc(unitShort(unit))}</small>`;
@@ -2808,9 +2810,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             <th class="num" title="Lo que llegó por cargamentos">Entró<small>cargamentos</small></th>
             <th class="num" title="Lo que se registró como merma">Salió<small>por merma</small></th>
             <th class="num" title="Lo que corrigió el último conteo: + sobraba, − faltaba">Ajuste<small>por conteo</small></th>
+            ${hayConsumo ? '<th class="num" title="Lo que el equipo anotó como consumido en el Registro de consumo">Consumo<small>registrado</small></th>' : ''}
             ${hayTraslados ? '<th class="num" title="Recibido de otras sucursales menos lo enviado">Traslados<small>entre sucursales</small></th>' : ''}
             ${hayVendido ? '<th class="num" title="Lo que se usó en los platos vendidos desde el último conteo, según las recetas de Invu">Vendido<small>desde el conteo</small></th>' : ''}
-            <th class="num" title="Entró − salió ± ajuste ± traslados − vendido">Queda<small>hoy</small></th>
+            <th class="num" title="Entró − salió − consumo ± ajuste ± traslados − vendido">Queda<small>hoy</small></th>
             <th class="num" title="Lo que costó lo que salió por merma">Pérdida<small>en $</small></th>
           </tr>
         </thead>
@@ -2827,6 +2830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td class="num" data-label="Entró (cargamentos)">${Number(r.entered) ? cant(r.entered, r.unit) : '<span class="inv-stock-none">nada</span>'}</td>
                 <td class="num" data-label="Salió por merma">${Number(r.wasted) ? cant(r.wasted, r.unit) : '—'}</td>
                 <td class="num" data-label="Ajuste por conteo">${Number(r.adjusted) ? cant(r.adjusted, r.unit, true) : '—'}</td>
+                ${hayConsumo ? `<td class="num" data-label="Consumo registrado">${Number(r.consumed) ? `−${cant(r.consumed, r.unit)}` : '—'}</td>` : ''}
                 ${hayTraslados ? `<td class="num" data-label="Traslados">${Number(r.transferred) ? cant(r.transferred, r.unit, true) : '—'}</td>` : ''}
                 ${hayVendido ? `<td class="num" data-label="Vendido desde el conteo">${Number(r.sold_since_count) ? `−${cant(r.sold_since_count, r.unit)}` : '—'}</td>` : ''}
                 <td class="num inv-stock-onhand" data-label="Queda hoy"><span class="inv-stock-pill${clase}">${cant(r.on_hand, r.unit)}</span></td>
@@ -3177,7 +3181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Lo que ya se anotó nunca se esconde: desaparecer de la vista algo que se contó hace
       // pensar que se perdió.
       if (state.countEntries.has(r.inventory_item_id)) return !q || sinTildes(r.item_name).includes(q);
-      if (state.countOnlyStocked && !Number(r.entered) && !Number(r.wasted) && !Number(r.adjusted) && !Number(r.transferred)) return false;
+      if (state.countOnlyStocked && !Number(r.entered) && !Number(r.wasted) && !Number(r.adjusted) && !Number(r.transferred) && !Number(r.consumed)) return false;
       return !q || sinTildes(`${r.item_name} ${r.category || ''}`).includes(q);
     });
   }

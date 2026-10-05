@@ -20,12 +20,13 @@ from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models.consumption import ConsumptionItem, ConsumptionRecord
 from models.inventory_item import InventoryItem
+from models.inventory_movement import InventoryMovement
 from models.shipment import Shipment, ShipmentItem
 from models.stock_count import StockCount, StockCountItem
 from models.supply import ItemBranchSetting
 from models.branch import Branch
 from models.user import User
-from routers.inventory import _existencia_map, _last_known_cost, _visible_branch_filter
+from routers.inventory import _chequear_sin_conteo_posterior, _existencia_map, _last_known_cost, _visible_branch_filter
 from security.access_control import check_target_branch_valid
 from security.auth import get_current_authorized_user
 from security.permissions import has_permission
@@ -137,9 +138,26 @@ def create_consumption(
     if faltan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Ítem(s) de inventario no encontrados: {sorted(faltan)}")
 
+    ocurrio = data.occurred_at or datetime.now(timezone.utc)
+    # Un consumo con fecha anterior al último conteo de ese insumo ya está dentro de lo que se
+    # contó: sumarlo ahora le correría la existencia a lo que había en el estante.
+    ocurrio_utc = ocurrio.astimezone(timezone.utc).replace(tzinfo=None) if ocurrio.tzinfo else ocurrio
+    contados = db.query(InventoryItem.name).select_from(StockCountItem).join(
+        StockCount, StockCount.id == StockCountItem.stock_count_id
+    ).join(InventoryItem, InventoryItem.id == StockCountItem.inventory_item_id).filter(
+        StockCount.branch_id == data.branch_id, StockCount.counted_at > ocurrio_utc,
+        StockCountItem.inventory_item_id.in_(ids),
+    ).distinct().all()
+    if contados:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(f"No se puede anotar con esa fecha: {', '.join(sorted(n for (n,) in contados))} se contó después "
+                    "y el conteo ya dejó la existencia en lo que había. Anótalo con la hora actual o corrige con un conteo."),
+        )
+
     rec = ConsumptionRecord(
         branch_id=data.branch_id, recorded_by_user_id=current_user.id,
-        occurred_at=data.occurred_at or datetime.now(timezone.utc), notes=(data.notes or None),
+        occurred_at=ocurrio, notes=(data.notes or None),
     )
     for l in data.items:
         costo = _last_known_cost(db, data.branch_id, l.inventory_item_id)
@@ -148,6 +166,13 @@ def create_consumption(
         rec.items.append(ConsumptionItem(inventory_item_id=l.inventory_item_id, quantity=l.quantity, unit_cost=costo))
     db.add(rec)
     db.flush()
+    # Libro de movimientos: el consumo también es una salida (ver models/inventory_movement.py).
+    for linea in rec.items:
+        db.add(InventoryMovement(
+            branch_id=rec.branch_id, inventory_item_id=linea.inventory_item_id, movement_type="consumption",
+            quantity=-linea.quantity, unit_cost=linea.unit_cost, occurred_at=rec.occurred_at,
+            source_type="consumption", source_id=rec.id, created_by_user_id=current_user.id,
+        ))
     log_audit_event(db, current_user.id, data.branch_id, "consumption.create", "consumption", rec.id,
                     {"items": len(data.items), "total_qty": str(sum((Decimal(l.quantity) for l in data.items), Decimal("0")))})
     db.commit()
@@ -304,6 +329,11 @@ def delete_consumption(
     _require_branch(current_user, rec.branch_id)
     if not _puede_borrar(rec, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo quien lo registró (dentro de 24 h) o un encargado puede borrarlo.")
+    # Mismo criterio que cargamentos y mermas: si después se contó, el conteo ya absorbió este registro.
+    _chequear_sin_conteo_posterior(db, rec.branch_id, [l.inventory_item_id for l in rec.items], rec.created_at, "este consumo")
+    db.query(InventoryMovement).filter(
+        InventoryMovement.source_type == "consumption", InventoryMovement.source_id == rec.id,
+    ).delete(synchronize_session=False)
     log_audit_event(db, current_user.id, rec.branch_id, "consumption.delete", "consumption", rec.id, {"items": len(rec.items)})
     db.delete(rec)
     db.commit()

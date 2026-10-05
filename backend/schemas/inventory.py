@@ -510,10 +510,11 @@ class StockRowResponse(BaseModel):
     wasted: Decimal                      # todo lo que salió por merma
     adjusted: Decimal = Decimal("0")     # suma de las diferencias de conteo; negativo = faltó
     transferred: Decimal = Decimal("0")  # neto de traslados: recibido - despachado
+    consumed: Decimal = Decimal("0")     # lo que el equipo registró como consumido (Registro de consumo)
     # Lo que se usó en platos vendidos desde el último conteo (ventas de Invu × recetas). None si
     # el insumo no tiene receta o nunca se contó: sin punto de partida no se descuenta nada.
     sold_since_count: Optional[Decimal] = None
-    on_hand: Decimal                     # entered - wasted + adjusted + transferred - sold_since_count; puede ser negativo, a propósito
+    on_hand: Decimal                     # entered - wasted - consumed + adjusted + transferred - sold_since_count; puede ser negativo, a propósito
     wasted_cost: Optional[Decimal] = None
     wasted_cost_estimated: bool = False   # parte de la pérdida se valuó con el costo de Invu
     last_movement_at: Optional[datetime] = None

@@ -2145,6 +2145,15 @@ def list_stock(
     salidas = {r.item_id: r for r in salidas_q.group_by(WasteItem.inventory_item_id).all()}
     ajustes = {r.item_id: r for r in ajustes_q.group_by(StockCountItem.inventory_item_id).all()}
     traslados = _transfer_net_map(db, efectiva)
+    # Lo que el equipo registró como consumido: también sale de la existencia (igual que en
+    # `_on_hand_map`, que es la que usa el conteo); sin esto esta pantalla y el conteo no coinciden.
+    consumos_q = (
+        db.query(ConsumptionItem.inventory_item_id, func.coalesce(func.sum(ConsumptionItem.quantity), 0))
+        .join(ConsumptionRecord, ConsumptionRecord.id == ConsumptionItem.consumption_record_id)
+    )
+    if efectiva is not None:
+        consumos_q = consumos_q.filter(ConsumptionRecord.branch_id == efectiva)
+    consumos = {iid: Decimal(c) for iid, c in consumos_q.group_by(ConsumptionItem.inventory_item_id).all()}
     # Lo vendido desde el último conteo, por sucursal (cada una tiene sus recetas y sus conteos);
     # sumando todas, se suma lo de cada una.
     vendidos: dict = {}
@@ -2173,12 +2182,13 @@ def list_stock(
         # Un insumo que solo se contó también "se movió": el conteo de arranque es justamente
         # su primer movimiento.
         trasladado = traslados.get(item.id, Decimal("0"))
-        if only_stocked and not entrada and not salida and not ajuste and item.id not in traslados:
+        if only_stocked and not entrada and not salida and not ajuste and item.id not in traslados and item.id not in consumos:
             continue
 
         entro = Decimal(entrada.cantidad) if entrada else Decimal("0")
         salio = Decimal(salida.cantidad) if salida else Decimal("0")
         ajustado = Decimal(ajuste.cantidad) if ajuste else Decimal("0")
+        consumido = consumos.get(item.id, Decimal("0"))
         vendido = vendidos.get(item.id)
         fechas = [f for f in (
             (entrada.ultimo if entrada else None),
@@ -2197,8 +2207,9 @@ def list_stock(
             wasted=salio,
             adjusted=ajustado,
             transferred=trasladado,
+            consumed=consumido,
             sold_since_count=(vendido.quantize(Decimal("0.001")) if vendido else None),
-            on_hand=entro - salio + ajustado + trasladado - (vendido or Decimal("0")),
+            on_hand=entro - salio - consumido + ajustado + trasladado - (vendido or Decimal("0")),
             wasted_cost=(Decimal(salida.costo).quantize(Decimal("0.01")) if salida and salida.costo else None),
             wasted_cost_estimated=bool(salida and salida.costo_estimado and Decimal(salida.costo_estimado) > 0),
             last_movement_at=(max(fechas) if fechas else None),
@@ -2468,6 +2479,21 @@ def _analizar_conteo(db: Session, record: StockCount) -> StockCountAnalysis:
                              sin_conversion=sin_conversion[cid], recetas_insumos=recetas_insumos)
         for cid in set(anteriores.values())
     }
+    # Un insumo con consumo anotado a mano en ese lapso ya lo trae descontado en lo que decía el
+    # sistema: estimarle además el uso por ventas lo restaría dos veces (misma regla que
+    # `_vendido_desde_conteo`, que es la que muestra la existencia).
+    con_manual = {
+        cid: {
+            r[0] for r in db.query(ConsumptionItem.inventory_item_id)
+            .join(ConsumptionRecord, ConsumptionRecord.id == ConsumptionItem.consumption_record_id)
+            .filter(
+                ConsumptionRecord.branch_id == record.branch_id,
+                ConsumptionItem.inventory_item_id.in_(item_ids or [0]),
+                ConsumptionRecord.occurred_at > fechas[cid], ConsumptionRecord.occurred_at <= record.counted_at,
+            ).distinct().all()
+        }
+        for cid in set(anteriores.values())
+    }
     con_receta = _insumos_con_receta(db, record.branch_id)
 
     totales = StockCountAnalysisTotals(items=len(record.items))
@@ -2498,6 +2524,8 @@ def _analizar_conteo(db: Session, record: StockCount) -> StockCountAnalysis:
 
         tiene_receta = item.id in con_receta
         usado = usos.get(previo, {}).get(item.id, Decimal("0")) if tiene_receta else None
+        if usado is not None and item.id in con_manual.get(previo, ()):
+            usado = Decimal("0")
         esperado = sistema - (usado or Decimal("0"))
         sin_explicar = contado - esperado
         base = max(abs(esperado), abs(contado))
