@@ -26,15 +26,13 @@ DATA = Path(__file__).resolve().parent.parent / "seeds" / "costeo_ingredientes.j
 
 def costo_por_unidad(fila: dict, unidad: str):
     """Costo por unidad de inventario, o (None, motivo) si no se puede calcular con seguridad."""
-    precio, gramos = fila.get("pack_price"), fila.get("pack_grams")
-    if not precio:
-        return None, "la hoja no trae precio"
-    if unidad == "gramos":
-        if not gramos:
-            return None, "la hoja no trae gramaje"
-        return Decimal(str(precio)) / Decimal(str(gramos)), None
+    por_g, por_unidad = fila.get("cost_g"), fila.get("cost_unit")
+    if unidad in ("gramos", "mililitros"):          # mililitros ≈ gramos (la hoja asume densidad 1)
+        return (Decimal(str(por_g)), None) if por_g else (None, "la hoja no trae precio por gramo")
+    if unidad == "kilogramo":
+        return (Decimal(str(por_g)) * 1000, None) if por_g else (None, "la hoja no trae precio por gramo")
     if unidad == "unidad":
-        return Decimal(str(precio)), None
+        return (Decimal(str(por_unidad)), None) if por_unidad else (None, "la hoja no trae precio")
     return None, f"unidad '{unidad}' no soportada"
 
 

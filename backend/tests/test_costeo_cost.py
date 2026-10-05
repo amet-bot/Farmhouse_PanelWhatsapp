@@ -42,7 +42,8 @@ def test_la_merma_se_valua_con_el_costo_del_excel(client, db_session, clayton_br
 
 
 def test_costo_por_unidad_del_script():
-    assert load_costeo.costo_por_unidad({"pack_price": 3.0, "pack_grams": 190}, "gramos")[0].quantize(Decimal("0.0001")) == Decimal("0.0158")
-    assert load_costeo.costo_por_unidad({"pack_price": 0.8}, "unidad")[0] == Decimal("0.8")
-    assert load_costeo.costo_por_unidad({"pack_price": 0.0}, "gramos")[0] is None
-    assert load_costeo.costo_por_unidad({"pack_price": 5, "pack_grams": 10}, "kilogramo")[0] is None
+    assert load_costeo.costo_por_unidad({"cost_g": 0.015789}, "gramos")[0] == Decimal("0.015789")
+    assert load_costeo.costo_por_unidad({"cost_g": 0.01682}, "kilogramo")[0] == Decimal("16.82")
+    assert load_costeo.costo_por_unidad({"cost_unit": 0.17}, "unidad")[0] == Decimal("0.17")
+    assert load_costeo.costo_por_unidad({"cost_g": None}, "gramos")[0] is None
+    assert load_costeo.costo_por_unidad({"cost_g": 1}, "Mazo")[0] is None
