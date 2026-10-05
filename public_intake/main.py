@@ -261,8 +261,10 @@ class SubmitIn(CheckIn):
     website: Optional[str] = Field(None, max_length=200)      # señuelo anti-robots
 
 
+@app.get("/", include_in_schema=False)
 @app.get("/colaborador", include_in_schema=False)
 def page():
+    # La raíz abre el mismo formulario: el enlace para publicar puede ser la dirección sola, sin /colaborador.
     return FileResponse(str(STATIC_DIR / "colaborador.html"), headers={"Cache-Control": "no-store", "Content-Security-Policy": PAGE_CSP})
 
 

@@ -374,3 +374,10 @@ def test_the_form_is_always_light(client):
     css = client.get("/assets/colaborador.css").text
     assert "prefers-color-scheme" not in css and "color-scheme: light" in css
     assert 'name="color-scheme" content="light"' in client.get("/colaborador").text
+
+
+def test_root_opens_the_same_form(client):
+    """La dirección sola (sin /colaborador) también abre el formulario, con la misma política de seguridad."""
+    root, page = client.get("/"), client.get("/colaborador")
+    assert root.status_code == 200 and root.text == page.text
+    assert root.headers["content-security-policy"] == page.headers["content-security-policy"]
