@@ -236,7 +236,7 @@ def _conv_with_bot_message(db_session, branch, phone, minutes_ago):
     db_session.add(conv)
     db_session.flush()
     db_session.add(Message(conversation_id=conv.id, direction="outgoing", sender_type="system",
-                           content="¿Qué deseas pedir?", created_at=datetime.utcnow() - timedelta(minutes=minutes_ago)))
+                           content="¿Qué deseas pedir?", created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=minutes_ago)))
     db_session.commit()
     return conv
 

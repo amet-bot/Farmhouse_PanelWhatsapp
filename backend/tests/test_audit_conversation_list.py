@@ -1,7 +1,7 @@
 """
 Regresiones de la auditoría (bloque 3): la bandeja de conversaciones y sus contadores.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from tests.conftest import auth_headers_for
 from models.contact import Contact
@@ -21,8 +21,8 @@ def _conv(db_session, branch, phone, status="open"):
 
 def _msg(db_session, conv, minutes_ago, direction="incoming", internal=False, deleted=False, content="hola"):
     m = Message(conversation_id=conv.id, direction=direction, sender_type="customer" if direction == "incoming" else "agent",
-                content=content, is_internal=internal, created_at=datetime.utcnow() - timedelta(minutes=minutes_ago),
-                deleted_at=datetime.utcnow() if deleted else None)
+                content=content, is_internal=internal, created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=minutes_ago),
+                deleted_at=datetime.now(timezone.utc).replace(tzinfo=None) if deleted else None)
     db_session.add(m)
     db_session.flush()
     return m

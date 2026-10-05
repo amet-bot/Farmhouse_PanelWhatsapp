@@ -12,7 +12,7 @@ inactividad, ver expire_if_stale).
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -35,7 +35,7 @@ def _now():
     # conservan tzinfo, así que un datetime "aware" comparado contra un valor recién leído
     # de la base (naive) revienta con TypeError. El resto del proyecto ya asume implícitamente
     # que todo DATETIME es UTC sin marca de zona; se mantiene esa misma convención aquí.
-    return datetime.utcnow()
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def get_active_cart(db: Session, conversation_id: int) -> Optional[Order]:

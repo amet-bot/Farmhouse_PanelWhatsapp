@@ -1,6 +1,6 @@
 ﻿from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from database import Base
 
 class Device(Base):
@@ -15,7 +15,7 @@ class Device(Base):
     status = Column(String(50), nullable=False, default="active") # "active", "disabled", "revoked"
     ip_address = Column(String(50), nullable=True)
     last_seen = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
 
     # Relaciones
     branch = relationship("Branch", back_populates="devices")

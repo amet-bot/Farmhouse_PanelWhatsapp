@@ -6,7 +6,7 @@ escalamiento de handoffs sin respuesta, "Cobrar con Yappy" desde el panel y el e
 import asyncio
 import base64
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -66,11 +66,11 @@ def test_sesion_vencida_reinicia_el_bot_aunque_estuviera_pausado(client, clayton
     _post_bot_message(client, PHONE, "wamid.S1", text="hola")
     conv = _conv(db_session)
     conv.automation_paused = True
-    conv.bot_handoff_at = datetime.utcnow() - timedelta(hours=BOT_SESSION_TIMEOUT_HOURS + 2)
+    conv.bot_handoff_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=BOT_SESSION_TIMEOUT_HOURS + 2)
     conv.branch_id = clayton_branch.id
     conv.delivery_type = "delivery"
     conv.payment_method = "yappy"
-    old = datetime.utcnow() - timedelta(hours=BOT_SESSION_TIMEOUT_HOURS + 1)
+    old = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=BOT_SESSION_TIMEOUT_HOURS + 1)
     for m in db_session.query(Message).filter(Message.conversation_id == conv.id).all():
         m.created_at = old
     db_session.commit()
@@ -170,16 +170,16 @@ def _paused_conv(db_session, *, phone="+50761110009", branch=None, handoff_minut
     db_session.add(contact); db_session.commit(); db_session.refresh(contact)
     conv = Conversation(customer_id=contact.id, status="open", branch_id=branch.id if branch else None,
                         automation_paused=handoff_minutes_ago is not None,
-                        created_at=datetime.utcnow(), updated_at=datetime.utcnow())
+                        created_at=datetime.now(timezone.utc).replace(tzinfo=None), updated_at=datetime.now(timezone.utc).replace(tzinfo=None))
     if handoff_minutes_ago is not None:
-        conv.bot_handoff_at = datetime.utcnow() - timedelta(minutes=handoff_minutes_ago)
+        conv.bot_handoff_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=handoff_minutes_ago)
     db_session.add(conv); db_session.commit(); db_session.refresh(conv)
     return conv
 
 
 def _msg(db_session, conv, content, *, sender_type="system", direction="outgoing", minutes_ago=0):
     m = Message(conversation_id=conv.id, direction=direction, sender_type=sender_type, content=content,
-                is_internal=False, created_at=datetime.utcnow() - timedelta(minutes=minutes_ago))
+                is_internal=False, created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=minutes_ago))
     db_session.add(m); db_session.commit()
     return m
 
@@ -192,7 +192,7 @@ def test_sigues_ahi_espera_mas_cuando_el_cliente_esta_viendo_el_menu(db_session)
     assert not any(BOT_FOLLOWUP_MESSAGE in m.content for m in _outgoing(db_session, conv.id))
 
     for m in db_session.query(Message).filter(Message.conversation_id == conv.id).all():
-        m.created_at = datetime.utcnow() - timedelta(minutes=bot_followup.FOLLOWUP_MENU_THRESHOLD_MINUTES + 1)
+        m.created_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=bot_followup.FOLLOWUP_MENU_THRESHOLD_MINUTES + 1)
     db_session.commit()
     asyncio.run(bot_followup._sweep_once())
     db_session.expire_all()

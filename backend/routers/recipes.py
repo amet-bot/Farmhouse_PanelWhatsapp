@@ -221,7 +221,7 @@ def _costear(db: Session, recetas: List[LocalRecipe]) -> dict:
             item = a.inventory_item if a and a.inventory_item_id and not a.ignored else None
             if item:
                 emparejadas += 1
-                por_unidad = ultimos.get(item.id) or (Decimal(item.reference_cost) if item.reference_cost is not None else None)
+                por_unidad = ultimos.get(item.id) or (Decimal(item.effective_cost) if item.effective_cost is not None else None)
                 cantidad = _a_unidad_del_insumo(Decimal(l.quantity), unidad, item.unit, item.piece_size, item.grams_per_ml)
                 sin_unidad = cantidad is None   # emparejado, pero no se descuenta hasta resolver la unidad
                 if por_unidad is not None and cantidad is not None:

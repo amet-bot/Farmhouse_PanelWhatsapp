@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from jose import JWTError, jwt
 from config import settings
@@ -81,7 +81,7 @@ async def websocket_endpoint(
         elif device_id:
             dev = db.query(Device).filter(Device.device_id == device_id, Device.status == "active").first()
             if dev:
-                dev.last_seen = datetime.utcnow()
+                dev.last_seen = datetime.now(timezone.utc).replace(tzinfo=None)
                 db.commit()
 
         branch_id = user.branch_id

@@ -86,7 +86,7 @@ def test_vencido_compara_la_compra_con_el_uso(client, db_session, clayton_branch
     # Un plato lleva 100 g de lechuga; en el mes se vendieron 30 → 3 kg al mes = 0.1 kg por día.
     db_session.add(InvuRecipeLine(branch_id=clayton_branch.id, source_type="item", source_invu_id=7201,
                                   product_invu_id=950, quantity=Decimal("100"), unit_name="gramos"))
-    cuando = datetime.utcnow() - timedelta(days=10)
+    cuando = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=10)
     venta = InvuSale(branch_id=clayton_branch.id, invu_order_id=next(_orden), business_date=cuando.date(),
                      opened_at=cuando, closed_at=cuando, status="Cerrada", total=Decimal("100"))
     db_session.add(venta)

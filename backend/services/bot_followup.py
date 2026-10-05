@@ -16,7 +16,7 @@ cada test terminaría abriendo una conexión real a la base de datos de verdad e
 """
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from database import SessionLocal
 from models.conversation import Conversation
@@ -85,7 +85,7 @@ async def _sweep_once() -> None:
                 db.rollback()
                 logger.exception(f"[BotFollowup] No se pudo enviar el seguimiento a conv {conv.id}; no se reintenta para esta pausa.")
                 try:
-                    conv.bot_followup_sent_at = datetime.utcnow()
+                    conv.bot_followup_sent_at = datetime.now(timezone.utc).replace(tzinfo=None)
                     db.commit()
                 except Exception:
                     db.rollback()
@@ -110,7 +110,7 @@ async def _maybe_follow_up(db, conv: Conversation) -> None:
 
     # Naive UTC a propósito, igual que en Conversation.needs_reminder: las columnas DATETIME
     # de MySQL no conservan tzinfo, comparar contra un datetime "aware" revienta.
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     minutes = FOLLOWUP_THRESHOLD_MINUTES
     content = last_msg.content or ""
     if MENU_LINK_MARKER in content or _after_menu_question(db) in content:
@@ -140,7 +140,7 @@ async def _maybe_follow_up(db, conv: Conversation) -> None:
     text = get_node_text(db, "bot_followup_message", BOT_FOLLOWUP_MESSAGE)
     await _send_plain_text_message(db, wa_service, conv, contact, contact.phone, text)
 
-    conv.bot_followup_sent_at = datetime.utcnow()
+    conv.bot_followup_sent_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     logger.info(f"[BotFollowup] Seguimiento enviado a conv {conv.id} tras {FOLLOWUP_THRESHOLD_MINUTES} min de silencio.")
 
@@ -165,7 +165,7 @@ async def _escalate_unanswered_handoffs(db) -> None:
     """Conversaciones que el bot le pasó a una persona hace HANDOFF_ESCALATION_MINUTES o más
     y en las que ningún agente ha escrito desde entonces: se avisa por push a los encargados
     de la sucursal y se le dice al cliente que siguen con él. Una sola vez por handoff."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     oldest = now - timedelta(minutes=HANDOFF_ESCALATION_MAX_AGE_MINUTES)
     limit = now - timedelta(minutes=HANDOFF_ESCALATION_MINUTES)
     candidates = db.query(Conversation).filter(

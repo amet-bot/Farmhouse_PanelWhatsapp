@@ -159,7 +159,7 @@ async def _send_delayed_yappy_button(
             whatsapp_message_id=wamid,
             status=message_status,
             error_detail=error_detail,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         ))
         db.commit()
     finally:

@@ -3,7 +3,7 @@ Hoja de cierre de turno: el encargado arma la lista, el operario escribe cuánto
 sistema calcula lo gastado. Cada cierre es un conteo kind='closing' que fija la existencia y
 alimenta el ritmo de uso del pedido sugerido.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -23,7 +23,7 @@ def insumos(db_session, clayton_branch, supervisor_user):
     pollo = InventoryItem(name="Pollo", unit="kg", category="Proteínas", reference_cost=Decimal("3.00"))
     bolsa = InventoryItem(name="Bolsa con logo", unit="unidad", category="Packaging")
     db_session.add_all([pollo, bolsa]); db_session.commit()
-    sh = Shipment(branch_id=clayton_branch.id, received_by_user_id=supervisor_user.id, received_at=datetime.utcnow() - timedelta(days=3))
+    sh = Shipment(branch_id=clayton_branch.id, received_by_user_id=supervisor_user.id, received_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=3))
     sh.items.append(ShipmentItem(inventory_item_id=pollo.id, quantity=Decimal("20"), unit_cost=Decimal("2.50")))
     sh.items.append(ShipmentItem(inventory_item_id=bolsa.id, quantity=Decimal("100"), unit_cost=Decimal("0.10")))
     db_session.add(sh); db_session.commit()
@@ -83,7 +83,7 @@ def test_cerrar_turno_calcula_lo_gastado_y_fija_la_existencia(client, db_session
     assert db_session.query(AuditEvent).filter(AuditEvent.action == "closing_sheet.create").count() == 1
 
     # La hoja ahora muestra lo del último cierre y lo que llegó después.
-    sh = Shipment(branch_id=clayton_branch.id, received_by_user_id=supervisor_user.id, received_at=datetime.utcnow() + timedelta(seconds=1))
+    sh = Shipment(branch_id=clayton_branch.id, received_by_user_id=supervisor_user.id, received_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=1))
     sh.items.append(ShipmentItem(inventory_item_id=pollo.id, quantity=Decimal("10"), unit_cost=Decimal("2.60")))
     db_session.add(sh); db_session.commit()
     hoja = client.get("/api/inventory/closing-sheet", headers=ha).json()

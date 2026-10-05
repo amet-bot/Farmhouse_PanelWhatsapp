@@ -2,7 +2,7 @@
 Reporte de faltante sin explicar: lo que se fue según las hojas de cierre menos lo que justifican
 las ventas × recetas, por sucursal y valorizado. El arranque no cuenta; sin receta no se compara.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from models.inventory_item import InventoryItem
@@ -15,7 +15,7 @@ def test_faltante_sin_explicar_por_sucursal(client, db_session, admin_user, clay
     pollo = InventoryItem(name="Pollo", unit="kilogramo")
     bolsa = InventoryItem(name="Bolsa", unit="unidad")
     db_session.add_all([pollo, bolsa]); db_session.commit()
-    sh = Shipment(branch_id=clayton_branch.id, received_by_user_id=admin_user.id, received_at=datetime.utcnow() - timedelta(days=3))
+    sh = Shipment(branch_id=clayton_branch.id, received_by_user_id=admin_user.id, received_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=3))
     sh.items.append(ShipmentItem(inventory_item_id=pollo.id, quantity=Decimal("20"), unit_cost=Decimal("2.50")))
     sh.items.append(ShipmentItem(inventory_item_id=bolsa.id, quantity=Decimal("100"), unit_cost=Decimal("0.10")))
     db_session.add(sh); db_session.commit()

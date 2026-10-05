@@ -26,6 +26,12 @@ def _no_bot_response_delay(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_yappy_button_delay(monkeypatch):
+    """El botón de Yappy espera 60 s en segundo plano y TestClient lo espera: cada pedido público tardaba un minuto."""
+    monkeypatch.setattr("routers.orders.YAPPY_BUTTON_SEND_DELAY_SECONDS", 0)
+
+
+@pytest.fixture(autouse=True)
 def _whatsapp_display_number(monkeypatch):
     """
     Un número de WhatsApp fijo para armar los enlaces wa.me en las pruebas. Antes salía del .env

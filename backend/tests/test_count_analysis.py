@@ -2,7 +2,7 @@
 Análisis del conteo: lo que tenía que haber (descontando lo que se cocinó según las recetas de
 Invu) contra lo que se contó. El primer conteo de un insumo es su punto de partida.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from models.inventory_item import InventoryItem
@@ -63,9 +63,9 @@ def test_el_conteo_explica_cada_insumo(client, db_session, clayton_branch, super
 
     # El primer conteo "fue ayer"; desde entonces se vendieron 10 bowls (1.6 kg de pollo).
     rec = db_session.get(StockCount, primero["id"])
-    rec.counted_at = datetime.utcnow() - timedelta(days=1)
+    rec.counted_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)
     db_session.commit()
-    _vender(db_session, clayton_branch.id, 7001, 10, datetime.utcnow() - timedelta(hours=12))
+    _vender(db_session, clayton_branch.id, 7001, 10, datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=12))
 
     # 2) Segundo conteo.
     segundo = _contar(client, h, clayton_branch.id, **{str(pollo["id"]): "7.4", str(bolsa["id"]): 80,

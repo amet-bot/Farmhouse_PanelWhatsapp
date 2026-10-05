@@ -2,7 +2,7 @@
 Abastecimiento: cuánto le queda a cada sucursal, mínimos y pares, pedido sugerido, órdenes de
 compra con líneas (y su recepción prellenada), precios por proveedor y la alerta de stock bajo.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -36,7 +36,7 @@ def proveedores(db_session):
 
 
 def _cargamento(db, branch_id, user_id, item, qty, cost, supplier_id=None, days_ago=1):
-    sh = Shipment(branch_id=branch_id, received_by_user_id=user_id, supplier_id=supplier_id, received_at=datetime.utcnow() - timedelta(days=days_ago))
+    sh = Shipment(branch_id=branch_id, received_by_user_id=user_id, supplier_id=supplier_id, received_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days_ago))
     sh.items.append(ShipmentItem(inventory_item_id=item.id, quantity=Decimal(str(qty)), unit_cost=Decimal(str(cost))))
     db.add(sh); db.commit()
     return sh
@@ -110,7 +110,7 @@ def test_pedido_sugerido_hasta_el_par_descontando_lo_que_viene_y_crear_orden(cli
     assert linea["name"] == "Pollo" and float(linea["suggested_qty"]) == 25.0 and "bajo el mínimo" in linea["reasons"]
     assert float(linea["unit_cost"]) == 2.5 and float(linea["est_cost"]) == 62.5
 
-    manana = (datetime.utcnow() + timedelta(days=2)).date().isoformat()
+    manana = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=2)).date().isoformat()
     # Un agente no crea órdenes.
     assert client.post("/api/supply/orders", json={"branch_id": clayton_branch.id, "expected_date": manana, "items": [{"inventory_item_id": catalogo["pollo"].id, "quantity": "10"}]}, headers=auth_headers_for(clayton_agent, clayton_device.device_id)).status_code == 403
     # Insumo repetido, no.

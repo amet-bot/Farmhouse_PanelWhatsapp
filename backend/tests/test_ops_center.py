@@ -2,7 +2,7 @@
 Centro de operación multisucursal: resumen por sucursal, incidencias asignables con aviso,
 solicitudes con aprobación de encargados, tareas vencidas, avisos de traslados y auditoría.
 """
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 
 import pytest
 
@@ -103,7 +103,7 @@ def test_listado_de_pendientes_incluye_abiertas_y_aprobadas(client, clayton_bran
 
 def test_tarea_vencida_asignacion_y_aviso(client, db_session, clayton_branch, clayton_agent, clayton_device, supervisor_user, avisos):
     hs = _h(supervisor_user, clayton_device)
-    vencida = (datetime.utcnow() - timedelta(hours=2)).isoformat()
+    vencida = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=2)).isoformat()
     r = client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Limpiar campana", "due_date": vencida, "assigned_to_user_id": clayton_agent.id}, headers=hs)
     assert r.status_code == 201, r.text
     t = r.json()
@@ -112,7 +112,7 @@ def test_tarea_vencida_asignacion_y_aviso(client, db_session, clayton_branch, cl
 
     assert [x["id"] for x in client.get("/api/ops/tasks?overdue=true", headers=hs).json()] == [t["id"]]
 
-    manana = (datetime.utcnow() + timedelta(days=1)).isoformat()
+    manana = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=1)).isoformat()
     r = client.patch(f"/api/ops/tasks/{t['id']}", json={"due_date": manana, "title": "Limpiar campana extractora"}, headers=hs).json()
     assert r["overdue"] is False and r["title"] == "Limpiar campana extractora"
 
@@ -217,11 +217,11 @@ def test_resumen_por_sucursal(client, db_session, clayton_branch, obarrio_branch
     hs = _h(supervisor_user, clayton_device)
     client.post("/api/ops/incidents", json={"branch_id": clayton_branch.id, "title": "Grave", "severity": "alta"}, headers=hs)
     client.post("/api/ops/incidents", json={"branch_id": clayton_branch.id, "title": "Leve", "severity": "baja"}, headers=hs)
-    client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Vencida", "due_date": (datetime.utcnow() - timedelta(hours=1)).isoformat()}, headers=hs)
+    client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "Vencida", "due_date": (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)).isoformat()}, headers=hs)
     client.post("/api/ops/tasks", json={"branch_id": clayton_branch.id, "title": "A tiempo"}, headers=hs)
     client.post("/api/ops/requests", json={"branch_id": clayton_branch.id, "item_name": "Aguacate"}, headers=hs)
     db_session.add(ExpectedShipment(branch_id=clayton_branch.id, expected_date=date.today() - timedelta(days=2), status="pendiente", created_by_user_id=supervisor_user.id))
-    db_session.add(StockCount(branch_id=clayton_branch.id, counted_by_user_id=supervisor_user.id, counted_at=datetime.utcnow() - timedelta(days=10)))
+    db_session.add(StockCount(branch_id=clayton_branch.id, counted_by_user_id=supervisor_user.id, counted_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=10)))
     db_session.commit()
 
     r = client.get("/api/ops/overview", headers=_h(admin_user))

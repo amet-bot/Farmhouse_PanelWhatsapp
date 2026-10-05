@@ -554,7 +554,7 @@ def inventory_overview(
     item_ids = [i.id for i in items]
 
     # ---- ¿Cuánto hay? ----
-    hoy_utc = datetime.utcnow()
+    hoy_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     stock_rows = {i.id: {"id": i.id, "name": i.name, "unit": i.unit, "category": i.category, "total_qty": Decimal("0"), "total_value": Decimal("0"), "by_branch": {}} for i in items}
     stock_branches = []
     for b in branches:
@@ -568,7 +568,7 @@ def inventory_overview(
                 continue
             costo = costos.get(i.id)
             if costo is None:
-                costo = i.reference_cost
+                costo = i.effective_cost
             val = _q(Decimal(qty) * Decimal(costo)) if costo is not None else None
             r = stock_rows[i.id]
             r["by_branch"][str(b.id)] = {"qty": _q(qty), "value": val}
@@ -691,7 +691,7 @@ def inventory_overview(
             costo = costos_b.get(iid)
             if costo is None and iid in stock_rows:
                 item_ref = next((i for i in items if i.id == iid), None)
-                costo = item_ref.reference_cost if item_ref is not None else None
+                costo = item_ref.effective_cost if item_ref is not None else None
             if costo is not None:
                 r["theoretical_cost"] += _q(Decimal(qty) * Decimal(costo))
     por_id = {i.id: i for i in items}
@@ -804,7 +804,7 @@ def inventory_variance(
             it = items.get(iid)
             if not it:
                 continue
-            costo = costos.get(iid) or it.reference_cost
+            costo = costos.get(iid) or it.effective_cost
             comparable = f["con_receta"] and iid not in manual and iid not in sin_conversion
             dif = (f["real"] - f["esperado"]) if comparable else None
             tolerancia = (abs(f["esperado"]) * COUNT_TOLERANCE_PCT / 100) if comparable else None

@@ -1,7 +1,7 @@
 ﻿from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy import Numeric, true
-from datetime import datetime
+from datetime import datetime, timezone
 from database import Base
 
 class Branch(Base):
@@ -24,7 +24,7 @@ class Branch(Base):
     # services/branch_hours.py). Vacío = se asume el horario general (8:00 a 21:30).
     opens_at = Column(String(5), nullable=True)
     closes_at = Column(String(5), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
 
     # Relaciones
     # Sin cascade de borrado: la FK real es ON DELETE SET NULL (users.branch_id es nullable),

@@ -8,7 +8,7 @@ Existencias que descuentan lo vendido y recetas en otra unidad que el insumo.
   - Una receta en gramos de un insumo que se cuenta por pieza se convierte con lo que pesa una
     pieza; sin ese dato el conteo dice "no se pudo calcular" en vez de acusar un faltante.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from models.inventory_item import InventoryItem
@@ -49,7 +49,7 @@ def _contar(client, h, branch_id, hace=None, **cantidades):
     body = res.json()
     if hace is not None:
         rec = db_ref["db"].get(StockCount, body["id"])
-        rec.counted_at = datetime.utcnow() - hace
+        rec.counted_at = datetime.now(timezone.utc).replace(tzinfo=None) - hace
         db_ref["db"].commit()
     return body
 
@@ -80,9 +80,9 @@ def test_la_existencia_resta_lo_vendido_desde_el_conteo(client, db_session, clay
 
     # Conteo "de ayer": había 10 kg. Desde entonces, 10 bowls = 1.6 kg.
     primero = _contar(client, h, clayton_branch.id, hace=timedelta(days=1), **{str(pollo["id"]): 10})
-    _vender(db_session, clayton_branch.id, 7101, 10, datetime.utcnow() - timedelta(hours=12))
+    _vender(db_session, clayton_branch.id, 7101, 10, datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=12))
     # Una venta de antes del conteo no se resta: el conteo ya la absorbió.
-    _vender(db_session, clayton_branch.id, 7101, 50, datetime.utcnow() - timedelta(days=3))
+    _vender(db_session, clayton_branch.id, 7101, 50, datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=3))
 
     f = _fila(client, h, clayton_branch.id, pollo["id"])
     assert Decimal(f["sold_since_count"]) == Decimal("1.6")
@@ -102,7 +102,7 @@ def test_la_existencia_resta_lo_vendido_desde_el_conteo(client, db_session, clay
     assert f["sold_since_count"] is None and Decimal(f["on_hand"]) == Decimal("8.4")
 
     # Una venta después del segundo conteo se resta desde ahí.
-    _vender(db_session, clayton_branch.id, 7101, 5, datetime.utcnow() - timedelta(hours=1))
+    _vender(db_session, clayton_branch.id, 7101, 5, datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1))
     f = _fila(client, h, clayton_branch.id, pollo["id"])
     assert Decimal(f["sold_since_count"]) == Decimal("0.8") and Decimal(f["on_hand"]) == Decimal("7.6")
     assert primero["id"] != segundo["id"]
@@ -118,7 +118,7 @@ def test_sin_conteo_no_se_resta_nada(client, db_session, clayton_branch, supervi
         "items": [{"inventory_item_id": arroz["id"], "quantity": "20"}],
     }, headers=h)
     assert res.status_code == 201, res.text
-    _vender(db_session, clayton_branch.id, 7102, 10, datetime.utcnow() - timedelta(hours=1))
+    _vender(db_session, clayton_branch.id, 7102, 10, datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1))
 
     # Nunca se contó: sin punto de partida no se sabe cuánto había cuando empezaron las ventas.
     f = _fila(client, h, clayton_branch.id, arroz["id"])
@@ -131,7 +131,7 @@ def test_la_merma_avisa_contra_lo_que_hay_de_verdad(client, db_session, clayton_
     pollo = _item(client, h, db_session, "Pollo merma", "kg", invu_id=912, ref="5")
     _receta(db_session, clayton_branch.id, 7103, 912, "1", "kg")
     _contar(client, h, clayton_branch.id, hace=timedelta(days=1), **{str(pollo["id"]): 3})
-    _vender(db_session, clayton_branch.id, 7103, 2, datetime.utcnow() - timedelta(hours=3))   # quedan 1 kg
+    _vender(db_session, clayton_branch.id, 7103, 2, datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=3))   # quedan 1 kg
 
     res = client.post("/api/inventory/waste", json={
         "branch_id": clayton_branch.id, "reason": "vencido",
@@ -147,7 +147,7 @@ def test_receta_en_gramos_de_un_insumo_por_pieza(client, db_session, clayton_bra
     tomate = _item(client, h, db_session, "Tomate", "unidad", invu_id=913, ref="0.30")
     _receta(db_session, clayton_branch.id, 7104, 913, "50", "gramos")   # medio tomate por plato
     _contar(client, h, clayton_branch.id, hace=timedelta(days=1), **{str(tomate["id"]): 20})
-    _vender(db_session, clayton_branch.id, 7104, 10, datetime.utcnow() - timedelta(hours=5))
+    _vender(db_session, clayton_branch.id, 7104, 10, datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=5))
 
     # Sin saber cuánto pesa un tomate no se puede convertir: no se acusa un faltante.
     sin_peso = _contar(client, h, clayton_branch.id, **{str(tomate["id"]): 15})

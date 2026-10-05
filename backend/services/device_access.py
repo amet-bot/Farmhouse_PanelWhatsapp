@@ -1,5 +1,5 @@
 ﻿import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -58,7 +58,7 @@ def check_device_authorized(db: Session, device_id: str, user: User) -> Device:
     # Esto corre en CADA petición autenticada de agentes y supervisores: escribir y hacer commit
     # de last_seen cada vez era un UPDATE por request (además del heartbeat de 30 s). Con
     # actualizarlo una vez por minuto alcanza para saber si el equipo está en uso.
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     last_seen = device.last_seen.replace(tzinfo=None) if device.last_seen else None
     if last_seen is None or (now - last_seen).total_seconds() > LAST_SEEN_WRITE_INTERVAL_SECONDS:
         device.last_seen = now

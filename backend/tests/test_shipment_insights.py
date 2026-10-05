@@ -39,7 +39,7 @@ def test_el_cargamento_viene_con_su_contexto(client, db_session, clayton_branch,
     # Receta: un toast (plato 6001) lleva 50 g de aguacate; se vendieron 140 en 14 días = 7 kg → 0.5 kg por día.
     db_session.add(InvuRecipeLine(branch_id=clayton_branch.id, source_type="item", source_invu_id=6001,
                                   product_invu_id=700, quantity=Decimal("50"), unit_name="gramos"))
-    cuando = datetime.utcnow() - timedelta(days=5)
+    cuando = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=5)
     venta = InvuSale(branch_id=clayton_branch.id, invu_order_id=9, business_date=cuando.date(),
                      opened_at=cuando, closed_at=cuando, status="Cerrada", total=Decimal("1"))
     db_session.add(venta)

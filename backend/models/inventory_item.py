@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Numeric, ForeignKey, LargeBinary
+from sqlalchemy import func, Column, Integer, String, Boolean, DateTime, Numeric, ForeignKey, LargeBinary
 from sqlalchemy.dialects.mysql import MEDIUMBLOB
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, deferred
 from datetime import datetime, timezone
 from database import Base
@@ -37,6 +38,23 @@ class InventoryItem(Base):
     # de cada compra es el que se anota en el cargamento.
     reference_cost = Column(Numeric(12, 4), nullable=True)
     synced_at = Column(DateTime, nullable=True)
+    # Costo real por unidad de inventario, tomado del Excel de costeo de recetas (migración 069).
+    # Va aparte de `reference_cost` porque la sincronización con Invu reescribe ese en cada pasada:
+    # lo cargado a mano o desde el Excel se perdería. Manda sobre el de Invu cuando existe
+    # (ver `effective_cost`); el costo de cada compra, cuando hay cargamento, manda sobre ambos.
+    costing_cost = Column(Numeric(12, 4), nullable=True)
+    costing_source = Column(String(80), nullable=True)      # de dónde salió ("Excel costeo 2026-10-05")
+    costing_updated_at = Column(DateTime, nullable=True)
+
+    @hybrid_property
+    def effective_cost(self):
+        """El costo de referencia que se usa para valuar cuando no hay costo de compra."""
+        return self.costing_cost if self.costing_cost is not None else self.reference_cost
+
+    @effective_cost.expression
+    def effective_cost(cls):
+        return func.coalesce(cls.costing_cost, cls.reference_cost)
+
     # Cuánto es UNA pieza entera de este insumo: en gramos, o en ml si se mide en volumen
     # (migración 047). No viene de Invu: se carga desde el panel o se aprende la primera vez que
     # alguien registra una merma de "pieza entera" ("1 baguette = 80 g").

@@ -99,5 +99,5 @@ class Conversation(Base):
 
         # Naive UTC a propósito, igual que en services/active_cart.py: las columnas DATETIME
         # de MySQL no conservan tzinfo, así que comparar contra un datetime "aware" revienta.
-        age = datetime.utcnow() - last_msg.created_at
+        age = datetime.now(timezone.utc).replace(tzinfo=None) - last_msg.created_at
         return age >= timedelta(minutes=REMINDER_THRESHOLD_MINUTES)

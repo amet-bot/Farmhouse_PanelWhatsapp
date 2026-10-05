@@ -3,7 +3,7 @@ Recetas en otra unidad que el insumo: la receta pide "50 g de agua de pipa" y el
 ml, o pide "1 pan" y el pan se lleva en gramos. Sin el dato para convertir esa línea no se
 descuenta; Recetas → Unidades las lista y deja poner cuánto pesa 1 ml o cuánto es 1 pieza.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from models.audit import AuditEvent
@@ -29,7 +29,7 @@ def test_conversion_entre_gramos_y_mililitros():
 
 def _venta(db, branch, item_id, nombre, cantidad, n):
     hoy = date.today()
-    s = InvuSale(branch_id=branch.id, invu_order_id=700 + n, business_date=hoy, status="Cerrada", opened_at=datetime.utcnow() - timedelta(hours=1))
+    s = InvuSale(branch_id=branch.id, invu_order_id=700 + n, business_date=hoy, status="Cerrada", opened_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1))
     db.add(s); db.flush()
     db.add(InvuSaleLine(sale_id=s.id, branch_id=branch.id, business_date=hoy, invu_line_id=600 + n, invu_item_id=item_id, name=nombre, quantity=Decimal(cantidad), counted=True))
     db.commit()
@@ -57,7 +57,7 @@ def test_unidades_por_resolver_y_densidad(client, db_session, admin_user, superv
     assert d["fixable"] == 2 and d["resolved"] == []
 
     # Sin densidad, la pipa del Mango no suma.
-    desde, hasta = datetime.utcnow() - timedelta(days=1), datetime.utcnow() + timedelta(hours=1)
+    desde, hasta = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1), datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1)
     assert pipa.id not in inv._uso_por_ventas(db_session, clayton_branch.id, desde, hasta)
 
     # Un agente no la pone; un encargado sí, y queda en auditoría.

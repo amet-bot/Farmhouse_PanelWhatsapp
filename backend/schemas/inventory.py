@@ -21,6 +21,9 @@ class InventoryItemResponse(BaseModel):
     code: Optional[str] = None
     kind: Optional[str] = None                 # "materia_prima" | "casa"
     reference_cost: Optional[Decimal] = None   # costo de Invu, solo referencia
+    costing_cost: Optional[Decimal] = None     # costo real del Excel de costeo; manda sobre el de Invu
+    costing_source: Optional[str] = None
+    effective_cost: Optional[Decimal] = None   # el que se usa para valuar: costing_cost o, si no hay, reference_cost
     synced_at: Optional[datetime] = None
     piece_size: Optional[Decimal] = None       # una pieza entera: gramos (o ml si es de volumen)
     grams_per_ml: Optional[Decimal] = None     # gramos que pesa 1 ml (recetas en g de un insumo en ml)

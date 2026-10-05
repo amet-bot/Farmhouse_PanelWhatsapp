@@ -4,7 +4,7 @@ enlace del menú, pedido, pago, persona). Se calcula al vuelo sobre las tablas q
 no hay tabla de eventos — así que son conteos aproximados pero suficientes para ver en qué
 paso se pierden los clientes. Se muestra en el encabezado de Flujo Visual.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_
@@ -24,7 +24,7 @@ HANDOFF_MARKER = "📋 Contexto recopilado por el asistente"
 
 @router.get("/funnel", dependencies=[Depends(require_role(["admin", "supervisor"]))])
 def bot_funnel(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
-    since = datetime.utcnow() - timedelta(days=days)
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
     base = db.query(Conversation).filter(Conversation.deleted_at.is_(None), Conversation.created_at >= since)
 
     started = base.count()

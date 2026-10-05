@@ -9,7 +9,7 @@ así que estas pruebas usan asyncio.run() para llamar a _sweep_once() desde una 
 normal, sin agregar una dependencia nueva.
 """
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from config import settings
 from conftest import TestingSessionLocal
@@ -35,7 +35,7 @@ def _make_conversation(db_session, *, status="open", automation_paused=False):
 
     conv = Conversation(
         customer_id=contact.id, status=status, automation_paused=automation_paused,
-        created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None), updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db_session.add(conv)
     db_session.commit()
@@ -68,7 +68,7 @@ def test_sends_followup_after_threshold_when_bot_spoke_last(db_session, monkeypa
     conv = _make_conversation(db_session)
     _add_message(
         db_session, conv, direction="outgoing", sender_type="system",
-        created_at=datetime.utcnow() - timedelta(minutes=FOLLOWUP_THRESHOLD_MINUTES + 1),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=FOLLOWUP_THRESHOLD_MINUTES + 1),
     )
 
     asyncio.run(_sweep_once())
@@ -84,7 +84,7 @@ def test_does_not_send_before_threshold(db_session, monkeypatch):
     conv = _make_conversation(db_session)
     _add_message(
         db_session, conv, direction="outgoing", sender_type="system",
-        created_at=datetime.utcnow() - timedelta(minutes=1),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1),
     )
     asyncio.run(_sweep_once())
     db_session.refresh(conv)
@@ -96,7 +96,7 @@ def test_does_not_send_when_automation_paused(db_session, monkeypatch):
     conv = _make_conversation(db_session, automation_paused=True)
     _add_message(
         db_session, conv, direction="outgoing", sender_type="system",
-        created_at=datetime.utcnow() - timedelta(minutes=10),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10),
     )
     asyncio.run(_sweep_once())
     db_session.refresh(conv)
@@ -108,7 +108,7 @@ def test_does_not_send_when_conversation_closed(db_session, monkeypatch):
     conv = _make_conversation(db_session, status="closed")
     _add_message(
         db_session, conv, direction="outgoing", sender_type="system",
-        created_at=datetime.utcnow() - timedelta(minutes=10),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10),
     )
     asyncio.run(_sweep_once())
     db_session.refresh(conv)
@@ -120,11 +120,11 @@ def test_does_not_send_when_customer_already_replied(db_session, monkeypatch):
     conv = _make_conversation(db_session)
     _add_message(
         db_session, conv, direction="outgoing", sender_type="system",
-        created_at=datetime.utcnow() - timedelta(minutes=10),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10),
     )
     _add_message(
         db_session, conv, direction="incoming", sender_type="customer",
-        created_at=datetime.utcnow() - timedelta(minutes=1),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1),
     )
     asyncio.run(_sweep_once())
     db_session.refresh(conv)
@@ -136,7 +136,7 @@ def test_only_sends_once_per_silence_episode(db_session, monkeypatch):
     conv = _make_conversation(db_session)
     _add_message(
         db_session, conv, direction="outgoing", sender_type="system",
-        created_at=datetime.utcnow() - timedelta(minutes=10),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10),
     )
     asyncio.run(_sweep_once())
     db_session.refresh(conv)
@@ -159,7 +159,7 @@ def test_disabled_switch_sends_nothing(db_session, monkeypatch):
     conv = _make_conversation(db_session)
     _add_message(
         db_session, conv, direction="outgoing", sender_type="system",
-        created_at=datetime.utcnow() - timedelta(minutes=10),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10),
     )
     asyncio.run(_sweep_once())
     db_session.refresh(conv)
@@ -171,7 +171,7 @@ def test_sends_again_after_a_new_silence_episode(db_session, monkeypatch):
     conv = _make_conversation(db_session)
     _add_message(
         db_session, conv, direction="outgoing", sender_type="system",
-        created_at=datetime.utcnow() - timedelta(minutes=10),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10),
     )
     asyncio.run(_sweep_once())
     db_session.refresh(conv)
@@ -182,7 +182,7 @@ def test_sends_again_after_a_new_silence_episode(db_session, monkeypatch):
     # nunca calificaría como una pausa vieja. Se empuja 20 minutos al pasado a mano, tanto el
     # mensaje como el timestamp guardado en la conversación, para simular que sí pasó un rato.
     followup_msg = _followup_messages(db_session, conv.id)[0]
-    followup_msg.created_at = datetime.utcnow() - timedelta(minutes=20)
+    followup_msg.created_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=20)
     conv.bot_followup_sent_at = followup_msg.created_at
     db_session.add(followup_msg)
     db_session.add(conv)
@@ -191,11 +191,11 @@ def test_sends_again_after_a_new_silence_episode(db_session, monkeypatch):
     # El cliente respondió, el bot le volvió a hablar, y ahora pasan otros 6 minutos callado.
     _add_message(
         db_session, conv, direction="incoming", sender_type="customer",
-        created_at=datetime.utcnow() - timedelta(minutes=8),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=8),
     )
     _add_message(
         db_session, conv, direction="outgoing", sender_type="system",
-        created_at=datetime.utcnow() - timedelta(minutes=6),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=6),
     )
     asyncio.run(_sweep_once())
     db_session.refresh(conv)

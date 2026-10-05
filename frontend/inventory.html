@@ -291,11 +291,6 @@
               <h1>Existencias</h1>
               <p>Cuánto debería haber de cada insumo: lo que llegó, menos lo que se vendió, se botó o se gastó. Si no coincide con el estante, haz un conteo.</p>
             </div>
-            <div class="inv-view-head-actions">
-              <button type="button" class="inv-primary-btn" data-open-count>
-                <i data-lucide="clipboard-check"></i> Nuevo conteo
-              </button>
-            </div>
           </div>
 
           <!-- Cómo se lee la tabla: la cuenta en una línea, con las mismas palabras que las columnas. -->
@@ -303,6 +298,8 @@
             <span class="inv-formula-term">Entró<small>cargamentos</small></span>
             <span class="inv-formula-op">−</span>
             <span class="inv-formula-term">Salió<small>por merma</small></span>
+            <span class="inv-formula-op">−</span>
+            <span class="inv-formula-term">Consumo<small>registrado</small></span>
             <span class="inv-formula-op">±</span>
             <span class="inv-formula-term">Ajuste<small>por conteo</small></span>
             <span class="inv-formula-op">=</span>

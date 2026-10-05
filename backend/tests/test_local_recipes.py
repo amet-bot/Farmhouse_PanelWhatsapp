@@ -2,7 +2,7 @@
 Recetas cargadas (dashboard del pasante): importar, emparejar ingredientes con el catálogo,
 enlazar platos vendidos, costear (food cost) y usarlas donde Invu no tiene receta.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -37,7 +37,7 @@ def catalogo(db_session):
 
 def _venta(db, branch, item_id, nombre, cantidad, n):
     hoy = date.today()
-    s = InvuSale(branch_id=branch.id, invu_order_id=900 + n, business_date=hoy, status="Cerrada", opened_at=datetime.utcnow() - timedelta(hours=1))
+    s = InvuSale(branch_id=branch.id, invu_order_id=900 + n, business_date=hoy, status="Cerrada", opened_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1))
     db.add(s); db.flush()
     db.add(InvuSaleLine(sale_id=s.id, branch_id=branch.id, business_date=hoy, invu_line_id=800 + n, invu_item_id=item_id, name=nombre, quantity=Decimal(cantidad), counted=True))
     db.commit()
@@ -79,7 +79,7 @@ def test_importar_emparejar_y_usar_recetas_cargadas(client, db_session, admin_us
     # El plato vendido "Pesto chicken" usa la receta cargada: 65 g de pollo y 1 pan por unidad.
     recetas, insumos, origen = recipe_resolver.resolver(db_session, clayton_branch.id)
     assert origen[("item", 500)] == {"source": "cargada", "from_branch": None, "name": "Pesto chicken", "recipe": "Pesto chicken sandwich"}
-    uso = inv._uso_por_ventas(db_session, clayton_branch.id, datetime.utcnow() - timedelta(days=1), datetime.utcnow() + timedelta(hours=1))
+    uso = inv._uso_por_ventas(db_session, clayton_branch.id, datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1), datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1))
     assert uso[pollo.id] == Decimal("195") and uso[pan.id] == Decimal("3")
 
     # Si Invu tiene receta para ese plato en la sucursal, manda Invu.

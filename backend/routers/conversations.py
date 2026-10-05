@@ -189,7 +189,7 @@ def get_conversation(
     # como la sincronización silenciosa mientras sigue en pantalla pasan por aquí, así que
     # basta este único punto para que needs_reminder deje de dispararse mientras el agente la
     # tiene a la vista. Naive UTC a propósito (ver Conversation.needs_reminder).
-    conv.last_opened_at = datetime.utcnow()
+    conv.last_opened_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     db.refresh(conv)
 

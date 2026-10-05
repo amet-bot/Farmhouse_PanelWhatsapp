@@ -26,7 +26,7 @@ from models.stock_count import StockCount, StockCountItem
 from models.supply import ItemBranchSetting
 from models.branch import Branch
 from models.user import User
-from routers.inventory import _chequear_sin_conteo_posterior, _existencia_map, _last_known_cost, _visible_branch_filter
+from routers.inventory import _chequear_fecha_posterior_a_conteo, _chequear_sin_conteo_posterior, _existencia_map, _last_known_cost, _visible_branch_filter
 from security.access_control import check_target_branch_valid
 from security.auth import get_current_authorized_user
 from security.permissions import has_permission
@@ -93,7 +93,7 @@ def _puede_borrar(rec: ConsumptionRecord, user: User) -> bool:
     if rec.recorded_by_user_id != user.id:
         return False
     creado = rec.created_at.replace(tzinfo=None) if rec.created_at.tzinfo else rec.created_at
-    return datetime.utcnow() - creado <= timedelta(hours=DELETE_WINDOW_HOURS)
+    return datetime.now(timezone.utc).replace(tzinfo=None) - creado <= timedelta(hours=DELETE_WINDOW_HOURS)
 
 
 def _out(rec: ConsumptionRecord, user: User, stock_after: Optional[dict] = None) -> ConsumptionOut:
@@ -139,21 +139,7 @@ def create_consumption(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Ítem(s) de inventario no encontrados: {sorted(faltan)}")
 
     ocurrio = data.occurred_at or datetime.now(timezone.utc)
-    # Un consumo con fecha anterior al último conteo de ese insumo ya está dentro de lo que se
-    # contó: sumarlo ahora le correría la existencia a lo que había en el estante.
-    ocurrio_utc = ocurrio.astimezone(timezone.utc).replace(tzinfo=None) if ocurrio.tzinfo else ocurrio
-    contados = db.query(InventoryItem.name).select_from(StockCountItem).join(
-        StockCount, StockCount.id == StockCountItem.stock_count_id
-    ).join(InventoryItem, InventoryItem.id == StockCountItem.inventory_item_id).filter(
-        StockCount.branch_id == data.branch_id, StockCount.counted_at > ocurrio_utc,
-        StockCountItem.inventory_item_id.in_(ids),
-    ).distinct().all()
-    if contados:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(f"No se puede anotar con esa fecha: {', '.join(sorted(n for (n,) in contados))} se contó después "
-                    "y el conteo ya dejó la existencia en lo que había. Anótalo con la hora actual o corrige con un conteo."),
-        )
+    _chequear_fecha_posterior_a_conteo(db, data.branch_id, ids, ocurrio)
 
     rec = ConsumptionRecord(
         branch_id=data.branch_id, recorded_by_user_id=current_user.id,
@@ -162,7 +148,7 @@ def create_consumption(
     for l in data.items:
         costo = _last_known_cost(db, data.branch_id, l.inventory_item_id)
         if costo is None:
-            costo = encontrados[l.inventory_item_id].reference_cost
+            costo = encontrados[l.inventory_item_id].effective_cost
         rec.items.append(ConsumptionItem(inventory_item_id=l.inventory_item_id, quantity=l.quantity, unit_cost=costo))
     db.add(rec)
     db.flush()
@@ -244,7 +230,7 @@ def consumption_board(
     con_movimiento.update(i for (i,) in db.query(StockCountItem.inventory_item_id).join(StockCount, StockCount.id == StockCountItem.stock_count_id).filter(StockCount.branch_id == efectiva).distinct().all())
     con_movimiento.update(i for (i,) in db.query(ConsumptionItem.inventory_item_id).join(ConsumptionRecord, ConsumptionRecord.id == ConsumptionItem.consumption_record_id).filter(ConsumptionRecord.branch_id == efectiva).distinct().all())
 
-    ahora = datetime.utcnow()
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
     inicio_hoy = _inicio_dia_local(ahora)
     recientes = (
         db.query(ConsumptionItem.inventory_item_id, ConsumptionItem.quantity, ConsumptionRecord.occurred_at)

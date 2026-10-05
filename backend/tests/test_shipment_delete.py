@@ -2,7 +2,7 @@
 Borrar un cargamento cargado por error: quien lo cargó durante 24 horas, o supervisor/admin. La
 existencia vuelve atrás y la auditoría guarda qué se borró. No se borra si después se contó.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from models.audit import AuditEvent
 from models.inventory_movement import InventoryMovement
@@ -48,7 +48,7 @@ def test_pasadas_24_horas_solo_lo_borra_un_supervisor(client, db_session, clayto
                                                      clayton_device, supervisor_user):
     cargamento, _ = _cargamento(client, _h(clayton_agent, clayton_device), clayton_branch.id)
     rec = db_session.get(Shipment, cargamento["id"])
-    rec.created_at = datetime.utcnow() - timedelta(hours=25)
+    rec.created_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=25)
     db_session.commit()
     res = client.delete(f"/api/inventory/shipments/{cargamento['id']}", headers=_h(clayton_agent, clayton_device))
     assert res.status_code == 403 and "24 horas" in res.json()["detail"]
@@ -60,7 +60,7 @@ def test_no_se_borra_si_despues_se_conto(client, db_session, clayton_branch, sup
     h = _h(supervisor_user, clayton_device)
     cargamento, item = _cargamento(client, h, clayton_branch.id, nombre="Azúcar")
     rec = db_session.get(Shipment, cargamento["id"])
-    rec.created_at = datetime.utcnow() - timedelta(minutes=5)   # el conteo viene después
+    rec.created_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=5)   # el conteo viene después
     db_session.commit()
     client.post("/api/inventory/counts", json={
         "branch_id": clayton_branch.id, "items": [{"inventory_item_id": item["id"], "counted_quantity": "10"}],
@@ -79,7 +79,7 @@ def test_la_merma_tampoco_se_borra_si_despues_se_conto(client, db_session, clayt
         "items": [{"inventory_item_id": item["id"], "quantity": "1"}],
     }, headers=h).json()
     rec = db_session.get(WasteRecord, merma["id"])
-    rec.created_at = datetime.utcnow() - timedelta(minutes=5)
+    rec.created_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=5)
     db_session.commit()
     client.post("/api/inventory/counts", json={
         "branch_id": clayton_branch.id, "items": [{"inventory_item_id": item["id"], "counted_quantity": "9"}],

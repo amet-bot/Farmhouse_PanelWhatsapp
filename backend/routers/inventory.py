@@ -536,7 +536,7 @@ def _shipment_insights(db: Session, shipment: Shipment) -> ShipmentInsights:
             best_other_branch=(mejor[1].branch.name if mejor else None),
             best_other_supplier=(mejor[1].supplier.name if mejor and mejor[1].supplier else None),
             best_other_received_at=(mejor[1].received_at if mejor else None),
-            reference_cost=item.reference_cost,
+            reference_cost=item.effective_cost,
             stock_now=stock.quantize(Decimal("0.001")),
             used_per_day=(por_dia.quantize(Decimal("0.001")) if por_dia is not None else None),
             days_left=((stock / por_dia).quantize(Decimal("0.1")) if por_dia and por_dia > 0 and stock > 0 else None),
@@ -882,8 +882,8 @@ def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -
             has_cost = True
             display += Decimal(line.quantity) * Decimal(line.unit_cost)
             display_has = True
-        elif line.inventory_item.reference_cost is not None:
-            display += Decimal(line.quantity) * Decimal(line.inventory_item.reference_cost)
+        elif line.inventory_item.effective_cost is not None:
+            display += Decimal(line.quantity) * Decimal(line.inventory_item.effective_cost)
             display_has = True
             estimado = True
 
@@ -900,7 +900,7 @@ def _serialize_waste(record: WasteRecord, stock_before: Optional[dict] = None) -
             unit=line.inventory_item.unit,
             quantity=line.quantity,
             unit_cost=line.unit_cost,
-            reference_cost=(line.inventory_item.reference_cost if line.unit_cost is None else None),
+            reference_cost=(line.inventory_item.effective_cost if line.unit_cost is None else None),
             mode=line.mode,
             pieces=line.pieces,
             piece_size=line.inventory_item.piece_size,
@@ -1115,6 +1115,9 @@ def create_waste(
             )
 
     check_target_branch_valid(db, waste_in.branch_id)
+    _chequear_fecha_posterior_a_conteo(
+        db, waste_in.branch_id, [l.inventory_item_id for l in waste_in.items],
+        waste_in.occurred_at or datetime.now(timezone.utc))
 
     if waste_in.reason not in WASTE_REASON_LABELS:
         raise HTTPException(
@@ -1250,7 +1253,7 @@ def _waste_insights(db: Session, record: WasteRecord) -> WasteInsights:
     previa = _dias_utc(dia - timedelta(days=13), dia - timedelta(days=7))
     mes = _dias_utc(dia - timedelta(days=29), dia)
 
-    costo_linea = WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.reference_cost, 0)
+    costo_linea = WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.effective_cost, 0)
 
     def por_insumo(rango, extra=()):
         filas = db.query(
@@ -1293,7 +1296,7 @@ def _waste_insights(db: Session, record: WasteRecord) -> WasteInsights:
     items: List[WasteInsightItem] = []
     for line in record.items:
         item = line.inventory_item
-        costo = line.unit_cost if line.unit_cost is not None else item.reference_cost
+        costo = line.unit_cost if line.unit_cost is not None else item.effective_cost
         s = sem.get(item.id, (Decimal("0"), Decimal("0"), 0))
         m = mensual.get(item.id, (Decimal("0"), Decimal("0"), 0))
         usado = uso.get(item.id) if item.id in con_receta else None
@@ -1309,7 +1312,7 @@ def _waste_insights(db: Session, record: WasteRecord) -> WasteInsights:
             items_ranked=len(ranking),
             used_month=(usado.quantize(Decimal("0.001")) if usado is not None else None),
             waste_pct_month=((m[0] / (usado + m[0]) * 100).quantize(Decimal("0.1")) if usado else None),
-            cost_estimated=line.unit_cost is None and item.reference_cost is not None,
+            cost_estimated=line.unit_cost is None and item.effective_cost is not None,
             **(_compra_contra_vencimiento(db, record, item, usado, ocurrio_utc) if vencido else {}),
         ))
 
@@ -1541,8 +1544,8 @@ def waste_analytics(
             estimado = False
             if line.unit_cost is not None:
                 costo = cantidad * Decimal(line.unit_cost)
-            elif item.reference_cost is not None:
-                costo = cantidad * Decimal(item.reference_cost)
+            elif item.effective_cost is not None:
+                costo = cantidad * Decimal(item.effective_cost)
                 estimado = True
                 totales.cost_estimated += costo
             else:
@@ -1821,7 +1824,7 @@ def waste_recipe_usage(
     merma_q = db.query(
         WasteItem.inventory_item_id,
         func.sum(WasteItem.quantity),
-        func.sum(WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.reference_cost, 0)),
+        func.sum(WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.effective_cost, 0)),
         func.sum(case((WasteItem.unit_cost.is_(None), 1), else_=0)),
     ).join(WasteRecord, WasteRecord.id == WasteItem.waste_record_id).join(
         InventoryItem, InventoryItem.id == WasteItem.inventory_item_id
@@ -2027,6 +2030,27 @@ def _chequear_sin_conteo_posterior(db: Session, branch_id: int, item_ids: List[i
         )
 
 
+def _chequear_fecha_posterior_a_conteo(db: Session, branch_id: int, item_ids: List[int], ocurrio: datetime) -> None:
+    """
+    Un registro con fecha anterior al último conteo de ese insumo ya está dentro de lo que se
+    contó: sumarlo ahora le correría la existencia a lo que había en el estante. Se rechaza; se
+    anota con la hora actual o se corrige con un conteo nuevo.
+    """
+    ocurrio_utc = ocurrio.astimezone(timezone.utc).replace(tzinfo=None) if ocurrio.tzinfo else ocurrio
+    contados = db.query(InventoryItem.name).select_from(StockCountItem).join(
+        StockCount, StockCount.id == StockCountItem.stock_count_id
+    ).join(InventoryItem, InventoryItem.id == StockCountItem.inventory_item_id).filter(
+        StockCount.branch_id == branch_id, StockCount.counted_at > ocurrio_utc,
+        StockCountItem.inventory_item_id.in_(item_ids or [0]),
+    ).distinct().all()
+    if contados:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(f"No se puede anotar con esa fecha: {', '.join(sorted(n for (n,) in contados))} se contó después "
+                    "y el conteo ya dejó la existencia en lo que había. Anótalo con la hora actual o corrige con un conteo."),
+        )
+
+
 @router.delete("/waste/{waste_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_waste(
     waste_id: int,
@@ -2118,10 +2142,10 @@ def list_stock(
             WasteItem.inventory_item_id.label("item_id"),
             func.coalesce(func.sum(WasteItem.quantity), 0).label("cantidad"),
             func.coalesce(func.sum(
-                WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.reference_cost, 0)
+                WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.effective_cost, 0)
             ), 0).label("costo"),
             func.coalesce(func.sum(
-                case((WasteItem.unit_cost.is_(None), WasteItem.quantity * func.coalesce(InventoryItem.reference_cost, 0)), else_=0)
+                case((WasteItem.unit_cost.is_(None), WasteItem.quantity * func.coalesce(InventoryItem.effective_cost, 0)), else_=0)
             ), 0).label("costo_estimado"),
             func.max(WasteRecord.occurred_at).label("ultimo"),
         )
@@ -2504,8 +2528,8 @@ def _analizar_conteo(db: Session, record: StockCount) -> StockCountAnalysis:
         sistema = Decimal(line.expected_quantity)
         costo = Decimal(line.unit_cost) if line.unit_cost is not None and Decimal(line.unit_cost) > 0 else None
         estimado = False
-        if costo is None and item.reference_cost is not None:
-            costo, estimado = Decimal(item.reference_cost), True
+        if costo is None and item.effective_cost is not None:
+            costo, estimado = Decimal(item.effective_cost), True
 
         previo = anteriores.get(item.id)
         if previo is None:
@@ -2621,7 +2645,7 @@ def _cifras_sucursal(db: Session, branch: Branch, desde: date, hasta: date, tops
     mermas = db.query(
         WasteItem.inventory_item_id, InventoryItem.name, InventoryItem.unit,
         func.sum(WasteItem.quantity),
-        func.sum(WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.reference_cost, 0)),
+        func.sum(WasteItem.quantity * func.coalesce(WasteItem.unit_cost, InventoryItem.effective_cost, 0)),
         func.sum(case((WasteItem.unit_cost.is_(None), 1), else_=0)),
     ).join(WasteRecord, WasteRecord.id == WasteItem.waste_record_id).join(
         InventoryItem, InventoryItem.id == WasteItem.inventory_item_id

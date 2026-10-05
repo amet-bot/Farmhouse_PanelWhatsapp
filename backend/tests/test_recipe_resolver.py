@@ -2,7 +2,7 @@
 Recetas efectivas: la de Invu de la sucursal manda; si no hay, la del mismo plato en otra
 sucursal; si es reventa (mismo nombre que un insumo por unidad), 1 unidad; si no, sin receta.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from models.inventory_item import InventoryItem
@@ -56,8 +56,8 @@ def test_las_recetas_se_completan_con_otra_sucursal_y_reventa(db_session, clayto
     assert origen[("item", 310)]["source"] == "misma_sucursal" and recetas[("item", 310)][0].quantity == Decimal("90")
 
     # El uso por ventas de Obarrio ya cuenta la receta prestada y la reventa.
-    ayer = datetime.utcnow() - timedelta(days=2)
-    uso = inv._uso_por_ventas(db_session, obarrio_branch.id, ayer, datetime.utcnow() + timedelta(days=1))
+    ayer = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=2)
+    uso = inv._uso_por_ventas(db_session, obarrio_branch.id, ayer, datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=1))
     assert uso[pollo.id] == Decimal("4") * 150 + Decimal("3") * 90       # 600 g por Lupita + 270 g por los César
     assert uso[coca.id] == Decimal("6")
     assert agua.id not in uso

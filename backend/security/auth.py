@@ -144,7 +144,7 @@ def validate_device_access(
         if device_id_header:
             dev = db.query(Device).filter(Device.device_id == device_id_header).first()
             if dev and dev.status == "active":
-                dev.last_seen = datetime.utcnow()
+                dev.last_seen = datetime.now(timezone.utc).replace(tzinfo=None)
                 db.commit()
                 return dev
         return None

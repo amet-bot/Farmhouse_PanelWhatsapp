@@ -2,7 +2,7 @@
 Borrar una merma cargada por error: quien la cargó dentro de las 24 horas, o un supervisor/admin.
 La existencia vuelve a quedar como si nunca se hubiera cargado y la auditoría guarda qué se borró.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from models.audit import AuditEvent
 from models.inventory_movement import InventoryMovement
@@ -68,7 +68,7 @@ def test_pasadas_24_horas_solo_la_borra_un_supervisor(client, db_session, clayto
                                                       clayton_device, supervisor_user):
     merma, _ = _merma(client, _headers(clayton_agent, clayton_device), clayton_branch.id)
     rec = db_session.get(WasteRecord, merma["id"])
-    rec.created_at = datetime.utcnow() - timedelta(hours=25)
+    rec.created_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=25)
     db_session.commit()
 
     res = client.delete(f"/api/inventory/waste/{merma['id']}", headers=_headers(clayton_agent, clayton_device))

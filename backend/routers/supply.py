@@ -384,7 +384,7 @@ def suggested_order(
         sugerido = _q3(sugerido)
         costo = _last_known_cost(db, branch.id, i.id)
         if costo is None:
-            costo = i.reference_cost
+            costo = i.effective_cost
         sid = (s.supplier_id if s and s.supplier_id else ultimo_prov.get(i.id))
         linea = {
             "inventory_item_id": i.id, "name": i.name, "unit": i.unit, "category": i.category,
@@ -530,7 +530,7 @@ def supplier_prices(
     sucursales que el usuario ve): último precio y fecha, promedio, mínimo y máximo, cuántas
     compras. Por insumo, cuál proveedor tuvo el mejor último precio."""
     efectiva = _visible_branch_filter(current_user, branch_id)
-    desde = datetime.utcnow() - timedelta(days=days)
+    desde = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
     query = db.query(ShipmentItem).join(Shipment, Shipment.id == ShipmentItem.shipment_id).options(
         joinedload(ShipmentItem.inventory_item), joinedload(ShipmentItem.shipment).joinedload(Shipment.supplier),
     ).filter(Shipment.received_at >= desde, Shipment.supplier_id.isnot(None), ShipmentItem.unit_cost.isnot(None))

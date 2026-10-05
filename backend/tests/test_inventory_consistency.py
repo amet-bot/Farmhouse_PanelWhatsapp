@@ -2,7 +2,7 @@
 Existencias, conteo y libro de movimientos tienen que decir lo mismo: el consumo registrado resta
 en las tres, borrarlo respeta los conteos posteriores y el análisis no lo descuenta dos veces.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -66,7 +66,7 @@ def test_borrar_consumo_quita_su_movimiento_y_respeta_conteo_posterior(setup, db
 def test_consumo_con_fecha_anterior_al_conteo_se_rechaza(setup):
     client, item, b, h, hs = setup
     client.post("/api/inventory/counts", json={"branch_id": b, "items": [{"inventory_item_id": item.id, "counted_quantity": "20"}]}, headers=h)
-    ayer = (datetime.utcnow() - timedelta(days=1)).isoformat()
+    ayer = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)).isoformat()
     assert _consumo(client, b, item, h, "4", occurred_at=ayer).status_code == 409
     assert _consumo(client, b, item, h, "4").status_code == 201
 
@@ -81,3 +81,32 @@ def test_analisis_no_descuenta_dos_veces_el_consumo_a_mano(setup, db_session, mo
     c = client.post("/api/inventory/counts", json={"branch_id": b, "items": [{"inventory_item_id": item.id, "counted_quantity": "14"}]}, headers=h).json()
     linea = c["analysis"]["lines"][0]
     assert Decimal(linea["used_by_sales"]) == 0 and linea["status"] == "cuadra"
+
+
+def test_merma_con_fecha_anterior_al_conteo_se_rechaza(setup):
+    client, item, b, h, hs = setup
+    client.post("/api/inventory/counts", json={"branch_id": b, "items": [{"inventory_item_id": item.id, "counted_quantity": "20"}]}, headers=h)
+    ayer = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)).isoformat()
+    base = {"branch_id": b, "reason": "vencido", "items": [{"inventory_item_id": item.id, "quantity": "1"}]}
+    assert client.post("/api/inventory/waste", json={**base, "occurred_at": ayer}, headers=h).status_code == 409
+    assert client.post("/api/inventory/waste", json=base, headers=h).status_code == 201
+
+
+def _traslado(client, item, desde, hacia, h, qty):
+    t = client.post("/api/transfers/", json={"from_branch_id": desde, "to_branch_id": hacia, "items": [{"inventory_item_id": item.id, "quantity": qty}]}, headers=h).json()
+    assert client.post(f"/api/transfers/{t['id']}/approve", json={}, headers=h).status_code == 200
+    return t
+
+
+def test_no_se_despacha_mas_de_lo_que_hay_si_el_insumo_esta_contado(setup, obarrio_branch):
+    client, item, b, h, hs = setup
+    # Sin conteo el número no es confiable: se deja pasar aunque pida de más.
+    t1 = _traslado(client, item, b, obarrio_branch.id, h, "50")
+    assert client.post(f"/api/transfers/{t1['id']}/dispatch", headers=h).status_code == 200
+    # Con conteo (existencia real = 20 − 50 + ajuste → contado en 10), pedir 25 no alcanza.
+    client.post("/api/inventory/counts", json={"branch_id": b, "items": [{"inventory_item_id": item.id, "counted_quantity": "10"}]}, headers=h)
+    t2 = _traslado(client, item, b, obarrio_branch.id, h, "25")
+    r = client.post(f"/api/transfers/{t2['id']}/dispatch", headers=h)
+    assert r.status_code == 409 and "No alcanza" in r.json()["detail"]
+    t3 = _traslado(client, item, b, obarrio_branch.id, h, "10")
+    assert client.post(f"/api/transfers/{t3['id']}/dispatch", headers=h).status_code == 200

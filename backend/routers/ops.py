@@ -128,7 +128,7 @@ def _request_out(r: SupplyRequest) -> SupplyRequestResponse:
 def _incident_out(i: Incident) -> IncidentResponse:
     hours_open = None
     if i.status != "resuelta" and i.created_at:
-        hours_open = round((datetime.utcnow() - _naive(i.created_at)).total_seconds() / 3600, 1)
+        hours_open = round((datetime.now(timezone.utc).replace(tzinfo=None) - _naive(i.created_at)).total_seconds() / 3600, 1)
     return IncidentResponse(
         id=i.id, branch_id=i.branch_id, branch_name=i.branch.name,
         reported_by_user_id=i.reported_by_user_id, reported_by_name=i.reported_by_user.name,
@@ -174,7 +174,7 @@ def _branch_team_ids(db: Session, branch_id: int, exclude_user_id: Optional[int]
 
 def _task_overdue(t: Task) -> bool:
     due = _naive(t.due_date)
-    return bool(due and t.status in ("pendiente", "en_proceso") and due < datetime.utcnow())
+    return bool(due and t.status in ("pendiente", "en_proceso") and due < datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 def _task_out(t: Task) -> TaskResponse:
@@ -486,7 +486,7 @@ def list_tasks(
     if assigned_to_user_id is not None:
         query = query.filter(Task.assigned_to_user_id == assigned_to_user_id)
     if overdue:
-        query = query.filter(Task.status.in_(["pendiente", "en_proceso"]), Task.due_date < datetime.utcnow())
+        query = query.filter(Task.status.in_(["pendiente", "en_proceso"]), Task.due_date < datetime.now(timezone.utc).replace(tzinfo=None))
     # Lo que vence primero arriba; sin fecha, al final; lo más nuevo antes entre iguales.
     tasks = query.order_by(Task.due_date.is_(None), Task.due_date.asc(), Task.created_at.desc()).offset(offset).limit(limit).all()
     return [_task_out(t) for t in tasks]
@@ -900,7 +900,7 @@ def ops_overview(
         query = query.filter(Branch.id == efectiva)
     branches = [b for b in query.order_by(Branch.name).all() if b.code != "CAT" or efectiva is not None]
 
-    now_utc = datetime.utcnow()
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     today = datetime.now(PANAMA_TZ).date()
     rows = [_branch_overview(db, b, now_utc, today) for b in branches]
     rows.sort(key=lambda r: (-r.attention, r.branch_name))

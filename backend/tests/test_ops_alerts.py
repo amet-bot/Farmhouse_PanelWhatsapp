@@ -28,7 +28,7 @@ def avisos(monkeypatch):
 
 
 def test_tarea_vencida_avisa_una_vez_con_sonido_de_urgencia(db_session, admin_user, clayton_branch, clayton_agent, supervisor_user, avisos):
-    ahora = datetime.utcnow()
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
     vencida = Task(branch_id=clayton_branch.id, created_by_user_id=admin_user.id, title="Limpiar campana", due_date=ahora - timedelta(hours=1))
     a_tiempo = Task(branch_id=clayton_branch.id, created_by_user_id=admin_user.id, title="Sacar basura", due_date=ahora + timedelta(hours=2))
     vieja = Task(branch_id=clayton_branch.id, created_by_user_id=admin_user.id, title="De hace días", due_date=ahora - timedelta(days=5))
@@ -82,7 +82,7 @@ def test_resumen_diario_a_gerencia(db_session, admin_user, clayton_branch, obarr
     hoy = datetime(2026, 10, 3, 8, 10, tzinfo=PANAMA_TZ)
     ayer_noche = datetime(2026, 10, 2, 21, 50, tzinfo=PANAMA_TZ).astimezone(timezone.utc).replace(tzinfo=None)
     db_session.add(StockCount(branch_id=clayton_branch.id, counted_by_user_id=admin_user.id, kind="closing", counted_at=ayer_noche))
-    db_session.add(Task(branch_id=clayton_branch.id, created_by_user_id=admin_user.id, title="x", due_date=datetime.utcnow() - timedelta(hours=3)))
+    db_session.add(Task(branch_id=clayton_branch.id, created_by_user_id=admin_user.id, title="x", due_date=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=3)))
     db_session.commit()
 
     assert ops_alerts.send_daily_digest(now=hoy.replace(hour=7), db=db_session) is False   # antes de las 8

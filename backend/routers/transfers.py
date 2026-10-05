@@ -8,11 +8,13 @@ from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models.inventory_item import InventoryItem
 from models.inventory_movement import InventoryMovement
+from models.stock_count import StockCount, StockCountItem
 from models.transfer import Transfer, TransferItem
 from models.user import User
 from schemas.transfer import (
     TransferActionRequest, TransferCreate, TransferItemResponse, TransferResponse,
 )
+from routers.inventory import _existencia_map
 from security.auth import get_current_authorized_user
 from security.access_control import check_target_branch_valid
 from services.audit import log_audit_event
@@ -257,6 +259,33 @@ def approve_transfer(
     return _serialize(transfer)
 
 
+def _chequear_existencia_para_despachar(db: Session, transfer: Transfer) -> None:
+    """
+    No se despacha más de lo que la sucursal de origen tiene — pero solo donde el número es
+    confiable: un insumo que ya se contó allí tiene punto de partida. Uno que nunca se contó puede
+    mostrar de menos porque falta cargar el inventario de arranque (misma razón por la que la
+    merma y el consumo no bloquean); ahí se deja pasar.
+    """
+    ids = [l.inventory_item_id for l in transfer.items]
+    contados = {
+        r[0] for r in db.query(StockCountItem.inventory_item_id).join(
+            StockCount, StockCount.id == StockCountItem.stock_count_id
+        ).filter(StockCount.branch_id == transfer.from_branch_id, StockCountItem.inventory_item_id.in_(ids)).distinct().all()
+    }
+    if not contados:
+        return
+    hay = _existencia_map(db, transfer.from_branch_id, list(contados))
+    faltan = [
+        f"{l.inventory_item.name} (hay {hay[l.inventory_item_id].normalize():f}, se piden {l.quantity.normalize():f} {l.inventory_item.unit})"
+        for l in transfer.items if l.inventory_item_id in contados and hay[l.inventory_item_id] < l.quantity
+    ]
+    if faltan:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No alcanza la existencia para despachar: " + "; ".join(faltan) + ". Cuenta el insumo o ajusta la cantidad.",
+        )
+
+
 @router.post("/{transfer_id}/dispatch", response_model=TransferResponse)
 def dispatch_transfer(
     transfer_id: int,
@@ -269,6 +298,7 @@ def dispatch_transfer(
     if transfer.status != "approved":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"El traslado está en estado '{transfer.status}', no se puede despachar.")
 
+    _chequear_existencia_para_despachar(db, transfer)
     now = datetime.now(timezone.utc)
     _claim_transition(db, transfer, ("approved",), "dispatched")
     transfer.dispatched_by_user_id = current_user.id

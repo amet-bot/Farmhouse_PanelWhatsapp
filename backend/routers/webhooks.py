@@ -465,7 +465,7 @@ async def _handoff_to_human(db: Session, wa_service, conv: Conversation, contact
     )
     db.add(summary_msg)
     conv.automation_paused = True
-    conv.bot_handoff_at = datetime.utcnow()   # naive UTC, como el resto de fechas que compara bot_followup
+    conv.bot_handoff_at = datetime.now(timezone.utc).replace(tzinfo=None)   # naive UTC, como el resto de fechas que compara bot_followup
     conv.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(summary_msg)
@@ -1081,7 +1081,7 @@ async def _step_confirm_web_menu_order(db: Session, wa_service, conv: Conversati
     # en el mismo objeto conv, ambos cambios quedan en ese mismo commit — el estado final
     # es idéntico a cuando esto se escribía en un bloque aparte.
     conv.automation_paused = True
-    conv.bot_handoff_at = datetime.utcnow()
+    conv.bot_handoff_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await _send_plain_text_message(db, wa_service, conv, contact, phone, confirmation_text)
 
     # El botón de Yappy va justo después de la confirmación, en orden, cuando el cliente ya
@@ -1338,7 +1338,7 @@ async def _step_prompt_entry_when_context_missing(db: Session, wa_service, conv:
     now = datetime.now(timezone.utc)
     should_prompt = True
     if conv.last_branch_prompt_at:
-        elapsed = (now - conv.last_branch_prompt_at.replace(tzinfo=timezone.utc)).total_seconds() if conv.last_branch_prompt_at.tzinfo else (datetime.utcnow() - conv.last_branch_prompt_at).total_seconds()
+        elapsed = (now - conv.last_branch_prompt_at.replace(tzinfo=timezone.utc)).total_seconds() if conv.last_branch_prompt_at.tzinfo else (datetime.now(timezone.utc).replace(tzinfo=None) - conv.last_branch_prompt_at).total_seconds()
         # Los números cuentan solo como respuesta suelta ("2", "opción 3"), no como cualquier
         # dígito dentro de una frase ("quiero 12 bowls") — eso reabría el menú sin motivo.
         lowered = text.lower() if message_type == "text" else ""

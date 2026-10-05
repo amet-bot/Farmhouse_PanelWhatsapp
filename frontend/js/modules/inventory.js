@@ -1131,8 +1131,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const porMil = costoPorMil(costo, it.unit);
     if (porMil != null && porMil > 100) {
       frases.push(`<span class="inv-line-warn">Ojo: ${esc(money(porMil))} el ${unitFamily(it.unit).fam === 'volumen' ? 'litro' : 'kilo'}. ¿Se cargó el precio del paquete? El costo va por ${esc(u)}.</span>`);
-    } else if (costo != null && it.reference_cost != null && hasPerm('inventory.adjust')) {
-      const ref = Number(it.reference_cost);
+    } else if (costo != null && (it.effective_cost ?? it.reference_cost) != null && hasPerm('inventory.adjust')) {
+      const ref = Number(it.effective_cost ?? it.reference_cost);
       if (ref > 0 && Math.abs((costo - ref) / ref) > 0.15) {
         frases.push(`En Invu figura a ${esc(unitCost(ref))}: conviene actualizarlo, las recetas de Invu calculan con ese costo.`);
       }
@@ -1545,6 +1545,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div><span>Tipo</span><strong>${esc(KIND_LABELS[item.kind] || 'Sin clasificar')}</strong></div>
         <div><span>Unidad</span><strong>${esc(item.unit)}</strong></div>
         <div><span>Categoría</span><strong>${esc(item.category || 'Sin categoría')}</strong></div>
+        ${item.costing_cost != null ? `<div><span>Costo real (${esc(item.costing_source || 'Excel de costeo')})</span><strong>${esc(unitCost(item.costing_cost))} <small>por ${esc(item.unit)}</small></strong></div>` : ''}
+        ${item.costing_cost != null ? `<div><span>Costo real (${esc(item.costing_source || 'Excel de costeo')})</span><strong>${esc(unitCost(item.costing_cost))} <small>por ${esc(item.unit)}</small></strong></div>` : ''}
         ${item.reference_cost != null ? `<div><span>Costo de referencia (Invu)</span><strong>${esc(unitCost(item.reference_cost))} <small>por ${esc(item.unit)}</small></strong></div>` : ''}
         <div><span>Última recepción</span><strong>${stats.last ? esc(utils.formatDate(stats.last.toISOString())) : 'Nunca'}</strong></div>
         <div><span>Sucursales que lo reciben</span><strong>${branches.length ? esc(branches.join(', ')) : '—'}</strong></div>
@@ -2054,8 +2056,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       // El costo de Invu como sugerencia, no como valor: si no se escribe nada, el cargamento
       // queda sin costo (como siempre) en vez de guardar uno que nadie confirmó.
       if (!('defaultPlaceholder' in costInput.dataset)) costInput.dataset.defaultPlaceholder = costInput.placeholder;
-      costInput.placeholder = item.reference_cost != null
-        ? `Ref. ${unitCost(item.reference_cost)}`
+      costInput.placeholder = (item.effective_cost ?? item.reference_cost) != null
+        ? `Ref. ${unitCost(item.effective_cost ?? item.reference_cost)}`
         : costInput.dataset.defaultPlaceholder;
       hideSuggestions();
       (invoiceMode() ? invoicedInput : qtyInput).focus();

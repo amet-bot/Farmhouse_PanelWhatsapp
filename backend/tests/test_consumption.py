@@ -2,7 +2,7 @@
 Registro de consumo: el equipo anota lo que se usó, descuenta la existencia, y cuando hay
 consumo a mano el sistema deja de estimar por ventas ese insumo. Borrar: 24 h o encargado.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -20,7 +20,7 @@ from tests.conftest import auth_headers_for
 def pollo(db_session, clayton_branch, supervisor_user):
     item = InventoryItem(name="Pollo", unit="kg", category="Proteínas", reference_cost=Decimal("3.00"))
     db_session.add(item); db_session.commit(); db_session.refresh(item)
-    sh = Shipment(branch_id=clayton_branch.id, received_by_user_id=supervisor_user.id, received_at=datetime.utcnow() - timedelta(days=2))
+    sh = Shipment(branch_id=clayton_branch.id, received_by_user_id=supervisor_user.id, received_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=2))
     sh.items.append(ShipmentItem(inventory_item_id=item.id, quantity=Decimal("20"), unit_cost=Decimal("2.50")))
     db_session.add(sh); db_session.commit()
     return item
@@ -53,7 +53,7 @@ def test_borrar_solo_dentro_de_24h_o_encargado(client, db_session, clayton_branc
     ha = auth_headers_for(clayton_agent, clayton_device.device_id)
     rec = client.post("/api/inventory/consumption", json={"branch_id": clayton_branch.id, "items": [{"inventory_item_id": pollo.id, "quantity": "2"}]}, headers=ha).json()
     viejo = db_session.get(ConsumptionRecord, rec["id"])
-    viejo.created_at = datetime.utcnow() - timedelta(hours=30)
+    viejo.created_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=30)
     db_session.commit()
     assert client.delete(f"/api/inventory/consumption/{rec['id']}", headers=ha).status_code == 403
     hs = auth_headers_for(supervisor_user, clayton_device.device_id)
@@ -64,7 +64,7 @@ def test_borrar_solo_dentro_de_24h_o_encargado(client, db_session, clayton_branc
 def test_con_consumo_a_mano_no_se_estima_por_ventas(db_session, clayton_branch, supervisor_user, pollo, monkeypatch):
     """Un insumo con receta y conteo: sin consumo a mano se le resta lo vendido; con consumo a
     mano desde el conteo, manda el registro y no se descuenta dos veces."""
-    conteo = StockCount(branch_id=clayton_branch.id, counted_by_user_id=supervisor_user.id, counted_at=datetime.utcnow() - timedelta(days=1))
+    conteo = StockCount(branch_id=clayton_branch.id, counted_by_user_id=supervisor_user.id, counted_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1))
     conteo.items.append(StockCountItem(inventory_item_id=pollo.id, expected_quantity=Decimal("20"), counted_quantity=Decimal("20"), difference=Decimal("0")))
     db_session.add(conteo); db_session.commit()
     monkeypatch.setattr(inv, "_insumos_con_receta", lambda db, branch_id: {pollo.id})
@@ -73,7 +73,7 @@ def test_con_consumo_a_mano_no_se_estima_por_ventas(db_session, clayton_branch, 
 
     assert inv._existencia_map(db_session, clayton_branch.id, [pollo.id])[pollo.id] == Decimal("16")   # 20 − 4 estimados
 
-    rec = ConsumptionRecord(branch_id=clayton_branch.id, recorded_by_user_id=supervisor_user.id, occurred_at=datetime.utcnow())
+    rec = ConsumptionRecord(branch_id=clayton_branch.id, recorded_by_user_id=supervisor_user.id, occurred_at=datetime.now(timezone.utc).replace(tzinfo=None))
     from models.consumption import ConsumptionItem
     rec.items.append(ConsumptionItem(inventory_item_id=pollo.id, quantity=Decimal("6"), unit_cost=Decimal("2.5")))
     db_session.add(rec); db_session.commit()

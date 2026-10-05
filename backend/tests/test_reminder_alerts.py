@@ -54,14 +54,14 @@ def _add_message(db_session, conv, direction, created_at, is_internal=False, con
 
 def test_recent_incoming_message_does_not_need_reminder(db_session, clayton_branch, clayton_agent):
     conv = _make_conversation(db_session, clayton_branch, clayton_agent)
-    _add_message(db_session, conv, "incoming", datetime.utcnow())
+    _add_message(db_session, conv, "incoming", datetime.now(timezone.utc).replace(tzinfo=None))
     db_session.refresh(conv)
     assert conv.needs_reminder is False
 
 
 def test_stale_unopened_incoming_message_needs_reminder(db_session, clayton_branch, clayton_agent, clayton_device, client):
     conv = _make_conversation(db_session, clayton_branch, clayton_agent)
-    _add_message(db_session, conv, "incoming", datetime.utcnow() - timedelta(minutes=6))
+    _add_message(db_session, conv, "incoming", datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=6))
     db_session.refresh(conv)
     assert conv.needs_reminder is True
 
@@ -77,7 +77,7 @@ def test_stale_unopened_incoming_message_needs_reminder(db_session, clayton_bran
 
 def test_opening_conversation_clears_reminder(db_session, clayton_branch, clayton_agent, clayton_device, client):
     conv = _make_conversation(db_session, clayton_branch, clayton_agent)
-    _add_message(db_session, conv, "incoming", datetime.utcnow() - timedelta(minutes=10))
+    _add_message(db_session, conv, "incoming", datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10))
     db_session.refresh(conv)
     assert conv.needs_reminder is True
 
@@ -95,22 +95,22 @@ def test_opening_conversation_clears_reminder(db_session, clayton_branch, clayto
 
 def test_agent_reply_clears_reminder_even_without_opening(db_session, clayton_branch, clayton_agent):
     conv = _make_conversation(db_session, clayton_branch, clayton_agent)
-    _add_message(db_session, conv, "incoming", datetime.utcnow() - timedelta(minutes=10))
-    _add_message(db_session, conv, "outgoing", datetime.utcnow())
+    _add_message(db_session, conv, "incoming", datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10))
+    _add_message(db_session, conv, "outgoing", datetime.now(timezone.utc).replace(tzinfo=None))
     db_session.refresh(conv)
     assert conv.needs_reminder is False
 
 
 def test_internal_note_does_not_count_as_a_reply(db_session, clayton_branch, clayton_agent):
     conv = _make_conversation(db_session, clayton_branch, clayton_agent)
-    _add_message(db_session, conv, "incoming", datetime.utcnow() - timedelta(minutes=10))
-    _add_message(db_session, conv, "outgoing", datetime.utcnow(), is_internal=True, content="nota interna")
+    _add_message(db_session, conv, "incoming", datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10))
+    _add_message(db_session, conv, "outgoing", datetime.now(timezone.utc).replace(tzinfo=None), is_internal=True, content="nota interna")
     db_session.refresh(conv)
     assert conv.needs_reminder is True
 
 
 def test_closed_conversation_never_needs_reminder(db_session, clayton_branch, clayton_agent):
     conv = _make_conversation(db_session, clayton_branch, clayton_agent, status="closed")
-    _add_message(db_session, conv, "incoming", datetime.utcnow() - timedelta(minutes=30))
+    _add_message(db_session, conv, "incoming", datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=30))
     db_session.refresh(conv)
     assert conv.needs_reminder is False

@@ -2,7 +2,7 @@
 Visor de actividad: admin ve todo; gerente (supervisor sin sucursal) ve todas las sucursales pero
 no la administración del sistema; un encargado solo su sucursal; un agente no entra.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -14,7 +14,7 @@ from tests.conftest import auth_headers_for
 
 @pytest.fixture
 def eventos(db_session, admin_user, supervisor_user, clayton_branch, obarrio_branch):
-    ahora = datetime.utcnow()
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
     filas = [
         AuditEvent(actor_user_id=supervisor_user.id, branch_id=clayton_branch.id, action="task.create", entity_type="task", entity_id=1, metadata_json='{"title": "Limpiar campana"}', created_at=ahora - timedelta(minutes=5)),
         AuditEvent(actor_user_id=supervisor_user.id, branch_id=clayton_branch.id, action="waste.create", entity_type="waste", entity_id=7, metadata_json=None, created_at=ahora - timedelta(minutes=4)),
@@ -58,7 +58,7 @@ def test_filtros_y_paginas(client, eventos, admin_user, supervisor_user):
     h = auth_headers_for(admin_user)
     assert _acciones(client.get("/api/system/audit?group=task", headers=h)) == ["task.create", "task.create"]
     assert set(_acciones(client.get(f"/api/system/audit?actor_user_id={supervisor_user.id}", headers=h))) == {"task.create", "waste.create"}
-    hoy = (datetime.utcnow() - timedelta(hours=5)).date()
+    hoy = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=5)).date()
     assert "count.create" not in _acciones(client.get(f"/api/system/audit?date_from={hoy}", headers=h))
     p1 = client.get("/api/system/audit?limit=4", headers=h).json()
     p2 = client.get("/api/system/audit?limit=4&offset=4", headers=h).json()

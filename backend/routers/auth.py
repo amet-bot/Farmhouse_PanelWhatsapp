@@ -4,7 +4,7 @@ import time
 from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.orm import Session
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from sqlalchemy import func
 
 from database import get_db
@@ -127,7 +127,7 @@ def login(login_data: LoginRequest, response: Response, request: Request, db: Se
     if device_id_header:
         dev = db.query(Device).filter(Device.device_id == device_id_header).first()
         if dev and dev.status == "active":
-            dev.last_seen = datetime.utcnow()
+            dev.last_seen = datetime.now(timezone.utc).replace(tzinfo=None)
             db.commit()
             logger.info(f"Dispositivo verificado en login: {dev.name} [{dev.device_id}]")
 
