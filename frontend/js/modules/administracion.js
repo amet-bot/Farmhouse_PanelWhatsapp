@@ -119,6 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!pwdVal || pwdVal.length < 4) return showError('La contraseña inicial debe tener al menos 4 caracteres.');
     if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) return showError('El correo electrónico no tiene un formato válido.');
     if (roleVal === 'agent' && !branchVal) return showError('Un empleado trabaja en una sucursal: elígela.');
+    if (roleVal === 'rrhh' && (pwdVal.length < 10 || /^\d+$/.test(pwdVal))) return showError('Para Recursos Humanos la contraseña debe tener al menos 10 caracteres y no ser solo números (hoy tiene ' + pwdVal.length + ').');
     if (roleVal === 'supervisor' && !branchVal) return showError('Un encargado es de una sucursal: elígela. Para todas, usa "Gerente de logística".');
 
     const data = {
@@ -156,6 +157,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const emailVal = $('editUserEmail').value.trim().toLowerCase();
 
     if (pwdVal && pwdVal.length < 4) return showError('La nueva contraseña debe tener al menos 4 caracteres.');
+    if (pwdVal && $('editUserRole').value === 'rrhh' && (pwdVal.length < 10 || /^\d+$/.test(pwdVal))) return showError('Para Recursos Humanos la contraseña debe tener al menos 10 caracteres y no ser solo números (hoy tiene ' + pwdVal.length + ').');
 
     if ($('editUserRole').value === 'supervisor' && !branchVal) return showError('Un encargado es de una sucursal: elígela. Para todas, usa "Gerente de logística".');
 
