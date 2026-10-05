@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Contratos — Farmhouse Link</title>
+  <link rel="icon" type="image/png" href="assets/images/farmhouse-logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <link rel="apple-touch-icon" href="assets/images/farmhouse-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Aplica el tema guardado ANTES de pintar (ver administracion.html). -->
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
+  <link rel="stylesheet" href="css/style.css?v=5.0.1005">
+  <!-- Armazón (cabecera, gate de sesión) de Inventario; pestañas y tablas de Administración. -->
+  <link rel="stylesheet" href="css/inventory.css?v=5.0.1005">
+  <link rel="stylesheet" href="css/administracion.css?v=5.0.1005">
+  <link rel="stylesheet" href="css/contratos.css?v=5.0.1005">
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+
+  <div class="inv-gate" id="ctGate">
+    <span class="inv-gate-spinner" aria-hidden="true"></span>
+    <p>Verificando sesión...</p>
+  </div>
+
+  <div class="inv-gate" id="ctDenied" hidden>
+    <p>Contratos es solo para administradores y Recursos Humanos.</p>
+    <a class="inv-back" href="/hub"><i data-lucide="arrow-left"></i><span>Volver al Panel General</span></a>
+  </div>
+
+  <div class="inv-app" id="ctMain" hidden>
+
+    <header class="inv-header">
+      <a class="inv-back" href="/hub" title="Volver al Panel General">
+        <i data-lucide="arrow-left"></i>
+        <span>Panel General</span>
+      </a>
+      <div class="inv-header-titles">
+        <p class="inv-title">Contratos</p>
+        <span class="inv-subtitle">Contratos de trabajo de los colaboradores</span>
+      </div>
+      <div class="inv-header-actions">
+        <button class="theme-toggle-btn" id="btnThemeToggle" aria-label="Cambiar tema" title="Cambiar tema (Claro / Oscuro)">
+          <span class="theme-icon" id="themeIconSlot"><i data-lucide="moon"></i></span>
+          <span class="theme-label">Oscuro</span>
+        </button>
+        <div class="user-profile">
+          <div class="profile-avatar" id="ctAgentAvatar">AD</div>
+          <div>
+            <strong id="ctAgentName">Administrador</strong>
+            <small id="ctAgentRole">ADMIN</small>
+          </div>
+        </div>
+        <button class="inv-logout-btn" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="admin-body">
+      <div class="admin-tabs" id="ctTabs">
+        <button type="button" class="admin-tab active" data-tab="contratos">Contratos</button>
+        <button type="button" class="admin-tab" data-tab="solicitudes">Solicitudes <span class="ct-count" id="ctIntakeCount" hidden>0</span></button>
+      </div>
+
+      <!-- ================= Contratos ================= -->
+      <div class="admin-view" id="viewContratos" data-view="contratos">
+        <div class="admin-view-head">
+          <span class="inv-panel-note">Cada fila es un contrato: quien renueva tiene dos. «Exportar» arma el contrato en Word.</span>
+          <span style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn-sm-action" id="btnInvite"><i data-lucide="send"></i> Invitar colaborador</button>
+            <button class="btn-primary" id="btnNewContract"><i data-lucide="file-plus"></i> Nuevo contrato</button>
+          </span>
+        </div>
+        <div class="ct-kpis" id="ctKpis" aria-label="Resumen de contratos"></div>
+        <div class="ct-filters">
+          <input type="search" id="ctSearch" class="modal-input" placeholder="Buscar por nombre, puesto o cédula completa…" aria-label="Buscar contrato" autocomplete="off" />
+          <select id="ctStatusFilter" class="modal-select" aria-label="Filtrar por estado">
+            <option value="">Todos los estados</option>
+            <option>Activo</option><option>Por vencer</option><option>Vencido</option><option>Programado</option>
+          </select>
+          <button type="button" class="btn-sm-action" id="btnContractsCsv"><i data-lucide="download"></i> CSV</button>
+        </div>
+        <div class="device-table-wrap">
+          <table class="device-table adm-cards">
+            <thead>
+              <tr><th>Empleado</th><th>Puesto</th><th>Tipo</th><th>Inicio</th><th>Vencimiento</th><th>Estado</th><th>Documento</th><th>Acciones</th></tr>
+            </thead>
+            <tbody id="contractTableBody"><tr><td colspan="8" class="adm-empty">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= Solicitudes (lo que llenan los colaboradores) ================= -->
+      <div class="admin-view" id="viewSolicitudes" data-view="solicitudes" hidden>
+        <div class="admin-view-head">
+          <span class="inv-panel-note">Datos que los colaboradores llenaron con su enlace. Revísalos, ponles puesto, salario y fechas, y conviértelos en contrato.</span>
+          <span style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn-sm-action" id="btnRefreshIntakes"><i data-lucide="refresh-cw"></i> Actualizar</button>
+            <button class="btn-sm-action" id="btnInvite2"><i data-lucide="send"></i> Invitar / enlace abierto</button>
+          </span>
+        </div>
+        <div class="ct-secure-note"><i data-lucide="shield-check"></i><span>El formulario vive en un sitio aparte, sin conexión a este sistema: los datos llegan cifrados y solo aquí se abren. Al convertir o descartar una solicitud se borra; las que nadie atiende se borran solas a los 30 días.</span></div>
+        <div class="ct-warn-note" id="ctSyncNote" hidden></div>
+        <div class="device-table-wrap">
+          <table class="device-table adm-cards">
+            <thead>
+              <tr><th>Colaborador</th><th>Identificación</th><th>Origen</th><th>Recibida</th><th>Acciones</th></tr>
+            </thead>
+            <tbody id="intakeTableBody"><tr><td colspan="5" class="adm-empty">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Modal: invitar a un colaborador -->
+  <!-- ============================================================ -->
+  <div class="modal-backdrop" id="modalInvite">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="send"></i> Invitar colaborador</h3>
+          <span class="modal-subtitle">Un enlace personal para que llene sus datos</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalInvite" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="ct-secure-note"><i data-lucide="lock"></i><span>El enlace sirve <strong>una sola vez</strong> y vence. Quien no lo tenga no puede enviar nada. Solo se muestra aquí, al crearlo.</span></div>
+        <form id="formInvite" novalidate>
+          <label class="modal-label" for="ctInviteLabel">¿Para quién es? <span class="ct-opt">(opcional, solo para que lo reconozcas)</span></label>
+          <input id="ctInviteLabel" class="modal-input" maxlength="150" placeholder="Ej. Ana Pérez" autocomplete="off" />
+          <label class="modal-label" for="ctInviteHours" style="margin-top:12px">Vence en</label>
+          <select id="ctInviteHours" class="modal-select">
+            <option value="24">24 horas</option><option value="72" selected>3 días</option><option value="168">7 días</option>
+          </select>
+          <button type="submit" class="btn-primary" id="btnCreateInvite" style="width:100%;margin-top:14px">Crear enlace</button>
+        </form>
+        <div class="ct-link-box" id="ctInviteResult" hidden>
+          <p>Copia este enlace y envíaselo a la persona (WhatsApp, correo). <strong>No se volverá a mostrar.</strong></p>
+          <div class="ct-link-row">
+            <input id="ctInviteLink" class="modal-input" readonly aria-label="Enlace de invitación" />
+            <button type="button" class="btn-primary" id="btnCopyInvite"><i data-lucide="copy"></i> Copiar</button>
+          </div>
+          <p id="ctInviteExpiry" class="ct-hint"></p>
+        </div>
+        <div class="ct-open" id="ctOpenBox">
+          <div class="ct-open-head">
+            <div><strong>Formulario abierto</strong><small>Para publicar en Instagram u otras redes: cualquiera con el enlace puede llenarlo.</small></div>
+            <label class="ct-switch" title="Encender o apagar el formulario abierto"><input type="checkbox" id="ctOpenToggle" aria-label="Formulario abierto" /><span></span></label>
+          </div>
+          <div class="ct-link-row" id="ctOpenLinkRow" hidden>
+            <input id="ctOpenLink" class="modal-input" readonly aria-label="Enlace del formulario abierto" />
+            <button type="button" class="btn-primary" id="btnCopyOpen"><i data-lucide="copy"></i> Copiar</button>
+          </div>
+          <p class="ct-hint" id="ctOpenInfo"></p>
+        </div>
+        <div class="ct-invites" id="ctInvitesBox" hidden>
+          <h4>Invitaciones activas (sin usar)</h4>
+          <div id="ctInvitesList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Modal: contrato de colaborador -->
+  <!-- ============================================================ -->
+  <div class="modal-backdrop" id="modalContract">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div>
+          <h3 id="ctModalTitle"><i data-lucide="file-text"></i> Nuevo contrato</h3>
+          <span class="modal-subtitle" id="ctModalSub">Datos del colaborador y condiciones del contrato</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalContract" aria-label="Cerrar">&times;</button>
+      </div>
+      <form id="formContract" novalidate autocomplete="off">
+        <input type="hidden" id="ctId" />
+        <input type="hidden" id="ctIntakeId" />
+        <div class="modal-body">
+
+          <h4 class="ct-section"><span>1</span> Datos personales</h4>
+          <div class="ct-grid">
+            <div class="ct-field"><label class="modal-label" for="ctFirstName">Nombre *</label><input id="ctFirstName" class="modal-input" autocomplete="off" autocapitalize="words" /></div>
+            <div class="ct-field"><label class="modal-label" for="ctLastName">Apellido *</label><input id="ctLastName" class="modal-input" autocomplete="off" autocapitalize="words" /></div>
+            <div class="ct-field"><label class="modal-label" for="ctBirth">Fecha de nacimiento *</label><input id="ctBirth" type="date" class="modal-input" /></div>
+            <div class="ct-field"><label class="modal-label" for="ctGender">Género *</label>
+              <select id="ctGender" class="modal-select"><option value="">Selecciona…</option><option value="M">Hombre</option><option value="F">Mujer</option></select></div>
+            <div class="ct-field"><label class="modal-label" for="ctNationality">Nacionalidad *</label><input id="ctNationality" class="modal-input" list="ctNationalities" autocomplete="off" /><datalist id="ctNationalities"></datalist></div>
+            <div class="ct-field"><label class="modal-label" for="ctMarital">Estado civil *</label>
+              <select id="ctMarital" class="modal-select"><option value="">Selecciona…</option><option>Soltero</option><option>Casado</option><option>Unido</option><option>Divorciado</option><option>Viudo</option></select></div>
+            <div class="ct-field"><label class="modal-label" for="ctBlood">Tipo de sangre *</label>
+              <select id="ctBlood" class="modal-select"><option value="">Selecciona…</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select></div>
+            <div class="ct-field"><label class="modal-label" for="ctIdType">Tipo de identificación *</label>
+              <select id="ctIdType" class="modal-select"><option value="">Selecciona…</option><option value="Cedula">Cédula</option><option value="Pasaporte">Pasaporte</option></select></div>
+            <div class="ct-field"><label class="modal-label" for="ctIdNumber">Cédula / Pasaporte *</label><input id="ctIdNumber" class="modal-input" autocomplete="off" autocapitalize="characters" /><small class="ct-hint" id="ctIdHint"></small></div>
+            <div class="ct-field"><label class="modal-label" for="ctDv">DV <span class="ct-opt">(opcional)</span></label><input id="ctDv" class="modal-input" inputmode="numeric" maxlength="2" autocomplete="off" /></div>
+            <div class="ct-field"><label class="modal-label" for="ctPhone">Teléfono *</label><input id="ctPhone" type="tel" inputmode="tel" class="modal-input" placeholder="6123-4567" autocomplete="off" /></div>
+            <div class="ct-field"><label class="modal-label" for="ctEmail">Email *</label><input id="ctEmail" type="email" class="modal-input" autocapitalize="none" autocomplete="off" /></div>
+            <div class="ct-field ct-full"><label class="modal-label" for="ctAddress">Dirección *</label><textarea id="ctAddress" class="modal-input" rows="2" placeholder="Calle, barriada, corregimiento, ciudad"></textarea></div>
+          </div>
+
+          <h4 class="ct-section"><span>2</span> Persona de contacto</h4>
+          <div class="ct-grid">
+            <div class="ct-field ct-full"><label class="modal-label" for="ctContactName">Nombre de la persona de contacto *</label><input id="ctContactName" class="modal-input" autocomplete="off" autocapitalize="words" /></div>
+            <div class="ct-field"><label class="modal-label" for="ctContactPhone">Teléfono del contacto *</label><input id="ctContactPhone" type="tel" inputmode="tel" class="modal-input" placeholder="6123-4567" autocomplete="off" /></div>
+            <div class="ct-field"><label class="modal-label" for="ctContactRel">Parentesco *</label><input id="ctContactRel" class="modal-input" list="ctRelations" placeholder="Madre, Esposo, Hermana…" autocomplete="off" /></div>
+          </div>
+
+          <h4 class="ct-section"><span>3</span> Datos bancarios</h4>
+          <div class="ct-grid">
+            <div class="ct-field"><label class="modal-label" for="ctBank">Banco *</label>
+              <select id="ctBank" class="modal-select"><option value="">Selecciona…</option>
+                <option>Banco General</option><option>Banistmo</option><option>Banco Nacional de Panamá</option><option>Caja de Ahorros</option>
+                <option>BAC International Bank</option><option>Global Bank</option><option>Multibank</option><option>Scotiabank</option><option>Banisi</option><option value="__otro">Otro</option></select></div>
+            <div class="ct-field" id="ctBankOtherBox" hidden><label class="modal-label" for="ctBankOther">¿Cuál banco? *</label><input id="ctBankOther" class="modal-input" autocomplete="off" /></div>
+            <div class="ct-field"><label class="modal-label" for="ctAccountType">Tipo de cuenta *</label>
+              <select id="ctAccountType" class="modal-select"><option value="">Selecciona…</option><option>Ahorros</option><option>Corriente</option></select></div>
+            <div class="ct-field"><label class="modal-label" for="ctAccount">Cuenta bancaria *</label><input id="ctAccount" class="modal-input" inputmode="numeric" autocomplete="off" /><small class="ct-hint">Solo números, sin guiones ni espacios.</small></div>
+          </div>
+
+          <h4 class="ct-section"><span>4</span> Contrato</h4>
+          <div class="ct-grid">
+            <div class="ct-field"><label class="modal-label" for="ctPosition">Puesto *</label><input id="ctPosition" class="modal-input" list="ctPositions" autocomplete="off" />
+              <datalist id="ctPositions"><option value="Asistente de Cocina"><option value="Cocinero"><option value="Supervisor"><option value="Auxiliar de Limpieza"><option value="Service crew"><option value="Cajero"><option value="Pasante"></datalist></div>
+            <div class="ct-field"><label class="modal-label" for="ctType">Tipo de contrato *</label>
+              <select id="ctType" class="modal-select"><option value="">Selecciona…</option><option>Definido</option><option>Temporal</option><option>Indefinido</option><option>Servicios Profesionales</option></select></div>
+            <div class="ct-field"><label class="modal-label" for="ctSalary">Salario mensual (B/.) *</label><input id="ctSalary" type="number" step="0.01" min="0" inputmode="decimal" class="modal-input" autocomplete="off" /></div>
+            <div class="ct-field"><label class="modal-label" for="ctStart">Fecha inicio *</label><input id="ctStart" type="date" class="modal-input" /></div>
+            <div class="ct-field"><label class="modal-label" for="ctEnd">Fecha vencimiento <span class="ct-opt" id="ctEndOpt">(opcional)</span></label><input id="ctEnd" type="date" class="modal-input" /></div>
+            <div class="ct-field ct-full"><label class="modal-label" for="ctNotes">Notas</label><textarea id="ctNotes" class="modal-input" rows="2" placeholder="Observaciones del contrato…"></textarea></div>
+            <div class="ct-field ct-full"><label class="modal-label" for="ctHasDeps">Dependientes</label>
+              <select id="ctHasDeps" class="modal-select"><option value="no">No tiene dependientes</option><option value="si">Sí tiene dependientes</option></select></div>
+            <div class="ct-field ct-full" id="ctDepsBox" hidden>
+              <label class="modal-label">Lista de dependientes</label>
+              <div id="ctDepsList"></div>
+              <button type="button" class="btn-sm-action" id="btnAddDependent"><i data-lucide="plus"></i> Agregar dependiente</button>
+              <datalist id="ctRelations"><option>Hijo<option>Hija<option>Cónyuge<option>Esposo<option>Esposa<option>Padre<option>Madre<option>Hermano<option>Hermana<option>Abuelo<option>Abuela<option>Tío<option>Tía<option>Amigo<option>Amiga</datalist>
+            </div>
+            <div class="ct-field ct-full"><label class="modal-label" for="ctDuties">Funciones del cargo <span class="ct-opt">(una por línea; van en la cláusula TERCERA)</span></label>
+              <textarea id="ctDuties" class="modal-input" rows="7"></textarea>
+              <small class="ct-hint">Se sugieren al elegir el puesto; revísalas antes de exportar el contrato.</small></div>
+            <div class="ct-field ct-full"><label class="modal-label" for="ctUrl">Enlace al documento</label><input id="ctUrl" type="url" class="modal-input" placeholder="URL de Google Drive, Dropbox, etc." autocomplete="off" autocapitalize="none" /></div>
+          </div>
+
+          <div id="ctError" class="ct-error" style="display:none"></div>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:10px">
+          <button type="button" class="btn-cancel" id="btnCancelContract" style="flex:1">Cancelar</button>
+          <button type="submit" class="btn-primary" id="btnSaveContract" style="flex:2">Guardar contrato</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastNotification" class="toast-banner">
+    <span id="toastIconSlot"><i data-lucide="check" id="toastIcon"></i></span>
+    <span id="toastMessage">Operación realizada con éxito.</span>
+  </div>
+
+  <script src="js/utils.js?v=5.0.1003"></script>
+  <script src="js/api.js?v=5.0.1003"></script>
+  <script src="js/modules/auth.js?v=3.4.0"></script>
+  <script src="js/shared/shell.js?v=5.0.1003"></script>
+  <script src="js/shared/native-app.js?v=5.0.1003"></script>
+  <script src="js/modules/contract_docx.js?v=5.0.1003"></script>
+  <script src="js/modules/contratos.js?v=5.0.1003"></script>
+</body>
+</html>

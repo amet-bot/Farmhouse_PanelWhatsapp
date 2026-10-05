@@ -29,6 +29,7 @@ const HUB_MODULES = [
     description: 'Conversaciones, pedidos y atención al cliente por WhatsApp.',
     shortDescription: 'Clientes, pedidos y soporte',
     tags: ['Clientes', 'Pedidos', 'Soporte'], icon: 'message-square', route: '/app',
+    requiredPermission: 'attention.view',
   },
   {
     // shortName distinto del de "Centro de operación": en el celular y en la barra de íconos
@@ -37,12 +38,14 @@ const HUB_MODULES = [
     description: 'Recibir mercancía, contar, registrar merma, solicitar insumos, transferir y reportar incidencias.',
     shortDescription: 'Lo del día en la sucursal',
     tags: ['Sucursales', 'Tareas'], icon: 'clipboard-list', route: '/operacion',
+    requiredPermission: 'inventory.view',
   },
   {
     id: 'inventario', name: 'Inventario', shortName: 'Inventario',
     description: 'La mercancía que llega, cuánto hay de cada insumo y los conteos de cada sucursal.',
     shortDescription: 'Lo que llega y lo que hay',
     tags: ['Mercancía recibida', 'Existencias', 'Conteo'], icon: 'package', route: '/inventario',
+    requiredPermission: 'inventory.view',
   },
   {
     id: 'abastecimiento', name: 'Abastecimiento', shortName: 'Abastecimiento',
@@ -70,6 +73,7 @@ const HUB_MODULES = [
     description: 'Comunicación interna entre el personal de todas las sucursales.',
     shortDescription: 'Mensajes y canales del equipo',
     tags: ['Mensajes', 'Canales', 'Sucursales'], icon: 'users', route: '/interno',
+    requiredPermission: 'internal_chat.use',
   },
   {
     id: 'administracion', name: 'Administración', shortName: 'Administración',
@@ -77,6 +81,13 @@ const HUB_MODULES = [
     shortDescription: 'Usuarios y permisos',
     tags: ['Usuarios', 'Permisos', 'Sucursales'], icon: 'settings', route: '/administracion',
     requiredPermission: 'users.manage',
+  },
+  {
+    id: 'contratos', name: 'Contratos', shortName: 'Contratos',
+    description: 'Contratos de trabajo de los colaboradores: datos personales y bancarios, solicitudes que ellos mismos llenan y el contrato en Word.',
+    shortDescription: 'Contratos de colaboradores',
+    tags: ['Contratos', 'Colaboradores', 'Word'], icon: 'file-text', route: '/contratos',
+    requiredPermission: 'contracts.manage',
   },
   {
     id: 'reportes', name: 'Reportes de ventas', shortName: 'Reportes',
@@ -90,14 +101,15 @@ const HUB_MODULES = [
 // `title`: el nombre que encabeza el menú del sistema cuando está abierto (ver APP_NAV_SOURCES).
 const HUB_SIDEBAR = [
   { id: 'inicio', label: 'Inicio', icon: 'house', route: '/hub' },
-  { id: 'whatsapp', label: 'WhatsApp', title: 'Centro WhatsApp', icon: 'message-square', route: '/app' },
-  { id: 'operacion', label: 'Sucursal', title: 'Operación de Sucursal', icon: 'clipboard-list', route: '/operacion' },
+  { id: 'whatsapp', label: 'WhatsApp', title: 'Centro WhatsApp', icon: 'message-square', route: '/app', requiredPermission: 'attention.view' },
+  { id: 'operacion', label: 'Sucursal', title: 'Operación de Sucursal', icon: 'clipboard-list', route: '/operacion', requiredPermission: 'inventory.view' },
   { id: 'gestion', label: 'Centro de operación', title: 'Centro de operación', icon: 'layout-grid', route: '/gestion', requiredPermission: 'purchasing.approve' },
-  { id: 'inventario', label: 'Inventario', title: 'Inventario', icon: 'package', route: '/inventario' },
+  { id: 'inventario', label: 'Inventario', title: 'Inventario', icon: 'package', route: '/inventario', requiredPermission: 'inventory.view' },
   { id: 'abastecimiento', label: 'Abastecimiento', title: 'Abastecimiento', icon: 'shopping-cart', route: '/abastecimiento', requiredPermission: 'purchasing.approve' },
   { id: 'recetas', label: 'Recetas', title: 'Recetas y food cost', icon: 'chef-hat', route: '/recetas', requiredPermission: 'reports.view' },
   { id: 'reportes', label: 'Reportes', title: 'Reportes de ventas', icon: 'line-chart', route: '/link', requiredPermission: 'reports.view' },
-  { id: 'equipo', label: 'Equipo', title: 'Comunicación Interna', icon: 'users', route: '/interno' },
+  { id: 'equipo', label: 'Equipo', title: 'Comunicación Interna', icon: 'users', route: '/interno', requiredPermission: 'internal_chat.use' },
+  { id: 'contratos', label: 'Contratos', title: 'Contratos', icon: 'file-text', route: '/contratos', requiredPermission: 'contracts.manage' },
   { id: 'ajustes', label: 'Ajustes', title: 'Administración', icon: 'settings', route: '/administracion', requiredPermission: 'users.manage' },
   { id: 'integraciones', label: 'Integraciones', title: 'Integraciones', icon: 'plug-zap', route: '/link?view=sincronizacion', requiredPermission: 'integrations.manage' },
 ];
@@ -125,6 +137,7 @@ const APP_NAV_SOURCES = {
   '/inventario': INV_RAIL,
   '/link': INV_RAIL,
   '/administracion': { roots: ['#adminTabs'], item: '.admin-tab', icons: { usuarios: 'users', dispositivos: 'laptop', sucursales: 'store' } },
+  '/contratos': { roots: ['#ctTabs'], item: '.admin-tab', badge: '.ct-count', icons: { contratos: 'file-text', solicitudes: 'inbox' } },
   '/operacion': { roots: ['.tablet-grid'], item: '.tablet-tile', label: '.tablet-tile-label' },
   '/prep': { roots: ['#prepTabs'], item: '.prep-tab', icons: { llenar: 'list-checks', plantilla: 'file-pen-line' } },
   '/interno': { roots: ['.int-tabs'], item: '.int-tab', label: 'span:not([class])', badge: '.int-tab-count' },
@@ -317,6 +330,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ['/link', 'reportes'],
     ['/interno', 'equipo'],
     ['/administracion', 'ajustes'],
+    ['/contratos', 'contratos'],
   ];
 
   function appIdForRoute(route) {

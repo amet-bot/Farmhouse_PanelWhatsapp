@@ -109,6 +109,7 @@ const usersModule = {
     if (u.role === 'admin') return 'Administrador';
     if (u.role === 'supervisor') return u.branch_id ? 'Encargado' : 'Gerente de logística';
     if (u.role === 'agent') return 'Empleado';
+    if (u.role === 'rrhh') return 'Recursos Humanos';
     return u.role || '';
   },
 

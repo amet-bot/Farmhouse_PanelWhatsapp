@@ -32,6 +32,7 @@ PERMISSIONS: Set[str] = {
     "devices.manage",
     "integrations.manage",
     "system.backup",
+    "contracts.manage",   # contratos de colaboradores (Administración): solo admin
 }
 
 _AGENT_PERMISSIONS: Set[str] = {
@@ -55,10 +56,15 @@ _SUPERVISOR_PERMISSIONS: Set[str] = _AGENT_PERMISSIONS | {
 # devices.manage, integrations.manage) — mismo criterio que ya usan hoy los `require_role(["admin"])`.
 _ADMIN_PERMISSIONS: Set[str] = set(PERMISSIONS)
 
+# RR.HH.: solo los contratos de colaboradores (cédulas, cuentas, salarios). Nada de inventario,
+# usuarios, reportes ni WhatsApp — el mínimo privilegio para quien maneja datos tan sensibles.
+_RRHH_PERMISSIONS: Set[str] = {"contracts.manage"}
+
 ROLE_PERMISSIONS: dict[str, Set[str]] = {
     "agent": _AGENT_PERMISSIONS,
     "supervisor": _SUPERVISOR_PERMISSIONS,
     "admin": _ADMIN_PERMISSIONS,
+    "rrhh": _RRHH_PERMISSIONS,
 }
 
 

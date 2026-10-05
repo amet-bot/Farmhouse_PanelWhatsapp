@@ -40,8 +40,10 @@ from routers import (
     system,
     recipes,
     quick_waste,
+    contracts,
 )
 from services.bot_followup import run_followup_sweep_loop
+from services.field_crypto import EncryptionNotConfigured
 from services import db_backup, ops_alerts, invu_recipes_sync, invu_sync, invu_sales_sync, supply_alerts, weekly_digest, recurring_tasks
 
 logging.basicConfig(
@@ -200,6 +202,17 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
         content={"detail": "La operación viola una restricción de integridad de la base de datos (dato duplicado o referencia inválida)."}
     )
 
+# Contratos de colaboradores: sin DATA_ENCRYPTION_KEY en producción no se guarda ni se lee ningún dato
+# sensible (falla cerrado). Se responde 503 claro en vez de un 500 crudo.
+@app.exception_handler(EncryptionNotConfigured)
+async def encryption_not_configured_handler(request: Request, exc: EncryptionNotConfigured):
+    logger.error(f"[Crypto] {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "Los contratos no están disponibles: falta configurar el cifrado de datos en el servidor."},
+        headers={"Cache-Control": "no-store"},
+    )
+
 # Montaje de routers REST API
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(branches.router, prefix=settings.API_V1_STR)
@@ -232,6 +245,7 @@ app.include_router(closing_sheet.router, prefix=settings.API_V1_STR)
 app.include_router(system.router, prefix=settings.API_V1_STR)
 app.include_router(recipes.router, prefix=settings.API_V1_STR)
 app.include_router(quick_waste.router, prefix=settings.API_V1_STR)
+app.include_router(contracts.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)
 
 # -----------------------------------------------------------------------------
@@ -354,6 +368,11 @@ if frontend_dir.exists():
         @app.get("/administracion", include_in_schema=False)
         def serve_administracion():
             return FileResponse(str(frontend_dir / "administracion.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+    if (frontend_dir / "contratos.html").exists():
+        @app.get("/contratos", include_in_schema=False)
+        def serve_contratos():
+            return FileResponse(str(frontend_dir / "contratos.html"), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     if (frontend_dir / "manifest.json").exists():
         @app.get("/manifest.json", include_in_schema=False)

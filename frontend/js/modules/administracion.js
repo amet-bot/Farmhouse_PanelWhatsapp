@@ -84,10 +84,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     supervisor: 'Encargado de UNA sucursal: además aprueba solicitudes, ajusta inventario, arma la hoja de cierre y ve reportes de su sucursal.',
     logistica: 'Ve y opera TODAS las sucursales: existencias, pedido sugerido, órdenes, tareas, Centro de operación y reportes. No administra usuarios, dispositivos, integraciones ni respaldos. Igual que un encargado, entra desde un dispositivo registrado (pestaña Dispositivos).',
     admin: 'Acceso total, incluida esta pantalla de Administración.',
+    rrhh: 'Solo ve y gestiona los Contratos de los colaboradores (cédulas, cuentas, salarios). Nada más del sistema. Contraseña de al menos 10 caracteres, no solo números.',
   };
   function syncAddRole() {
     const role = $('addUserRole').value;
-    const sinSucursal = role === 'admin' || role === 'logistica';
+    const sinSucursal = role === 'admin' || role === 'logistica' || role === 'rrhh';
     $('addUserBranchGroup').style.display = sinSucursal ? 'none' : 'block';
     $('addUserBranch').required = role === 'agent' || role === 'supervisor';
     if (sinSucursal) $('addUserBranch').value = '';
@@ -96,7 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('addUserRole').addEventListener('change', syncAddRole);
   $('btnOpenAddUser').addEventListener('click', () => setTimeout(syncAddRole, 0));
   $('editUserRole').addEventListener('change', () => {
-    if (['admin', 'logistica'].includes($('editUserRole').value)) $('editUserBranch').value = '';
+    if (['admin', 'logistica', 'rrhh'].includes($('editUserRole').value)) $('editUserBranch').value = '';
   });
 
   $('formAddUser').addEventListener('submit', async (e) => {

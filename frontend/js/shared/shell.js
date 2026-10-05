@@ -79,6 +79,7 @@
     if (user.role === 'admin') return 'Administrador';
     if (user.role === 'supervisor') return user.branch_id ? 'Encargado' : 'Gerente de logística';
     if (user.role === 'agent') return 'Empleado';
+    if (user.role === 'rrhh') return 'Recursos Humanos';
     return user.role || '';
   }
 

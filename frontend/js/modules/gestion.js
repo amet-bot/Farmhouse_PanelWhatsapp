@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     pendiente: 'Pendiente', hecha: 'Hecha', cancelada: 'Cancelada',
     active: 'Activo', disabled: 'Deshabilitado', revoked: 'Revocado',
   };
-  const ROLE_LABEL = { agent: 'Empleado', supervisor: 'Encargado', admin: 'Administrador', logistica: 'Gerente de logística' };
+  const ROLE_LABEL = { agent: 'Empleado', supervisor: 'Encargado', admin: 'Administrador', logistica: 'Gerente de logística', rrhh: 'Recursos Humanos' };
   const chip = (cls, text) => `<span class="ops-chip ${cls}">${esc(text)}</span>`;
   const empty = (text) => `<div class="ops-empty">${esc(text)}</div>`;
   const loading = () => '<div class="ops-loading">Cargando…</div>';

@@ -39,6 +39,25 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
 
+    # Cifrado de datos personales y bancarios en la base (contratos de colaboradores; ver
+    # services/field_crypto.py). Una clave Fernet: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # En producción es obligatoria: sin ella los contratos NO funcionan (falla cerrado). Para rotarla,
+    # la nueva va en DATA_ENCRYPTION_KEY y la anterior en DATA_ENCRYPTION_KEY_PREVIOUS (se sigue leyendo).
+    DATA_ENCRYPTION_KEY: Optional[str] = None
+    DATA_ENCRYPTION_KEY_PREVIOUS: Optional[str] = None
+
+    # Formulario público del colaborador: vive en un servicio APARTE (carpeta public_intake/, otro
+    # proyecto de Railway) para que lo expuesto a internet no toque este sistema. Este sistema no recibe
+    # nada de allá: él mismo va a buscar los sobres cifrados y los abre con su llave privada.
+    #   INTAKE_SERVICE_URL   dirección del servicio (https://...)
+    #   INTAKE_ADMIN_KEY     clave de administración de ese servicio (>= 32 caracteres)
+    #   INTAKE_PRIVATE_KEY   llave privada P-256 (PEM en base64): SOLO existe aquí, nunca en el servicio público
+    #   INTAKE_PUBLIC_URL    (opcional) dirección pública para los enlaces; por defecto INTAKE_SERVICE_URL
+    INTAKE_SERVICE_URL: Optional[str] = None
+    INTAKE_ADMIN_KEY: Optional[str] = None
+    INTAKE_PRIVATE_KEY: Optional[str] = None
+    INTAKE_PUBLIC_URL: Optional[str] = None
+
     # CORS Configuration
     ALLOWED_ORIGINS: str = "http://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:3000,http://localhost:3000,null"
 

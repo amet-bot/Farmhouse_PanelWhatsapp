@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 from enum import Enum
@@ -8,6 +8,7 @@ class UserRoleEnum(str, Enum):
     admin = "admin"
     supervisor = "supervisor"
     agent = "agent"
+    rrhh = "rrhh"   # Recursos Humanos: solo Contratos (ver security/permissions.py)
 
 class UserBase(BaseModel):
     username: str = Field(..., min_length=2, max_length=50)
@@ -42,8 +43,21 @@ class UserBase(BaseModel):
             return v.strip()
         return v
 
+def _strong_password_for_rrhh(role, password) -> None:
+    """RR.HH. maneja cédulas, cuentas y salarios de todo el personal: contraseña de verdad, no un PIN."""
+    if role == UserRoleEnum.rrhh and password:
+        p = password.strip()
+        if len(p) < 10 or p.isdigit():
+            raise ValueError("Para el rol RR.HH. la contraseña debe tener al menos 10 caracteres y no ser solo números.")
+
+
 class UserCreate(UserBase):
     password: str = Field(..., min_length=4, max_length=100)
+
+    @model_validator(mode="after")
+    def _rrhh_password(self):
+        _strong_password_for_rrhh(self.role, self.password)
+        return self
 
     @field_validator('password')
     @classmethod
@@ -61,6 +75,11 @@ class UserUpdate(BaseModel):
     avatar_url: Optional[str] = Field(None, max_length=255)
     active: Optional[bool] = None
     password: Optional[str] = Field(None, min_length=4, max_length=100)
+
+    @model_validator(mode="after")
+    def _rrhh_password(self):
+        _strong_password_for_rrhh(self.role, self.password)
+        return self
 
     @field_validator('username', mode='before')
     @classmethod
