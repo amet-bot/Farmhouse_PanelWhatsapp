@@ -33,7 +33,8 @@
    "pack_price": 125.0,
    "pack_grams": 22712.0,
    "excluded": null,
-   "piece_candidate": true
+   "piece_candidate": false,
+   "piece_note": "sin peso de pieza: el tanque cambió de tamaño (Tarea)"
   },
   {
    "code": "P63",
@@ -792,7 +793,8 @@
    "pack_price": 1.5,
    "pack_grams": 388.0,
    "excluded": null,
-   "piece_candidate": true
+   "piece_candidate": false,
+   "piece_note": "sin peso de pieza: hoja 388 g vs 412 g por lata en la pestaña Tarea"
   },
   {
    "code": "P24",
@@ -814,7 +816,8 @@
    "pack_price": 25.5,
    "pack_grams": 3090.0,
    "excluded": null,
-   "piece_candidate": true
+   "piece_candidate": false,
+   "piece_note": "sin peso de pieza: hoja 3,090 g vs 907 g por tub en la pestaña Tarea"
   },
   {
    "code": "P29",
@@ -1078,7 +1081,8 @@
    "pack_price": 16.0,
    "pack_grams": 4548.0,
    "excluded": null,
-   "piece_candidate": true
+   "piece_candidate": false,
+   "piece_note": "sin peso de pieza: descontinuada (Tarea)"
   },
   {
    "code": "P45",
