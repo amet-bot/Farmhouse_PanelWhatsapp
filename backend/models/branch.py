@@ -1,6 +1,6 @@
 ﻿from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import relationship
-from sqlalchemy import Numeric
+from sqlalchemy import Numeric, true
 from datetime import datetime
 from database import Base
 
@@ -16,6 +16,9 @@ class Branch(Base):
     latitude = Column(Numeric(10, 7), nullable=True)
     longitude = Column(Numeric(10, 7), nullable=True)
     accepts_delivery = Column(Boolean, default=True, nullable=False)
+    # False = NO se muestra a los clientes (menú digital ni bot de WhatsApp) ni recibe pedidos públicos: es el
+    # caso de una oficina (p. ej. "Bloc") que existe en el sistema pero no vende. Sigue disponible en Administración.
+    visible_to_customers = Column(Boolean, default=True, nullable=False, server_default=true())
     # Horario de atención ("HH:MM", hora de Panamá). Con esto el bot sabe si la sucursal está
     # cerrada en este momento y se lo dice al cliente antes de mandarle el menú (ver
     # services/branch_hours.py). Vacío = se asume el horario general (8:00 a 21:30).

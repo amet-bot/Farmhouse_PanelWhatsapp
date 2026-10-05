@@ -205,7 +205,7 @@ async def create_public_order(
     registra la comanda y devuelve el enlace wa.me para que el cliente confirme el pedido
     por WhatsApp.
     """
-    branch = db.query(Branch).filter(Branch.code == order_in.branch_code, Branch.active == True).first()
+    branch = db.query(Branch).filter(Branch.code == order_in.branch_code, Branch.active == True, Branch.visible_to_customers == True).first()  # noqa: E712
     if not branch:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sucursal inválida o inactiva.")
     if branch.latitude is None or branch.longitude is None:
@@ -470,7 +470,7 @@ async def sync_cart(
 
     branch = None
     if cart_in.branch_code:
-        branch = db.query(Branch).filter(Branch.code == cart_in.branch_code, Branch.active == True).first()
+        branch = db.query(Branch).filter(Branch.code == cart_in.branch_code, Branch.active == True, Branch.visible_to_customers == True).first()  # noqa: E712
     if not branch and conv.branch_id:
         branch = db.query(Branch).filter(Branch.id == conv.branch_id).first()
     if not branch:

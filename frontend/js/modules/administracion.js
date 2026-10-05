@@ -326,7 +326,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const statusBadge = b.active ? '<span class="dev-badge online">● Activa</span>' : '<span class="dev-badge disabled">✕ Inactiva</span>';
       return `
         <tr>
-          <td class="adm-td-main"><strong style="color:${esc(b.color || 'inherit')}">${esc(b.name)}</strong></td>
+          <td class="adm-td-main"><strong style="color:${esc(b.color || 'inherit')}">${esc(b.name)}</strong>${b.visible_to_customers === false ? '<span class="adm-tag" title="No sale en el menú digital ni en el bot de WhatsApp">Oculta a clientes</span>' : ''}</td>
           <td data-label="Código"><span class="tag-type">${esc(b.code)}</span></td>
           <td data-label="Dirección">${esc(b.address || '—')}</td>
           <td data-label="Delivery">${b.accepts_delivery ? 'Sí' : 'No'}</td>
@@ -351,6 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('editBranchAddress').value = b.address || '';
     $('editBranchColor').value = b.color || '#16a34a';
     $('editBranchDelivery').checked = !!b.accepts_delivery;
+    $('editBranchVisible').checked = b.visible_to_customers !== false;
     $('editBranchOpens').value = b.opens_at || '';
     $('editBranchCloses').value = b.closes_at || '';
     $('editBranchError').style.display = 'none';
@@ -379,6 +380,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('formAddBranch').reset();
     $('addBranchColor').value = '#16a34a';
     $('addBranchDelivery').checked = true;
+    $('addBranchVisible').checked = true;
     $('addBranchError').style.display = 'none';
     $('modalAddBranch').classList.add('active');
   });
@@ -395,6 +397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       address: $('addBranchAddress').value.trim() || null,
       color: $('addBranchColor').value,
       accepts_delivery: $('addBranchDelivery').checked,
+      visible_to_customers: $('addBranchVisible').checked,
       opens_at: $('addBranchOpens').value || null,
       closes_at: $('addBranchCloses').value || null,
     };
@@ -422,6 +425,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       address: $('editBranchAddress').value.trim() || null,
       color: $('editBranchColor').value,
       accepts_delivery: $('editBranchDelivery').checked,
+      visible_to_customers: $('editBranchVisible').checked,
       opens_at: $('editBranchOpens').value || null,
       closes_at: $('editBranchCloses').value || null,
     };

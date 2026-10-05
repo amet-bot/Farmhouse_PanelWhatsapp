@@ -18,7 +18,9 @@ def get_branches(
     Retorna la lista oficial de sucursales activas de Farmhouse desde SQL Server.
     Endpoint público accesible sin token para alimentar selectores y navegación.
     """
-    branches = db.query(Branch).filter(Branch.active == True).order_by(Branch.id).all()
+    # Las sucursales ocultas a los clientes (p. ej. la oficina) no salen aquí: este endpoint alimenta el menú digital.
+    # Administración las ve todas en /branches/admin.
+    branches = db.query(Branch).filter(Branch.active == True, Branch.visible_to_customers == True).order_by(Branch.id).all()  # noqa: E712
     return branches
 
 
@@ -52,6 +54,7 @@ def create_branch(
         latitude=branch_in.latitude,
         longitude=branch_in.longitude,
         accepts_delivery=branch_in.accepts_delivery,
+        visible_to_customers=branch_in.visible_to_customers,
         opens_at=branch_in.opens_at,
         closes_at=branch_in.closes_at,
     )

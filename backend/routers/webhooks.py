@@ -296,7 +296,7 @@ async def _send_branch_selection_menu(db: Session, wa_service, conv: Conversatio
         await _send_and_log(db, wa_service, conv, contact, phone, wa_service.send_text_message(phone, intro_text), intro_text)
 
     await asyncio.sleep(0.3)
-    active_branches = db.query(Branch).filter(Branch.active == True).order_by(Branch.name).all()
+    active_branches = db.query(Branch).filter(Branch.active == True, Branch.visible_to_customers == True).order_by(Branch.name).all()  # noqa: E712
     if not active_branches:
         return
     # Meta permite 10 filas: se reservan "empezar de nuevo" y, cuando aplica, "la más cercana".
@@ -562,7 +562,7 @@ async def _send_location_request(db: Session, wa_service, conv: Conversation, co
 
 def _nearest_branch(db: Session, latitude: float, longitude: float, delivery_only: bool):
     """(sucursal, km) más cercana con coordenadas cargadas; None si ninguna las tiene."""
-    query = db.query(Branch).filter(Branch.active == True, Branch.latitude.isnot(None), Branch.longitude.isnot(None))  # noqa: E712
+    query = db.query(Branch).filter(Branch.active == True, Branch.visible_to_customers == True, Branch.latitude.isnot(None), Branch.longitude.isnot(None))  # noqa: E712
     if delivery_only:
         query = query.filter(Branch.accepts_delivery == True)  # noqa: E712
     best = None
@@ -1314,12 +1314,12 @@ async def _step_detect_and_assign_branch(db: Session, conv: Conversation, intera
     if interactive_id.startswith("branch_"):
         try:
             selected_branch_id = int(interactive_id.replace("branch_", ""))
-            matched_branch = db.query(Branch).filter(Branch.id == selected_branch_id, Branch.active == True).first()
+            matched_branch = db.query(Branch).filter(Branch.id == selected_branch_id, Branch.active == True, Branch.visible_to_customers == True).first()  # noqa: E712
         except Exception:
             pass
         matched_via = "interactive"
     elif message_type == "text":
-        active_branches = db.query(Branch).filter(Branch.active == True).all()
+        active_branches = db.query(Branch).filter(Branch.active == True, Branch.visible_to_customers == True).all()  # noqa: E712
         matched_branch = match_branch_by_text(text, active_branches)
         matched_via = "text"
 
