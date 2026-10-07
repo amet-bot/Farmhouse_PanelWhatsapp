@@ -4,9 +4,7 @@
  *
  * Cada fila es un contrato: quien renueva tiene dos. «Exportar» arma el contrato en Word en el
  * navegador (js/modules/contract_docx.js) con los datos guardados; el servidor solo los guarda.
- * La plantilla es la del personal de sucursal y sirve para Definido, Temporal e Indefinido (en el
- * indefinido cambia la cláusula de vigencia; ver contract_docx.js). Servicios Profesionales no es un
- * contrato laboral y no se exporta.
+ * La plantilla existe para contratos Definido y Temporal (los que tienen fecha de vencimiento).
  *
  * Seguridad en esta pantalla:
  * - La tabla trabaja con un RESUMEN (sin banco, salud, contacto ni salario, cédula enmascarada). El
@@ -37,7 +35,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   FarmhouseShell.fillUserHeader({ nameId: 'ctAgentName', roleId: 'ctAgentRole', avatarId: 'ctAgentAvatar' }, user);
 
   const FIXED_TERM = ['Definido', 'Temporal'];
-  const EXPORTABLE = [...FIXED_TERM, 'Indefinido'];
   let contracts = [];      // resúmenes
   let intakes = [];        // resúmenes
   let dutiesDirty = false;
@@ -152,7 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const st = statusOf(c);
       const note = statusNote(c, st);
       const url = safeUrl(c.document_url);
-      const exportable = EXPORTABLE.includes(c.contract_type);
+      const fixed = FIXED_TERM.includes(c.contract_type);
       return `
         <tr>
           <td class="adm-td-main">
@@ -168,7 +165,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td data-label="Estado"><span class="ct-badge ct-badge-${STATUS_CLASS[st]}">${st}</span></td>
           <td data-label="Documento">${url ? `<a class="adm-link-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer"><i data-lucide="link"></i> Ver</a>` : '—'}</td>
           <td class="adm-td-actions" style="white-space:nowrap">
-            <button type="button" class="btn-sm-action" data-act="export" data-id="${c.id}"${exportable ? '' : ' disabled title="La plantilla es para contratos laborales (Definido, Temporal o Indefinido)"'}><i data-lucide="download"></i> Exportar</button>
+            <button type="button" class="btn-sm-action" data-act="export" data-id="${c.id}"${fixed ? '' : ' disabled title="La plantilla aplica a contratos Definido o Temporal"'}><i data-lucide="download"></i> Exportar</button>
             <button type="button" class="btn-sm-action" data-act="edit" data-id="${c.id}"><i data-lucide="pencil"></i> Editar</button>
             <button type="button" class="btn-sm-action delete-action" data-act="delete" data-id="${c.id}"><i data-lucide="trash-2"></i> Eliminar</button>
           </td>
@@ -219,14 +216,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   function docxRecord(c) {
     return {
       nombre: c.first_name, apellido: c.last_name, genero: c.gender, nacionalidad: c.nationality,
-      numId: c.id_number, puesto: c.position, inicio: c.start_date,
-      indefinido: c.contract_type === 'Indefinido',
-      fin: c.contract_type === 'Indefinido' ? null : c.end_date,
+      numId: c.id_number, puesto: c.position, inicio: c.start_date, fin: c.end_date,
       salario: Number(c.salary),
       tieneDep: c.dependents.length > 0,
       dependientes: c.dependents.map((d) => ({ nombre: d.name, edad: d.age == null ? '' : String(d.age), parentesco: d.relationship })),
-      // Sin funciones escritas, las del puesto (las mismas que sugiere el formulario).
-      funciones: c.duties || ContractDocx.funcionesPara(c.position || ''),
+      funciones: c.duties || '',
     };
   }
   function download(blob, filename) {
@@ -238,10 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
   }
   function exportContract(c) {
-    if (FIXED_TERM.includes(c.contract_type) && !c.end_date) {
-      utils.showToast('Falta la fecha de vencimiento para generar el contrato.', 'error');
-      return;
-    }
+    if (!c.end_date) { utils.showToast('Falta la fecha de vencimiento para generar el contrato.', 'error'); return; }
     try {
       download(ContractDocx.buildDocx(docxRecord(c)), `Contrato - ${fullName(c).replace(/[\\/:*?"<>|]/g, '')}.docx`);
     } catch (err) {
