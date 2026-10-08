@@ -33,12 +33,16 @@ PERMISSIONS: Set[str] = {
     "integrations.manage",
     "system.backup",
     "contracts.manage",   # contratos de colaboradores (Administración): solo admin
+    "quick_replies.manage",  # crear/editar respuestas rápidas del Centro WhatsApp (usarlas no requiere permiso)
+    "tags.manage",           # crear/editar/borrar etiquetas de cliente
+    "tags.assign",           # ponerle/quitarle etiquetas a un cliente
 }
 
 _AGENT_PERMISSIONS: Set[str] = {
     "dashboard.view",
     "attention.view", "attention.reply", "attention.assign", "attention.transfer",
     "customers.view",
+    "tags.assign",
     "orders.view", "orders.create", "orders.update",
     "inventory.view", "inventory.receive", "inventory.count", "inventory.record_waste",
     "purchasing.view", "purchasing.request",
@@ -50,6 +54,7 @@ _SUPERVISOR_PERMISSIONS: Set[str] = _AGENT_PERMISSIONS | {
     "inventory.adjust", "inventory.transfer",
     "purchasing.approve",
     "reports.view",
+    "quick_replies.manage", "tags.manage",
 }
 
 # Admin: todo el catálogo, incluido lo que todavía no tiene dueño claro (users.manage,

@@ -158,6 +158,7 @@ const chatModule = {
       detailBranchTag.style.backgroundColor = '';
       detailBranchTag.style.color = '';
     }
+    if (typeof tagsModule !== 'undefined') tagsModule.clearContactTags();
     if (detailNotes) detailNotes.textContent = 'Cargando...';
 
     const orderLiveDot = document.getElementById('orderLiveDot');
@@ -340,20 +341,9 @@ const chatModule = {
    * mensaje — no llaman a ninguna API ni disparan una acción por sí solas.
    */
   insertQuickReply(kind) {
-    const templates = {
-      // Con el enlace: antes el texto prometía el menú y no lo incluía. /menu funciona sin la
-      // sesión del bot (el pedido se asocia por teléfono).
-      menu: `Claro, te comparto nuestro menú para que veas todos los productos disponibles 😊\n${window.location.origin}/menu`,
-      order: '¿Me confirmas tu nombre o número de pedido para revisar el estado?',
-      hours: 'Nuestro horario es de Lunes a Domingo, 8:00 AM a 9:30 PM (Vía Porras y Obarrio abren desde las 6:00 AM). ¿Te comparto la dirección de la sucursal más cercana?',
-      human: 'Con gusto te comunico con un asesor para que te ayude personalmente.',
-    };
-    const text = templates[kind];
-    const input = document.getElementById('messageInput');
-    if (!text || !input) return;
-    input.value = text;
-    input.focus();
-    input.setSelectionRange(text.length, text.length);
+    // Las respuestas viven en el servidor (quick_replies.js); `kind` es el nombre viejo de los
+    // botones de "Acciones rápidas" (menu / order / hours / human).
+    if (typeof quickRepliesModule !== 'undefined') quickRepliesModule.insertLegacy(kind);
   },
 
   renderMessages({ forceScroll = false } = {}) {
@@ -589,6 +579,7 @@ const chatModule = {
       detailBranchTag.style.backgroundColor = branch.color ? `${branch.color}22` : 'var(--blue-soft)';
       detailBranchTag.style.color = branch.color || 'var(--blue)';
     }
+    if (typeof tagsModule !== 'undefined') tagsModule.renderContactTags(contact);
     if (detailNotes) {
       // Las notas son del contacto (ConversationResponse no tiene `notes`): antes se leía
       // conv.notes y siempre mostraba "Sin notas" aunque el cliente tuviera notas guardadas.

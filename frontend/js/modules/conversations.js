@@ -287,6 +287,7 @@ const conversationsModule = {
           <div class="conv-meta">
             <span class="conv-branch-tag" style="color:${utils.escapeHtml(branchColor)}">● ${utils.escapeHtml(branchName)}</span>
             ${statusHtml}
+            ${typeof tagsModule !== 'undefined' ? tagsModule.pillsHtml(conv.contact && conv.contact.tags, 2) : ''}
           </div>
         </div>
       `;

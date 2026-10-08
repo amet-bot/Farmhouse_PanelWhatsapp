@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+from schemas.contact_tag import ContactTagResponse
 
 class ContactBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=150)
@@ -32,6 +33,7 @@ class ContactResponse(ContactBase):
     id: int
     created_at: datetime
     last_interaction: datetime
+    tags: List[ContactTagResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -10,12 +10,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 2. Control de Tema (Claro / Oscuro), utilidad compartida (ver js/shared/shell.js)
   FarmhouseShell.initTheme();
 
-  // 2.05 Respuestas rápidas del chat: solo rellenan el campo de texto con un mensaje sugerido
-  // (ver chat.js#insertQuickReply), el agente sigue revisando y pulsando "Enviar" como siempre.
-  document.getElementById('quickReplyRow')?.addEventListener('click', (e) => {
-    const pill = e.target.closest('.quick-reply-pill');
-    if (pill) chatModule.insertQuickReply(pill.dataset.quickReply);
-  });
+  // 2.05 Respuestas rápidas del chat: pastillas y popover "/" los maneja quick_replies.js
+  // (attachComposer). Solo rellenan el campo de texto; el agente revisa y pulsa "Enviar".
 
   document.getElementById('btnCloseDetails')?.addEventListener('click', () => {
     document.querySelector('.panel-details')?.classList.remove('active');
@@ -260,11 +256,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (navFlowEditor) {
       navFlowEditor.style.display = (user.role === 'admin') ? 'flex' : 'none';
     }
+    const perms = user.permissions || [];
+    const navQuickReplies = document.getElementById('navQuickReplies');
+    if (navQuickReplies) navQuickReplies.style.display = perms.includes('quick_replies.manage') ? 'flex' : 'none';
+    const navTags = document.getElementById('navTags');
+    if (navTags) navTags.style.display = perms.includes('tags.manage') ? 'flex' : 'none';
 
     // Inicialización Secuencial de Módulos
     await branchesModule.init();
     await usersModule.init();
     await devicesModule.init();
+    // Respuestas rápidas y etiquetas: no requieren dispositivo vinculado; si fallan no frenan el resto.
+    await Promise.all([quickRepliesModule.init(), tagsModule.init()]);
     wsClient.connect();
     // Búsqueda que llega desde el buscador del Panel General (/hub → /app?q=...): se busca en
     // "Todas" porque el cliente puede tener la conversación cerrada.
@@ -550,6 +553,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('closeModalUsersList').addEventListener('click', () => {
     document.getElementById('modalUsersList').classList.remove('active');
   });
+
+  // Respuestas rápidas y etiquetas (administración)
+  quickRepliesModule.bindModal();
+  tagsModule.bindModal();
+  document.getElementById('navQuickReplies')?.addEventListener('click', () => quickRepliesModule.open());
+  document.getElementById('navTags')?.addEventListener('click', () => tagsModule.open());
 
   // Página normal (no modal) de Flujo Visual: ocupa el mismo espacio que la bandeja de
   // conversaciones y se muestra en su lugar — nunca junto a ella.

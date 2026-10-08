@@ -14,7 +14,7 @@
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=5.0.1006">
+  <link rel="stylesheet" href="css/style.css?v=5.0.1007">
   <!-- Componente propio de la pestaña "Flujo visual" (contenido real + mapa parcial del bot). -->
   <link rel="stylesheet" href="css/flow-editor.css?v=4.1.0">
   <!-- Tipografía de marca (ABC Ginto / PP Eiko), después de style.css para ganarle en cascada
@@ -75,10 +75,6 @@
         <span class="nav-left-group"><span class="nav-icon"><i data-lucide="message-square"></i></span><span class="nav-label">Conversaciones</span></span>
         <span class="nav-badge" id="badgeConversaciones">0</span>
       </button>
-      <button class="nav-btn tool-upcoming" data-tool="Menciones">
-        <span class="nav-left-group"><span class="nav-icon"><i data-lucide="at-sign"></i></span><span class="nav-label">Menciones</span></span>
-        <span class="nav-badge">0</span>
-      </button>
       <button class="nav-btn" data-nav="no-asignadas">
         <span class="nav-left-group"><span class="nav-icon"><i data-lucide="clock"></i></span><span class="nav-label">No asignadas</span></span>
         <span class="nav-badge">0</span>
@@ -101,15 +97,14 @@
       <div class="nav-section-title">Administración</div>
       <button class="nav-btn" id="navUsers"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Agentes / Usuarios</span></span></button>
       <button class="nav-btn" id="navDevices"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="laptop"></i></span><span class="nav-label">Dispositivos</span></span></button>
-      <button class="nav-btn tool-upcoming" data-tool="Plantillas Meta"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="file-text"></i></span><span class="nav-label">Plantillas</span></span></button>
-      <button class="nav-btn tool-upcoming" data-tool="Respuestas Rápidas"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="zap"></i></span><span class="nav-label">Respuestas rápidas</span></span></button>
-      <button class="nav-btn tool-upcoming" data-tool="Etiquetas"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="tag"></i></span><span class="nav-label">Etiquetas</span></span></button>
+      <!-- Solo para quien administra (quick_replies.manage / tags.manage); los agentes las usan
+           desde el chat (pastillas y "/") y desde el panel del cliente. -->
+      <button class="nav-btn" id="navQuickReplies" style="display:none"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="zap"></i></span><span class="nav-label">Respuestas rápidas</span></span></button>
+      <button class="nav-btn" id="navTags" style="display:none"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="tag"></i></span><span class="nav-label">Etiquetas</span></span></button>
       <button class="nav-btn" id="navFlowEditor"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="git-branch"></i></span><span class="nav-label">Flujo visual</span></span></button>
-      <button class="nav-btn tool-upcoming" data-tool="Reportes"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span><span class="nav-label">Reportes</span></span></button>
 
       <!-- Footer -->
       <div class="sidebar-footer">
-        <button class="nav-btn tool-upcoming" data-tool="Configuración"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="settings"></i></span><span class="nav-label">Configuración</span></span></button>
         <button class="nav-btn" id="btnLogout"><span class="nav-left-group"><span class="nav-icon"><i data-lucide="log-out"></i></span><span class="nav-label">Cerrar sesión</span></span></button>
       </div>
     </aside>
@@ -228,18 +223,14 @@
             <!-- Mensajes inyectados dinámicamente -->
           </div>
 
-          <!-- Respuestas rápidas: solo rellenan el campo de texto de abajo con un mensaje
-               sugerido (ver chat.js#insertQuickReply); el agente sigue revisando y pulsando
-               "Enviar" como siempre, no disparan ninguna acción por sí solas. -->
-          <div class="quick-reply-row" id="quickReplyRow">
-            <button type="button" class="quick-reply-pill" data-quick-reply="menu"><i data-lucide="book-open"></i> Ver productos</button>
-            <button type="button" class="quick-reply-pill" data-quick-reply="order"><i data-lucide="package-search"></i> Estado de mi pedido</button>
-            <button type="button" class="quick-reply-pill" data-quick-reply="hours"><i data-lucide="clock"></i> Horarios y sucursales</button>
-            <button type="button" class="quick-reply-pill" data-quick-reply="human"><i data-lucide="headset"></i> Hablar con un asesor</button>
-          </div>
+          <!-- Respuestas rápidas (configurables, ver quick_replies.js): solo rellenan el campo de
+               texto de abajo; el agente sigue revisando y pulsando "Enviar" como siempre. También
+               se insertan escribiendo "/" en el cuadro. -->
+          <div class="quick-reply-row" id="quickReplyRow"></div>
 
           <!-- Caja para Responder -->
           <div class="chat-composer" id="chatComposer">
+            <div class="quick-reply-popover" id="quickReplyPopover" hidden role="listbox" aria-label="Respuestas rápidas"></div>
             <div class="composer-tabs">
               <div class="composer-tab active" id="tabMsg" data-mode="message">Mensaje</div>
               <div class="composer-tab" id="tabInternal" data-mode="internal">Nota interna</div>
@@ -293,9 +284,18 @@
               </div>
             </div>
 
-            <div class="muted-text" style="margin-top:10px">Etiquetas</div>
+            <div class="muted-text" style="margin-top:10px">Sucursal</div>
             <div class="tag-container" id="detailTags">
               <span class="tag-pill blue" id="detailBranchTag">-</span>
+            </div>
+
+            <div class="detail-tags-head">
+              <span class="muted-text">Etiquetas del cliente</span>
+              <button type="button" class="tag-edit-btn" id="btnEditContactTags" style="display:none" title="Cambiar etiquetas" aria-label="Cambiar etiquetas"><i data-lucide="plus"></i></button>
+            </div>
+            <div class="detail-tags-wrap">
+              <div class="tag-container" id="detailContactTags"></div>
+              <div class="tag-picker-popover" id="tagPickerPopover" hidden></div>
             </div>
 
             <div class="detail-block-title" style="margin-top:12px;margin-bottom:2px">Notas</div>
@@ -919,6 +919,93 @@
     </div>
   </div>
 
+  <!-- 9b. Modal: Respuestas rápidas (administración) -->
+  <div class="modal-backdrop" id="modalQuickReplies">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="zap"></i> Respuestas rápidas</h3>
+          <span class="modal-subtitle">Mensajes listos que el equipo inserta con una pastilla o escribiendo /atajo en el chat</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalQuickReplies" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formQuickReply" class="qr-form" autocomplete="off">
+          <div class="qr-form-head">
+            <strong id="qrFormTitle">Nueva respuesta rápida</strong>
+            <button type="button" class="btn-sm-action" id="btnQrCancel" style="display:none">Cancelar edición</button>
+          </div>
+          <input type="hidden" id="qrId" />
+          <div class="qr-form-grid">
+            <div>
+              <label class="modal-label" for="qrShortcut">Atajo</label>
+              <div class="qr-shortcut-input"><span>/</span><input id="qrShortcut" class="modal-input" placeholder="horario" maxlength="40" required /></div>
+            </div>
+            <div>
+              <label class="modal-label" for="qrTitle">Título (lo que se ve en la pastilla)</label>
+              <input id="qrTitle" class="modal-input" placeholder="Horarios y sucursales" maxlength="120" required />
+            </div>
+            <div>
+              <label class="modal-label" for="qrBranch">Dónde se usa</label>
+              <select id="qrBranch" class="modal-select"></select>
+            </div>
+          </div>
+          <label class="modal-label" for="qrBody">Mensaje</label>
+          <textarea id="qrBody" class="modal-input" rows="3" maxlength="4000" required placeholder="Hola {nombre}, nuestro horario es…"></textarea>
+          <div class="qr-form-foot">
+            <span class="muted-text" style="font-size:11px">Puedes usar <code>{nombre}</code> (primer nombre del cliente), <code>{sucursal}</code> y <code>{menu}</code> (enlace al menú digital).</span>
+            <label class="qr-active-toggle"><input type="checkbox" id="qrActive" checked /> Activa</label>
+            <button type="submit" class="btn-primary"><i data-lucide="save"></i> Guardar</button>
+          </div>
+        </form>
+        <div class="device-table-wrap">
+          <table class="device-table qr-table">
+            <thead>
+              <tr><th>Atajo / Título</th><th>Mensaje</th><th>Dónde</th><th>Acción</th></tr>
+            </thead>
+            <tbody id="quickRepliesTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9c. Modal: Etiquetas de cliente (administración) -->
+  <div class="modal-backdrop" id="modalTags">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="tag"></i> Etiquetas de cliente</h3>
+          <span class="modal-subtitle">Se ven en la lista de chats y en el panel del cliente</span>
+        </div>
+        <button class="modal-close-btn" id="closeModalTags" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formTag" class="qr-form" autocomplete="off">
+          <div class="qr-form-head">
+            <strong id="tagFormTitle">Nueva etiqueta</strong>
+            <button type="button" class="btn-sm-action" id="btnTagCancel" style="display:none">Cancelar edición</button>
+          </div>
+          <input type="hidden" id="tagId" />
+          <input type="hidden" id="tagColor" />
+          <label class="modal-label" for="tagName">Nombre</label>
+          <input id="tagName" class="modal-input" placeholder="VIP, Corporativo, Reclamo, Frecuente…" maxlength="60" required />
+          <label class="modal-label">Color</label>
+          <div class="tag-palette" id="tagColorPalette"></div>
+          <div class="qr-form-foot" style="justify-content:flex-end">
+            <button type="submit" class="btn-primary"><i data-lucide="save"></i> Guardar</button>
+          </div>
+        </form>
+        <div class="device-table-wrap">
+          <table class="device-table">
+            <thead><tr><th>Etiqueta</th><th>Color</th><th>Acción</th></tr></thead>
+            <tbody id="tagsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 10. Modal Lightbox: Visualización de Imágenes en Pantalla Completa -->
   <div class="lightbox-backdrop" id="modalImageLightbox" style="display:none" onclick="chatModule.closeLightbox(event)">
     <div class="lightbox-content">
@@ -949,13 +1036,15 @@
   <script src="js/modules/users.js?v=5.0.1003"></script>
   <script src="js/modules/devices.js?v=5.0.1006"></script>
   <script src="js/modules/contacts.js?v=1.0.0"></script>
-  <script src="js/modules/conversations.js?v=4.5.0"></script>
-  <script src="js/modules/chat.js?v=5.1.0"></script>
+  <script src="js/modules/quick_replies.js?v=5.0.1007"></script>
+  <script src="js/modules/tags.js?v=5.0.1007"></script>
+  <script src="js/modules/conversations.js?v=5.0.1007"></script>
+  <script src="js/modules/chat.js?v=5.0.1007"></script>
   <script src="js/modules/push.js?v=4.0.0"></script>
   <script src="js/modules/notifications.js?v=4.0.0"></script>
   <script src="js/modules/flow_editor.js?v=4.1.0"></script>
   <script src="js/shared/shell.js?v=5.0.1003"></script>
   <script src="js/shared/native-app.js?v=5.0.1003"></script>
-  <script src="js/app.js?v=5.0.1006"></script>
+  <script src="js/app.js?v=5.0.1007"></script>
 </body>
 </html>

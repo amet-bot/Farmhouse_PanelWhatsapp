@@ -24,4 +24,8 @@ class Contact(Base):
 
     # Relaciones
     conversations = relationship("Conversation", back_populates="contact")
+    # selectin: la lista de conversaciones trae el contacto de cada una y sus etiquetas se ven en
+    # cada fila; con lazy por defecto serían N consultas más por página.
+    tags = relationship("ContactTag", secondary="contact_tag_links", back_populates="contacts",
+                        lazy="selectin", order_by="ContactTag.name")
 

@@ -11,6 +11,8 @@ from sqlalchemy.exc import IntegrityError
 from config import settings, mask_secret
 from routers import (
     auth,
+    quick_replies,
+    tags,
     branches,
     users,
     devices,
@@ -246,6 +248,8 @@ app.include_router(system.router, prefix=settings.API_V1_STR)
 app.include_router(recipes.router, prefix=settings.API_V1_STR)
 app.include_router(quick_waste.router, prefix=settings.API_V1_STR)
 app.include_router(contracts.router, prefix=settings.API_V1_STR)
+app.include_router(quick_replies.router, prefix=settings.API_V1_STR)
+app.include_router(tags.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router)
 
 # -----------------------------------------------------------------------------
