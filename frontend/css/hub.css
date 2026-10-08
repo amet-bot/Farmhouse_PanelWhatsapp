@@ -7,60 +7,14 @@
    La pantalla de login conserva el estilo compartido de style.css.
    ============================================================================ */
 
-:root, [data-theme="light"] {
-  --fh-dark: #073d31;
-  --fh-dark-2: #0b4a3b;
-  --fh-green: #00b86b;
-  --fh-green-strong: #008552;       /* texto verde legible sobre blanco (≥ 4.5:1) */
-  --fh-green-soft: #e7f8ef;
-  --fh-bg: #f6faf8;
-  --fh-panel: #ffffff;
-  --fh-border: #e4ece8;
-  --fh-border-hover: #cfe5da;
-  --fh-text: #0d1f1a;
-  --fh-muted: #63736d;
-  --fh-shadow: 0 2px 10px rgba(0, 0, 0, .03);
-  --fh-shadow-hover: 0 8px 24px rgba(0, 0, 0, .06);
-  --fh-blue: #2563eb;
-  --fh-blue-soft: #eaf1ff;
-  --fh-orange: #d97706;
-  --fh-orange-soft: #fff4e5;
-  --fh-art-1: #cfe9dc;
-  --fh-art-2: #b6dcc8;
-  --fh-art-3: #8cc6a8;
-  --fh-art-4: #5fae86;
-}
+/* Variables: ver css/tokens.css (alias históricos incluidos) */
 
-[data-theme="dark"] {
-  --fh-dark: #052a21;
-  --fh-dark-2: #0a3a2e;
-  /* Verde apagado a propósito: el menta saturado (#3ddc97) encandilaba sobre el fondo oscuro.
-     Este sigue leyéndose bien (≈ 8:1 sobre el panel) pero no brilla. */
-  --fh-green: #66bc95;
-  --fh-green-strong: #a3d9bd;
-  --fh-green-soft: rgba(163, 217, 189, .12);
-  --fh-bg: #0a1411;
-  --fh-panel: #101c18;
-  --fh-border: rgba(255, 255, 255, .08);
-  --fh-border-hover: rgba(163, 217, 189, .30);
-  --fh-text: #eef5f1;
-  --fh-muted: #93a79f;
-  --fh-shadow: 0 2px 10px rgba(0, 0, 0, .25);
-  --fh-shadow-hover: 0 10px 28px rgba(0, 0, 0, .4);
-  --fh-blue: #7aa7ff;
-  --fh-blue-soft: rgba(96, 145, 255, .14);
-  --fh-orange: #f5a524;
-  --fh-orange-soft: rgba(245, 165, 36, .14);
-  --fh-art-1: #15302a;
-  --fh-art-2: #1b3d34;
-  --fh-art-3: #245246;
-  --fh-art-4: #2f6b59;
-}
+/* Variables: ver css/tokens.css (alias históricos incluidos) */
 
 body {
   margin: 0;
   background: var(--fh-bg);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font);
   color: var(--fh-text);
   /* style.css fija height:100vh + overflow:hidden (Centro WhatsApp scrollea por dentro); el
      hub es una página normal que crece con su contenido. */
@@ -210,8 +164,8 @@ body {
 }
 
 .hub-sidebar-brand-text { display: flex; flex-direction: column; min-width: 0; }
-.hub-sidebar-brand-text strong { font-size: 15px; font-weight: 700; color: #fff; }
-.hub-sidebar-brand-text small { font-size: 11.5px; color: rgba(230, 242, 236, .7); }
+.hub-sidebar-brand-text strong { font-size: var(--fs-base); font-weight: 700; color: #fff; }
+.hub-sidebar-brand-text small { font-size: var(--fs-sm); color: rgba(230, 242, 236, .7); }
 
 .hub-sidebar-nav { display: flex; flex-direction: column; gap: 4px; }
 
@@ -222,7 +176,7 @@ body {
   height: 42px;
   padding: 0 12px;
   border-radius: 10px;
-  font-size: 13.5px;
+  font-size: var(--fs-base);
   font-weight: 500;
   color: rgba(230, 242, 236, .82);
   transition: background .2s ease, color .2s ease;
@@ -249,7 +203,7 @@ body {
   position: relative;
   z-index: 1;
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.45;
   color: rgba(230, 242, 236, .9);
 }
@@ -297,7 +251,7 @@ body {
   border: 1px solid rgba(255, 255, 255, .1);
   background: rgba(255, 255, 255, .04);
   color: rgba(230, 242, 236, .9);
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
   cursor: pointer;
   transition: background .2s ease, color .2s ease, border-color .2s ease;
@@ -347,14 +301,14 @@ body {
 
 .hub-appnav-icon svg, .hub-appnav-icon i { width: 18px; height: 18px; }
 .hub-appnav-titles { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
-.hub-appnav-titles small { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(230, 242, 236, .55); }
+.hub-appnav-titles small { font-size: var(--fs-xs); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(230, 242, 236, .55); }
 /* Hasta dos líneas: "Operación de Sucursal" o "Comunicación Interna" no entran en una. */
 .hub-appnav-titles strong {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  font-size: 14.5px;
+  font-size: var(--fs-base);
   font-weight: 700;
   line-height: 1.25;
   color: #fff;
@@ -364,7 +318,7 @@ body {
 
 .hub-appnav-section {
   margin: 12px 12px 4px;
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -382,7 +336,7 @@ body {
   border-radius: 10px;
   background: transparent;
   color: rgba(230, 242, 236, .82);
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -420,7 +374,7 @@ body {
   border-radius: 999px;
   background: rgba(255, 255, 255, .1);
   color: #e6f2ec;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -432,7 +386,7 @@ body {
   padding: 1px 5px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, .14);
-  font-size: 9px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -449,8 +403,8 @@ body {
   border: 1px solid rgba(255, 255, 255, .08);
 }
 
-.hub-appnav-foot small { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(230, 242, 236, .55); }
-.hub-appnav-foot strong { font-size: 13px; font-weight: 600; color: #fff; }
+.hub-appnav-foot small { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(230, 242, 236, .55); }
+.hub-appnav-foot strong { font-size: var(--fs-md); font-weight: 600; color: #fff; }
 
 .hub-appnav-skel {
   display: block;
@@ -502,7 +456,7 @@ body {
   min-width: 0;
   border: 0;
   background: transparent;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--fh-text);
   outline: none;
 }
@@ -552,13 +506,13 @@ body {
   border-radius: 50%;
   background: var(--fh-green-soft);
   color: var(--fh-green-strong);
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 700;
 }
 
 .hub-user-text { display: flex; flex-direction: column; line-height: 1.2; }
-.hub-user-text strong { font-size: 13px; font-weight: 600; }
-.hub-user-text small { font-size: 10.5px; font-weight: 600; letter-spacing: .04em; color: var(--fh-muted); }
+.hub-user-text strong { font-size: var(--fs-md); font-weight: 600; }
+.hub-user-text small { font-size: var(--fs-xs); font-weight: 600; letter-spacing: .04em; color: var(--fh-muted); }
 
 .hub-logout-btn {
   display: inline-flex;
@@ -570,7 +524,7 @@ body {
   border: 1px solid var(--fh-border);
   background: var(--fh-panel);
   color: var(--fh-text);
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   cursor: pointer;
   transition: background .2s ease, color .2s ease, border-color .2s ease;
@@ -622,7 +576,7 @@ body {
 .hub-eyebrow {
   display: block;
   margin-bottom: 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: .12em;
   text-transform: uppercase;
@@ -637,7 +591,7 @@ body {
   letter-spacing: -.01em;
 }
 
-.hub-hero p { margin: 0; font-size: 15px; color: var(--fh-muted); }
+.hub-hero p { margin: 0; font-size: var(--fs-base); color: var(--fh-muted); }
 
 .hub-hero-art {
   position: absolute;
@@ -725,8 +679,8 @@ body {
 .hub-module-arrow svg, .hub-m-card-arrow svg { width: 15px; height: 15px; }
 .hub-module-card:hover .hub-module-arrow { color: var(--fh-green-strong); border-color: var(--fh-border-hover); transform: translateX(2px); }
 
-.hub-module-title { font-size: 16.5px; font-weight: 700; line-height: 1.25; }
-.hub-module-desc { font-size: 13px; line-height: 1.5; color: var(--fh-muted); }
+.hub-module-title { font-size: var(--fs-lg); font-weight: 700; line-height: 1.25; }
+.hub-module-desc { font-size: var(--fs-md); line-height: 1.5; color: var(--fh-muted); }
 
 .hub-module-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 6px; }
 
@@ -735,7 +689,7 @@ body {
   border-radius: 999px;
   border: 1px solid var(--fh-border);
   background: var(--fh-bg);
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--fh-muted);
 }
@@ -756,7 +710,7 @@ body {
   position: relative;
   z-index: 1;
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs-base);
   font-weight: 600;
   line-height: 1.4;
   color: var(--fh-text);
@@ -783,7 +737,7 @@ body {
 
 .hub-search-empty {
   margin: 14px 2px 0;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--fh-muted);
 }
 
@@ -811,7 +765,7 @@ body {
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs-base);
   font-weight: 700;
 }
 
@@ -824,7 +778,7 @@ body {
   border: 0;
   background: transparent;
   padding: 4px 2px;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--fh-green-strong);
   cursor: pointer;
@@ -870,11 +824,11 @@ body {
   text-overflow: ellipsis;
 }
 
-.hub-activity-text strong { font-size: 13px; font-weight: 600; }
-.hub-activity-text small { font-size: 12px; color: var(--fh-muted); }
+.hub-activity-text strong { font-size: var(--fs-md); font-weight: 600; }
+.hub-activity-text small { font-size: var(--fs-sm); color: var(--fh-muted); }
 
 .hub-activity-when {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--fh-muted);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -884,7 +838,7 @@ body {
   justify-self: end;
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -902,7 +856,7 @@ body {
   gap: 8px;
   margin: 0;
   padding: 14px 4px 16px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--fh-muted);
 }
 
@@ -940,8 +894,8 @@ body {
 }
 
 .hub-m-brand span { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
-.hub-m-brand strong { font-size: 15px; font-weight: 700; }
-.hub-m-brand small { font-size: 11.5px; color: var(--fh-muted); }
+.hub-m-brand strong { font-size: var(--fs-base); font-weight: 700; }
+.hub-m-brand small { font-size: var(--fs-sm); color: var(--fh-muted); }
 
 .hub-m-header-actions { display: flex; align-items: center; gap: 10px; }
 
@@ -959,18 +913,18 @@ body {
 }
 
 .hub-m-welcome { margin: 4px 0 18px; }
-.hub-m-greeting { margin: 0 0 4px; font-size: 15px; color: var(--fh-text); }
+.hub-m-greeting { margin: 0 0 4px; font-size: var(--fs-base); color: var(--fh-text); }
 .hub-m-greeting strong { font-weight: 700; }
 
 .hub-m-welcome h1 {
   margin: 0 0 8px;
-  font-size: 28px;
+  font-size: var(--fs-3xl);
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -.01em;
 }
 
-.hub-m-sub { margin: 0; font-size: 14px; line-height: 1.45; color: var(--fh-muted); }
+.hub-m-sub { margin: 0; font-size: var(--fs-base); line-height: 1.45; color: var(--fh-muted); }
 
 /* El mismo paisaje de granja del inicio de escritorio, a lo ancho debajo del saludo. */
 .hub-m-hero-art { margin: 10px -4px -6px; pointer-events: none; }
@@ -1014,8 +968,8 @@ body {
 .hub-module-icon-lg { width: 46px; height: 46px; }
 .hub-module-icon-lg svg { width: 24px; height: 24px; }
 .hub-m-card-arrow { width: 26px; height: 26px; border: 0; }
-.hub-m-card strong { font-size: 16px; font-weight: 700; }
-.hub-m-card small { font-size: 12.5px; line-height: 1.35; color: var(--fh-muted); }
+.hub-m-card strong { font-size: var(--fs-lg); font-weight: 700; }
+.hub-m-card small { font-size: var(--fs-md); line-height: 1.35; color: var(--fh-muted); }
 
 /* Cajas de módulos del inicio (celular y escritorio): fondo verde muy suave y el ícono en un
    verde más calmo. */
@@ -1087,7 +1041,7 @@ body {
   gap: 4px;
   border: 0;
   background: transparent;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--fh-muted);
   cursor: pointer;
@@ -1125,9 +1079,9 @@ body {
 
 .hub-sheet-user { display: flex; align-items: center; gap: 12px; padding: 4px 4px 14px; border-bottom: 1px solid var(--fh-border); }
 .hub-sheet-user div { display: flex; flex-direction: column; }
-.hub-sheet-user strong { font-size: 15px; }
-.hub-sheet-user small { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; color: var(--fh-muted); }
-.hub-avatar-lg { width: 46px; height: 46px; font-size: 15px; }
+.hub-sheet-user strong { font-size: var(--fs-base); }
+.hub-sheet-user small { font-size: var(--fs-sm); font-weight: 600; letter-spacing: .04em; color: var(--fh-muted); }
+.hub-avatar-lg { width: 46px; height: 46px; font-size: var(--fs-base); }
 
 .hub-sheet-links { padding: 6px 0; border-bottom: 1px solid var(--fh-border); }
 .hub-sheet-links:empty { display: none; }
@@ -1142,7 +1096,7 @@ body {
   border: 0;
   border-radius: 10px;
   background: transparent;
-  font-size: 14.5px;
+  font-size: var(--fs-base);
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -1159,7 +1113,7 @@ body {
   border: 1px solid var(--fh-border);
   border-radius: 12px;
   background: var(--fh-bg);
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
   cursor: pointer;
 }
@@ -1202,7 +1156,7 @@ body {
     overflow: hidden;
     max-width: 100%;
     flex: none;
-    font-size: 10.5px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     line-height: 1.2;
     letter-spacing: -.01em;
@@ -1219,10 +1173,10 @@ body {
   .hub-appnav-foot { display: none !important; }
   .hub-appnav-head { flex-direction: column; gap: 4px; padding: 0; justify-content: center; text-align: center; width: 100%; }
   .hub-appnav-titles small { display: none; }
-  .hub-appnav-titles strong { font-size: 11px; }
+  .hub-appnav-titles strong { font-size: var(--fs-xs); }
   .hub-appnav-list { width: 100%; }
   .hub-appnav-section { height: 1px; margin: 8px 10px; font-size: 0; background: var(--sb-border, rgba(255, 255, 255, .1)); }
-  .hub-appnav-badge { position: absolute; top: 4px; right: 8px; min-width: 18px; height: 18px; padding: 0 5px; font-size: 10.5px; }
+  .hub-appnav-badge { position: absolute; top: 4px; right: 8px; min-width: 18px; height: 18px; padding: 0 5px; font-size: var(--fs-xs); }
 
   .hub-topbar { padding: 0 24px; }
   .hub-user-text { display: none; }
@@ -1232,7 +1186,7 @@ body {
   /* Con 2 columnas la tarjeta de marca va a lo ancho: un span de 3 crearía columnas de más. */
   .hub-brand-card { grid-column: 1 / -1; min-height: 130px; }
   .hub-hero-art { width: min(44%, 340px); }
-  .hub-hero h1 { font-size: 28px; }
+  .hub-hero h1 { font-size: var(--fs-3xl); }
 }
 
 /* ============================================================================
@@ -1280,34 +1234,8 @@ body {
      · Tarjetas que se iluminan en verde al pasar el mouse.
    En modo oscuro, lo mismo sobre fondo oscuro con un brillo más contenido.
    ============================================================================ */
-:root, [data-theme="light"] {
-  --sb-bg: #ffffff;
-  --sb-text: #33443d;
-  --sb-muted: #7c8b85;
-  --sb-hover: #eef8f2;
-  --sb-hover-text: #0d1f1a;
-  --sb-border: #e6eeea;
-  --sb-soft: #f3faf6;
-  --glow-a: #0c9a62;
-  --glow-b: #34c68b;
-  --glow-shadow: 0 10px 24px -8px rgba(12, 154, 98, .55), 0 2px 6px rgba(12, 154, 98, .18);
-  --glow-ring: 0 0 0 4px rgba(52, 198, 139, .16);
-  --card-glow: 0 18px 38px -18px rgba(12, 154, 98, .38);
-}
-[data-theme="dark"] {
-  --sb-bg: #0d1814;
-  --sb-text: #c9dad2;
-  --sb-muted: #8aa097;
-  --sb-hover: rgba(163, 217, 189, .08);
-  --sb-hover-text: #eef5f1;
-  --sb-border: rgba(255, 255, 255, .07);
-  --sb-soft: rgba(163, 217, 189, .06);
-  --glow-a: #1f8f63;
-  --glow-b: #46b98b;
-  --glow-shadow: 0 10px 26px -10px rgba(70, 185, 139, .55), 0 2px 8px rgba(0, 0, 0, .35);
-  --glow-ring: 0 0 0 4px rgba(70, 185, 139, .14);
-  --card-glow: 0 18px 40px -18px rgba(70, 185, 139, .32);
-}
+/* Variables: ver css/tokens.css */
+/* Variables: ver css/tokens.css */
 
 /* ---- Barra lateral ---- */
 .hub-sidebar {
@@ -1422,92 +1350,7 @@ body {
    del perfil y celular toman la paleta sin reglas repetidas. Solo aplica bajo [data-theme="dark"],
    el mismo atributo que ya cambia FarmhouseShell.setTheme (guardado en localStorage "fh_theme").
    ============================================================================ */
-[data-theme="dark"] {
-  /* Fondos */
-  --color-bg: #0b1020;
-  --color-sidebar: #080c1a;
-  --color-topbar: #111831;
-  --color-surface: #141b30;
-  --color-surface-raised: #1b2440;
-  --color-surface-warm: #1f1d33;
-  --color-input-bg: #0d1326;
-  /* Bordes */
-  --color-border: #27335a;
-  --color-border-soft: #1e2848;
-  --color-border-active: #22c983;
-  --color-border-warm: #3a3570;
-  /* Texto */
-  --color-text: #f5f7fa;
-  --color-text-secondary: #c0c9e2;
-  --color-text-muted: #8e9bc2;
-  --color-text-inverse: #06130d;
-  /* Marca y estados */
-  --color-primary: #22c983;
-  --color-primary-hover: #34d399;
-  --color-primary-active: #17a86b;
-  --color-primary-muted: #14603f;
-  --color-primary-soft: #133a2b;
-  /* Acentos */
-  --color-gold: #fbbf24;
-  --color-gold-soft: #3b2f0c;
-  --color-gold-border: #8a6a12;
-  --color-terracotta: #ff7a59;
-  --color-terracotta-soft: #3e1d14;
-  --color-terracotta-border: #8f3d26;
-  --color-petrol: #0ea5e9;
-  --color-petrol-soft: #0c2e40;
-  --color-petrol-text: #38bdf8;
-  --color-sage: #2dd4bf;
-  --color-sage-soft: #0f3532;
-  --color-sage-border: #13786b;
-  /* Elementos pequeños */
-  --color-chip-bg: #1b2440;
-  --color-chip-border: #33416e;
-  --color-chip-text: #e6ebf1;
-  --color-chip-hover: #222d52;
-  /* Sombras */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.18);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.22);
-  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.16);
-  --focus-ring: 0 0 0 3px rgba(63, 167, 122, 0.12);
-
-  /* ---- Tokens del panel, mapeados a la paleta ---- */
-  --fh-bg: var(--color-bg);
-  --fh-panel: var(--color-surface);
-  --fh-dark: var(--color-surface-raised);
-  --fh-dark-2: var(--color-surface);
-  --fh-border: var(--color-border-soft);
-  --fh-border-hover: var(--color-border-active);
-  --fh-text: var(--color-text);
-  --fh-muted: var(--color-text-secondary);
-  --fh-green: var(--color-primary);
-  --fh-green-strong: #8CCFAE;          /* verde claro para texto pequeño sobre grafito (≈ 8:1) */
-  --fh-green-soft: var(--color-primary-soft);
-  --fh-blue: #8FC2C9;                  /* azul petróleo claro para texto */
-  --fh-blue-soft: var(--color-petrol-soft);
-  --fh-orange: var(--color-gold);
-  --fh-orange-soft: var(--color-gold-soft);
-  --fh-shadow: var(--shadow-card);
-  --fh-shadow-hover: var(--shadow-md);
-  /* Ilustración: colinas gris salvia que no se funden con el fondo ni lo tiñen de verde. */
-  --fh-art-1: #2C332F;
-  --fh-art-2: #363F39;
-  --fh-art-3: #4A5A4F;
-  --fh-art-4: #5E7364;
-
-  --sb-bg: var(--color-sidebar);
-  --sb-text: var(--color-text-secondary);
-  --sb-muted: #9DB3A6;                 /* íconos inactivos: gris salvia claro */
-  --sb-hover: #202B26;
-  --sb-hover-text: var(--color-text);
-  --sb-border: var(--color-border-soft);
-  --sb-soft: var(--color-surface);
-  --glow-a: var(--color-primary-muted);
-  --glow-b: var(--color-primary);
-  --glow-shadow: none;
-  --glow-ring: var(--focus-ring);
-  --card-glow: var(--shadow-md);
-}
+/* Variables: ver css/tokens.css */
 
 /* ---- Barra lateral: grafito más oscuro, sin degradado ni brillo ---- */
 [data-theme="dark"] .hub-sidebar { box-shadow: none; border-right-color: var(--color-border-soft); }
@@ -1721,7 +1564,7 @@ body {
 /* Título de la lista de módulos dentro de "Más". */
 .hub-sheet-title {
   margin: 6px 6px 2px;
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -1736,7 +1579,7 @@ body {
   .hub-sheet-row { min-height: 52px; }
   .hub-search { height: 46px; }
   /* 16px: con menos, el iPad hace zoom al tocar el buscador. */
-  .hub-search input { font-size: 16px; }
+  .hub-search input { font-size: var(--fs-lg); }
   /* "Ctrl K" no existe sin teclado. */
   .hub-search-kbd { display: none; }
   /* La fila de íconos para cambiar de sistema (barra ancha, tablet acostada): en dos filas de
@@ -1745,10 +1588,10 @@ body {
   .hub-switch-item { height: 44px; }
   .hub-switch-item svg, .hub-switch-item i { width: 19px; height: 19px; }
   /* Textos de la actividad un poco más grandes (se leen con la tablet en la mano). */
-  .hub-activity-text strong { font-size: 14px; }
+  .hub-activity-text strong { font-size: var(--fs-base); }
   .hub-activity-text small,
-  .hub-activity-when { font-size: 13px; }
-  .hub-module-desc { font-size: 14px; }
+  .hub-activity-when { font-size: var(--fs-md); }
+  .hub-module-desc { font-size: var(--fs-base); }
   .hub-activity-row { min-height: 56px; }
   /* Sin mouse no hay hover: que una tarjeta no quede "levantada" después de tocarla. */
   .hub-module-card:hover { transform: none; }

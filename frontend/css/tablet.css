@@ -132,7 +132,7 @@ a.tablet-tile { text-decoration: none; color: inherit; }
   border-radius: 999px;
   background: #f59e0b;
   color: #111827;
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 800;
   display: inline-flex;
   align-items: center;
@@ -456,7 +456,7 @@ body:has(.tablet-modal-overlay:not([hidden])) { overflow: hidden; }
 
 /* Confirmación dentro de la página (tablet.js → askConfirm): botones grandes, lado a lado. */
 .tablet-ask .modal-footer { gap: 10px; }
-.tablet-ask .modal-footer button { flex: 1 1 0; justify-content: center; min-height: 48px; font-size: 15px; }
+.tablet-ask .modal-footer button { flex: 1 1 0; justify-content: center; min-height: 48px; font-size: var(--fs-base); }
 .tablet-ask-msg { margin: 0; font-size: 1rem; line-height: 1.5; color: var(--text-secondary); }
 
 @media (max-width: 560px) {

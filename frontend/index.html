@@ -14,12 +14,13 @@
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=5.0.1007">
+  <link rel="stylesheet" href="css/tokens.css?v=6.0.0">
+  <link rel="stylesheet" href="css/style.css?v=6.0.0">
+  <link rel="stylesheet" href="css/base.css?v=6.0.0">
   <!-- Componente propio de la pestaña "Flujo visual" (contenido real + mapa parcial del bot). -->
-  <link rel="stylesheet" href="css/flow-editor.css?v=4.1.0">
+  <link rel="stylesheet" href="css/flow-editor.css?v=6.0.0">
   <!-- Tipografía de marca (ABC Ginto / PP Eiko), después de style.css para ganarle en cascada
        sin tocar esa regla compartida por el resto de la suite. Ver el comentario del archivo. -->
-  <link rel="stylesheet" href="css/chat-brand-fonts.css?v=1.0.0">
   <!-- Solo de esta pantalla (por eso aquí y no en style.css, que comparte toda la suite):
        · "Panel General": en la tablet y el celular la única forma de volver era el logo, dentro
          del menú lateral que en esos tamaños está escondido. Dentro del hub no hace falta.

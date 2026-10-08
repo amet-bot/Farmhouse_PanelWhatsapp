@@ -3,12 +3,12 @@
 #taskBox > .tar-group-title:first-child { margin-top: 0; }
 
 .tar-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border-radius: 14px; background: var(--bg-hover, rgba(0,0,0,.05)); }
-.tar-tab { height: 48px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary, #4b5563); font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; }
-.tar-tab span { display: inline-block; min-width: 24px; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: var(--bg-hover, rgba(0,0,0,.06)); font-size: 13px; font-variant-numeric: tabular-nums; }
+.tar-tab { height: 48px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary, #4b5563); font: inherit; font-size: var(--fs-lg); font-weight: 700; cursor: pointer; }
+.tar-tab span { display: inline-block; min-width: 24px; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: var(--bg-hover, rgba(0,0,0,.06)); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
 .tar-tab.active { background: var(--bg-surface, #fff); color: var(--text-primary, #111827); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 .tar-tab.active span { background: var(--green, #16a34a); color: #fff; }
 
-.tar-group-title { margin: 14px 0 8px 4px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted, #6b7280); }
+.tar-group-title { margin: 14px 0 8px 4px; font-size: var(--fs-md); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted, #6b7280); }
 .tar-list { display: grid; gap: 10px; }
 
 .tar-card { padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); display: grid; gap: 8px; transition: border-color .2s ease, box-shadow .2s ease; }
@@ -16,43 +16,43 @@
 .tar-card.is-late { border-color: rgba(220,38,38,.55); }
 .tar-card.is-focus { box-shadow: 0 0 0 3px rgba(22,163,74,.35); }
 .tar-card.is-done { opacity: .8; }
-.tar-card-title { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.3; color: var(--text-primary, #111827); }
+.tar-card-title { margin: 0; font-size: var(--fs-lg); font-weight: 700; line-height: 1.3; color: var(--text-primary, #111827); }
 .tar-card.is-done .tar-card-title { text-decoration: line-through; text-decoration-color: rgba(107,114,128,.6); }
-.tar-card-desc { margin: 0; font-size: 15px; line-height: 1.45; color: var(--text-secondary, #4b5563); white-space: pre-line; }
+.tar-card-desc { margin: 0; font-size: var(--fs-base); line-height: 1.45; color: var(--text-secondary, #4b5563); white-space: pre-line; }
 .tar-meta { display: flex; flex-wrap: wrap; gap: 6px; }
 /* Las fichas son etiquetas (no se tocan): min-height propio para que la capa táctil de style.css
    (40px a .tar-chip) no las infle como si fueran botones. */
-.tar-chip { display: inline-flex; align-items: center; gap: 5px; height: 28px; min-height: 28px; padding: 0 10px; border-radius: 999px; background: var(--bg-hover, rgba(0,0,0,.05)); font-size: 13px; font-weight: 600; color: var(--text-secondary, #4b5563); }
+.tar-chip { display: inline-flex; align-items: center; gap: 5px; height: 28px; min-height: 28px; padding: 0 10px; border-radius: 999px; background: var(--bg-hover, rgba(0,0,0,.05)); font-size: var(--fs-md); font-weight: 600; color: var(--text-secondary, #4b5563); }
 .tar-chip i { width: 14px; height: 14px; }
 .tar-chip.mine { background: rgba(22,163,74,.12); color: var(--green, #15803d); }
 .tar-chip.late { background: rgba(220,38,38,.12); color: #b91c1c; }
 .tar-chip.soon { background: rgba(245,158,11,.16); color: #b45309; }
 .tar-chip.doing { background: rgba(59,130,246,.14); color: #1d4ed8; }
-.tar-from { font-size: 13px; color: var(--text-muted, #6b7280); }
+.tar-from { font-size: var(--fs-md); color: var(--text-muted, #6b7280); }
 
 .tar-actions { display: grid; grid-template-columns: auto 1fr; gap: 10px; margin-top: 4px; }
 .tar-actions.single { grid-template-columns: 1fr; }
-.tar-actions button { height: 52px; font-size: 16px; justify-content: center; }
+.tar-actions button { height: 52px; font-size: var(--fs-lg); justify-content: center; }
 .tar-actions .inv-secondary-btn { padding: 0 22px; }
 .tar-actions .inv-primary-btn { justify-content: center; }
-.tar-undo { justify-self: start; height: 44px !important; font-size: 15px !important; }
+.tar-undo { justify-self: start; height: 44px !important; font-size: var(--fs-base) !important; }
 
 .tar-empty { padding: 36px 20px; border-radius: 16px; border: 1px dashed var(--line, #e5e7eb); text-align: center; background: var(--bg-surface, #fff); }
 .tar-empty i { width: 40px; height: 40px; color: var(--green, #16a34a); }
-.tar-empty h3 { margin: 10px 0 4px; font-size: 18px; }
-.tar-empty p { margin: 0; font-size: 15px; color: var(--text-muted, #6b7280); }
-.tar-foot { margin: 4px 0 0; font-size: 13.5px; color: var(--text-muted, #6b7280); text-align: center; }
+.tar-empty h3 { margin: 10px 0 4px; font-size: var(--fs-xl); }
+.tar-empty p { margin: 0; font-size: var(--fs-base); color: var(--text-muted, #6b7280); }
+.tar-foot { margin: 4px 0 0; font-size: var(--fs-base); color: var(--text-muted, #6b7280); text-align: center; }
 
 .inv-header #branchSelect { max-width: 220px; height: 44px; }
 
 @media (max-width: 640px) {
   .tar-body { padding: 12px 12px 32px; }
   .tar-card { padding: 12px 14px; }
-  .tar-card-title { font-size: 16px; }
+  .tar-card-title { font-size: var(--fs-lg); }
 }
 
 .tar-photos { display: flex; flex-wrap: wrap; gap: 8px; }
-.tar-photo-btn { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--green, #15803d); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.tar-photo-btn { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line, #e5e7eb); background: var(--bg-surface, #fff); color: var(--green, #15803d); font: inherit; font-size: var(--fs-base); font-weight: 700; cursor: pointer; }
 .tar-photo-btn i { width: 15px; height: 15px; }
 
 /* Celular: si hay selector de sucursal (admin / logística), va en su propia fila a todo lo ancho
@@ -74,5 +74,5 @@
   .tar-body { max-width: 1120px; }
   .tar-tabs { max-width: 560px; }
   .tar-list { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
-  .tar-card-title { font-size: 18px; }
+  .tar-card-title { font-size: var(--fs-xl); }
 }

@@ -11,118 +11,11 @@
    con `hidden` le gana al [hidden] nativo por especificidad. De ahí el bloque de guardas.
    ============================================================================ */
 
-/* ---- Tipografía de marca ----
-   Archivos de licencia de prueba (Trial): antes de llevar esto a producción, confirmar que hay
-   licencia comercial vigente para ABC Ginto y PP Eiko — si no, esto vuelve a Inter. */
-@font-face {
-  font-family: 'ABC Ginto';
-  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Thin-Trial.otf') format('opentype');
-  font-weight: 100;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'ABC Ginto';
-  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Light-Trial.otf') format('opentype');
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'ABC Ginto';
-  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Regular-Trial.otf') format('opentype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'ABC Ginto';
-  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Medium-Trial.otf') format('opentype');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'ABC Ginto';
-  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Bold-Trial.otf') format('opentype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'ABC Ginto';
-  src: url('../assets/fonts/abc-ginto/ABCGintoNormal-Black-Trial.otf') format('opentype');
-  font-weight: 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'PP Eiko';
-  src: url('../assets/fonts/pp-eiko/PPEiko-LightItalic.otf') format('opentype');
-  font-weight: 300;
-  font-style: italic;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'PP Eiko';
-  src: url('../assets/fonts/pp-eiko/PPEiko-Medium.otf') format('opentype');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'PP Eiko';
-  src: url('../assets/fonts/pp-eiko/PPEiko-Heavy.otf') format('opentype');
-  font-weight: 800;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'PP Eiko';
-  src: url('../assets/fonts/pp-eiko/PPEiko-BlackItalic.otf') format('opentype');
-  font-weight: 900;
-  font-style: italic;
-  font-display: swap;
-}
-
-:root, [data-theme="light"] {
-  --int-bg: var(--bg-primary);
-  --int-panel: var(--panel-bg);
-  --int-panel-2: var(--panel-subtle);
-  --int-border: var(--line);
-  --int-border-light: var(--line-light);
-  --int-text: var(--text-primary);
-  --int-text-secondary: var(--text-secondary);
-  --int-text-muted: var(--text-muted);
-  --int-accent: var(--green, #00b96b);
-  --int-accent-soft: var(--green-soft, #e7f8ef);
-  --int-accent-text: var(--green-soft-text, #00834d);
-  --int-accent-border: var(--green-border, #b9ebd2);
-  --int-mine-bg: var(--green, #00b96b);
-  --int-mine-text: #ffffff;
-  --int-online: #16a34a;
-}
+/* Variables: ver css/tokens.css (alias históricos incluidos) */
 
 /* Oscuro: las superficies y textos del Panel General (style.css), no el azul marino propio
    que tenía: abierta dentro del hub, Equipo era la única pantalla azul. */
-[data-theme="dark"] {
-  --int-bg: var(--bg-primary);
-  --int-panel: var(--panel-bg);
-  --int-panel-2: #132420;
-  --int-border: rgba(158, 214, 188, .12);
-  --int-border-light: rgba(158, 214, 188, .08);
-  --int-text: var(--text-primary);
-  --int-text-secondary: #a9bcb3;
-  --int-text-muted: #869a91;
-  --int-accent: var(--green, #22c55e);
-  --int-accent-soft: var(--green-soft, rgba(34, 197, 94, 0.15));
-  --int-accent-text: var(--green-soft-text, #4ade80);
-  --int-accent-border: var(--green-border, rgba(34, 197, 94, 0.3));
-  --int-mine-bg: var(--green-dark, #16a34a);
-  --int-mine-text: #F2F7FF;
-  --int-online: #2ED47A;
-}
+/* Variables: ver css/tokens.css (alias históricos incluidos) */
 
 /* ---- Guardas de [hidden] ---- */
 .int-gate[hidden],
@@ -142,7 +35,7 @@
 body {
   margin: 0;
   background: var(--int-bg);
-  font-family: 'ABC Ginto', 'Inter', sans-serif;
+  font-family: var(--font);
   color: var(--int-text);
 }
 
@@ -157,7 +50,7 @@ body {
   justify-content: center;
   gap: 14px;
   color: var(--int-text-muted);
-  font-size: 13.5px;
+  font-size: var(--fs-base);
 }
 
 .int-gate p { margin: 0; }
@@ -205,7 +98,7 @@ body {
   gap: 6px;
   text-decoration: none;
   color: var(--int-text-secondary);
-  font-size: 13px;
+  font-size: var(--fs-md);
   padding: 8px 10px;
   border-radius: 10px;
   transition: background 0.15s ease;
@@ -220,14 +113,14 @@ body {
 
 .int-header-titles .int-title {
   margin: 0;
-  font-family: 'PP Eiko', 'ABC Ginto', serif;
-  font-size: 16px;
+  font-family: var(--font);
+  font-size: var(--fs-lg);
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--int-text);
 }
 
-.int-header-titles .int-subtitle { font-size: 12px; color: var(--int-text-muted); }
+.int-header-titles .int-subtitle { font-size: var(--fs-sm); color: var(--int-text-muted); }
 
 .int-header-actions {
   display: flex;
@@ -254,7 +147,7 @@ body {
   border-radius: 999px;
   border: 1px solid var(--int-border);
   background: var(--int-panel-2);
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--int-text-muted);
 }
@@ -281,7 +174,7 @@ body {
   border: 1px solid var(--int-border);
   background: var(--int-panel-2);
   color: var(--int-text-secondary);
-  font-size: 13px;
+  font-size: var(--fs-md);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
@@ -333,7 +226,7 @@ body {
   border-bottom: 2px solid transparent;
   background: transparent;
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--int-text-muted);
   cursor: pointer;
@@ -359,7 +252,7 @@ body {
   border-radius: 999px;
   background: var(--int-accent);
   color: #fff;
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   font-weight: 700;
 }
 
@@ -392,7 +285,7 @@ body {
   background: none;
   outline: none;
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   color: var(--int-text);
   width: 100%;
   min-width: 0;
@@ -409,7 +302,7 @@ body {
 
 .int-group-label {
   padding: 12px 14px 6px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -452,7 +345,7 @@ body {
   background: var(--int-panel-2);
   border: 1px solid var(--int-border);
   color: var(--int-text-secondary);
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -485,7 +378,7 @@ body {
 }
 
 .int-row-name {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--int-text);
   white-space: nowrap;
@@ -494,7 +387,7 @@ body {
 }
 
 .int-row-preview {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--int-text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -513,7 +406,7 @@ body {
 }
 
 .int-row-time {
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   color: var(--int-text-muted);
   white-space: nowrap;
 }
@@ -528,7 +421,7 @@ body {
   border-radius: 999px;
   background: var(--int-accent);
   color: #fff;
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   font-weight: 700;
 }
 
@@ -540,7 +433,7 @@ body {
   border-radius: 6px;
   background: var(--int-panel-2);
   border: 1px solid var(--int-border);
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--int-text-muted);
   white-space: nowrap;
@@ -556,10 +449,10 @@ body {
   padding: 40px 22px;
   text-align: center;
   color: var(--int-text-muted);
-  font-size: 12.5px;
+  font-size: var(--fs-md);
 }
 
-.int-empty strong { font-size: 13px; color: var(--int-text); }
+.int-empty strong { font-size: var(--fs-md); color: var(--int-text); }
 
 /* Con .int-messages ahora anclado abajo (ver más abajo), el aviso de "conversación nueva" o
    "no se pudo cargar" se centra en el panel en vez de quedar pegado al pie. */
@@ -603,9 +496,9 @@ body {
 
 .int-empty-icon i { width: 26px; height: 26px; }
 
-.int-chat-empty strong { font-size: 15px; color: var(--int-text); }
+.int-chat-empty strong { font-size: var(--fs-base); color: var(--int-text); }
 
-.int-chat-empty p { margin: 0; max-width: 320px; font-size: 13px; line-height: 1.55; }
+.int-chat-empty p { margin: 0; max-width: 320px; font-size: var(--fs-md); line-height: 1.55; }
 
 .int-chat-live {
   flex: 1;
@@ -661,8 +554,8 @@ body {
 .int-chat-headings { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
 
 .int-chat-headings strong {
-  font-family: 'PP Eiko', 'ABC Ginto', serif;
-  font-size: 15px;
+  font-family: var(--font);
+  font-size: var(--fs-base);
   font-weight: 800;
   color: var(--int-text);
   white-space: nowrap;
@@ -670,7 +563,7 @@ body {
   text-overflow: ellipsis;
 }
 
-.int-chat-headings small { font-size: 11.5px; color: var(--int-text-muted); }
+.int-chat-headings small { font-size: var(--fs-sm); color: var(--int-text-muted); }
 
 .int-chat-kind {
   padding: 4px 10px;
@@ -678,7 +571,7 @@ body {
   background: var(--int-accent-soft);
   border: 1px solid var(--int-accent-border);
   color: var(--int-accent-text);
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -707,7 +600,7 @@ body {
   border-radius: 999px;
   background: var(--int-panel-2);
   border: 1px solid var(--int-border);
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--int-text-muted);
 }
@@ -727,7 +620,7 @@ body {
 /* Cuando el mismo autor encadena mensajes, solo el primero lleva su nombre: en un canal con
    seis personas, repetir el nombre en cada burbuja es ruido. */
 .int-msg-author {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--int-accent-text);
   padding: 0 4px;
@@ -744,7 +637,7 @@ body {
   background: var(--int-panel);
   border: 1px solid var(--int-border);
   color: var(--int-text);
-  font-size: 13.5px;
+  font-size: var(--fs-base);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -820,14 +713,14 @@ body {
 }
 
 .int-media-meta strong {
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.int-media-meta small { font-size: 10.5px; color: var(--int-text-muted); }
+.int-media-meta small { font-size: var(--fs-xs); color: var(--int-text-muted); }
 
 /* En la burbuja propia el fondo es azul: la ficha del archivo tiene que despegarse de él. */
 .int-msg.mine .int-media-file {
@@ -849,7 +742,7 @@ body {
 }
 
 .int-msg-time {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--int-text-muted);
   padding: 0 4px;
 }
@@ -880,7 +773,7 @@ body {
   background: var(--int-panel-2);
   color: var(--int-text);
   font-family: inherit;
-  font-size: 13.5px;
+  font-size: var(--fs-base);
   line-height: 1.5;
   resize: none;
   outline: none;
@@ -967,7 +860,7 @@ body {
 }
 
 .int-attach-info strong {
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--int-text);
   overflow: hidden;
@@ -975,7 +868,7 @@ body {
   white-space: nowrap;
 }
 
-.int-attach-info small { font-size: 10.5px; color: var(--int-text-secondary); }
+.int-attach-info small { font-size: var(--fs-xs); color: var(--int-text-secondary); }
 
 .int-attach-drop {
   display: flex;
@@ -1005,7 +898,7 @@ body {
   background: var(--int-accent-soft);
   color: var(--int-accent-text);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   cursor: pointer;
 }
@@ -1049,7 +942,7 @@ body {
   background: rgba(12, 26, 21, .78);
   color: #fff;
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
@@ -1066,7 +959,7 @@ body {
   margin: 0;
   padding: 0 20px 12px;
   background: var(--int-panel);
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   color: var(--int-text-muted);
   flex-shrink: 0;
 }
@@ -1115,7 +1008,7 @@ body {
   .int-header-titles { min-width: 0; }
 
   .int-header-titles .int-title {
-    font-size: 14px;
+    font-size: var(--fs-base);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1157,14 +1050,14 @@ body {
   .int-attach-drop { width: 44px; height: 44px; }
   .int-send,
   .int-attach-btn { width: 48px; height: 48px; }
-  .int-composer textarea { min-height: 48px; font-size: 16px; }
+  .int-composer textarea { min-height: 48px; font-size: var(--fs-lg); }
   .int-search { padding: 4px 12px; }
-  .int-search input { min-height: 40px; font-size: 16px; }
-  .int-tab { font-size: 14px; }
+  .int-search input { min-height: 40px; font-size: var(--fs-lg); }
+  .int-tab { font-size: var(--fs-base); }
   .int-row { min-height: 64px; }
-  .int-row-name { font-size: 15px; }
-  .int-row-preview { font-size: 13.5px; }
-  .int-group-label { font-size: 11.5px; }
-  .int-chat-headings small { font-size: 13px; }
-  .int-bubble { font-size: 15px; }
+  .int-row-name { font-size: var(--fs-base); }
+  .int-row-preview { font-size: var(--fs-base); }
+  .int-group-label { font-size: var(--fs-sm); }
+  .int-chat-headings small { font-size: var(--fs-md); }
+  .int-bubble { font-size: var(--fs-base); }
 }

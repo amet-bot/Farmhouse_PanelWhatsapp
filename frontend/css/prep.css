@@ -15,18 +15,18 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 18px;
-  font-size: 15px;
+  font-size: var(--fs-base);
   font-weight: 600;
   color: var(--text-secondary);
 }
 .prep-branch[hidden] { display: none; }
-.prep-branch select { min-height: 44px; max-width: 280px; font-size: 16px; }
+.prep-branch select { min-height: 44px; max-width: 280px; font-size: var(--fs-lg); }
 
 .prep-empty {
   text-align: center;
   padding: 60px 20px;
   color: var(--text-muted);
-  font-size: 16px;
+  font-size: var(--fs-lg);
 }
 
 .prep-empty i {
@@ -35,18 +35,18 @@
   margin-bottom: 12px;
 }
 
-.prep-empty .inv-primary-btn { min-height: 48px; padding: 0 22px; font-size: 15px; }
+.prep-empty .inv-primary-btn { min-height: 48px; padding: 0 22px; font-size: var(--fs-base); }
 
 .prep-empty-hint {
   color: var(--text-muted);
   padding: 20px;
   text-align: center;
-  font-size: 15px;
+  font-size: var(--fs-base);
 }
 
 .prep-step-label {
   margin: 0 0 10px;
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -67,7 +67,7 @@
   border: none;
   background: none;
   font-family: inherit;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
@@ -95,7 +95,7 @@
   background: var(--panel-bg);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   cursor: pointer;
 }
@@ -112,7 +112,7 @@
 
 .prep-section-title {
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: var(--fs-base);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -135,11 +135,11 @@
   min-width: 0;
 }
 
-.prep-item-info strong { font-size: 16px; line-height: 1.3; }
+.prep-item-info strong { font-size: var(--fs-lg); line-height: 1.3; }
 
 .prep-item-info small {
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 .prep-item-note {
@@ -154,7 +154,7 @@
   border: 2px solid var(--line);
   border-radius: 12px;
   font-family: inherit;
-  font-size: 20px;
+  font-size: var(--fs-xl);
   font-weight: 700;
   text-align: right;
   background: var(--bg-primary);
@@ -188,7 +188,7 @@
   font-size: 1.15rem;
 }
 
-.prep-panel-head .inv-panel-note { font-size: 14px; }
+.prep-panel-head .inv-panel-note { font-size: var(--fs-base); }
 
 .prep-checkpoint-edit {
   display: flex;
@@ -212,7 +212,7 @@
   border: none;
   background: none;
   font-family: inherit;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   width: 140px;
   color: var(--text-primary);
 }
@@ -240,7 +240,7 @@
   background: none;
   color: var(--green-soft-text);
   font-family: inherit;
-  font-size: 15px;
+  font-size: var(--fs-base);
   font-weight: 600;
   cursor: pointer;
   padding: 6px 4px;
@@ -255,7 +255,7 @@
 
 .prep-bulk-paste p {
   margin: 0 0 8px;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text-muted);
 }
 
@@ -265,8 +265,8 @@
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px;
-  font-family: monospace;
-  font-size: 15px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-base);
   margin-bottom: 10px;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -274,7 +274,7 @@
 
 .prep-edit-hint {
   margin: 0 0 10px;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text-muted);
 }
 
@@ -286,7 +286,7 @@
 
 .prep-item-table th {
   text-align: left;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--text-muted);
   padding: 6px 4px;
 }
@@ -302,7 +302,7 @@
   border-radius: 8px;
   padding: 8px 10px;
   font-family: inherit;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   background: var(--bg-primary);
   color: var(--text-primary);
   box-sizing: border-box;
@@ -330,7 +330,7 @@
   gap: 6px;
   padding: 0 10px;
   font-family: inherit;
-  font-size: 15px;
+  font-size: var(--fs-base);
   font-weight: 600;
 }
 .prep-row-delete:hover { background: var(--danger-bg); }
@@ -385,14 +385,14 @@
   border-radius: 10px;
   background: var(--danger-bg);
   color: var(--danger-text);
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
 }
 .prep-form-error[hidden] { display: none; }
 
 /* Confirmación dentro de la página (prep.js → askConfirm). */
 .prep-ask .modal-footer { gap: 10px; }
-.prep-ask .modal-footer button { flex: 1 1 0; justify-content: center; min-height: 48px; font-size: 15px; }
+.prep-ask .modal-footer button { flex: 1 1 0; justify-content: center; min-height: 48px; font-size: var(--fs-base); }
 .prep-ask-msg { margin: 0; font-size: 1rem; line-height: 1.5; color: var(--text-secondary); }
 
 /* Tablet parada y celular: cada insumo es una tarjeta con sus campos rotulados (seis columnas
@@ -426,7 +426,7 @@
     content: attr(data-label);
     display: block;
     margin-bottom: 4px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--text-secondary);
   }
@@ -443,7 +443,7 @@
 
 @media (max-width: 560px) {
   .prep-body { padding: 18px 14px 32px; }
-  .prep-item-input { width: 100px; height: 50px; font-size: 18px; }
+  .prep-item-input { width: 100px; height: 50px; font-size: var(--fs-xl); }
   .prep-chip { padding: 0 18px; }
   .prep-branch select { flex: 1; max-width: none; }
 }

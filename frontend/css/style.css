@@ -5,250 +5,11 @@
 /* ----------------------------------------------------------------------------
    1. VARIABLES DE TEMA (LIGHT & DARK)
    ---------------------------------------------------------------------------- */
-:root, [data-theme="light"] {
-  /* Fondos y Superficies */
-  --bg-primary: #f5f9f8;
-  --bg-secondary: #f0f6f4;
-  --panel-bg: #ffffff;
-  --panel-elevated: #ffffff;
-  --panel-subtle: #eff6f3;
-  --panel-footer: #f5f9f8;
-  --line: #e1ebe8;
-  --line-light: #ecf3f1;
-
-  /* Textos (grises con un toque verde, los mismos del Panel General: hub.css --fh-*) */
-  --text-primary: #0f201b;
-  --text-secondary: #3a4c46;
-  --text-muted: #63736d;
-  --text-inverse: #ffffff;
-
-  /* Marca Farmhouse */
-  --green: #00b96b;
-  --green-dark: #00a85a;
-  --green-soft: #e7f8ef;
-  --green-soft-text: #00834d;
-  --green-border: #b9ebd2;
-
-  /* Sidebar: el verde bosque del Panel General (antes #123c46, un azul petróleo que al quedar
-     al lado del sidebar del hub se veía de otra marca). */
-  --nav-bg: #073d31;
-  --nav-bg-embedded: #0b4a3b;
-  --nav-border: rgba(255, 255, 255, 0.08);
-  --nav-hover: rgba(255, 255, 255, 0.08);
-  --nav-active: linear-gradient(90deg, #00a85a, #00b96b);
-  --nav-text: #e2ece9;
-  --nav-text-muted: #9dbdb1;
-
-  /* Acentos y Semántica */
-  --blue: #2563eb;
-  --blue-soft: #eff6ff;
-  --orange: #f59e0b;
-  --orange-soft: #fffbeb;
-  --red: #ef4444;
-  --red-soft: #fee2e2;
-
-  /* Semántica de Alertas & Estados (Light) */
-  --danger-bg: #fef2f2;
-  --danger-border: #fecaca;
-  --danger-text: #991b1b;
-  --danger-text-strong: #7f1d1d;
-  --danger-badge-bg: #fee2e2;
-  --danger-icon: #dc2626;
-
-  --warning-bg: #fefce8;
-  --warning-border: #fef08a;
-  --warning-text: #854d0e;
-  --warning-badge-bg: #fef3c7;
-  --warning-icon: #d97706;
-
-  --success-bg: #f0fdf4;
-  --success-border: #bbf7d0;
-  --success-text: #166534;
-  --success-badge-bg: #dcfce7;
-  --success-icon: #16a34a;
-
-  --info-bg: #eff6ff;
-  --info-border: #bfdbfe;
-  --info-text: #1e40af;
-  --info-badge-bg: #dbeafe;
-  --info-icon: #2563eb;
-
-  /* Badges de Roles */
-  --badge-admin-bg: #fee2e2;
-  --badge-admin-text: #991b1b;
-  --badge-supervisor-bg: #fef3c7;
-  --badge-supervisor-text: #92400e;
-  --badge-agent-bg: #dcfce7;
-  --badge-agent-text: #166534;
-
-  /* Form / Inputs */
-  --input-bg: #ffffff;
-  --input-border: #d7e4e0;
-  --input-text: #0f201b;
-  --input-focus: #00b96b;
-
-  /* Chat y Burbujas */
-  --chat-bg: radial-gradient(circle at 10px 10px, rgba(0, 185, 107, 0.035) 1px, transparent 1px) 0 0 / 20px 20px, #fbfdfc;
-  --msg-in-bg: #ffffff;
-  --msg-in-text: #0f201b;
-  --msg-in-border: #e1ebe8;
-  --msg-out-bg: #dff6ea;
-  --msg-out-text: #0f3d26;
-  --msg-out-border: #c6ecd8;
-  --msg-note-bg: #fefce8;
-  --msg-note-border: #facc15;
-  --msg-note-text: #854d0e;
-
-  /* Tablas y Modales */
-  --table-header-bg: #f0f6f4;
-  --table-row-hover: #f0f6f4;
-  --modal-backdrop: rgba(15, 23, 42, 0.55);
-  --shadow-sm: 0 1px 2px rgba(20, 33, 43, 0.04);
-  --shadow: 0 2px 6px rgba(20, 33, 43, 0.04), 0 8px 20px -4px rgba(20, 33, 43, 0.06);
-  --shadow-lg: 0 12px 20px -6px rgba(20, 33, 43, 0.1), 0 24px 48px -12px rgba(20, 33, 43, 0.14);
-  --shadow-glow-green: 0 4px 14px rgba(0, 185, 107, 0.25);
-  --radius: 16px;
-  --radius-sm: 12px;
-
-  /* Superficies genéricas (usadas por notificaciones flotantes y controles sueltos) */
-  --bg-surface: var(--panel-bg);
-  --bg-surface-soft: var(--panel-subtle);
-  --bg-hover: var(--panel-subtle);
-  --text-main: var(--text-primary);
-  --primary-color: var(--green);
-  --primary-light: var(--green-soft);
-
-  /* Toast */
-  --toast-bg: #10261f;
-  --toast-text: #ffffff;
-}
+/* Variables: ver css/tokens.css (alias históricos incluidos) */
 
 /* Oscuro: negro verdoso, el mismo del Panel General (hub.css --fh-*). Antes era azul marino
    (#090e17 / #111a26): con los sistemas abiertos dentro del hub, cada uno se veía de otra app. */
-[data-theme="dark"] {
-  /* ==========================================================================
-     MODO OSCURO TINTA + ACENTOS VIVOS (2026-10-03): fondo tinta neutro y profundo (sin tinte
-     verde) para que resalten colores vivos: verde esmeralda para marca y acciones, y ámbar,
-     coral, celeste, violeta y turquesa repartidos para distinguir cada cosa. Nada apagado.
-     ========================================================================== */
-
-  /* Fondos y Superficies */
-  --bg-primary: #0b1020;
-  --bg-secondary: #0f1528;
-  --panel-bg: #141b30;
-  --panel-elevated: #1b2440;
-  --panel-subtle: #10172b;
-  --panel-footer: #121a30;
-  --line: #27335a;
-  --line-light: #1e2848;
-
-  /* Textos (marfil cálido, no blanco puro) */
-  --text-primary: #f5f7fa;
-  --text-secondary: #c7cfe6;
-  --text-muted: #93a0c4;
-  --text-inverse: #0b0e11;
-
-  /* Marca Farmhouse: verde esmeralda calmo, solo para acciones y marca */
-  --green: #22c983;
-  --green-dark: #17a86b;
-  --green-soft: rgba(34, 201, 131, 0.16);
-  --green-soft-text: #4ade9a;
-  --green-border: rgba(34, 201, 131, 0.45);
-
-  /* Sidebar: grafito más oscuro (antes verde bosque) */
-  --nav-bg: #080c1a;
-  --nav-bg-embedded: #0e1428;
-  --nav-border: rgba(255, 255, 255, 0.06);
-  --nav-hover: rgba(255, 255, 255, 0.05);
-  --nav-active: linear-gradient(90deg, #17a86b, #22c983);
-  --nav-text: #eef2f6;
-  --nav-text-muted: #9aa6cc;
-
-  /* Acentos (combinan con el verde): azul petróleo, dorado, terracota, lavanda, salvia */
-  --blue: #38bdf8;
-  --blue-soft: rgba(56, 189, 248, 0.16);
-  --orange: #fbbf24;
-  --orange-soft: rgba(251, 191, 36, 0.16);
-  --red: #ff6b6b;
-  --red-soft: rgba(255, 107, 107, 0.16);
-  --accent-gold: #fbbf24;
-  --accent-gold-soft: rgba(251, 191, 36, 0.16);
-  --accent-terracotta: #ff7a59;
-  --accent-terracotta-soft: rgba(255, 122, 89, 0.16);
-  --accent-petrol: #38bdf8;
-  --accent-petrol-soft: rgba(56, 189, 248, 0.16);
-  --accent-lavender: #a78bfa;
-  --accent-lavender-soft: rgba(167, 139, 250, 0.18);
-  --accent-sage: #2dd4bf;
-  --accent-sage-soft: rgba(45, 212, 191, 0.16);
-
-  /* Semántica de Alertas & Estados (Dark) */
-  --danger-bg: rgba(255, 107, 107, 0.12);
-  --danger-border: rgba(255, 107, 107, 0.42);
-  --danger-text: #ff9b9b;
-  --danger-text-strong: #ff6b6b;
-  --danger-badge-bg: rgba(255, 107, 107, 0.2);
-  --danger-icon: #ff6b6b;
-
-  --warning-bg: rgba(251, 191, 36, 0.12);
-  --warning-border: rgba(251, 191, 36, 0.42);
-  --warning-text: #fcd34d;
-  --warning-badge-bg: rgba(251, 191, 36, 0.2);
-  --warning-icon: #fbbf24;
-
-  --success-bg: rgba(34, 201, 131, 0.12);
-  --success-border: rgba(34, 201, 131, 0.42);
-  --success-text: #4ade9a;
-  --success-badge-bg: rgba(34, 201, 131, 0.2);
-  --success-icon: #22c983;
-
-  --info-bg: rgba(56, 189, 248, 0.12);
-  --info-border: rgba(56, 189, 248, 0.42);
-  --info-text: #7dd3fc;
-  --info-badge-bg: rgba(56, 189, 248, 0.2);
-  --info-icon: #38bdf8;
-
-  /* Badges de Roles: cada rol con su color */
-  --badge-admin-bg: rgba(255, 122, 89, 0.2);
-  --badge-admin-text: #ffa48c;
-  --badge-supervisor-bg: rgba(251, 191, 36, 0.2);
-  --badge-supervisor-text: #fcd34d;
-  --badge-agent-bg: rgba(56, 189, 248, 0.2);
-  --badge-agent-text: #7dd3fc;
-
-  /* Form / Inputs */
-  --input-bg: #0d1326;
-  --input-border: #2e3b66;
-  --input-text: #f5f7fa;
-  --input-focus: #22c983;
-
-  /* Chat y Burbujas: fondo grafito; lo enviado en verde petróleo profundo */
-  --chat-bg: radial-gradient(circle at 10px 10px, rgba(56, 189, 248, 0.05) 1px, transparent 1px) 0 0 / 20px 20px, #0a0f1f;
-  --msg-in-bg: #18213c;
-  --msg-in-text: #f5f7fa;
-  --msg-in-border: #27335a;
-  --msg-out-bg: #0f5132;
-  --msg-out-text: #eafff4;
-  --msg-out-border: #17744a;
-  --msg-note-bg: #3a2e0a;
-  --msg-note-border: #d4a017;
-  --msg-note-text: #fde68a;
-
-  /* Tablas y Modales */
-  --table-header-bg: #111830;
-  --table-row-hover: #1a2340;
-  --modal-backdrop: rgba(0, 0, 0, 0.72);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.32), 0 10px 24px -6px rgba(0, 0, 0, 0.42);
-  --shadow-lg: 0 16px 24px -8px rgba(0, 0, 0, 0.48), 0 28px 56px -12px rgba(0, 0, 0, 0.58);
-  --shadow-glow-green: 0 4px 18px rgba(34, 201, 131, 0.28);
-  --radius: 16px;
-  --radius-sm: 10px;
-
-  /* Toast */
-  --toast-bg: #1d2747;
-  --toast-text: #f5f7fa;
-}
+/* Variables: ver css/tokens.css (alias históricos incluidos) */
 
 /* ----------------------------------------------------------------------------
    2. ESTILOS BASE & RESET
@@ -299,7 +60,7 @@ html, body {
 }
 
 body {
-  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: var(--font);
   background: var(--bg-primary);
   color: var(--text-primary);
   height: 100vh;
@@ -470,25 +231,25 @@ a:focus-visible {
   background: rgba(255, 255, 255, 0.08);
   display: grid;
   place-items: center;
-  font-size: 18px;
+  font-size: var(--fs-xl);
 }
 
 .brand-name {
   font-weight: 800;
   letter-spacing: 0.08em;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   line-height: 1.1;
 }
 
 .brand-sub {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.16em;
   opacity: 0.7;
   margin-top: 2px;
 }
 
 .nav-section-title {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   opacity: 0.55;
@@ -509,7 +270,7 @@ a:focus-visible {
   border: none;
   width: 100%;
   text-align: left;
-  font-size: 13px;
+  font-size: var(--fs-md);
   transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
@@ -532,7 +293,7 @@ a:focus-visible {
 }
 
 .nav-icon {
-  font-size: 14px;
+  font-size: var(--fs-base);
   opacity: 0.85;
   width: 18px;
   display: inline-block;
@@ -543,7 +304,7 @@ a:focus-visible {
   background: rgba(255, 255, 255, 0.12);
   padding: 1px 7px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
 }
 
@@ -565,7 +326,7 @@ a:focus-visible {
   gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   background: var(--panel-subtle);
   color: var(--text-secondary);
@@ -598,7 +359,7 @@ a:focus-visible {
   margin-left: 8px;
   padding: 1px 6px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -670,7 +431,7 @@ a:focus-visible {
   align-items: center;
   gap: 8px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-md);
   padding: 6px 10px;
   border-radius: 8px;
   background: var(--panel-subtle);
@@ -701,7 +462,7 @@ a:focus-visible {
 }
 
 .top-select-group label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   font-weight: 500;
 }
@@ -714,7 +475,7 @@ a:focus-visible {
   font-weight: 600;
   color: var(--input-text);
   outline: none;
-  font-size: 13px;
+  font-size: var(--fs-md);
   cursor: pointer;
   transition: border-color 0.15s ease;
 }
@@ -740,7 +501,7 @@ a:focus-visible {
   background: var(--input-bg);
   color: var(--input-text);
   outline: none;
-  font-size: 13px;
+  font-size: var(--fs-md);
   transition: border-color 0.15s ease;
 }
 
@@ -754,7 +515,7 @@ a:focus-visible {
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-md);
   pointer-events: none;
 }
 
@@ -799,7 +560,7 @@ a:focus-visible {
   color: var(--text-primary);
   padding: 6px 12px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -812,7 +573,7 @@ a:focus-visible {
 }
 
 .theme-icon {
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 .notif-bell {
@@ -825,7 +586,7 @@ a:focus-visible {
   border-radius: 8px;
   display: grid;
   place-items: center;
-  font-size: 14px;
+  font-size: var(--fs-base);
   transition: background 0.15s ease;
 }
 
@@ -839,7 +600,7 @@ a:focus-visible {
   right: 2px;
   background: var(--red);
   color: #fff;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   border-radius: 999px;
   padding: 1px 4px;
   font-weight: 700;
@@ -866,11 +627,11 @@ a:focus-visible {
   display: grid;
   place-items: center;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .user-profile strong {
-  font-size: 13px;
+  font-size: var(--fs-md);
   display: block;
   line-height: 1.2;
   color: var(--text-primary);
@@ -883,7 +644,7 @@ a:focus-visible {
 .user-profile small {
   display: block;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 /* Barra superior oscura (azul petróleo), a juego con el sidebar: sustituye el fondo claro
@@ -998,7 +759,7 @@ a:focus-visible {
 
 .panel-header-title {
   padding: 16px 16px 10px;
-  font-size: 17px;
+  font-size: var(--fs-lg);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--text-primary);
@@ -1017,7 +778,7 @@ a:focus-visible {
   background: var(--green-soft);
   border: 1px solid var(--green-border);
   color: var(--text-secondary);
-  font-size: 12.5px;
+  font-size: var(--fs-md);
 }
 
 .branch-filter-chip-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1052,7 +813,7 @@ a:focus-visible {
   background: var(--panel-subtle);
   border-radius: 8px;
   padding: 6px 11px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   font-weight: 500;
   transition: all 0.15s ease;
@@ -1082,7 +843,7 @@ a:focus-visible {
   border-radius: 999px;
   background: var(--line);
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   line-height: 15px;
 }
@@ -1140,7 +901,7 @@ a:focus-visible {
     border: 1px solid var(--line);
     background: var(--panel-subtle);
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 600;
   }
   .btn-close-details i,
@@ -1159,19 +920,19 @@ a:focus-visible {
   display: grid;
   place-items: center;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--text-secondary);
 }
 
 .conv-meta strong {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--text-primary);
   display: block;
 }
 
 .conv-preview {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   margin-top: 2px;
   white-space: nowrap;
@@ -1181,7 +942,7 @@ a:focus-visible {
 }
 
 .conv-time {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   margin-bottom: 4px;
 }
@@ -1195,7 +956,7 @@ a:focus-visible {
   display: grid;
   place-items: center;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--text-secondary);
   flex-shrink: 0;
 }
@@ -1212,7 +973,7 @@ a:focus-visible {
 }
 
 .conv-name {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
@@ -1228,7 +989,7 @@ a:focus-visible {
 }
 
 .conv-branch-tag {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1236,7 +997,7 @@ a:focus-visible {
 .status-badge {
   padding: 2px 7px;
   border-radius: 5px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   border: 1px solid var(--line);
   background: var(--panel-bg);
@@ -1314,7 +1075,7 @@ a:focus-visible {
 }
 
 .empty-state p {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--text-primary);
   margin-top: 2px;
@@ -1333,7 +1094,7 @@ a:focus-visible {
   align-items: center;
   justify-content: space-between;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   background: var(--panel-footer);
   flex-shrink: 0;
 }
@@ -1377,7 +1138,7 @@ a:focus-visible {
 
 .chat-header .meta strong {
   display: block;
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1.2;
   color: var(--text-primary);
   white-space: nowrap;
@@ -1386,7 +1147,7 @@ a:focus-visible {
 }
 
 .chat-header .meta span {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
 }
 
@@ -1400,7 +1161,7 @@ a:focus-visible {
   border: 1px solid var(--line);
   background: var(--panel-subtle);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -1423,7 +1184,7 @@ a:focus-visible {
   display: none;
   background: transparent;
   border: none;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   padding: 4px 8px;
   font-weight: 700;
   color: var(--text-primary);
@@ -1483,7 +1244,7 @@ a:focus-visible {
   background: var(--panel-bg);
   border: 1px solid var(--line);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   box-shadow: var(--shadow-sm);
 }
@@ -1494,7 +1255,7 @@ a:focus-visible {
   max-width: 65%;
   padding: 8px 12px;
   border-radius: 16px;
-  font-size: 13.5px;
+  font-size: var(--fs-base);
   line-height: 1.42;
   box-shadow: var(--shadow-sm);
 }
@@ -1564,11 +1325,11 @@ a:focus-visible {
   background: var(--msg-note-bg);
   border: 1px dashed var(--msg-note-border);
   color: var(--msg-note-text);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .msg-bubble .msg-sender {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   margin-bottom: 2px;
   opacity: 0.7;
@@ -1582,7 +1343,7 @@ a:focus-visible {
 .msg-bubble .msg-time {
   display: block;
   text-align: right;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: inherit;
   opacity: 0.6;
   margin-top: 4px;
@@ -1639,7 +1400,7 @@ a:focus-visible {
   align-items: center;
   gap: 4px;
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--green);
 }
 .msg-media-file-link i {
@@ -1655,7 +1416,7 @@ a:focus-visible {
   padding: 10px 12px;
   border-radius: 10px;
   background: rgba(127, 127, 127, 0.08);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   width: 220px;
   max-width: 100%;
@@ -1683,7 +1444,7 @@ a:focus-visible {
   padding: 10px 12px;
   border-radius: 10px;
   background: rgba(239, 68, 68, 0.1);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: #ef4444;
   max-width: 280px;
 }
@@ -1700,7 +1461,7 @@ a:focus-visible {
   border: 1px solid #ef4444;
   background: transparent;
   color: #ef4444;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 6px;
@@ -1739,7 +1500,7 @@ a:focus-visible {
   border: 1px solid var(--line);
   background: var(--panel-bg);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
@@ -1780,7 +1541,7 @@ a:focus-visible {
 
 .qr-pop-hint,
 .qr-pop-empty {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   padding: 6px 10px;
 }
@@ -1800,13 +1561,13 @@ a:focus-visible {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .qr-pop-shortcut,
 .qr-shortcut-chip {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--green);
   background: var(--green-soft);
@@ -1820,7 +1581,7 @@ a:focus-visible {
 }
 
 .qr-pop-body {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-secondary);
   margin-top: 2px;
   white-space: pre-line;
@@ -1843,7 +1604,7 @@ a:focus-visible {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .qr-form-grid {
@@ -1859,7 +1620,7 @@ a:focus-visible {
 }
 
 .qr-shortcut-input > span {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
   color: var(--text-muted);
 }
@@ -1883,7 +1644,7 @@ a:focus-visible {
 }
 
 .qr-form-foot code {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   background: var(--panel-bg);
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -1894,7 +1655,7 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-primary);
 }
 
@@ -1905,7 +1666,7 @@ a:focus-visible {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-secondary);
 }
 
@@ -1917,7 +1678,7 @@ a:focus-visible {
 .conv-tag {
   padding: 1px 6px;
   border-radius: 5px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   border: 1px solid;
   white-space: nowrap;
@@ -1975,7 +1736,7 @@ a:focus-visible {
   gap: 8px;
   padding: 6px 8px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   cursor: pointer;
   color: var(--text-primary);
 }
@@ -1990,7 +1751,7 @@ a:focus-visible {
 }
 
 .tag-pick-empty {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   padding: 8px;
 }
@@ -2009,7 +1770,7 @@ a:focus-visible {
   border: none;
   padding: 0;
   color: var(--green);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   cursor: pointer;
 }
@@ -2057,7 +1818,7 @@ a:focus-visible {
 }
 
 .composer-tab {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-muted);
   padding-bottom: 6px;
@@ -2081,7 +1842,7 @@ a:focus-visible {
   padding: 10px 0;
   color: var(--text-primary);
   background: transparent;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .chat-composer textarea::placeholder {
@@ -2127,12 +1888,12 @@ a:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .composer-attachment-meta span {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 
 .composer-attachment-remove {
@@ -2181,7 +1942,7 @@ a:focus-visible {
   border: 0;
   border-radius: 7px;
   background: transparent;
-  font-size: 21px;
+  font-size: var(--fs-2xl);
   line-height: 1;
   cursor: pointer;
 }
@@ -2195,7 +1956,7 @@ a:focus-visible {
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 16px;
+  font-size: var(--fs-lg);
   padding: 4px 6px;
   border-radius: 6px;
   transition: background 0.15s ease;
@@ -2219,7 +1980,7 @@ a:focus-visible {
   border-radius: var(--radius-sm);
   padding: 8px 18px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-md);
   box-shadow: 0 2px 8px -1px rgba(22, 163, 74, 0.35);
   transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
@@ -2256,7 +2017,7 @@ a:focus-visible {
 
 .detail-block-title {
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -2279,12 +2040,12 @@ a:focus-visible {
   display: grid;
   place-items: center;
   font-weight: 800;
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 .muted-text {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .data-grid-two {
@@ -2295,7 +2056,7 @@ a:focus-visible {
 }
 
 .data-val {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-primary);
   margin-top: 1px;
@@ -2311,7 +2072,7 @@ a:focus-visible {
 .tag-pill {
   padding: 3px 8px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   border: 1px solid var(--line);
 }
@@ -2327,7 +2088,7 @@ a:focus-visible {
   border: 1px solid var(--line);
   padding: 8px 10px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-secondary);
   line-height: 1.4;
   margin-top: 6px;
@@ -2339,7 +2100,7 @@ a:focus-visible {
   align-items: center;
   gap: 10px;
   margin: 7px 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-primary);
 }
 
@@ -2366,7 +2127,7 @@ a:focus-visible {
 }
 
 .order-items-count {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   margin-bottom: 6px;
 }
@@ -2380,7 +2141,7 @@ a:focus-visible {
 }
 
 .order-item-row {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-primary);
 }
 .order-item-row-main {
@@ -2390,7 +2151,7 @@ a:focus-visible {
   font-weight: 600;
 }
 .order-item-addons {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   margin-top: 1px;
   padding-left: 8px;
@@ -2403,11 +2164,11 @@ a:focus-visible {
 }
 .order-row-total span:first-child {
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .price-total {
-  font-size: 16px;
+  font-size: var(--fs-lg);
   color: var(--success-text);
   font-weight: 800;
 }
@@ -2427,7 +2188,7 @@ a:focus-visible {
   border-radius: 8px;
   background: var(--panel-bg);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   transition: all 0.15s ease;
 }
@@ -2500,14 +2261,14 @@ a:focus-visible {
 }
 
 .modal-header h3 {
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 2px;
 }
 
 .modal-subtitle {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
 }
 
@@ -2521,7 +2282,7 @@ a:focus-visible {
   border-radius: 8px;
   background: transparent;
   border: none;
-  font-size: 20px;
+  font-size: var(--fs-xl);
   color: var(--text-muted);
   cursor: pointer;
 }
@@ -2544,7 +2305,7 @@ a:focus-visible {
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
   select,
   textarea {
-    font-size: 16px !important;
+    font-size: var(--fs-lg) !important;
   }
 }
 
@@ -2615,7 +2376,7 @@ body:has(.modal-backdrop.active) { overflow: hidden !important; }
   color: var(--red);
   border: 1px solid rgba(239, 68, 68, 0.35);
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   margin-bottom: 12px;
 }
@@ -2629,7 +2390,7 @@ body:has(.modal-backdrop.active) { overflow: hidden !important; }
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text-muted);
   padding: 4px;
   display: flex;
@@ -2649,7 +2410,7 @@ body:has(.modal-backdrop.active) { overflow: hidden !important; }
   padding: 9px 16px;
   border-radius: var(--radius-sm);
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-md);
   box-shadow: 0 2px 8px -1px rgba(22, 163, 74, 0.35);
   transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
@@ -2671,7 +2432,7 @@ body:has(.modal-backdrop.active) { overflow: hidden !important; }
   padding: 9px 14px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-md);
   transition: background 0.15s ease;
 }
 
@@ -2682,7 +2443,7 @@ body:has(.modal-backdrop.active) { overflow: hidden !important; }
 
 .modal-label {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 4px;
@@ -2696,7 +2457,7 @@ body:has(.modal-backdrop.active) { overflow: hidden !important; }
   border-radius: 8px;
   background: var(--input-bg);
   color: var(--input-text);
-  font-size: 13px;
+  font-size: var(--fs-md);
   outline: none;
   transition: border-color 0.15s ease;
 }
@@ -2734,7 +2495,7 @@ input:-webkit-autofill:focus {
 .device-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
 }
 
 .device-table th {
@@ -2744,7 +2505,7 @@ input:-webkit-autofill:focus {
   border-bottom: 1px solid var(--line);
   color: var(--text-muted);
   font-weight: 700;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -2770,7 +2531,7 @@ input:-webkit-autofill:focus {
 .dev-badge {
   padding: 2px 7px;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
 }
 
@@ -2802,7 +2563,7 @@ input:-webkit-autofill:focus {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--text-primary);
   margin-bottom: 10px;
 }
@@ -2818,15 +2579,15 @@ input:-webkit-autofill:focus {
 
 .device-enroll-form .modal-input {
   flex: 1 1 200px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   letter-spacing: 1px;
   text-transform: uppercase;
 }
 
 /* Código de vinculación: se lee de un vistazo y se teclea en la tablet */
 .device-code-value {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 30px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-3xl);
   font-weight: 700;
   letter-spacing: 4px;
   padding: 14px 10px;
@@ -2842,7 +2603,7 @@ input:-webkit-autofill:focus {
   border-radius: 6px;
   background: var(--panel-bg);
   color: var(--text-primary);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -2879,8 +2640,8 @@ input:-webkit-autofill:focus {
   gap: 8px;
 }
 
-.contact-stat span { color: var(--text-muted); font-size: 11px; }
-.contact-stat strong { color: var(--text-primary); font-size: 20px; }
+.contact-stat span { color: var(--text-muted); font-size: var(--fs-xs); }
+.contact-stat strong { color: var(--text-primary); font-size: var(--fs-xl); }
 
 .contacts-toolbar {
   display: flex;
@@ -2921,7 +2682,7 @@ input:-webkit-autofill:focus {
   border-radius: 8px;
   background: var(--green-soft);
   color: var(--green-soft-text);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.4;
 }
 
@@ -2929,7 +2690,7 @@ input:-webkit-autofill:focus {
 .contacts-table-wrap { overflow: auto; max-height: 500px; border: 1px solid var(--line); border-radius: 10px; }
 .contacts-table th { position: sticky; top: 0; z-index: 1; }
 .contacts-table td { vertical-align: middle; }
-.contacts-table td small { display: block; margin-top: 2px; color: var(--text-muted); font-size: 10px; }
+.contacts-table td small { display: block; margin-top: 2px; color: var(--text-muted); font-size: var(--fs-xs); }
 
 .contact-person-cell { display: flex; align-items: center; gap: 9px; min-width: 180px; }
 .contact-person-cell strong { display: block; max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2940,7 +2701,7 @@ input:-webkit-autofill:focus {
   color: white;
   display: grid;
   place-items: center;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 800;
   flex: 0 0 auto;
 }
@@ -2952,7 +2713,7 @@ input:-webkit-autofill:focus {
   gap: 4px;
   padding: 4px 7px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -2997,7 +2758,7 @@ input:-webkit-autofill:focus {
   padding: 9px 16px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-md);
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -3013,7 +2774,7 @@ input:-webkit-autofill:focus {
   padding: 9px 14px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-md);
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -3071,7 +2832,7 @@ input:-webkit-autofill:focus {
   color: var(--toast-text);
   padding: 12px 18px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
   z-index: 10000;
@@ -3194,7 +2955,7 @@ input:-webkit-autofill:focus {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 15px;
+  font-size: var(--fs-base);
   flex-shrink: 0;
 }
 
@@ -3212,7 +2973,7 @@ input:-webkit-autofill:focus {
 }
 
 .floating-notif-title {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 700;
   color: var(--text-main);
   white-space: nowrap;
@@ -3223,7 +2984,7 @@ input:-webkit-autofill:focus {
 .floating-notif-close {
   background: none;
   border: none;
-  font-size: 18px;
+  font-size: var(--fs-xl);
   line-height: 1;
   color: var(--text-muted);
   cursor: pointer;
@@ -3237,7 +2998,7 @@ input:-webkit-autofill:focus {
 }
 
 .floating-notif-text {
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--text-muted);
   line-height: 1.35;
   display: -webkit-box;
@@ -3258,7 +3019,7 @@ input:-webkit-autofill:focus {
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   background: var(--primary-light, #dcfce7);
   color: var(--primary-color, #16a34a);
@@ -3346,19 +3107,19 @@ input:-webkit-autofill:focus {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 18px;
+  font-size: var(--fs-xl);
 }
 
 .reminder-modal-title {
   margin: 0 0 10px;
-  font-size: 20px;
+  font-size: var(--fs-xl);
   font-weight: 800;
   color: #b91c1c;
 }
 
 .reminder-modal-text {
   margin: 0 0 20px;
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1.5;
   color: var(--text-main);
 }
@@ -3372,7 +3133,7 @@ input:-webkit-autofill:focus {
   flex: 1;
   padding: 11px 14px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -3437,7 +3198,7 @@ input:-webkit-autofill:focus {
   padding: 4px 8px;
   border-radius: 20px;
   background: var(--bg-surface-soft, rgba(0, 0, 0, 0.04));
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
 }
 
@@ -3492,7 +3253,7 @@ input:-webkit-autofill:focus {
   gap: 6px;
   padding: 6px 10px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   background: var(--bg-surface-soft, transparent);
   border: 1px solid var(--line);
@@ -3584,13 +3345,13 @@ input:-webkit-autofill:focus {
 
 .mobile-push-prompt-banner .prompt-content strong {
   display: block;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text-main);
   margin-bottom: 4px;
 }
 
 .mobile-push-prompt-banner .prompt-content p {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   line-height: 1.4;
   margin-bottom: 10px;
@@ -3607,7 +3368,7 @@ input:-webkit-autofill:focus {
   border: none;
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s;
@@ -3619,7 +3380,7 @@ input:-webkit-autofill:focus {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   cursor: pointer;
 }
 
@@ -3687,7 +3448,7 @@ input:-webkit-autofill:focus {
   border-radius: 8px;
   width: 32px;
   height: 32px;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   cursor: pointer;
 }
 
@@ -3717,14 +3478,14 @@ input:-webkit-autofill:focus {
 .alert-danger-title {
   color: var(--danger-text-strong);
   display: block;
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 700;
 }
 
 .alert-danger-detail {
   color: var(--danger-text);
-  font-size: 12px;
-  font-family: monospace;
+  font-size: var(--fs-sm);
+  font-family: var(--font-mono);
   margin-top: 2px;
 }
 
@@ -3734,7 +3495,7 @@ input:-webkit-autofill:focus {
   border: 1px solid var(--danger-border);
   color: var(--danger-text);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   margin-bottom: 10px;
   line-height: 1.4;
 }
@@ -3761,7 +3522,7 @@ input:-webkit-autofill:focus {
 }
 
 .price-subtotal {
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--success-text);
   font-weight: 700;
 }
@@ -3973,11 +3734,11 @@ input:-webkit-autofill:focus {
   /* --- Elementos táctiles más grandes: cómodos para tocar con el dedo --- */
   .nav-btn {
     padding: 12px 12px;
-    font-size: 14px;
+    font-size: var(--fs-base);
   }
   .tab-btn {
     padding: 10px 12px;
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   .header-chip {
     padding: 8px 12px;
@@ -3986,7 +3747,7 @@ input:-webkit-autofill:focus {
   .chat-header-actions .btn-sm-action,
   .chat-secondary-actions .btn-sm-action {
     padding: 10px 12px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     min-height: 40px;
   }
   .composer-tool-btn {
@@ -3999,7 +3760,7 @@ input:-webkit-autofill:focus {
     min-height: 40px;
   }
   .chat-composer textarea {
-    font-size: 14px;
+    font-size: var(--fs-base);
   }
   .conv-item {
     padding-top: 12px;
@@ -4071,7 +3832,7 @@ input:-webkit-autofill:focus {
   cursor: pointer;
   display: grid;
   place-items: center;
-  font-size: 18px;
+  font-size: var(--fs-xl);
   transition: all 0.2s ease;
 }
 
@@ -4096,7 +3857,7 @@ input:-webkit-autofill:focus {
   border: 1px solid rgba(255, 255, 255, 0.25);
   padding: 8px 18px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   text-decoration: none;
   transition: all 0.15s ease;
@@ -4134,8 +3895,8 @@ input:-webkit-autofill:focus {
   cursor: pointer;
 }
 .fh-native-banner.is-in { transform: translateY(0); }
-.fh-native-banner strong { font-size: 15px; }
-.fh-native-banner span { font-size: 13.5px; opacity: .9; }
+.fh-native-banner strong { font-size: var(--fs-base); }
+.fh-native-banner span { font-size: var(--fs-base); opacity: .9; }
 
 
 /* ============================================================================
@@ -4269,7 +4030,7 @@ input:-webkit-autofill:focus {
      iPad hace zoom al tocar un campo y descuadra la pantalla. Es la única excepción a propósito. */
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
   select, textarea {
-    font-size: 16px !important;
+    font-size: var(--fs-lg) !important;
   }
   :where(input[type="checkbox"], input[type="radio"]) {
     width: 22px;
@@ -4284,7 +4045,7 @@ input:-webkit-autofill:focus {
     width: max-content;
     bottom: calc(20px + env(safe-area-inset-bottom, 0px));
     max-width: min(560px, calc(100vw - 32px));
-    font-size: 15px;
+    font-size: var(--fs-base);
     padding: 14px 18px;
     border-radius: 12px;
   }
@@ -4298,6 +4059,6 @@ input:-webkit-autofill:focus {
   .rec-toggle { min-height: 44px; align-items: center; padding: 4px 0; }
   /* La X para cerrar cada ventana: 31 px era difícil de acertar con el dedo. */
   .modal-close-btn, .tablet-modal-close, .lightbox-close-btn, .inv-photo-viewer-close, .int-lightbox-close {
-    min-width: 44px; min-height: 44px; font-size: 26px;
+    min-width: 44px; min-height: 44px; font-size: var(--fs-3xl);
   }
 }

@@ -65,7 +65,7 @@
   background: transparent;
   color: var(--inv-text-secondary);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 600;
   padding: 7px 12px;
   border-radius: 9px;
@@ -88,7 +88,7 @@
   background: transparent;
   color: var(--inv-text-secondary);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   padding: 6px 10px;
   border-radius: 9px;
@@ -124,7 +124,7 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--inv-text-secondary);
 }
 
@@ -142,11 +142,11 @@
 
 /* ---- Venta diaria: barras apiladas por día ---- */
 .link-legend-item b { font-weight: 700; color: var(--inv-text); margin-left: 2px; font-variant-numeric: tabular-nums; }
-.link-chart-note { margin: -4px 0 10px; font-size: 13px; color: var(--inv-text-secondary); }
+.link-chart-note { margin: -4px 0 10px; font-size: var(--fs-md); color: var(--inv-text-secondary); }
 .link-chart-note:empty { display: none; }
 .link-chart-note b { color: var(--inv-text); }
 .link-bar.is-partial rect { opacity: .45; }
-.link-bar-total { fill: var(--inv-text); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.link-bar-total { fill: var(--inv-text); font-size: var(--fs-xs); font-weight: 700; font-variant-numeric: tabular-nums; }
 .link-bar-total.is-partial { fill: var(--inv-text-muted); font-weight: 600; }
 .link-axis-today { font-weight: 700; fill: var(--inv-text-secondary); }
 .link-bar-focus { fill: var(--inv-text); opacity: .06; }
@@ -164,7 +164,7 @@
 
 .link-axis {
   fill: var(--inv-text-muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -194,7 +194,7 @@
   border: 1px solid var(--inv-border);
   box-shadow: 0 16px 32px -16px rgba(0, 0, 0, .35);
   pointer-events: none;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .link-tip-head {
@@ -230,12 +230,12 @@
 .link-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
 }
 
 .link-table th {
   text-align: left;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--inv-text-muted);
   padding: 8px 10px;
@@ -281,7 +281,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   padding: 3px 9px;
   border-radius: 999px;
@@ -332,11 +332,11 @@
 
 
 /* Cuadre con Invu */
-.link-cuadre-summary { margin: 0 0 8px; font-size: 14px; line-height: 1.45; color: var(--inv-text-secondary); }
+.link-cuadre-summary { margin: 0 0 8px; font-size: var(--fs-base); line-height: 1.45; color: var(--inv-text-secondary); }
 .link-cuadre-summary strong { color: var(--inv-text); }
 .link-cuadre-ok { color: var(--inv-green-dark); font-weight: 800; }
 .link-cuadre-warn { color: var(--inv-loss-text); font-weight: 800; }
-.link-cuadre-details > summary { cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--inv-text-secondary); padding: 4px 0 8px; }
+.link-cuadre-details > summary { cursor: pointer; font-size: var(--fs-base); font-weight: 600; color: var(--inv-text-secondary); padding: 4px 0 8px; }
 .link-cuadre-table td, .link-cuadre-table th { white-space: nowrap; }
 .link-cuadre-table small { color: var(--inv-text-muted); }
 .link-cuadre-bad { color: var(--inv-loss-text); font-weight: 700; }
@@ -347,10 +347,10 @@
 
 /* ---- Bloque 2: rango personalizado, exportación, gráfico por hora y matriz ---- */
 .link-range-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.link-custom-range { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--inv-text-muted); }
+.link-custom-range { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-md); color: var(--inv-text-muted); }
 .link-custom-range input[type="date"] {
   height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--inv-border); background: var(--inv-panel);
-  color: var(--inv-text); font: inherit; font-size: 12.5px;
+  color: var(--inv-text); font: inherit; font-size: var(--fs-md);
 }
 .link-export { position: relative; margin-left: auto; }
 .link-export summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
@@ -361,7 +361,7 @@
 }
 .link-export-menu button {
   display: block; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent;
-  color: var(--inv-text); font: inherit; font-size: 13px; cursor: pointer;
+  color: var(--inv-text); font: inherit; font-size: var(--fs-md); cursor: pointer;
 }
 .link-export-menu button:hover { background: var(--inv-panel-2); }
 .link-export-menu button:disabled { opacity: .5; cursor: default; }
@@ -384,7 +384,7 @@
 .link-hour-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; min-width: 0; }
 .link-hour-bar { width: 100%; border-radius: 4px 4px 2px 2px; background: var(--link-series-1, #2f8f6a); min-height: 2px; opacity: .85; transition: height .25s ease; }
 .link-hour-col.zero .link-hour-bar { opacity: .25; }
-.link-hour-col small { font-size: 10px; color: var(--inv-text-muted); line-height: 1; }
+.link-hour-col small { font-size: var(--fs-xs); color: var(--inv-text-muted); line-height: 1; }
 .link-hour-col:not(:nth-child(3n+1)) small { visibility: hidden; }
 
 .link-table td.heat { position: relative; }
@@ -402,12 +402,12 @@
 /* ---- Administración de inventario ---- */
 .link-stock-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .link-stock-tools .inv-filter-select { max-width: 300px; }
-.link-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--inv-text-muted); }
+.link-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-md); color: var(--inv-text-muted); }
 .link-table td.neg { color: var(--inv-red, #dc2626); font-weight: 600; }
 .link-status-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.link-status-chip { padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--inv-amber-soft, rgba(245,158,11,.14)); color: var(--inv-amber, #b45309); }
+.link-status-chip { padding: 1px 7px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 600; background: var(--inv-amber-soft, rgba(245,158,11,.14)); color: var(--inv-amber, #b45309); }
 .link-status-chip.danado, .link-status-chip.equivocado { background: rgba(220,38,38,.12); color: var(--inv-red, #dc2626); }
-.link-ok-banner { display: flex; align-items: center; gap: 8px; padding: 14px; border-radius: 12px; background: var(--inv-green-soft); color: var(--inv-green-soft-text); font-size: 13.5px; font-weight: 600; }
+.link-ok-banner { display: flex; align-items: center; gap: 8px; padding: 14px; border-radius: 12px; background: var(--inv-green-soft); color: var(--inv-green-soft-text); font-size: var(--fs-base); font-weight: 600; }
 .link-ok-banner i { width: 18px; height: 18px; }
 
 
@@ -415,12 +415,12 @@
 .link-variance { border: 1px solid var(--line, #e5e7eb); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
 .link-variance summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; cursor: pointer; list-style: none; }
 .link-variance summary::-webkit-details-marker { display: none; }
-.link-variance summary .muted { font-size: 12.5px; }
-.link-variance-total { margin-left: auto; font-weight: 800; font-size: 14px; }
+.link-variance summary .muted { font-size: var(--fs-md); }
+.link-variance-total { margin-left: auto; font-weight: 800; font-size: var(--fs-base); }
 .link-variance-total.bad { color: #b91c1c; }
 .link-variance-total.ok { color: var(--green, #15803d); }
 .link-variance[open] summary { margin-bottom: 8px; }
-.link-variance-chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--bg-hover, rgba(0,0,0,.05)); color: var(--text-secondary, #4b5563); }
+.link-variance-chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: var(--fs-sm); font-weight: 700; background: var(--bg-hover, rgba(0,0,0,.05)); color: var(--text-secondary, #4b5563); }
 .link-variance-chip.faltante { background: rgba(220,38,38,.12); color: #b91c1c; }
 .link-variance-chip.sobra { background: rgba(59,130,246,.14); color: #1d4ed8; }
 .link-variance-chip.cuadra { background: rgba(22,163,74,.12); color: #15803d; }
@@ -438,7 +438,7 @@
 [data-theme="dark"] .link-cov-bar .mid { background: #fbbf24; }
 [data-theme="dark"] .link-cov-bar .bad { background: #ff6b6b; }
 .link-cov-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.link-cov-chip { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.link-cov-chip { padding: 2px 10px; border-radius: 999px; font-size: var(--fs-sm); font-weight: 700; }
 .link-cov-chip.invu { background: rgba(22,163,74,.12); color: #15803d; }
 .link-cov-chip.otra_sucursal { background: rgba(14,165,233,.14); color: #0369a1; }
 .link-cov-chip.misma_sucursal { background: rgba(20,184,166,.14); color: #0f766e; }
@@ -456,7 +456,7 @@
    (51 px a 10.5 px) se cortaba en "Inventa…". Sin relleno lateral y a 10 px entra hasta en
    360 px; los nombres largos ya van abreviados con data-short ("Cierre", "Invu"). */
 @media (max-width: 420px) {
-  #linkNav .inv-nav-item { padding-left: 0; padding-right: 0; font-size: 10px; }
+  #linkNav .inv-nav-item { padding-left: 0; padding-right: 0; font-size: var(--fs-xs); }
 }
 
 /* ============================================================================
@@ -467,15 +467,15 @@
    ============================================================================ */
 
 /* ---- Notas al pie de un panel (antes con estilo en línea a 12px) ---- */
-.link-foot-note { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--inv-text-muted); }
+.link-foot-note { margin: 10px 0 0; font-size: var(--fs-md); line-height: 1.5; color: var(--inv-text-muted); }
 .link-foot-note b { color: var(--inv-text-secondary); }
 
 /* ---- "Otras fechas" y mes del cierre: con su nombre a la vista ---- */
 .link-custom-label { font-weight: 600; color: var(--inv-text-secondary); }
-.link-month { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--inv-text-secondary); }
+.link-month { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-md); font-weight: 600; color: var(--inv-text-secondary); }
 
 /* ---- Lo que se ve al tocar una barra (hora del día, merma por tramo) ---- */
-.link-chart-pick { margin: 10px 0 0; min-height: 20px; font-size: 13px; color: var(--inv-text-muted); }
+.link-chart-pick { margin: 10px 0 0; min-height: 20px; font-size: var(--fs-md); color: var(--inv-text-muted); }
 .link-chart-pick strong { color: var(--inv-text); }
 .link-chart-tip { color: var(--inv-text-muted); }
 
@@ -490,7 +490,7 @@
 
 /* ---- Compras: acceso a Merma ---- */
 .link-goto { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.link-goto p { flex: 1 1 260px; margin: 0; font-size: 14px; line-height: 1.5; color: var(--inv-text-secondary); }
+.link-goto p { flex: 1 1 260px; margin: 0; font-size: var(--fs-base); line-height: 1.5; color: var(--inv-text-secondary); }
 .link-goto p strong { color: var(--inv-text); }
 .link-goto-icon {
   display: inline-grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0;
@@ -499,7 +499,7 @@
 .link-goto-icon i, .link-goto-icon svg { width: 20px; height: 20px; }
 
 /* ---- Sincronización: el porqué del estado, a la vista (antes en un title) ---- */
-.link-status-why { display: block; margin-top: 4px; font-size: 12px; color: var(--inv-text-muted); white-space: normal; max-width: 360px; }
+.link-status-why { display: block; margin-top: 4px; font-size: var(--fs-sm); color: var(--inv-text-muted); white-space: normal; max-width: 360px; }
 
 /* ---- Tablas: la primera columna queda fija al deslizar de lado ----
    Solo se nota en las tablas anchas de números (platos por sucursal, existencias, día por
@@ -552,7 +552,7 @@
     white-space: normal;
     text-align: left;
   }
-  .link-cards td:first-child { padding-bottom: 6px; font-size: 15px; }
+  .link-cards td:first-child { padding-bottom: 6px; font-size: var(--fs-base); }
   .link-cards td[data-label],
   .link-cards td.hide-sm[data-label] {
     display: flex;
@@ -565,7 +565,7 @@
     content: attr(data-label);
     flex: 0 0 auto;
     max-width: 55%;
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--inv-text-muted);
     text-align: left;
@@ -585,42 +585,42 @@
 
 /* ---- Pantallas táctiles: letra y botones del tamaño del dedo ---- */
 @media (pointer: coarse), (max-width: 1199px) {
-  .link-segmented button { font-size: 14px; padding: 9px 14px; }
-  .link-text-btn { font-size: 13.5px; padding: 8px 12px; }
+  .link-segmented button { font-size: var(--fs-base); padding: 9px 14px; }
+  .link-text-btn { font-size: var(--fs-base); padding: 8px 12px; }
   .link-text-btn i, .link-text-btn svg { width: 16px; height: 16px; }
   /* 16px: con menos, el iPad hace zoom al tocar el campo. */
-  .link-custom-range input[type="date"] { height: 44px; font-size: 16px; }
+  .link-custom-range input[type="date"] { height: 44px; font-size: var(--fs-lg); }
   .link-custom-range,
-  .link-month { font-size: 14px; }
+  .link-month { font-size: var(--fs-base); }
   .link-export-menu { min-width: 280px; }
-  .link-export-menu button { min-height: 48px; font-size: 15px; padding: 10px 14px; }
-  .link-check { min-height: 44px; font-size: 14px; }
-  .link-legend-item { font-size: 13.5px; }
+  .link-export-menu button { min-height: 48px; font-size: var(--fs-base); padding: 10px 14px; }
+  .link-check { min-height: 44px; font-size: var(--fs-base); }
+  .link-legend-item { font-size: var(--fs-base); }
   .link-legend-swatch { width: 12px; height: 12px; }
-  .link-chart-note, .link-chart-pick { font-size: 14px; }
-  .link-axis, .link-bar-total { font-size: 12px; }
-  .link-table { font-size: 14px; }
-  .link-table th { font-size: 12px; padding: 10px; }
+  .link-chart-note, .link-chart-pick { font-size: var(--fs-base); }
+  .link-axis, .link-bar-total { font-size: var(--fs-sm); }
+  .link-table { font-size: var(--fs-base); }
+  .link-table th { font-size: var(--fs-sm); padding: 10px; }
   .link-table td { padding: 11px 10px; }
-  .link-status { font-size: 13px; padding: 4px 10px; }
-  .link-status-chip, .link-variance-chip, .link-cov-chip { font-size: 12.5px; padding: 3px 10px; }
+  .link-status { font-size: var(--fs-md); padding: 4px 10px; }
+  .link-status-chip, .link-variance-chip, .link-cov-chip { font-size: var(--fs-md); padding: 3px 10px; }
   .link-variance > summary,
   .link-cuadre-details > summary { min-height: 44px; }
-  .link-variance summary .muted { font-size: 13.5px; }
-  .link-foot-note { font-size: 14px; }
+  .link-variance summary .muted { font-size: var(--fs-base); }
+  .link-foot-note { font-size: var(--fs-base); }
   .link-hours { gap: 2px; }
-  .link-hour-col small { font-size: 11px; }
-  .link-tooltip { font-size: 14px; padding: 12px 14px; }
+  .link-hour-col small { font-size: var(--fs-xs); }
+  .link-tooltip { font-size: var(--fs-base); padding: 12px 14px; }
   /* Merma: "En dólares / En kilos" y los períodos, cómodos para el dedo. */
-  #wasteAnalysis .inv-segmented button { font-size: 14px; padding: 9px 14px; }
+  #wasteAnalysis .inv-segmented button { font-size: var(--fs-base); padding: 9px 14px; }
   /* Barras horizontales: nombre y monto legibles. */
   #linkMain .inv-bar-name,
-  #linkMain .inv-bar-value { font-size: 14px; }
-  #linkMain .inv-bar-value small { font-size: 12.5px; }
-  #linkMain .inv-kpi-label { font-size: 13px; }
-  #linkMain .inv-kpi-sub { font-size: 13px; line-height: 1.45; }
-  #linkMain .inv-panel-note { font-size: 12.5px; }
-  #linkMain .inv-panel-head h2 { font-size: 15.5px; }
+  #linkMain .inv-bar-value { font-size: var(--fs-base); }
+  #linkMain .inv-bar-value small { font-size: var(--fs-md); }
+  #linkMain .inv-kpi-label { font-size: var(--fs-md); }
+  #linkMain .inv-kpi-sub { font-size: var(--fs-md); line-height: 1.45; }
+  #linkMain .inv-panel-note { font-size: var(--fs-md); }
+  #linkMain .inv-panel-head h2 { font-size: var(--fs-lg); }
   /* Sin mouse no hay hover: las fichas no se quedan "levantadas" después de tocarlas. */
   #linkMain .inv-kpi:hover { transform: none; }
 }

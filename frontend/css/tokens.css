@@ -1,0 +1,270 @@
+/* ============================================================================
+   FARMHOUSE LINK · TOKENS DE DISEÑO
+   El único archivo que define colores, tipografía, espacio y forma. Lo cargan todas las
+   pantallas internas ANTES de cualquier otro CSS. Para cambiar un color o un tamaño en toda
+   la plataforma se toca aquí y en ningún otro lado.
+
+   Dos bloques: los tokens nuevos (--brand, --ink, --fs-*) y, debajo, los nombres históricos
+   que usan style.css, hub.css, inventory.css e internal.css (--green, --text-primary, --fh-*,
+   --inv-*…), convertidos en alias para no reescribir 16 000 líneas de reglas de golpe.
+
+   El menú digital de clientes (menu.css) y la página de pago (yappy_payment.css) tienen su
+   propia identidad y NO usan este archivo.
+   ============================================================================ */
+
+:root, [data-theme="light"] {
+  /* ---------- Marca ---------- */
+  --brand: #00b96b;            /* botones, acentos, estado activo */
+  --brand-hover: #00a85a;
+  --brand-strong: #008552;     /* el verde como TEXTO sobre blanco (≥ 4.5:1) */
+  --brand-soft: #e7f8ef;       /* fila activa, pastillas */
+  --brand-border: #b9ebd2;
+  --forest: #073d31;           /* sidebar */
+  --forest-2: #0b4a3b;         /* sidebar cuando la página va dentro del hub */
+
+  /* ---------- Superficies ---------- */
+  --bg: #f5f9f8;
+  --bg-2: #f0f6f4;
+  --surface: #ffffff;
+  --surface-2: #eff6f3;        /* cabeceras de tabla, cajas secundarias, hover de fila */
+  --surface-3: #e6efeb;
+  --line: #e1ebe8;
+  --line-2: #ecf3f1;
+
+  /* ---------- Tinta ---------- */
+  --ink: #0f201b;
+  --ink-2: #3a4c46;
+  --ink-3: #63736d;            /* etiquetas y ayudas; nunca para texto importante */
+  --ink-inverse: #ffffff;
+
+  /* ---------- Semántica: color, fondo suave, texto legible, borde ---------- */
+  --ok: #16a34a;     --ok-bg: #f0fdf4;   --ok-text: #166534;   --ok-border: #bbf7d0;   --ok-badge: #dcfce7;
+  --warn: #d97706;   --warn-bg: #fffbeb; --warn-text: #92400e; --warn-border: #fde68a; --warn-badge: #fef3c7;
+  --bad: #dc2626;    --bad-bg: #fef2f2;  --bad-text: #991b1b;  --bad-border: #fecaca;  --bad-badge: #fee2e2;
+  --info: #2563eb;   --info-bg: #eff6ff; --info-text: #1e40af; --info-border: #bfdbfe; --info-badge: #dbeafe;
+  --accent-cyan: #0891b2; --accent-cyan-soft: rgba(8, 145, 178, .10);
+  --accent-amber: #b45309; --accent-amber-soft: rgba(245, 158, 11, .14);
+  --accent-violet: #7c3aed; --accent-violet-soft: rgba(124, 58, 237, .12);
+  --loss: #c2410c; --loss-soft: rgba(194, 65, 12, .10); --loss-text: #9a3412;   /* merma: lo que se pierde */
+
+  /* ---------- Tipografía: UNA familia, OCHO tamaños. Nada por debajo de 11 px. ---------- */
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --fs-xs: 11px;    /* metadatos: hora, IDs, ayudas de campo */
+  --fs-sm: 12px;    /* etiquetas de sección, badges, texto secundario */
+  --fs-md: 13px;    /* interfaz por defecto: tablas, listas, botones */
+  --fs-base: 14px;  /* lectura: mensajes, notas, formularios */
+  --fs-lg: 16px;    /* título de tarjeta / modal */
+  --fs-xl: 18px;    /* título de pantalla */
+  --fs-2xl: 22px;   /* cifra destacada */
+  --fs-3xl: 28px;   /* número protagonista */
+  --lh-tight: 1.25;
+  --lh-normal: 1.45;
+
+  /* ---------- Espacio (base 4) y forma ---------- */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
+  --control-h: 36px;        /* altura única de botones, inputs y selects */
+  --control-h-sm: 30px;
+  --control-h-lg: 44px;     /* tablet / táctil */
+  --shadow-1: 0 1px 2px rgba(20, 33, 43, .04);
+  --shadow-2: 0 2px 6px rgba(20, 33, 43, .04), 0 8px 20px -4px rgba(20, 33, 43, .06);
+  --shadow-3: 0 12px 20px -6px rgba(20, 33, 43, .10), 0 24px 48px -12px rgba(20, 33, 43, .14);
+  --focus: 0 0 0 3px rgba(0, 185, 107, .25);
+  --backdrop: rgba(15, 23, 42, .55);
+  --toast: #10261f;
+}
+
+[data-theme="dark"] {
+  --brand: #22c983; --brand-hover: #17a86b; --brand-strong: #5fe0a7;
+  --brand-soft: rgba(34, 201, 131, .14); --brand-border: rgba(34, 201, 131, .35);
+  --forest: #061f1a; --forest-2: #0a2c25;
+  --bg: #0a1512; --bg-2: #0d1a16; --surface: #10211c; --surface-2: #162b25; --surface-3: #1c352e;
+  --line: #22382f; --line-2: #1b3029;
+  --ink: #e6efec; --ink-2: #b7c7c1; --ink-3: #85978f; --ink-inverse: #0a1512;
+  --ok: #34d399;  --ok-bg: rgba(52, 211, 153, .12);  --ok-text: #a7f3d0;  --ok-border: rgba(52, 211, 153, .40);  --ok-badge: rgba(52, 211, 153, .20);
+  --warn: #fbbf24; --warn-bg: rgba(251, 191, 36, .12); --warn-text: #fde68a; --warn-border: rgba(251, 191, 36, .40); --warn-badge: rgba(251, 191, 36, .20);
+  --bad: #f87171;  --bad-bg: rgba(248, 113, 113, .12); --bad-text: #fecaca; --bad-border: rgba(248, 113, 113, .40); --bad-badge: rgba(248, 113, 113, .20);
+  --info: #60a5fa; --info-bg: rgba(96, 165, 250, .12); --info-text: #bfdbfe; --info-border: rgba(96, 165, 250, .40); --info-badge: rgba(96, 165, 250, .20);
+  --accent-cyan: #38bdf8; --accent-cyan-soft: rgba(56, 189, 248, .12);
+  --accent-amber: #fbbf24; --accent-amber-soft: rgba(251, 191, 36, .16);
+  --accent-violet: #a78bfa; --accent-violet-soft: rgba(167, 139, 250, .18);
+  --loss: #ff8a5b; --loss-soft: rgba(255, 138, 91, .14); --loss-text: #ffa97e;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .30);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, .30), 0 8px 20px -4px rgba(0, 0, 0, .40);
+  --shadow-3: 0 12px 20px -6px rgba(0, 0, 0, .50), 0 24px 48px -12px rgba(0, 0, 0, .60);
+  --focus: 0 0 0 3px rgba(34, 201, 131, .30);
+  --backdrop: rgba(0, 0, 0, .72);
+  --toast: #1a2e27;
+}
+
+/* ============================================================================
+   ALIAS HISTÓRICOS — mismos nombres que ya usan las hojas de cada pantalla.
+   No definir valores literales aquí: todo apunta a los tokens de arriba, en ambos temas.
+   ============================================================================ */
+:root {
+  /* --- style.css (Centro WhatsApp y base compartida) --- */
+  --bg-primary: var(--bg);
+  --bg-secondary: var(--bg-2);
+  --panel-bg: var(--surface);
+  --panel-elevated: var(--surface);
+  --panel-subtle: var(--surface-2);
+  --panel-footer: var(--bg);
+  --line-light: var(--line-2);
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-2);
+  --text-muted: var(--ink-3);
+  --text-inverse: var(--ink-inverse);
+  --green: var(--brand);
+  --green-dark: var(--brand-hover);
+  --green-soft: var(--brand-soft);
+  --green-soft-text: var(--brand-strong);
+  --green-border: var(--brand-border);
+  --nav-bg: var(--forest);
+  --nav-bg-embedded: var(--forest-2);
+  --nav-border: rgba(255, 255, 255, .08);
+  --nav-hover: rgba(255, 255, 255, .08);
+  --nav-active: var(--brand);
+  --nav-text: #e2ece9;
+  --nav-text-muted: #9dbdb1;
+  --blue: var(--info);
+  --blue-soft: var(--info-bg);
+  --orange: var(--warn);
+  --orange-soft: var(--warn-bg);
+  --red: var(--bad);
+  --red-soft: var(--bad-badge);
+  --accent-gold: var(--warn); --accent-gold-soft: var(--warn-bg);
+  --accent-terracotta: var(--loss); --accent-terracotta-soft: var(--loss-soft);
+  --accent-petrol: var(--accent-cyan); --accent-petrol-soft: var(--accent-cyan-soft);
+  --accent-lavender: var(--accent-violet); --accent-lavender-soft: var(--accent-violet-soft);
+  --accent-sage: var(--brand); --accent-sage-soft: var(--brand-soft);
+  --danger-bg: var(--bad-bg); --danger-border: var(--bad-border); --danger-text: var(--bad-text);
+  --danger-text-strong: var(--bad-text); --danger-badge-bg: var(--bad-badge); --danger-icon: var(--bad);
+  --warning-bg: var(--warn-bg); --warning-border: var(--warn-border); --warning-text: var(--warn-text);
+  --warning-badge-bg: var(--warn-badge); --warning-icon: var(--warn);
+  --success-bg: var(--ok-bg); --success-border: var(--ok-border); --success-text: var(--ok-text);
+  --success-badge-bg: var(--ok-badge); --success-icon: var(--ok);
+  --info-badge-bg: var(--info-badge); --info-icon: var(--info);
+  --badge-admin-bg: var(--bad-badge); --badge-admin-text: var(--bad-text);
+  --badge-supervisor-bg: var(--warn-badge); --badge-supervisor-text: var(--warn-text);
+  --badge-agent-bg: var(--ok-badge); --badge-agent-text: var(--ok-text);
+  --input-bg: var(--surface);
+  --input-border: var(--line);
+  --input-text: var(--ink);
+  --input-focus: var(--brand);
+  --chat-bg: radial-gradient(circle at 10px 10px, rgba(0, 185, 107, .05) 1px, transparent 1px) 0 0 / 20px 20px, var(--bg);
+  --msg-in-bg: var(--surface); --msg-in-text: var(--ink); --msg-in-border: var(--line);
+  --msg-out-bg: var(--brand-soft); --msg-out-text: var(--ink); --msg-out-border: var(--brand-border);
+  --msg-note-bg: var(--warn-bg); --msg-note-border: var(--warn); --msg-note-text: var(--warn-text);
+  --table-header-bg: var(--surface-2);
+  --table-row-hover: var(--surface-2);
+  --modal-backdrop: var(--backdrop);
+  --shadow-sm: var(--shadow-1);
+  --shadow: var(--shadow-2);
+  --shadow-lg: var(--shadow-3);
+  --shadow-glow-green: 0 4px 14px rgba(0, 185, 107, .22);
+  --radius: var(--r-lg);
+  --radius-sm: var(--r-md);
+  --bg-surface: var(--surface);
+  --bg-surface-soft: var(--surface-2);
+  --bg-hover: var(--surface-2);
+  --text-main: var(--ink);
+  --primary-color: var(--brand);
+  --primary-light: var(--brand-soft);
+  --toast-bg: var(--toast);
+  --toast-text: #ffffff;
+
+  /* --- hub.css (Panel General) --- */
+  --fh-dark: var(--forest);
+  --fh-dark-2: var(--forest-2);
+  --fh-green: var(--brand);
+  --fh-green-strong: var(--brand-strong);
+  --fh-green-soft: var(--brand-soft);
+  --fh-bg: var(--bg);
+  --fh-panel: var(--surface);
+  --fh-border: var(--line);
+  --fh-border-hover: var(--brand-border);
+  --fh-text: var(--ink);
+  --fh-muted: var(--ink-3);
+  --fh-shadow: var(--shadow-1);
+  --fh-shadow-hover: var(--shadow-2);
+  --fh-blue: var(--info);
+  --fh-blue-soft: var(--info-bg);
+  --fh-orange: var(--warn);
+  --fh-orange-soft: var(--warn-bg);
+  --fh-art-1: #cfe9dc; --fh-art-2: #b6dcc8; --fh-art-3: #8cc6a8; --fh-art-4: #5fae86;
+  /* hub.css: barra lateral clara del Panel General. El "brillo" de antes pasa a ser la sombra
+     suave del sistema: nada que encandile. */
+  --sb-bg: var(--surface); --sb-text: var(--ink-2); --sb-muted: var(--ink-3);
+  --sb-hover: var(--brand-soft); --sb-hover-text: var(--ink); --sb-border: var(--line); --sb-soft: var(--surface-2);
+  --glow-a: var(--brand-hover); --glow-b: var(--brand);
+  --glow-shadow: var(--shadow-2); --glow-ring: var(--focus); --card-glow: var(--shadow-2);
+  /* hub.css: paleta --color-* (perfil y celular) */
+  --color-bg: var(--bg); --color-sidebar: var(--forest); --color-topbar: var(--surface); --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-2); --color-surface-warm: var(--surface-2); --color-input-bg: var(--surface);
+  --color-border: var(--line); --color-border-soft: var(--line-2); --color-border-active: var(--brand); --color-border-warm: var(--line);
+  --color-text: var(--ink); --color-text-secondary: var(--ink-2); --color-text-muted: var(--ink-3); --color-text-inverse: var(--ink-inverse);
+  --color-primary: var(--brand); --color-primary-hover: var(--brand-hover); --color-primary-active: var(--brand-hover);
+  --color-primary-muted: var(--brand-border); --color-primary-soft: var(--brand-soft);
+  --color-gold: var(--warn); --color-gold-soft: var(--warn-bg); --color-gold-border: var(--warn-border);
+  --color-terracotta: var(--loss); --color-terracotta-soft: var(--loss-soft); --color-terracotta-border: var(--loss);
+  --color-petrol: var(--accent-cyan); --color-petrol-soft: var(--accent-cyan-soft); --color-petrol-text: var(--accent-cyan);
+  --color-sage: var(--brand); --color-sage-soft: var(--brand-soft); --color-sage-border: var(--brand-border);
+  --color-chip-bg: var(--surface-2); --color-chip-border: var(--line); --color-chip-text: var(--ink); --color-chip-hover: var(--surface-3);
+  --shadow-md: var(--shadow-2); --shadow-card: var(--shadow-1); --focus-ring: var(--focus);
+  /* Nombres que algunas hojas usaban sin que nadie los definiera */
+  --danger-badge-text: var(--bad-text); --warning-badge-text: var(--warn-text);
+  --success-badge-text: var(--ok-text); --info-badge-text: var(--info-text);
+  --line-strong: var(--surface-3); --int-danger: var(--bad); --inv-red: var(--bad);
+
+  /* --- inventory.css (Inventario, Gestión, Reportes, Administración, Prep, Tablet…) --- */
+  --inv-bg: var(--bg);
+  --inv-panel: var(--surface);
+  --inv-panel-2: var(--surface-2);
+  --inv-border: var(--line);
+  --inv-border-light: var(--line-2);
+  --inv-text: var(--ink);
+  --inv-text-secondary: var(--ink-2);
+  --inv-text-muted: var(--ink-3);
+  --inv-green: var(--brand);
+  --inv-green-soft: var(--brand-soft);
+  --inv-green-soft-text: var(--brand-strong);
+  --inv-green-dark: var(--brand-hover);
+  --inv-green-border: var(--brand-border);
+  --inv-green-deep: var(--brand-hover);
+  --inv-cyan: var(--accent-cyan);
+  --inv-cyan-soft: var(--accent-cyan-soft);
+  --inv-amber: var(--accent-amber);
+  --inv-amber-soft: var(--accent-amber-soft);
+  --inv-bar-track: var(--brand-soft);
+  --inv-bar-fill: var(--brand);
+  --inv-loss: var(--loss);
+  --inv-loss-soft: var(--loss-soft);
+  --inv-loss-text: var(--loss-text);
+
+  /* --- internal.css (Comunicación interna) --- */
+  --int-bg: var(--bg);
+  --int-panel: var(--surface);
+  --int-panel-2: var(--surface-2);
+  --int-border: var(--line);
+  --int-border-light: var(--line-2);
+  --int-text: var(--ink);
+  --int-text-secondary: var(--ink-2);
+  --int-text-muted: var(--ink-3);
+  --int-accent: var(--brand);
+  --int-accent-soft: var(--brand-soft);
+  --int-accent-text: var(--brand-strong);
+  --int-accent-border: var(--brand-border);
+  --int-mine-bg: var(--brand);
+  --int-mine-text: #ffffff;
+  --int-online: var(--ok);
+}
+
+[data-theme="dark"] {
+  --nav-text: #e6efec;
+  --nav-text-muted: #85978f;
+  --fh-art-1: #15302a; --fh-art-2: #1b3d34; --fh-art-3: #245246; --fh-art-4: #2f6b59;
+  --shadow-glow-green: 0 4px 18px rgba(34, 201, 131, .28);
+  --chat-bg: radial-gradient(circle at 10px 10px, rgba(34, 201, 131, .06) 1px, transparent 1px) 0 0 / 20px 20px, var(--bg);
+  --msg-out-bg: #0f3d2c; --msg-out-text: #eafff4; --msg-out-border: #17744a;
+}

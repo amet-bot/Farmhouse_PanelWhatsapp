@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Farmhouse Link · Sistema de diseño (prototipo v1)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+/* =====================================================================
+   TOKENS — lo único que habría que tocar para cambiar la apariencia
+   ===================================================================== */
+:root, [data-theme="light"] {
+  /* Marca */
+  --brand: #00b96b;            /* verde Farmhouse: botones, acentos, estado activo */
+  --brand-strong: #008552;     /* el mismo verde, pero legible como TEXTO sobre blanco (≥4.5:1) */
+  --brand-soft: #e7f8ef;       /* fondo suave de pastillas y filas activas */
+  --brand-border: #b9ebd2;
+  --forest: #073d31;           /* sidebar y barra superior */
+  --forest-2: #0b4a3b;
+
+  /* Superficies */
+  --bg: #f5f9f8;
+  --surface: #ffffff;
+  --surface-2: #eff6f3;        /* cabeceras de tabla, cajas secundarias */
+  --line: #e1ebe8;
+  --line-2: #ecf3f1;
+
+  /* Tinta */
+  --ink: #0f201b;
+  --ink-2: #3a4c46;
+  --ink-3: #63736d;            /* etiquetas, ayudas; nunca para texto importante */
+  --ink-inverse: #ffffff;
+
+  /* Semántica (fondo / borde / texto) */
+  --ok: #16a34a;     --ok-bg: #f0fdf4;   --ok-text: #166534;
+  --warn: #d97706;   --warn-bg: #fffbeb; --warn-text: #92400e;
+  --bad: #dc2626;    --bad-bg: #fef2f2;  --bad-text: #991b1b;
+  --info: #2563eb;   --info-bg: #eff6ff; --info-text: #1e40af;
+
+  /* Tipografía: UNA familia, SIETE tamaños. Nada por debajo de 11 px. */
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --fs-xs: 11px;   /* metadatos: hora, IDs, ayudas de campo */
+  --fs-sm: 12px;   /* etiquetas de sección, badges, texto secundario */
+  --fs-md: 13px;   /* texto de interfaz por defecto: tablas, listas, botones */
+  --fs-base: 14px; /* texto de lectura: mensajes, notas, formularios */
+  --fs-lg: 16px;   /* título de tarjeta / modal */
+  --fs-xl: 20px;   /* título de pantalla */
+  --fs-2xl: 28px;  /* número protagonista en un indicador */
+  --lh-tight: 1.25;
+  --lh-normal: 1.45;
+
+  /* Espacio (base 4) y forma */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
+  --shadow-1: 0 1px 2px rgba(20, 33, 43, .04);
+  --shadow-2: 0 2px 6px rgba(20, 33, 43, .04), 0 8px 20px -4px rgba(20, 33, 43, .06);
+  --shadow-3: 0 12px 20px -6px rgba(20, 33, 43, .10), 0 24px 48px -12px rgba(20, 33, 43, .14);
+  --focus: 0 0 0 3px rgba(0, 185, 107, .25);
+  --control-h: 36px;           /* altura única de botones, inputs y selects */
+  --control-h-lg: 44px;        /* tablet / táctil */
+}
+
+[data-theme="dark"] {
+  --brand: #22c983; --brand-strong: #5fe0a7; --brand-soft: rgba(34, 201, 131, .14); --brand-border: rgba(34, 201, 131, .35);
+  --forest: #061f1a; --forest-2: #0a2c25;
+  --bg: #0a1512; --surface: #10211c; --surface-2: #162b25; --line: #22382f; --line-2: #1b3029;
+  --ink: #e6efec; --ink-2: #b7c7c1; --ink-3: #85978f; --ink-inverse: #0a1512;
+  --ok: #34d399; --ok-bg: rgba(52, 211, 153, .12); --ok-text: #a7f3d0;
+  --warn: #fbbf24; --warn-bg: rgba(251, 191, 36, .12); --warn-text: #fde68a;
+  --bad: #f87171; --bad-bg: rgba(248, 113, 113, .12); --bad-text: #fecaca;
+  --info: #60a5fa; --info-bg: rgba(96, 165, 250, .12); --info-text: #bfdbfe;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .3);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, .3), 0 8px 20px -4px rgba(0, 0, 0, .4);
+  --shadow-3: 0 12px 20px -6px rgba(0, 0, 0, .5), 0 24px 48px -12px rgba(0, 0, 0, .6);
+  --focus: 0 0 0 3px rgba(34, 201, 131, .3);
+}
+
+/* =====================================================================
+   BASE
+   ===================================================================== */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--font); font-size: var(--fs-md); line-height: var(--lh-normal);
+  color: var(--ink); background: var(--bg);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+h1, h2, h3, h4, p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: none; box-shadow: var(--focus); }
+code { font-family: var(--font-mono); font-size: var(--fs-sm); }
+
+/* Tipos */
+.t-screen { font-size: var(--fs-xl); font-weight: 700; line-height: var(--lh-tight); letter-spacing: -.01em; }
+.t-card   { font-size: var(--fs-lg); font-weight: 600; line-height: var(--lh-tight); }
+.t-label  { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
+.t-body   { font-size: var(--fs-base); }
+.t-meta   { font-size: var(--fs-xs); color: var(--ink-3); }
+.t-num    { font-size: var(--fs-2xl); font-weight: 700; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+/* Botones: una altura, cuatro variantes */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); height: var(--control-h); padding: 0 var(--sp-4); border-radius: var(--r-sm); border: 1px solid transparent; font-size: var(--fs-md); font-weight: 600; white-space: nowrap; transition: background .15s, border-color .15s, color .15s, transform .1s; }
+.btn:active { transform: translateY(1px); }
+.btn svg { width: 16px; height: 16px; }
+.btn-primary { background: var(--brand); color: #fff; }
+.btn-primary:hover { background: #00a85a; }
+.btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.btn-secondary:hover { background: var(--surface-2); border-color: var(--brand-border); }
+.btn-ghost { background: transparent; color: var(--ink-2); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
+.btn-danger { background: var(--bad-bg); color: var(--bad-text); border-color: transparent; }
+.btn-danger:hover { background: var(--bad); color: #fff; }
+.btn-sm { height: 30px; padding: 0 var(--sp-3); font-size: var(--fs-sm); }
+.btn-lg { height: var(--control-h-lg); padding: 0 var(--sp-5); font-size: var(--fs-base); }
+.btn-icon { width: var(--control-h); padding: 0; }
+
+/* Campos */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-2); }
+.field .help { font-size: var(--fs-xs); color: var(--ink-3); }
+.input, .select, .textarea { height: var(--control-h); padding: 0 var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); font-size: var(--fs-md); transition: border-color .15s, box-shadow .15s; width: 100%; }
+.input::placeholder { color: var(--ink-3); }
+.input:focus, .select:focus, .textarea:focus { border-color: var(--brand); box-shadow: var(--focus); }
+.textarea { height: auto; min-height: 84px; padding: var(--sp-2) var(--sp-3); resize: vertical; line-height: var(--lh-normal); }
+.input.is-error { border-color: var(--bad); }
+
+/* Badges y etiquetas */
+.badge { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 6px; font-size: var(--fs-sm); font-weight: 600; border: 1px solid transparent; white-space: nowrap; }
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.badge-ok { background: var(--ok-bg); color: var(--ok-text); }
+.badge-warn { background: var(--warn-bg); color: var(--warn-text); }
+.badge-bad { background: var(--bad-bg); color: var(--bad-text); }
+.badge-info { background: var(--info-bg); color: var(--info-text); }
+.badge-neutral { background: var(--surface-2); color: var(--ink-2); }
+.badge-outline { background: transparent; border-color: var(--line); color: var(--ink-2); }
+.tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; font-size: var(--fs-xs); font-weight: 700; border: 1px solid; }
+
+/* Tarjetas */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-1); }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--line-2); }
+.card-body { padding: var(--sp-5); }
+.stat { padding: var(--sp-4) var(--sp-5); display: flex; flex-direction: column; gap: 6px; }
+.stat .delta { font-size: var(--fs-sm); font-weight: 600; display: inline-flex; gap: 4px; align-items: center; }
+.stat .delta.up { color: var(--ok-text); } .stat .delta.down { color: var(--bad-text); }
+
+/* Tabla */
+.table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+table.table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
+.table th { text-align: left; padding: 10px 14px; background: var(--surface-2); color: var(--ink-3); font-size: var(--fs-sm); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.table td { padding: 12px 14px; border-bottom: 1px solid var(--line-2); vertical-align: middle; }
+.table tr:last-child td { border-bottom: 0; }
+.table tbody tr:hover td { background: var(--surface-2); }
+.table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.table .cell-main { font-weight: 600; }
+.table .cell-sub { font-size: var(--fs-xs); color: var(--ink-3); margin-top: 2px; }
+
+/* Tabs / segmentos */
+.tabs { display: inline-flex; gap: 4px; padding: 4px; background: var(--surface-2); border-radius: var(--r-sm); }
+.tab { height: 30px; padding: 0 12px; border-radius: 6px; border: 0; background: transparent; font-size: var(--fs-md); font-weight: 600; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; }
+.tab.is-active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
+.tab .count { font-size: var(--fs-xs); background: var(--brand-soft); color: var(--brand-strong); padding: 0 6px; border-radius: 999px; min-width: 18px; text-align: center; line-height: 18px; }
+
+/* Shell */
+.shell { display: grid; grid-template-columns: 232px 1fr; min-height: 560px; border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; background: var(--bg); box-shadow: var(--shadow-2); }
+.sidebar { background: var(--forest); color: #e2ece9; padding: var(--sp-4) var(--sp-3); display: flex; flex-direction: column; gap: 2px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 6px 10px 18px; }
+.brand .mark { width: 32px; height: 32px; border-radius: 10px; background: var(--brand); display: grid; place-items: center; color: #fff; }
+.brand .name { font-weight: 700; font-size: var(--fs-base); line-height: 1.1; }
+.brand .sub { font-size: var(--fs-xs); color: #9dbdb1; letter-spacing: .06em; text-transform: uppercase; }
+.nav-title { font-size: var(--fs-xs); color: #9dbdb1; text-transform: uppercase; letter-spacing: .08em; padding: 14px 10px 6px; font-weight: 600; }
+.nav-btn { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 38px; padding: 0 10px; border-radius: var(--r-sm); color: #e2ece9; background: transparent; border: 0; font-size: var(--fs-md); font-weight: 500; width: 100%; text-align: left; }
+.nav-btn .l { display: flex; align-items: center; gap: 10px; }
+.nav-btn svg { width: 17px; height: 17px; opacity: .85; }
+.nav-btn:hover { background: rgba(255, 255, 255, .08); }
+.nav-btn.is-active { background: var(--brand); color: #fff; font-weight: 600; }
+.nav-btn .badge-n { font-size: var(--fs-xs); font-weight: 700; background: rgba(255, 255, 255, .14); padding: 0 7px; border-radius: 999px; line-height: 18px; }
+.nav-btn.is-active .badge-n { background: rgba(255, 255, 255, .25); }
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar { height: 56px; display: flex; align-items: center; gap: var(--sp-3); padding: 0 var(--sp-5); background: var(--surface); border-bottom: 1px solid var(--line); }
+.topbar .spacer { flex: 1; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: var(--fs-sm); background: var(--brand-soft); color: var(--brand-strong); flex-shrink: 0; }
+.content { padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-4); }
+
+/* Bandeja WhatsApp (ejemplo) */
+.inbox { display: grid; grid-template-columns: 280px minmax(0, 1fr) 264px; gap: var(--sp-4); min-height: 440px; }
+.inbox > .card { min-width: 0; }
+.conv { display: flex; gap: 10px; padding: 12px; border-radius: var(--r-md); border: 1px solid transparent; cursor: pointer; }
+.conv:hover { background: var(--surface-2); }
+.conv.is-active { background: var(--brand-soft); border-color: var(--brand-border); }
+.conv .who { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.conv .who strong { font-size: var(--fs-md); }
+.conv .preview { font-size: var(--fs-sm); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.conv .meta { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.conv .branch { font-size: var(--fs-xs); font-weight: 600; }
+.chat { display: flex; flex-direction: column; }
+.chat-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line-2); }
+.chat-head .who { flex: 1; min-width: 0; }
+.chat-head .who > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-body { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: radial-gradient(circle at 10px 10px, rgba(0, 185, 107, .05) 1px, transparent 1px) 0 0 / 20px 20px; }
+.msg { max-width: 74%; padding: 9px 12px; border-radius: 12px; font-size: var(--fs-base); line-height: var(--lh-normal); border: 1px solid var(--line); background: var(--surface); }
+.msg.out { align-self: flex-end; background: var(--brand-soft); border-color: var(--brand-border); }
+.msg .time { display: block; font-size: var(--fs-xs); color: var(--ink-3); margin-top: 4px; text-align: right; }
+.composer { border-top: 1px solid var(--line-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: var(--fs-sm); font-weight: 500; }
+.pill svg { width: 13px; height: 13px; color: var(--brand-strong); }
+.pill:hover { background: var(--brand-soft); border-color: var(--brand-border); }
+.composer-row { display: flex; gap: 8px; align-items: center; }
+.details { padding: var(--sp-4); display: flex; flex-direction: column; gap: 12px; }
+.kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kv .k { font-size: var(--fs-xs); color: var(--ink-3); }
+.kv .v { font-size: var(--fs-md); font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.details .btn { justify-content: flex-start; overflow: hidden; }
+
+/* Modal y toast (estáticos para el prototipo) */
+.modal { width: 440px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-3); overflow: hidden; }
+.modal-head { padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--line-2); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.modal-head .sub { font-size: var(--fs-sm); color: var(--ink-3); margin-top: 2px; }
+.modal-body { padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-4); }
+.modal-foot { padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--line-2); display: flex; justify-content: flex-end; gap: 8px; background: var(--surface-2); }
+.toast { display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--r-md); background: #10261f; color: #fff; font-size: var(--fs-md); box-shadow: var(--shadow-3); }
+.toast svg { width: 16px; height: 16px; color: var(--brand); }
+.empty { text-align: center; padding: var(--sp-8); color: var(--ink-3); }
+.empty svg { width: 36px; height: 36px; margin-bottom: 10px; color: var(--ink-3); opacity: .7; }
+.empty strong { display: block; color: var(--ink-2); font-size: var(--fs-base); margin-bottom: 4px; }
+
+/* ===== Layout del documento del prototipo (no forma parte del sistema) ===== */
+.doc { max-width: 1320px; margin: 0 auto; padding: 32px 24px 80px; display: flex; flex-direction: column; gap: 48px; }
+.doc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.doc-head h1 { font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
+.doc-head p { color: var(--ink-2); margin-top: 6px; max-width: 70ch; font-size: var(--fs-base); }
+.banner { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--warn-text); background: var(--warn-bg); padding: 4px 10px; border-radius: 999px; margin-bottom: 12px; }
+section > h2 { font-size: var(--fs-lg); font-weight: 700; margin-bottom: 4px; }
+section > p.lead { color: var(--ink-2); margin-bottom: 18px; max-width: 80ch; }
+.grid { display: grid; gap: var(--sp-4); }
+.g-2 { grid-template-columns: repeat(2, 1fr); } .g-3 { grid-template-columns: repeat(3, 1fr); } .g-4 { grid-template-columns: repeat(4, 1fr); }
+.swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+.sw { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; background: var(--surface); }
+.sw .c { height: 56px; }
+.sw .n { padding: 8px 10px; font-size: var(--fs-xs); }
+.sw .n b { display: block; font-size: var(--fs-sm); color: var(--ink); }
+.type-row { display: grid; grid-template-columns: 110px 1fr 220px; gap: 16px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line-2); }
+.type-row code { color: var(--ink-3); }
+.type-row .use { font-size: var(--fs-xs); color: var(--ink-3); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.theme-toggle { position: fixed; right: 20px; bottom: 20px; z-index: 10; box-shadow: var(--shadow-3); }
+@media (max-width: 900px) { .g-2, .g-3, .g-4 { grid-template-columns: 1fr 1fr; } .swatches { grid-template-columns: repeat(3, 1fr); } .shell { grid-template-columns: 1fr; } .sidebar { display: none; } .inbox { grid-template-columns: 1fr; } .type-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <header class="doc-head">
+    <div>
+      <div class="banner"><i data-lucide="flask-conical"></i> Prototipo v1 · datos de ejemplo</div>
+      <h1>Farmhouse Link · Sistema de diseño</h1>
+      <p>Una familia (Inter), siete tamaños de letra con mínimo 11 px, una paleta con nombres y un solo juego de componentes para las 18 pantallas. Abajo, dos pantallas reales reconstruidas con estas piezas: la bandeja de WhatsApp y una tabla de inventario.</p>
+    </div>
+    <button class="btn btn-secondary" onclick="toggleTheme()"><i data-lucide="sun-moon"></i> Claro / Oscuro</button>
+  </header>
+
+  <!-- ============================ TIPOGRAFÍA ============================ -->
+  <section>
+    <h2>1 · Tipografía</h2>
+    <p class="lead">Hoy hay 44 tamaños distintos y 75 usos por debajo de 11 px. Con estos siete se cubre todo; cada uno tiene un uso definido, así nadie elige "12.5 px porque se veía bien".</p>
+    <div class="card"><div class="card-body" style="padding-top:4px">
+      <div class="type-row"><code>--fs-2xl 28</code><span class="t-num">$4,280.50</span><span class="use">Número protagonista de un indicador</span></div>
+      <div class="type-row"><code>--fs-xl 20</code><span class="t-screen">Inventario · Clayton</span><span class="use">Título de pantalla</span></div>
+      <div class="type-row"><code>--fs-lg 16</code><span class="t-card">Pedido actual</span><span class="use">Título de tarjeta o modal</span></div>
+      <div class="type-row"><code>--fs-base 14</code><span class="t-body">Tu pedido FH-A25DE0 por $7.00 está listo para pagar con Yappy.</span><span class="use">Texto de lectura: mensajes, notas, formularios</span></div>
+      <div class="type-row"><code>--fs-md 13</code><span>Pollo rostizado · 12.5 kg · Costa del Este</span><span class="use">Interfaz por defecto: tablas, listas, botones</span></div>
+      <div class="type-row"><code>--fs-sm 12</code><span class="t-label">Etiquetas del cliente</span><span class="use">Etiquetas de sección, badges, secundario</span></div>
+      <div class="type-row" style="border-bottom:0"><code>--fs-xs 11</code><span class="t-meta">Hoy 04:21 PM · ID FH-DEVICE-TEST01</span><span class="use">Metadatos: hora, IDs, ayudas. El mínimo.</span></div>
+    </div></div>
+  </section>
+
+  <!-- ============================ COLOR ============================ -->
+  <section>
+    <h2>2 · Color</h2>
+    <p class="lead">Hoy hay 335 colores escritos a mano y cuatro paletas paralelas (style, hub, menu, inventory). Pasa a una sola con nombres por función, no por tono: <code>--brand</code>, <code>--ink</code>, <code>--ok</code>… El verde para texto es más oscuro que el de los botones para que se lea.</p>
+    <div class="swatches">
+      <div class="sw"><div class="c" style="background:var(--brand)"></div><div class="n"><b>--brand</b>Botones, acentos, activo</div></div>
+      <div class="sw"><div class="c" style="background:var(--brand-strong)"></div><div class="n"><b>--brand-strong</b>Verde como texto</div></div>
+      <div class="sw"><div class="c" style="background:var(--brand-soft);border-bottom:1px solid var(--line)"></div><div class="n"><b>--brand-soft</b>Fila activa, pastillas</div></div>
+      <div class="sw"><div class="c" style="background:var(--forest)"></div><div class="n"><b>--forest</b>Sidebar</div></div>
+      <div class="sw"><div class="c" style="background:var(--ink)"></div><div class="n"><b>--ink</b>Texto principal</div></div>
+      <div class="sw"><div class="c" style="background:var(--ink-3)"></div><div class="n"><b>--ink-3</b>Texto apagado</div></div>
+      <div class="sw"><div class="c" style="background:var(--ok)"></div><div class="n"><b>--ok</b>Correcto / abierto</div></div>
+      <div class="sw"><div class="c" style="background:var(--warn)"></div><div class="n"><b>--warn</b>Atención / pendiente</div></div>
+      <div class="sw"><div class="c" style="background:var(--bad)"></div><div class="n"><b>--bad</b>Error / revocado</div></div>
+      <div class="sw"><div class="c" style="background:var(--info)"></div><div class="n"><b>--info</b>Informativo</div></div>
+      <div class="sw"><div class="c" style="background:var(--surface-2);border-bottom:1px solid var(--line)"></div><div class="n"><b>--surface-2</b>Cabeceras, cajas</div></div>
+      <div class="sw"><div class="c" style="background:var(--bg);border-bottom:1px solid var(--line)"></div><div class="n"><b>--bg</b>Fondo de página</div></div>
+    </div>
+  </section>
+
+  <!-- ============================ COMPONENTES ============================ -->
+  <section>
+    <h2>3 · Componentes</h2>
+    <p class="lead">Las mismas piezas en todas las pantallas. Una sola altura para botones, campos y selectores (36 px; 44 px en tablet), un solo radio, una sola sombra.</p>
+    <div class="grid g-2">
+      <div class="card">
+        <div class="card-head"><h3 class="t-card">Botones</h3><span class="t-meta">36 px · 30 px (sm) · 44 px (táctil)</span></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+          <div class="row">
+            <button class="btn btn-primary"><i data-lucide="plus-circle"></i> Registrar dispositivo</button>
+            <button class="btn btn-secondary"><i data-lucide="download"></i> Exportar</button>
+            <button class="btn btn-ghost">Cancelar</button>
+            <button class="btn btn-danger"><i data-lucide="ban"></i> Revocar</button>
+          </div>
+          <div class="row">
+            <button class="btn btn-sm btn-secondary"><i data-lucide="pencil"></i> Editar</button>
+            <button class="btn btn-sm btn-secondary"><i data-lucide="key-round"></i> Código</button>
+            <button class="btn btn-sm btn-danger"><i data-lucide="trash-2"></i></button>
+            <button class="btn btn-lg btn-primary"><i data-lucide="send"></i> Enviar</button>
+            <button class="btn btn-icon btn-secondary" aria-label="Más"><i data-lucide="more-horizontal"></i></button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3 class="t-card">Campos</h3><span class="t-meta">Etiqueta 12 · texto 13 · ayuda 11</span></div>
+        <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="field"><label>Nombre del dispositivo</label><input class="input" placeholder="Ej: Tablet Clayton 01"><span class="help">Como lo reconocerá el equipo.</span></div>
+          <div class="field"><label>Sucursal</label><select class="select"><option>Clayton</option><option>Costa del Este</option></select></div>
+          <div class="field" style="grid-column:1/-1"><label>Mensaje</label><textarea class="textarea" placeholder="Hola {nombre}, nuestro horario es…"></textarea></div>
+          <div class="field"><label>Cédula</label><input class="input is-error" value="8-123"><span class="help" style="color:var(--bad-text)">Falta el tercer bloque (8-123-4567).</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3 class="t-card">Estados y etiquetas</h3></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+          <div class="row">
+            <span class="badge badge-ok"><span class="dot"></span>Abierto</span>
+            <span class="badge badge-warn"><span class="dot"></span>No asignado</span>
+            <span class="badge badge-bad"><span class="dot"></span>Revocado</span>
+            <span class="badge badge-info">Pendiente</span>
+            <span class="badge badge-neutral">Sin vincular</span>
+            <span class="badge badge-outline">Inactiva</span>
+          </div>
+          <div class="row">
+            <span class="tag" style="color:#b45309;border-color:#f59e0b55;background:#f59e0b1a">VIP</span>
+            <span class="tag" style="color:#1d4ed8;border-color:#2563eb55;background:#2563eb1a">Corporativo</span>
+            <span class="tag" style="color:#b91c1c;border-color:#dc262655;background:#dc26261a">Reclamo</span>
+            <span class="tag" style="color:var(--brand-strong);border-color:var(--brand-border);background:var(--brand-soft)">Frecuente</span>
+          </div>
+          <div class="tabs">
+            <button class="tab">Todas <span class="count">27</span></button>
+            <button class="tab is-active">Abiertas <span class="count">21</span></button>
+            <button class="tab">No asignadas <span class="count">20</span></button>
+            <button class="tab">Pendientes <span class="count">0</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3 class="t-card">Avisos</h3></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px;align-items:flex-start">
+          <div class="toast"><i data-lucide="check-circle-2"></i> Equipo vinculado: Tablet Clayton 01</div>
+          <div class="empty" style="width:100%;padding:20px"><i data-lucide="inbox"></i><strong>No hay tareas pendientes</strong>Cuando te manden una, te llega un aviso y aparece aquí.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ MODAL ============================ -->
+  <section>
+    <h2>4 · Modal</h2>
+    <p class="lead">Cabecera con título y subtítulo, cuerpo con campos y pie con las acciones a la derecha. El mismo esqueleto para los 30 modales que existen hoy.</p>
+    <div class="modal">
+      <div class="modal-head">
+        <div><h3 class="t-card"><i data-lucide="key-round" style="width:16px;height:16px;vertical-align:-3px;margin-right:6px;color:var(--brand-strong)"></i>Código de vinculación</h3><div class="sub">Para Tablet Clayton 01</div></div>
+        <button class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="text-align:center">
+        <div style="font-family:var(--font-mono);font-size:30px;font-weight:700;letter-spacing:4px;padding:14px;border-radius:var(--r-md);background:var(--surface-2)">UL5R-SNR5</div>
+        <p class="t-meta" style="font-size:var(--fs-sm)">Escríbelo en ese equipo en <b>Dispositivos → Vincular este equipo</b>. Sirve una sola vez y vence en 24 horas.</p>
+      </div>
+      <div class="modal-foot"><button class="btn btn-secondary"><i data-lucide="copy"></i> Copiar</button><button class="btn btn-primary">Listo</button></div>
+    </div>
+  </section>
+
+  <!-- ============================ PANTALLA 1: BANDEJA ============================ -->
+  <section>
+    <h2>5 · Pantalla de ejemplo: Centro WhatsApp</h2>
+    <p class="lead">La bandeja de hoy, reconstruida con las piezas de arriba. Misma información, menos tamaños de letra, más aire entre filas.</p>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand"><div class="mark"><i data-lucide="sprout"></i></div><div><div class="name">Farmhouse Link</div><div class="sub">Atención al cliente</div></div></div>
+        <button class="nav-btn is-active"><span class="l"><i data-lucide="message-square"></i>Conversaciones</span><span class="badge-n">21</span></button>
+        <button class="nav-btn"><span class="l"><i data-lucide="clock"></i>No asignadas</span><span class="badge-n">20</span></button>
+        <button class="nav-btn"><span class="l"><i data-lucide="inbox"></i>Todas</span><span class="badge-n">27</span></button>
+        <button class="nav-btn"><span class="l"><i data-lucide="contact-round"></i>Contactos</span></button>
+        <div class="nav-title">Sucursales</div>
+        <button class="nav-btn"><span class="l"><span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block"></span>Costa del Este</span><span class="badge-n">3</span></button>
+        <button class="nav-btn"><span class="l"><span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block"></span>Clayton</span><span class="badge-n">9</span></button>
+        <button class="nav-btn"><span class="l"><span style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block"></span>Catering</span><span class="badge-n">5</span></button>
+        <div class="nav-title">Administración</div>
+        <button class="nav-btn"><span class="l"><i data-lucide="users"></i>Usuarios</span></button>
+        <button class="nav-btn"><span class="l"><i data-lucide="laptop"></i>Dispositivos</span></button>
+        <button class="nav-btn"><span class="l"><i data-lucide="zap"></i>Respuestas rápidas</span></button>
+        <button class="nav-btn"><span class="l"><i data-lucide="tag"></i>Etiquetas</span></button>
+      </aside>
+      <div class="main">
+        <div class="topbar">
+          <span class="badge badge-ok"><span class="dot"></span>En vivo</span>
+          <span class="badge badge-neutral"><i data-lucide="laptop" style="width:13px;height:13px"></i> Tablet Clayton 01</span>
+          <span class="spacer"></span>
+          <input class="input" style="width:280px" placeholder="Buscar conversación o teléfono…">
+          <button class="btn btn-icon btn-secondary" aria-label="Notificaciones"><i data-lucide="bell"></i></button>
+          <div class="avatar">AF</div>
+        </div>
+        <div class="content">
+          <div class="inbox">
+            <div class="card" style="padding:12px;display:flex;flex-direction:column;gap:8px">
+              <div class="tabs" style="align-self:stretch;justify-content:space-between"><button class="tab">Todas <span class="count">27</span></button><button class="tab is-active">Abiertas <span class="count">21</span></button><button class="tab">Pend. <span class="count">0</span></button></div>
+              <div class="conv is-active"><div class="avatar" style="background:#dbeafe;color:#1d4ed8">CP</div><div style="min-width:0;flex:1"><div class="who"><strong>Cliente de Prueba</strong><span class="t-meta">04:21 PM</span></div><div class="preview">Tú: Tu pedido FH-ADD4B4 por $31.95 está listo para pagar…</div><div class="meta"><span class="branch" style="color:#16a34a">● Costa del Este</span><span class="badge badge-ok" style="height:18px;font-size:11px">Abierto</span><span class="tag" style="color:#b45309;border-color:#f59e0b55;background:#f59e0b1a">VIP</span></div></div></div>
+              <div class="conv"><div class="avatar" style="background:#fef3c7;color:#92400e">CM</div><div style="min-width:0;flex:1"><div class="who"><strong>Cliente Móvil Prueba</strong><span class="t-meta">11:00 AM</span></div><div class="preview">Tú: ¿Sigues ahí? 😊 Cuando quieras seguimos…</div><div class="meta"><span class="branch" style="color:#ef4444">● Catering</span><span class="badge badge-warn" style="height:18px;font-size:11px">No asignado</span></div></div></div>
+              <div class="conv"><div class="avatar" style="background:#fce7f3;color:#9d174d">CC</div><div style="min-width:0;flex:1"><div class="who"><strong>Cliente Corto</strong><span class="t-meta">10:43 AM</span></div><div class="preview">Tú: ¿Sigues ahí? 😊 Seguimos cuando quieras.</div><div class="meta"><span class="branch" style="color:#f59e0b">● Clayton</span><span class="badge badge-warn" style="height:18px;font-size:11px">No asignado</span><span class="tag" style="color:#1d4ed8;border-color:#2563eb55;background:#2563eb1a">Corporativo</span></div></div></div>
+              <div class="conv"><div class="avatar">CW</div><div style="min-width:0;flex:1"><div class="who"><strong>Cliente WhatsApp</strong><span class="t-meta">10:39 AM</span></div><div class="preview">🔒 Nota: Resumen para Sol…</div><div class="meta"><span class="branch" style="color:#ef4444">● Catering</span><span class="badge badge-warn" style="height:18px;font-size:11px">No asignado</span></div></div></div>
+            </div>
+            <div class="card chat">
+              <div class="chat-head"><div class="avatar" style="background:#dbeafe;color:#1d4ed8">CP</div><div class="who"><div style="font-weight:600;display:flex;gap:8px;align-items:center">Cliente de Prueba <span class="badge badge-ok" style="height:18px;font-size:11px"><span class="dot"></span>Abierto</span></div><div class="t-meta">+507 6000-0001 · Atendido por Agente de Prueba</div></div><button class="btn btn-sm btn-secondary btn-icon" style="width:30px" title="Transferir" aria-label="Transferir"><i data-lucide="arrow-right-left"></i></button><button class="btn btn-sm btn-secondary btn-icon" style="width:30px" title="Resolver" aria-label="Resolver"><i data-lucide="check-circle-2"></i></button><button class="btn btn-sm btn-ghost btn-icon" style="width:30px" title="Más" aria-label="Más"><i data-lucide="more-horizontal"></i></button></div>
+              <div class="chat-body">
+                <div class="msg">Hola, quiero pedir dos bowls de pollo para recoger en Costa del Este.<span class="time">04:10 PM</span></div>
+                <div class="msg out">¡Claro! Te comparto el menú para que elijas 😊<br>https://farmhouselink.app/menu<span class="time">04:11 PM ✓✓</span></div>
+                <div class="msg out">Tu pedido FH-ADD4B4 por $31.95 está listo para pagar con Yappy. Toca el botón para aprobar la solicitud en tu app.<span class="time">04:21 PM ✓✓</span></div>
+              </div>
+              <div class="composer">
+                <div class="pills"><span class="pill"><i data-lucide="zap"></i>Ver productos</span><span class="pill"><i data-lucide="zap"></i>Estado de mi pedido</span><span class="pill"><i data-lucide="zap"></i>Horarios y sucursales</span><span class="pill"><i data-lucide="zap"></i>Hablar con un asesor</span></div>
+                <div class="composer-row"><input class="input" placeholder="Escribe un mensaje… ( / para respuestas rápidas)"><button class="btn btn-icon btn-ghost" aria-label="Adjuntar"><i data-lucide="paperclip"></i></button><button class="btn btn-primary"><i data-lucide="send"></i> Enviar</button></div>
+              </div>
+            </div>
+            <div class="card details">
+              <div class="t-label">Cliente</div>
+              <div style="display:flex;gap:10px;align-items:center"><div class="avatar" style="background:#dbeafe;color:#1d4ed8">CP</div><div><div style="font-weight:600">Cliente de Prueba</div><div class="t-meta">+507 6000-0001</div></div></div>
+              <div class="kv"><div><div class="k">Primera vez</div><div class="v">4 sept 2026</div></div><div><div class="k">Última conversación</div><div class="v">Hoy 04:21 PM</div></div></div>
+              <div><div class="k t-meta">Sucursal</div><span class="badge badge-ok" style="margin-top:4px">Costa del Este</span></div>
+              <div><div style="display:flex;justify-content:space-between;align-items:center"><span class="t-meta">Etiquetas</span><button class="btn btn-sm btn-ghost btn-icon" style="width:24px;height:24px" aria-label="Agregar"><i data-lucide="plus"></i></button></div><div class="row" style="margin-top:4px"><span class="tag" style="color:#b45309;border-color:#f59e0b55;background:#f59e0b1a">VIP</span></div></div>
+              <div class="t-label" style="margin-top:6px">Pedido actual</div>
+              <div class="kv"><div><div class="k">Pedido</div><div class="v">FH-ADD4B4</div></div><div><div class="k">Pago</div><div class="v">Yappy</div></div><div><div class="k">Entrega</div><div class="v">Recoger</div></div><div><div class="k">Total</div><div class="v" style="color:var(--brand-strong)">$31.95</div></div></div>
+              <button class="btn btn-secondary" style="justify-content:flex-start"><i data-lucide="book-open"></i> Enviar menú digital</button>
+              <button class="btn btn-secondary" style="justify-content:flex-start"><i data-lucide="credit-card"></i> Cobrar por Yappy</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ PANTALLA 2: INVENTARIO ============================ -->
+  <section>
+    <h2>6 · Pantalla de ejemplo: Inventario</h2>
+    <p class="lead">Indicadores con un número protagonista, tabla con cabecera gris y números alineados a la derecha, acciones pequeñas al final de cada fila.</p>
+    <div class="shell" style="grid-template-columns:1fr;min-height:0">
+      <div class="main">
+        <div class="topbar"><h1 class="t-screen" style="font-size:var(--fs-lg)">Inventario · Clayton</h1><span class="spacer"></span><select class="select" style="width:200px"><option>Clayton</option></select><button class="btn btn-secondary"><i data-lucide="download"></i> Exportar</button><button class="btn btn-primary"><i data-lucide="clipboard-list"></i> Nuevo conteo</button></div>
+        <div class="content">
+          <div class="grid g-4">
+            <div class="card stat"><span class="t-label">Valor en existencia</span><span class="t-num">$12,480</span><span class="delta up"><i data-lucide="trending-up" style="width:14px;height:14px"></i> +3.2 % vs. semana pasada</span></div>
+            <div class="card stat"><span class="t-label">Bajo mínimo</span><span class="t-num" style="color:var(--warn)">7</span><span class="t-meta">insumos por pedir</span></div>
+            <div class="card stat"><span class="t-label">Merma del mes</span><span class="t-num">$318</span><span class="delta down"><i data-lucide="trending-down" style="width:14px;height:14px"></i> 2.1 % de las ventas</span></div>
+            <div class="card stat"><span class="t-label">Último conteo</span><span class="t-num" style="font-size:var(--fs-xl)">Ayer</span><span class="t-meta">por María · 14 diferencias</span></div>
+          </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Insumo</th><th>Categoría</th><th class="num">Existencia</th><th class="num">Mínimo</th><th class="num">Costo</th><th>Estado</th><th></th></tr></thead>
+              <tbody>
+                <tr><td><div class="cell-main">Pollo rostizado</div><div class="cell-sub">P142 · Invu</div></td><td>Proteínas</td><td class="num">12.5 kg</td><td class="num">8 kg</td><td class="num">$6.40 / kg</td><td><span class="badge badge-ok"><span class="dot"></span>OK</span></td><td style="text-align:right"><button class="btn btn-sm btn-secondary">Movimientos</button></td></tr>
+                <tr><td><div class="cell-main">Kale picado</div><div class="cell-sub">P031</div></td><td>Bases</td><td class="num">2.1 kg</td><td class="num">4 kg</td><td class="num">$3.10 / kg</td><td><span class="badge badge-warn"><span class="dot"></span>Bajo mínimo</span></td><td style="text-align:right"><button class="btn btn-sm btn-primary">Pedir</button></td></tr>
+                <tr><td><div class="cell-main">Aceite de oliva</div><div class="cell-sub">P200 · Invu</div></td><td>Aderezos</td><td class="num">0 L</td><td class="num">3 L</td><td class="num">$9.80 / L</td><td><span class="badge badge-bad"><span class="dot"></span>Agotado</span></td><td style="text-align:right"><button class="btn btn-sm btn-primary">Pedir</button></td></tr>
+                <tr><td><div class="cell-main">Pan de masa madre</div><div class="cell-sub">P088</div></td><td>Panadería</td><td class="num">34 pzas</td><td class="num">20 pzas</td><td class="num">$1.62 / pza</td><td><span class="badge badge-ok"><span class="dot"></span>OK</span></td><td style="text-align:right"><button class="btn btn-sm btn-secondary">Movimientos</button></td></tr>
+                <tr><td><div class="cell-main">Agua de coco</div><div class="cell-sub">P199 · Invu · costo por revisar</div></td><td>Bebidas</td><td class="num">18 L</td><td class="num">10 L</td><td class="num" style="color:var(--warn-text)">$102 / L</td><td><span class="badge badge-info">Revisar en Invu</span></td><td style="text-align:right"><button class="btn btn-sm btn-secondary">Movimientos</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+<button class="btn btn-primary theme-toggle" onclick="toggleTheme()"><i data-lucide="sun-moon"></i> Cambiar tema</button>
+<script>
+  function toggleTheme() {
+    const r = document.documentElement;
+    r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark';
+  }
+  lucide.createIcons();
+</script>
+</body>
+</html>

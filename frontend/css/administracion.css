@@ -72,10 +72,10 @@
 
 
 /* Respaldos (admin-sistema.js) */
-.adm-hint { margin: 0 0 12px; font-size: 13px; color: var(--text-muted, #6b7280); max-width: 760px; }
+.adm-hint { margin: 0 0 12px; font-size: var(--fs-md); color: var(--text-muted, #6b7280); max-width: 760px; }
 .adm-empty { text-align: center; color: var(--text-muted, #6b7280); padding: 18px !important; }
-.adm-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
-.adm-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: rgba(22,163,74,.12); color: var(--green, #15803d); font-size: 11.5px; font-weight: 700; }
+.adm-mono { font-family: var(--font-mono); font-size: var(--fs-md); }
+.adm-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: rgba(22,163,74,.12); color: var(--green, #15803d); font-size: var(--fs-sm); font-weight: 700; }
 .adm-link-btn { border: 0; background: transparent; color: var(--green, #15803d); font: inherit; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .adm-link-btn:disabled { opacity: .5; cursor: default; }
 
@@ -86,8 +86,8 @@
 .admin-body { max-width: 1200px; }
 
 /* Confirmación de eliminar usuario. */
-.adm-confirm-text { margin: 0 0 10px; font-size: 14px; color: var(--text-primary); }
-.adm-confirm-note { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+.adm-confirm-text { margin: 0 0 10px; font-size: var(--fs-base); color: var(--text-primary); }
+.adm-confirm-note { margin: 10px 0 0; font-size: var(--fs-md); line-height: 1.5; color: var(--text-muted); }
 
 /* El pie del modal (Guardar) siempre a la vista: el <form> es el que reparte el alto del
    modal; sin esto, en una tablet acostada el botón quedaba cortado abajo. */
@@ -107,11 +107,11 @@
   .device-table.adm-cards tr { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 16px;
     padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-bg); }
   .device-table.adm-cards tr:hover td { background: transparent; }
-  .device-table.adm-cards td { display: block; padding: 0; border: 0; min-width: 0; font-size: 14px; }
+  .device-table.adm-cards td { display: block; padding: 0; border: 0; min-width: 0; font-size: var(--fs-base); }
   .device-table.adm-cards td.adm-td-main, .device-table.adm-cards td.adm-td-actions, .device-table.adm-cards td[colspan] { grid-column: 1 / -1; }
-  .device-table.adm-cards td.adm-td-main strong { font-size: 16px; }
-  .device-table.adm-cards td.adm-td-main .adm-sub { font-size: 13px !important; margin-top: 2px; }
-  .device-table.adm-cards td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 3px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+  .device-table.adm-cards td.adm-td-main strong { font-size: var(--fs-lg); }
+  .device-table.adm-cards td.adm-td-main .adm-sub { font-size: var(--fs-md) !important; margin-top: 2px; }
+  .device-table.adm-cards td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 3px; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); }
   .device-table.adm-cards td.adm-td-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); white-space: normal !important; }
   .device-table.adm-cards td.adm-td-actions.is-empty { display: none; }
   .device-table.adm-cards td.adm-td-actions .delete-action { margin-left: auto; }
@@ -119,22 +119,22 @@
 }
 
 @media (pointer: coarse), (max-width: 1199px) {
-  .admin-tab { font-size: 15px; padding: 10px 18px; }
-  .btn-sm-action { min-height: 44px; padding: 8px 14px; font-size: 14px; border-radius: 10px; gap: 6px; }
+  .admin-tab { font-size: var(--fs-base); padding: 10px 18px; }
+  .btn-sm-action { min-height: 44px; padding: 8px 14px; font-size: var(--fs-base); border-radius: 10px; gap: 6px; }
   .btn-sm-action svg, .btn-sm-action i { width: 16px; height: 16px; }
-  .device-table { font-size: 14px; }
+  .device-table { font-size: var(--fs-base); }
   .device-table td { padding: 14px; }
-  .device-table th { font-size: 12px; }
-  .dev-badge, .tag-type { font-size: 12.5px; padding: 3px 9px; }
-  .adm-link-btn { min-height: 44px; font-size: 14.5px; }
-  .adm-hint, .inv-panel-note { font-size: 14px; }
-  .admin-checkbox-row label { min-height: 44px; font-size: 15px; gap: 10px; }
-  .modal-label { font-size: 14px; }
-  .modal-subtitle { font-size: 13px; }
-  .btn-cancel, .btn-danger { min-height: 44px; font-size: 15px; }
-  .modal-footer .btn-primary { font-size: 15px; }
-  .adm-confirm-text { font-size: 15px; }
-  .adm-confirm-note { font-size: 14px; }
+  .device-table th { font-size: var(--fs-sm); }
+  .dev-badge, .tag-type { font-size: var(--fs-md); padding: 3px 9px; }
+  .adm-link-btn { min-height: 44px; font-size: var(--fs-base); }
+  .adm-hint, .inv-panel-note { font-size: var(--fs-base); }
+  .admin-checkbox-row label { min-height: 44px; font-size: var(--fs-base); gap: 10px; }
+  .modal-label { font-size: var(--fs-base); }
+  .modal-subtitle { font-size: var(--fs-md); }
+  .btn-cancel, .btn-danger { min-height: 44px; font-size: var(--fs-base); }
+  .modal-footer .btn-primary { font-size: var(--fs-base); }
+  .adm-confirm-text { font-size: var(--fs-base); }
+  .adm-confirm-note { font-size: var(--fs-base); }
   /* La tabla en fila (tablet acostada): los botones uno al lado del otro con aire entre ellos. */
   .device-table td[style*="nowrap"] { white-space: normal !important; }
   .device-table td .btn-sm-action { margin: 4px 8px 4px 0; }
