@@ -18,6 +18,7 @@ from models.branch import Branch
 from models.user import User
 from models.device import Device
 from security.auth import get_password_hash, create_access_token
+from services.device_access import hash_token
 
 @pytest.fixture(autouse=True)
 def _no_bot_response_delay(monkeypatch):
@@ -191,6 +192,10 @@ def obarrio_agent(db_session, obarrio_branch):
     db_session.refresh(agent)
     return agent
 
+# Los equipos de prueba nacen YA vinculados y su token secreto es igual a su código público, así
+# `auth_headers_for(user, device.device_id)` sigue sirviendo en toda la suite. En producción el
+# token es aleatorio y solo se obtiene canjeando un código de vinculación (ver
+# test_device_enrollment.py).
 @pytest.fixture
 def clayton_device(db_session, clayton_branch):
     dev = Device(
@@ -199,7 +204,8 @@ def clayton_device(db_session, clayton_branch):
         name="Tablet Clayton",
         device_type="tablet",
         branch_id=clayton_branch.id,
-        status="active"
+        status="active",
+        secret_hash=hash_token("FH-DEVICE-CLY01"),
     )
     db_session.add(dev)
     db_session.commit()
@@ -214,7 +220,8 @@ def obarrio_device(db_session, obarrio_branch):
         name="PC Obarrio",
         device_type="computadora",
         branch_id=obarrio_branch.id,
-        status="active"
+        status="active",
+        secret_hash=hash_token("FH-DEVICE-OBR01"),
     )
     db_session.add(dev)
     db_session.commit()
@@ -229,7 +236,9 @@ def revoked_device(db_session, clayton_branch):
         name="Tablet Revocada",
         device_type="tablet",
         branch_id=clayton_branch.id,
-        status="revoked"
+        status="revoked",
+        # Revocado pero con token todavía guardado: debe rechazarse por el estado.
+        secret_hash=hash_token("FH-DEVICE-REVOKED"),
     )
     db_session.add(dev)
     db_session.commit()

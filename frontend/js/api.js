@@ -53,24 +53,42 @@ const api = {
   },
 
 
+  /**
+   * Token secreto del equipo vinculado (lo entregó POST /devices/enroll una sola vez). Es lo que
+   * viaja en X-Device-ID y en el `device_id` del WebSocket. El código público FH-DEVICE-… ya no
+   * autoriza nada: se guarda aparte (fh_device_code) solo para mostrar qué equipo es este.
+   */
   getDeviceId() {
     try {
-      return localStorage.getItem('fh_device_id') || '';
+      return localStorage.getItem('fh_device_token') || '';
     } catch (e) {
       return ''; // Almacenamiento bloqueado (navegación privada estricta): sin dispositivo guardado.
     }
   },
 
-  setDeviceId(id) {
+  setDeviceId(token) {
     try {
-      if (id) {
-        localStorage.setItem('fh_device_id', id);
+      if (token) {
+        localStorage.setItem('fh_device_token', token);
       } else {
-        localStorage.removeItem('fh_device_id');
+        localStorage.removeItem('fh_device_token');
       }
+      // El valor viejo (código público) no sirve y confundiría al módulo de dispositivos.
+      localStorage.removeItem('fh_device_id');
     } catch (e) {
       /* Sin almacenamiento el dispositivo no persiste entre visitas; la sesión sigue funcionando. */
     }
+  },
+
+  getDeviceCode() {
+    try { return localStorage.getItem('fh_device_code') || ''; } catch (e) { return ''; }
+  },
+
+  setDeviceCode(code) {
+    try {
+      if (code) localStorage.setItem('fh_device_code', code);
+      else localStorage.removeItem('fh_device_code');
+    } catch (e) { /* igual que arriba */ }
   },
 
   /**

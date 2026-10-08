@@ -8,11 +8,15 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.device import Device
 from models.user import User
-from schemas.device import DeviceResponse, DeviceCreate, DeviceUpdate
+from schemas.device import (
+    DeviceResponse, DeviceCreate, DeviceUpdate, DeviceWithEnrollCode,
+    DeviceEnrollRequest, DeviceEnrollResponse,
+)
 from security.auth import get_current_user, get_current_authorized_user
 from security.access_control import check_target_branch_valid
 from security.permissions import require_permission
-from services.device_access import check_device_authorized
+from services.audit import log_audit_event
+from services.device_access import issue_enroll_code, redeem_enroll_code, clear_device_binding, find_device_by_token
 
 logger = logging.getLogger("farmhouse.devices")
 
@@ -27,12 +31,10 @@ def get_devices(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
-    # Deliberadamente solo requiere sesión autenticada (NO get_current_authorized_user):
-    # este es el endpoint que el frontend usa para descubrir/auto-vincular un dispositivo
-    # autorizado. Si exigiera un dispositivo ya autorizado para poder listarlos, un agente
-    # o supervisor sin dispositivo vinculado (o con uno viejo/revocado en localStorage)
-    # quedaría bloqueado para siempre: no podría ver la lista de dispositivos válidos de
-    # su sucursal ni auto-vincularse a ninguno, aunque el admin ya los haya registrado.
+    # Deliberadamente solo requiere sesión autenticada (NO get_current_authorized_user): un agente
+    # o supervisor en un equipo todavía sin vincular necesita ver la lista para saber qué equipo
+    # es el suyo. Listarlos no da acceso: el código FH-DEVICE-… es solo una etiqueta y el token
+    # secreto nunca sale de aquí.
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(Device)
@@ -47,18 +49,38 @@ def get_devices(
 
     return query.order_by(Device.created_at.desc()).offset(skip).limit(limit).all()
 
-@router.get("/verify/{device_code}", response_model=DeviceResponse)
-def verify_device(
-    device_code: str,
+
+@router.get("/me", response_model=Optional[DeviceResponse])
+def get_my_device(
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_authorized_user)
+    current_user: User = Depends(get_current_user)
+):
+    """El equipo al que está vinculado este navegador (según el token que manda), o null."""
+    token = (request.headers.get("X-Device-ID") or "").strip()
+    return find_device_by_token(db, token) if token else None
+
+
+@router.post("/enroll", response_model=DeviceEnrollResponse)
+def enroll_device(
+    data: DeviceEnrollRequest,
+    db: Session = Depends(get_db),
+    # Solo sesión: justamente se llama desde un equipo que todavía no está autorizado.
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Verifica y autoriza el dispositivo utilizando el servicio centralizado check_device_authorized.
+    Canjea el código de vinculación (lo generó el admin) por el token secreto de este equipo.
+    El código se gasta al usarse; el token se devuelve una sola vez.
     """
-    return check_device_authorized(db, device_code, current_user)
+    device, secret = redeem_enroll_code(db, data.code, current_user)
+    log_audit_event(db, current_user.id, device.branch_id, "device.enrolled", "device", device.id,
+                    {"device_id": device.device_id, "name": device.name})
+    db.commit()
+    db.refresh(device)
+    return DeviceEnrollResponse(device_token=secret, device=device)
 
-@router.post("/", response_model=DeviceResponse, dependencies=[Depends(require_permission("devices.manage"))])
+
+@router.post("/", response_model=DeviceWithEnrollCode, dependencies=[Depends(require_permission("devices.manage"))])
 def register_device(
     device_in: DeviceCreate,
     db: Session = Depends(get_db),
@@ -86,14 +108,44 @@ def register_device(
         assigned_user_id=device_in.assigned_user_id,
         status=init_status,
         ip_address=device_in.ip_address,
-        last_seen=now,
+        last_seen=None,
         created_at=now
     )
+    # 4. Código de vinculación: se muestra una sola vez al admin, que lo teclea en el equipo.
+    enrollment_code = issue_enroll_code(device)
     db.add(device)
+    db.flush()
+    log_audit_event(db, current_user.id, branch.id, "device.created", "device", device.id,
+                    {"device_id": device.device_id, "name": device.name, "status": device.status})
     db.commit()
     db.refresh(device)
-    logger.info(f"Dispositivo autorizado creado por Admin ({current_user.username}): '{device.name}' [{device.device_id}] en sucursal '{branch.name}', Estado: {device.status}")
-    return device
+    logger.info(f"Dispositivo registrado por Admin ({current_user.username}): '{device.name}' [{device.device_id}] en sucursal '{branch.name}', Estado: {device.status}")
+    return DeviceWithEnrollCode(**DeviceResponse.model_validate(device).model_dump(), enrollment_code=enrollment_code)
+
+
+@router.post("/{device_id_db}/enrollment-code", response_model=DeviceWithEnrollCode, dependencies=[Depends(require_permission("devices.manage"))])
+def new_enrollment_code(
+    device_id_db: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_authorized_user)
+):
+    """
+    Código de vinculación nuevo para un equipo (por ejemplo, uno registrado antes de este control,
+    o una tablet que se reemplazó). Invalida el código anterior; el token ya vinculado sigue
+    valiendo hasta que alguien canjee el nuevo código, que lo reemplaza.
+    """
+    device = db.query(Device).filter(Device.id == device_id_db).first()
+    if not device:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispositivo no encontrado.")
+    if device.status != "active":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Activa el dispositivo antes de generar un código de vinculación.")
+    enrollment_code = issue_enroll_code(device)
+    log_audit_event(db, current_user.id, device.branch_id, "device.enroll_code_issued", "device", device.id,
+                    {"device_id": device.device_id})
+    db.commit()
+    db.refresh(device)
+    return DeviceWithEnrollCode(**DeviceResponse.model_validate(device).model_dump(), enrollment_code=enrollment_code)
+
 
 @router.put("/{device_id_db}", response_model=DeviceResponse, dependencies=[Depends(require_permission("devices.manage"))])
 def update_device(
@@ -124,6 +176,10 @@ def update_device(
     for field, value in update_data.items():
         setattr(device, field, value)
 
+    # Revocar desde "Editar" también suelta el token: equivale a /revoke.
+    if device.status == "revoked":
+        clear_device_binding(device)
+
     db.commit()
     db.refresh(device)
     logger.info(f"Dispositivo actualizado por Admin ({current_user.username}): ID {device.id} '{device.name}' [{device.device_id}], Estado: {device.status}")
@@ -142,6 +198,10 @@ def revoke_device_access(
             detail="Dispositivo no encontrado."
         )
     device.status = "revoked"
+    # El token guardado en ese navegador deja de servir en el acto, no solo por el estado.
+    clear_device_binding(device)
+    log_audit_event(db, current_user.id, device.branch_id, "device.revoked", "device", device.id,
+                    {"device_id": device.device_id, "name": device.name})
     db.commit()
     db.refresh(device)
     logger.info(f"Acceso revocado por Admin ({current_user.username}): Dispositivo '{device.name}' [{device.device_id}]")

@@ -199,12 +199,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const branchName = dev.branch ? esc(dev.branch.name) : '-';
       const userName = dev.assigned_user ? esc(dev.assigned_user.name) : 'Sin asignar';
       let statusBadge = '<span class="dev-badge offline">○ Inactivo</span>';
-      if (dev.status === 'active') statusBadge = '<span class="dev-badge online">● Activo</span>';
+      if (dev.status === 'active' && dev.enrolled_at) statusBadge = '<span class="dev-badge online">● Vinculado</span>';
+      else if (dev.status === 'active') statusBadge = '<span class="dev-badge offline">◌ Sin vincular</span>';
       else if (dev.status === 'revoked') statusBadge = '<span class="dev-badge disabled">✕ Revocado</span>';
       else if (dev.status === 'disabled') statusBadge = '<span class="dev-badge disabled">⏸ Deshabilitado</span>';
 
       let actions = `<button type="button" class="btn-sm-action" onclick="adminModule.openEditDevice(${dev.id})"><i data-lucide="pencil"></i> Editar</button>`;
       if (dev.status === 'active') {
+        actions += ` <button type="button" class="btn-sm-action" onclick="adminModule.newDeviceCode(${dev.id})" title="Código para vincular ese equipo"><i data-lucide="key-round"></i> Código</button>`;
         actions += ` <button type="button" class="btn-sm-action delete-action" onclick="adminModule.revokeDevice(${dev.id})"><i data-lucide="ban"></i> Quitar acceso</button>`;
       }
 
@@ -233,9 +235,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('editDevStatus').value = dev.status;
     $('modalEditDevice').classList.add('active');
   };
+  // El código se muestra UNA vez: el servidor solo guarda su hash.
+  function showDeviceCode(dev) {
+    $('deviceCodeName').textContent = dev.name;
+    $('deviceCodeValue').textContent = dev.enrollment_code;
+    $('modalDeviceCode').classList.add('active');
+    utils.renderIcons();
+  }
+  $('btnCopyDeviceCode').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText($('deviceCodeValue').textContent);
+      utils.showToast('Código copiado.', 'success');
+    } catch (err) {
+      utils.showToast('No se pudo copiar; escríbelo a mano.', 'warning');
+    }
+  });
+  ['closeModalDeviceCode', 'btnOkDeviceCode'].forEach((id) => $(id).addEventListener('click', () => $('modalDeviceCode').classList.remove('active')));
+
+  adminModule.newDeviceCode = async (devId) => {
+    try {
+      const dev = await api.post(`/devices/${devId}/enrollment-code`, {});
+      await loadDevices();
+      showDeviceCode(dev);
+    } catch (err) {
+      utils.showToast(err.message || 'No se pudo generar el código.', 'error');
+    }
+  };
   adminModule.revokeDevice = async (devId) => {
     const dev = devices.find((d) => d.id === devId);
-    if (!confirm(`¿Estás seguro de que quieres quitarle el acceso a ${dev ? `«${dev.name}»` : 'este dispositivo'}?\n\nDesde ese aparato ya no se podrá entrar hasta que lo vuelvas a activar en "Editar".`)) return;
+    if (!confirm(`¿Estás seguro de que quieres quitarle el acceso a ${dev ? `«${dev.name}»` : 'este dispositivo'}?\n\nDesde ese aparato ya no se podrá entrar hasta que lo vuelvas a activar en "Editar" y lo vincules con un código nuevo.`)) return;
     try {
       await api.post(`/devices/${devId}/revoke`, {});
       await loadDevices();
@@ -277,6 +305,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadDevices();
         utils.showToast(`Dispositivo «${newDev.name}» registrado.`, 'success');
         $('modalAddDevice').classList.remove('active');
+        showDeviceCode(newDev);
       } catch (err) {
         errBox.textContent = `⚠️ ${err.message}`;
         errBox.style.display = 'block';

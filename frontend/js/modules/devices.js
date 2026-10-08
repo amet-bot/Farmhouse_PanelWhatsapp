@@ -1,6 +1,11 @@
 /**
  * Farmhouse WhatsApp Center - Módulo de Gestión de Dispositivos
  * Renderizado seguro con escape de HTML contra ataques XSS (Punto 2)
+ *
+ * Vinculación: un equipo solo queda autorizado cuando alguien escribe en él, una vez, el código
+ * de vinculación que generó el administrador (POST /devices/enroll). El navegador recibe un token
+ * secreto que guarda api.setDeviceId(); el código público FH-DEVICE-… es solo la etiqueta.
+ * Ya no hay auto-vinculación: antes bastaba estar en la lista para "conectarse".
  */
 
 const devicesModule = {
@@ -9,23 +14,6 @@ const devicesModule = {
 
   async init() {
     await this.loadDevices();
-
-    // Auto-vincular al primer dispositivo activo de la sucursal si no hay uno válido.
-    // Aplica tanto a agentes como a supervisores de sucursal (ambos requieren dispositivo
-    // autorizado para conectar por WebSocket, ver check_device_authorized): antes solo se
-    // auto-vinculaba al rol 'agent', dejando a los supervisores sin tiempo real cada sesión
-    // hasta que entraran manualmente al panel de Dispositivos y presionaran "Conectar".
-    const user = auth.getUser();
-    if (user && (user.role === 'agent' || user.role === 'supervisor') && user.branch_id) {
-      const currentDevId = api.getDeviceId();
-      const activeBranchDevs = this.devices.filter(d => d.status === 'active' && d.branch_id === user.branch_id);
-      const isCurrentValid = activeBranchDevs.some(d => d.device_id === currentDevId);
-
-      if (!isCurrentValid && activeBranchDevs.length > 0) {
-        this.useDevice(activeBranchDevs[0].device_id, false);
-      }
-    }
-
     this.updateCurrentDeviceUI();
     this.startHeartbeat();
   },
@@ -48,6 +36,12 @@ const devicesModule = {
     }
   },
 
+  /** El equipo al que está vinculado ESTE navegador, según el código guardado al vincular. */
+  currentDevice() {
+    const code = api.getDeviceCode();
+    return code ? this.devices.find(d => d.device_id === code) : null;
+  },
+
   renderTable() {
     const tableBody = document.getElementById('deviceTableBody');
     const btnOpenAdd = document.getElementById('btnOpenAddDevice');
@@ -57,6 +51,8 @@ const devicesModule = {
     if (btnOpenAdd) {
       btnOpenAdd.style.display = (user && user.role === 'admin') ? 'inline-block' : 'none';
     }
+
+    this.renderEnrollBox();
 
     tableBody.innerHTML = '';
     if (this.devices.length === 0) {
@@ -70,17 +66,19 @@ const devicesModule = {
       return;
     }
 
-    const currentDevId = api.getDeviceId();
+    const currentCode = api.getDeviceCode();
 
     this.devices.forEach(dev => {
       const tr = document.createElement('tr');
       const branchName = dev.branch ? dev.branch.name : '-';
       const userName = dev.assigned_user ? dev.assigned_user.name : 'Sin asignar';
-      const isCurrent = dev.device_id === currentDevId;
+      const isCurrent = dev.device_id === currentCode && !!api.getDeviceId();
 
       let statusBadge = `<span class="dev-badge offline">○ Inactivo</span>`;
-      if (dev.status === 'active') {
-        statusBadge = `<span class="dev-badge online">● Activo (Autorizado)</span>`;
+      if (dev.status === 'active' && dev.enrolled_at) {
+        statusBadge = `<span class="dev-badge online">● Vinculado</span>`;
+      } else if (dev.status === 'active') {
+        statusBadge = `<span class="dev-badge offline">◌ Sin vincular</span>`;
       } else if (dev.status === 'revoked' || dev.status === 'disabled') {
         statusBadge = `<span class="dev-badge disabled">✕ Revocado</span>`;
       }
@@ -89,14 +87,13 @@ const devicesModule = {
       if (user && user.role === 'admin') {
         actionsHtml += `<button class="btn-sm-action" onclick="devicesModule.openEditModal(${dev.id})" title="Editar"><i data-lucide="pencil"></i> Editar</button> `;
         if (dev.status === 'active') {
+          actionsHtml += `<button class="btn-sm-action" onclick="devicesModule.newEnrollCode(${dev.id})" title="Código para vincular este equipo"><i data-lucide="key-round"></i> Código</button> `;
           actionsHtml += `<button class="btn-sm-action delete-action" onclick="devicesModule.revokeDevice(${dev.id})" title="Revocar"><i data-lucide="ban"></i> Revocar</button> `;
         }
       }
 
       if (isCurrent) {
-        actionsHtml += `<span style="font-size:11px;color:var(--green);font-weight:700;display:inline-flex;align-items:center;gap:4px"><i data-lucide="check"></i> En Uso</span>`;
-      } else if (dev.status === 'active') {
-        actionsHtml += `<button class="btn-sm-action" onclick="devicesModule.useDevice('${utils.escapeHtml(dev.device_id)}')"><i data-lucide="plug"></i> Conectar</button>`;
+        actionsHtml += `<span style="font-size:11px;color:var(--green);font-weight:700;display:inline-flex;align-items:center;gap:4px"><i data-lucide="check"></i> Este equipo</span>`;
       }
 
       tr.innerHTML = `
@@ -116,33 +113,69 @@ const devicesModule = {
     utils.renderIcons();
   },
 
-  useDevice(deviceId, showNotification = true) {
-    api.setDeviceId(deviceId);
-    this.updateCurrentDeviceUI();
-    this.renderTable();
-    wsClient.disconnect();
-    wsClient.connect();
-    conversationsModule.loadConversations();
+  /** Caja "Vincular este equipo" del modal de dispositivos: estado actual + campo del código. */
+  renderEnrollBox() {
+    const box = document.getElementById('deviceEnrollBox');
+    if (!box) return;
+    const dev = this.currentDevice();
+    const linked = dev && api.getDeviceId();
+    const status = document.getElementById('deviceEnrollStatus');
+    if (status) {
+      status.innerHTML = linked
+        ? `<i data-lucide="shield-check"></i> Este navegador está vinculado a <strong>${utils.escapeHtml(dev.name)}</strong> <span style="font-family:monospace;color:var(--text-muted)">${utils.escapeHtml(dev.device_id)}</span>.`
+        : `<i data-lucide="shield-alert"></i> Este navegador <strong>no está vinculado</strong>. Escribe el código que te dio el administrador.`;
+    }
+    const unlinkBtn = document.getElementById('btnUnlinkDevice');
+    if (unlinkBtn) unlinkBtn.style.display = linked ? 'inline-flex' : 'none';
+  },
 
-    const modalForbidden = document.getElementById('modalDeviceForbidden');
-    if (modalForbidden) modalForbidden.classList.remove('active');
-    const modalDevices = document.getElementById('modalDevicesList');
-    if (modalDevices) modalDevices.classList.remove('active');
+  /** Canjea el código de vinculación por el token de este equipo. */
+  async enroll(code) {
+    const clean = (code || '').trim();
+    if (!clean) {
+      utils.showToast('Escribe el código de vinculación.', 'error');
+      return false;
+    }
+    try {
+      const res = await api.post('/devices/enroll', { code: clean });
+      api.setDeviceId(res.device_token);
+      api.setDeviceCode(res.device.device_id);
+      await this.loadDevices();
+      this.updateCurrentDeviceUI();
+      wsClient.disconnect();
+      wsClient.connect();
+      if (typeof conversationsModule !== 'undefined') conversationsModule.loadConversations();
 
-    if (showNotification) {
-      utils.showToast(`Navegador vinculado al dispositivo autorizado: ${deviceId}`, 'success');
+      const modalForbidden = document.getElementById('modalDeviceForbidden');
+      if (modalForbidden) modalForbidden.classList.remove('active');
+      const modalDevices = document.getElementById('modalDevicesList');
+      if (modalDevices) modalDevices.classList.remove('active');
+      utils.showToast(`Equipo vinculado: ${res.device.name}`, 'success');
+      return true;
+    } catch (e) {
+      utils.showToast(e.message, 'error');
+      return false;
     }
   },
 
+  /** Olvida el token de este navegador (p. ej. una computadora prestada). El admin no necesita hacer nada. */
+  unlink() {
+    if (!confirm('¿Desvincular este navegador? Para volver a entrar como equipo autorizado hará falta un código nuevo.')) return;
+    api.setDeviceId('');
+    api.setDeviceCode('');
+    this.updateCurrentDeviceUI();
+    this.renderTable();
+    wsClient.disconnect();
+    utils.showToast('Navegador desvinculado.', 'info');
+  },
+
   updateCurrentDeviceUI() {
-    const devId = api.getDeviceId();
-    const dev = this.devices.find(d => d.device_id === devId);
+    const dev = this.currentDevice();
+    const linked = dev && api.getDeviceId();
     const topDevBadge = document.getElementById('topDevBadge');
     if (topDevBadge) {
-      if (dev && dev.status === 'active') {
+      if (linked && dev.status === 'active') {
         topDevBadge.innerHTML = `<span class="nav-icon"><i data-lucide="laptop"></i></span> <strong>${utils.escapeHtml(dev.device_id)}</strong> <small>(${utils.escapeHtml(dev.name)})</small> <span class="status-circle" style="display:inline-block;width:6px;height:6px;margin-left:4px"></span>`;
-      } else if (devId) {
-        topDevBadge.innerHTML = `<span class="nav-icon"><i data-lucide="laptop"></i></span> <strong>${utils.escapeHtml(devId)}</strong>`;
       } else {
         topDevBadge.innerHTML = `<span class="nav-icon"><i data-lucide="laptop"></i></span> <strong>Sin dispositivo vinculado</strong>`;
       }
@@ -150,11 +183,45 @@ const devicesModule = {
     }
   },
 
+  /** Muestra el código de vinculación UNA vez (el servidor no lo vuelve a entregar). */
+  showEnrollCode(dev) {
+    const modal = document.getElementById('modalDeviceCode');
+    if (!modal) {
+      alert(`Código de vinculación de ${dev.name}: ${dev.enrollment_code}\nEscríbelo en ese equipo en Dispositivos → "Vincular este equipo". Vale 24 horas.`);
+      return;
+    }
+    document.getElementById('deviceCodeName').textContent = dev.name;
+    document.getElementById('deviceCodeValue').textContent = dev.enrollment_code;
+    modal.classList.add('active');
+    const copyBtn = document.getElementById('btnCopyDeviceCode');
+    if (copyBtn) {
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(dev.enrollment_code);
+          utils.showToast('Código copiado.', 'success');
+        } catch (e) {
+          utils.showToast('No se pudo copiar; escríbelo a mano.', 'warning');
+        }
+      };
+    }
+  },
+
   async registerDevice(data) {
     const newDev = await api.post('/devices/', data);
     await this.loadDevices();
     utils.showToast(`✓ Dispositivo '${newDev.name}' registrado.`, 'success');
+    this.showEnrollCode(newDev);
     return newDev;
+  },
+
+  async newEnrollCode(id) {
+    try {
+      const dev = await api.post(`/devices/${id}/enrollment-code`, {});
+      await this.loadDevices();
+      this.showEnrollCode(dev);
+    } catch (e) {
+      utils.showToast(`No se pudo generar el código: ${e.message}`, 'error');
+    }
   },
 
   async updateDevice(id, data) {
@@ -205,9 +272,8 @@ const devicesModule = {
   startHeartbeat() {
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
     this.heartbeatInterval = setInterval(async () => {
-      const devId = api.getDeviceId();
-      const dev = this.devices.find(d => d.device_id === devId);
-      if (dev && auth.isAuthenticated()) {
+      const dev = this.currentDevice();
+      if (dev && api.getDeviceId() && auth.isAuthenticated()) {
         try {
           await api.post(`/devices/${dev.id}/heartbeat`, {});
         } catch (e) {}

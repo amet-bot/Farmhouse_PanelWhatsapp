@@ -14,7 +14,7 @@
   <!-- Aplica el tema guardado ANTES de pintar: shell.js corre al final del body, y hasta
        entonces la página se veía en claro (destello blanco en cada navegación en modo oscuro). -->
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=5.0.1005">
+  <link rel="stylesheet" href="css/style.css?v=5.0.1006">
   <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario. Las tablas, botones y
        modales de Usuarios/Dispositivos son los mismos de Centro WhatsApp (style.css ya los
        define global) — este panel es el lugar dedicado que faltaba, no un sistema nuevo. -->
@@ -92,7 +92,7 @@
       <!-- ================= Dispositivos ================= -->
       <div class="admin-view" id="viewDispositivos" data-view="dispositivos" hidden>
         <div class="admin-view-head">
-          <span class="inv-panel-note">Tablets, celulares y computadoras desde donde se puede entrar</span>
+          <span class="inv-panel-note">Tablets, celulares y computadoras desde donde se puede entrar. Cada equipo se vincula una vez con un código.</span>
           <button class="btn-primary" id="btnOpenAddDevice"><i data-lucide="plus-circle"></i> Registrar dispositivo</button>
         </div>
         <div class="device-table-wrap">
@@ -316,9 +316,32 @@
           <div id="addDevError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn-primary" style="width:100%">Registrar dispositivo</button>
+          <button type="submit" class="btn-primary" style="width:100%">Registrar y generar código</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Código de vinculación: se muestra UNA sola vez -->
+  <div class="modal-backdrop" id="modalDeviceCode">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3><i data-lucide="key-round"></i> Código de vinculación</h3>
+          <span class="modal-subtitle">Para <strong id="deviceCodeName"></strong></span>
+        </div>
+        <button class="modal-close-btn" id="closeModalDeviceCode" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body" style="text-align:center">
+        <div class="device-code-value" id="deviceCodeValue"></div>
+        <p style="font-size:12px;color:var(--text-muted);margin:10px 0 0">
+          En ese equipo, quien tenga sesión entra a Centro WhatsApp → <strong>Dispositivos → Vincular este equipo</strong> y lo escribe. Sirve una sola vez y vence en 24 horas; después no se vuelve a mostrar.
+        </p>
+      </div>
+      <div class="modal-footer" style="display:flex;gap:8px">
+        <button type="button" class="btn-sm-action" id="btnCopyDeviceCode" style="flex:1"><i data-lucide="copy"></i> Copiar</button>
+        <button type="button" class="btn-primary" id="btnOkDeviceCode" style="flex:1">Listo</button>
+      </div>
     </div>
   </div>
 
@@ -465,12 +488,12 @@
   </div>
 
   <script src="js/utils.js?v=5.0.1003"></script>
-  <script src="js/api.js?v=5.0.1003"></script>
+  <script src="js/api.js?v=5.0.1006"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=5.0.1003"></script>
   <script src="js/shared/native-app.js?v=5.0.1003"></script>
   <script src="js/modules/users.js?v=5.0.1003"></script>
-  <script src="js/modules/administracion.js?v=5.0.1003"></script>
+  <script src="js/modules/administracion.js?v=5.0.1006"></script>
   <script src="js/modules/admin-sistema.js?v=5.0.1003"></script>
 </body>
 </html>

@@ -8,7 +8,7 @@ from database import SessionLocal
 from models.user import User
 from models.device import Device
 from services.websocket_manager import ws_manager
-from services.device_access import check_device_authorized
+from services.device_access import check_device_authorized, touch_admin_device
 
 logger = logging.getLogger("farmhouse.websocket")
 
@@ -79,10 +79,7 @@ async def websocket_endpoint(
                 await websocket.close(code=1008)
                 return
         elif device_id:
-            dev = db.query(Device).filter(Device.device_id == device_id, Device.status == "active").first()
-            if dev:
-                dev.last_seen = datetime.now(timezone.utc).replace(tzinfo=None)
-                db.commit()
+            touch_admin_device(db, device_id)
 
         branch_id = user.branch_id
         role = user.role
@@ -92,7 +89,8 @@ async def websocket_endpoint(
 
     # 3. Conectar a salas segmentadas
     await ws_manager.connect(websocket, user_id=user_id, branch_id=branch_id, role=role)
-    logger.info(f"Conexión WebSocket establecida: Usuario '{user_name}' (ID: {user_id}, Rol: {role}, Sucursal: {branch_id}, Dispositivo: {device_id or 'Global Admin'})")
+    # No se escribe el token del equipo en el log: es un secreto.
+    logger.info(f"Conexión WebSocket establecida: Usuario '{user_name}' (ID: {user_id}, Rol: {role}, Sucursal: {branch_id}, Dispositivo: {'vinculado' if device_id else 'Global Admin'})")
 
     try:
         while True:

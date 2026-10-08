@@ -2511,6 +2511,53 @@ input:-webkit-autofill:focus {
   color: var(--red);
 }
 
+/* Vincular este equipo (modal de dispositivos) */
+.device-enroll-box {
+  padding: 12px 14px;
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  background: var(--panel-subtle);
+  margin-bottom: 14px;
+}
+
+.device-enroll-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.device-enroll-status i { width: 16px; height: 16px; flex-shrink: 0; }
+
+.device-enroll-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.device-enroll-form .modal-input {
+  flex: 1 1 200px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Código de vinculación: se lee de un vistazo y se teclea en la tablet */
+.device-code-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  padding: 14px 10px;
+  border-radius: 10px;
+  background: var(--panel-subtle);
+  color: var(--text-primary);
+  user-select: all;
+}
+
 .btn-sm-action {
   padding: 4px 9px;
   border: 1px solid var(--line);

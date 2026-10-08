@@ -11,7 +11,7 @@ from config import settings
 from database import get_db
 from models.user import User
 from models.device import Device
-from services.device_access import check_device_authorized
+from services.device_access import check_device_authorized, touch_admin_device
 
 logger = logging.getLogger("farmhouse.security")
 
@@ -137,17 +137,12 @@ def validate_device_access(
     CONTROL DE ACCESO DUAL: Usuario Autorizado + Dispositivo Autorizado
     Utiliza el servicio centralizado check_device_authorized.
     """
+    # X-Device-ID lleva el TOKEN secreto del equipo vinculado (no el código público FH-DEVICE-…).
     device_id_header = (request.headers.get("X-Device-ID") or request.headers.get("x-device-id") or "").strip()
 
     # Administradores: Acceso global con tracking si se envía dispositivo
     if current_user.role == "admin":
-        if device_id_header:
-            dev = db.query(Device).filter(Device.device_id == device_id_header).first()
-            if dev and dev.status == "active":
-                dev.last_seen = datetime.now(timezone.utc).replace(tzinfo=None)
-                db.commit()
-                return dev
-        return None
+        return touch_admin_device(db, device_id_header) if device_id_header else None
 
     # Agentes y Supervisores: Requieren dispositivo físico/terminal autorizado
     return check_device_authorized(db, device_id_header, current_user)

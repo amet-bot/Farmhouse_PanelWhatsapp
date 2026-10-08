@@ -780,6 +780,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('modalEditDevice').classList.remove('active');
   });
 
+  // Vincular este navegador con el código del administrador / desvincularlo.
+  document.getElementById('formEnrollDevice').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('enrollCodeInput');
+    const ok = await devicesModule.enroll(input.value);
+    if (ok) input.value = '';
+  });
+  document.getElementById('btnUnlinkDevice').addEventListener('click', () => devicesModule.unlink());
+  ['closeModalDeviceCode', 'btnOkDeviceCode'].forEach((id) => {
+    document.getElementById(id).addEventListener('click', () => {
+      document.getElementById('modalDeviceCode').classList.remove('active');
+    });
+  });
+
   document.getElementById('formAddDevice').addEventListener('submit', async (e) => {
     e.preventDefault();
     const nameVal = document.getElementById('addDevName').value.trim();

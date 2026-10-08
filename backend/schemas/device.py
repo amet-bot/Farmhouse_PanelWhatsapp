@@ -57,6 +57,23 @@ class DeviceResponse(DeviceBase):
     branch: Optional[BranchResponse] = None
     assigned_user: Optional[UserResponse] = None
     active: Optional[bool] = True
+    # Vinculación: nunca viajan el token ni el hash del código, solo si existen y hasta cuándo.
+    enrolled_at: Optional[datetime] = None
+    enroll_expires_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class DeviceWithEnrollCode(DeviceResponse):
+    """Respuesta al registrar un equipo o pedir un código nuevo: el código se muestra UNA vez."""
+    enrollment_code: str
+
+
+class DeviceEnrollRequest(BaseModel):
+    code: str = Field(..., min_length=8, max_length=12)
+
+
+class DeviceEnrollResponse(BaseModel):
+    """El token se entrega una sola vez; el navegador lo guarda y lo manda en X-Device-ID."""
+    device_token: str
+    device: DeviceResponse
