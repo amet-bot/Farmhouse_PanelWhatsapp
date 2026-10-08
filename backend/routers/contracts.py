@@ -95,7 +95,7 @@ def _person_dict(obj) -> dict:
 def _contract_detail(c: EmployeeContract) -> ContractResponse:
     return ContractResponse(
         id=c.id, **_person_dict(c),
-        position=c.position, contract_type=c.contract_type, salary=c.salary,
+        position=c.position, contract_type=c.contract_type, staff_area=c.staff_area or "Sucursal", salary=c.salary,
         start_date=c.start_date, end_date=c.end_date, notes=c.notes, duties=c.duties,
         document_url=c.document_url, created_at=c.created_at, updated_at=c.updated_at,
     )
@@ -105,7 +105,7 @@ def _contract_summary(c: EmployeeContract) -> ContractSummary:
     return ContractSummary(
         id=c.id, first_name=c.first_name, last_name=c.last_name, id_type=c.id_type,
         id_number_masked=mask_id(c.id_number), position=c.position, contract_type=c.contract_type,
-        start_date=c.start_date, end_date=c.end_date, document_url=c.document_url,
+        staff_area=c.staff_area or "Sucursal", start_date=c.start_date, end_date=c.end_date, document_url=c.document_url,
     )
 
 
@@ -340,6 +340,7 @@ def _apply_contract(c: EmployeeContract, data: ContractIn) -> None:
     _set_person(c, data)
     c.position = data.position
     c.contract_type = data.contract_type
+    c.staff_area = data.staff_area
     c.salary = data.salary
     c.start_date = data.start_date
     c.end_date = data.end_date

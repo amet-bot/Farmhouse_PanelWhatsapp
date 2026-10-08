@@ -231,6 +231,9 @@
           <div class="ct-grid">
             <div class="ct-field"><label class="modal-label" for="ctPosition">Puesto *</label><input id="ctPosition" class="modal-input" list="ctPositions" autocomplete="off" />
               <datalist id="ctPositions"><option value="Asistente de Cocina"><option value="Cocinero"><option value="Supervisor"><option value="Auxiliar de Limpieza"><option value="Service crew"><option value="Cajero"><option value="Pasante"></datalist></div>
+            <div class="ct-field"><label class="modal-label" for="ctArea">Área *</label>
+              <select id="ctArea" class="modal-select"><option value="Sucursal">Sucursal</option><option value="Administrativo">Administrativo (oficina)</option></select>
+              <small class="ct-hint">Define el modelo de contrato en Word: sucursal (Definido) o administrativo (Indefinido).</small></div>
             <div class="ct-field"><label class="modal-label" for="ctType">Tipo de contrato *</label>
               <select id="ctType" class="modal-select"><option value="">Selecciona…</option><option>Definido</option><option>Temporal</option><option>Indefinido</option><option>Servicios Profesionales</option></select></div>
             <div class="ct-field"><label class="modal-label" for="ctSalary">Salario mensual (B/.) *</label><input id="ctSalary" type="number" step="0.01" min="0" inputmode="decimal" class="modal-input" autocomplete="off" /></div>
@@ -271,7 +274,8 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=5.0.1003"></script>
   <script src="js/shared/native-app.js?v=5.0.1003"></script>
-  <script src="js/modules/contract_docx.js?v=5.0.1006"></script>
-  <script src="js/modules/contratos.js?v=5.0.1006"></script>
+  <script src="js/modules/contract_admin_template.js?v=5.0.1007"></script>
+  <script src="js/modules/contract_docx.js?v=5.0.1007"></script>
+  <script src="js/modules/contratos.js?v=5.0.1007"></script>
 </body>
 </html>

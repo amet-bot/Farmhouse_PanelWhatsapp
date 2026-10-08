@@ -4,8 +4,8 @@
  *
  * Cada fila es un contrato: quien renueva tiene dos. «Exportar» arma el contrato en Word en el
  * navegador (js/modules/contract_docx.js) con los datos guardados; el servidor solo los guarda.
- * La plantilla es la del personal de sucursal y solo sirve para contratos Definido; los demás tipos
- * no se exportan.
+ * Hay dos plantillas, según el área del colaborador: la de SUCURSAL (solo contrato Definido) y la de
+ * personal ADMINISTRATIVO (solo Indefinido, contract_admin_template.js). Lo demás no se exporta.
  *
  * Seguridad en esta pantalla:
  * - La tabla trabaja con un RESUMEN (sin banco, salud, contacto ni salario, cédula enmascarada). El
@@ -36,7 +36,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   FarmhouseShell.fillUserHeader({ nameId: 'ctAgentName', roleId: 'ctAgentRole', avatarId: 'ctAgentAvatar' }, user);
 
   const FIXED_TERM = ['Definido', 'Temporal'];
-  const EXPORTABLE = ['Definido'];   // la plantilla de sucursal es solo de contrato Definido
+  // Qué plantilla de Word le toca a un contrato (null = no hay plantilla para esa combinación).
+  const docxTemplate = (c) => (c.staff_area === 'Administrativo'
+    ? (c.contract_type === 'Indefinido' ? 'admin' : null)
+    : (c.contract_type === 'Definido' ? 'sucursal' : null));
+  const noTemplateReason = (c) => (c.staff_area === 'Administrativo'
+    ? 'La plantilla de administrativos es solo para contratos Indefinido'
+    : 'La plantilla de sucursal es solo para contratos Definido');
   let contracts = [];      // resúmenes
   let intakes = [];        // resúmenes
   let dutiesDirty = false;
@@ -151,7 +157,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const st = statusOf(c);
       const note = statusNote(c, st);
       const url = safeUrl(c.document_url);
-      const exportable = EXPORTABLE.includes(c.contract_type);
+      const exportable = Boolean(docxTemplate(c));
       return `
         <tr>
           <td class="adm-td-main">
@@ -160,14 +166,14 @@ document.addEventListener('DOMContentLoaded', async () => {
               <div><strong>${esc(fullName(c))}</strong><div class="adm-sub ct-sub">${esc(c.id_number_masked)}</div></div>
             </div>
           </td>
-          <td data-label="Puesto">${esc(c.position)}</td>
+          <td data-label="Puesto">${esc(c.position)}${c.staff_area === 'Administrativo' ? '<div class="ct-sub">Administrativo</div>' : ''}</td>
           <td data-label="Tipo"><span class="tag-type">${esc(c.contract_type)}</span></td>
           <td data-label="Inicio">${esc(fmtDate(c.start_date))}</td>
           <td data-label="Vencimiento">${c.end_date ? `${esc(fmtDate(c.end_date))}${note ? `<div class="ct-sub">${note}</div>` : ''}` : '—'}</td>
           <td data-label="Estado"><span class="ct-badge ct-badge-${STATUS_CLASS[st]}">${st}</span></td>
           <td data-label="Documento">${url ? `<a class="adm-link-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer"><i data-lucide="link"></i> Ver</a>` : '—'}</td>
           <td class="adm-td-actions" style="white-space:nowrap">
-            <button type="button" class="btn-sm-action" data-act="export" data-id="${c.id}"${exportable ? '' : ' disabled title="La plantilla de sucursal es solo para contratos Definido"'}><i data-lucide="download"></i> Exportar</button>
+            <button type="button" class="btn-sm-action" data-act="export" data-id="${c.id}"${exportable ? '' : ` disabled title="${esc(noTemplateReason(c))}"`}><i data-lucide="download"></i> Exportar</button>
             <button type="button" class="btn-sm-action" data-act="edit" data-id="${c.id}"><i data-lucide="pencil"></i> Editar</button>
             <button type="button" class="btn-sm-action delete-action" data-act="delete" data-id="${c.id}"><i data-lucide="trash-2"></i> Eliminar</button>
           </td>
@@ -237,12 +243,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
   }
   function exportContract(c) {
-    if (!c.end_date) {
+    const tpl = docxTemplate(c);
+    if (!tpl) { utils.showToast(noTemplateReason(c) + '.', 'error'); return; }
+    if (tpl === 'sucursal' && !c.end_date) {
       utils.showToast('Falta la fecha de vencimiento para generar el contrato.', 'error');
       return;
     }
+    if (tpl === 'admin' && !(c.duties || '').trim()) {
+      utils.showToast('Escribe las funciones del cargo (en Editar) para generar el contrato.', 'error');
+      return;
+    }
     try {
-      download(ContractDocx.buildDocx(docxRecord(c)), `Contrato - ${fullName(c).replace(/[\\/:*?"<>|]/g, '')}.docx`);
+      const rec = docxRecord(c);
+      const blob = tpl === 'admin' ? ContractDocx.buildDocxAdmin({ ...rec, funciones: c.duties }) : ContractDocx.buildDocx(rec);
+      download(blob, `Contrato - ${fullName(c).replace(/[\\/:*?"<>|]/g, '')}.docx`);
     } catch (err) {
       console.error(err);
       utils.showToast('No se pudo generar el contrato.', 'error');
@@ -506,12 +520,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   phoneMask($('ctContactPhone'));
   [$('ctAccount'), $('ctDv')].forEach((el) => el.addEventListener('input', () => { el.value = el.value.replace(/\D/g, ''); }));
 
-  // Funciones sugeridas según el puesto, mientras nadie las haya editado a mano.
+  // Funciones sugeridas según el puesto, mientras nadie las haya editado a mano. Son las de
+  // sucursal: a un administrativo no se le sugieren (sus funciones se escriben).
   function suggestDuties() {
-    if (!dutiesDirty) $('ctDuties').value = $('ctPosition').value.trim() ? ContractDocx.funcionesPara($('ctPosition').value) : '';
+    if (dutiesDirty) return;
+    const pos = $('ctPosition').value.trim();
+    $('ctDuties').value = pos && $('ctArea').value !== 'Administrativo' ? ContractDocx.funcionesPara(pos) : '';
   }
   $('ctPosition').addEventListener('input', suggestDuties);
   $('ctPosition').addEventListener('change', suggestDuties);
+  $('ctArea').addEventListener('change', suggestDuties);
   $('ctDuties').addEventListener('input', () => { dutiesDirty = true; });
 
   function addDependentRow(d) {
@@ -539,7 +557,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     marital_status: 'ctMarital', blood_type: 'ctBlood', id_type: 'ctIdType', id_number: 'ctIdNumber', dv: 'ctDv', phone: 'ctPhone',
     email: 'ctEmail', address: 'ctAddress', emergency_contact_name: 'ctContactName', emergency_contact_phone: 'ctContactPhone',
     emergency_contact_relationship: 'ctContactRel', account_type: 'ctAccountType', account_number: 'ctAccount',
-    position: 'ctPosition', contract_type: 'ctType', salary: 'ctSalary', start_date: 'ctStart', end_date: 'ctEnd',
+    position: 'ctPosition', contract_type: 'ctType', staff_area: 'ctArea', salary: 'ctSalary', start_date: 'ctStart', end_date: 'ctEnd',
     notes: 'ctNotes', duties: 'ctDuties', document_url: 'ctUrl',
   };
 

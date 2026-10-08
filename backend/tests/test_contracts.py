@@ -188,7 +188,7 @@ def test_list_is_a_summary_without_sensitive_data(client, admin_user):
     assert listed.status_code == 200
     row = listed.json()[0]
     assert set(row) == {"id", "first_name", "last_name", "id_type", "id_number_masked", "position",
-                        "contract_type", "start_date", "end_date", "document_url"}
+                        "contract_type", "staff_area", "start_date", "end_date", "document_url"}
     assert "753" not in row["id_number_masked"] or row["id_number_masked"].startswith("8-")
     assert row["id_number_masked"] != "8-753-442"
     blob = listed.text
@@ -242,6 +242,30 @@ def test_indefinite_contract_needs_no_end_date_or_duties(client, admin_user):
     res = _post(client, headers, contract_type="Indefinido", end_date=None, duties="")
     assert res.status_code == 201, res.text
     assert res.json()["end_date"] is None
+
+
+def test_staff_area_defaults_to_branch_and_admin_is_kept(client, admin_user):
+    # El área decide la plantilla del Word: sucursal (Definido) o administrativo (Indefinido).
+    headers = auth_headers_for(admin_user)
+    branch = _post(client, headers)
+    assert branch.status_code == 201, branch.text
+    assert branch.json()["staff_area"] == "Sucursal"
+
+    office = _post(client, headers, first_name="Laura", id_number="8-111-2222", contract_type="Indefinido",
+                   end_date=None, staff_area="Administrativo", position="Coordinadora administrativa")
+    assert office.status_code == 201, office.text
+    cid = office.json()["id"]
+    assert client.get(f"/api/contracts/{cid}", headers=headers).json()["staff_area"] == "Administrativo"
+    listed = {r["id"]: r for r in client.get("/api/contracts", headers=headers).json()}
+    assert listed[cid]["staff_area"] == "Administrativo"
+
+    # Editar conserva el área elegida.
+    upd = client.put(f"/api/contracts/{cid}", json=_payload(first_name="Laura", id_number="8-111-2222", contract_type="Indefinido",
+                                                            end_date=None, staff_area="Administrativo"), headers=headers)
+    assert upd.status_code == 200 and upd.json()["staff_area"] == "Administrativo"
+
+    bad = _post(client, headers, first_name="Otro", id_number="8-333-4444", staff_area="Bodega")
+    assert bad.status_code == 422
 
 
 def test_renewal_allowed_but_same_contract_is_duplicate(client, admin_user):

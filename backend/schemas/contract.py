@@ -1,7 +1,7 @@
 import re
 from datetime import date, datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -164,6 +164,7 @@ class PersonData(BaseModel):
 class ContractIn(PersonData):
     position: str = Field(..., min_length=1, max_length=100)
     contract_type: str
+    staff_area: Literal["Sucursal", "Administrativo"] = "Sucursal"
     salary: Decimal = Field(..., gt=0, lt=1000000, decimal_places=2)
     start_date: date
     end_date: Optional[date] = None
@@ -244,6 +245,7 @@ class ContractSummary(BaseModel):
     id_number_masked: str
     position: str
     contract_type: str
+    staff_area: str = "Sucursal"
     start_date: date
     end_date: Optional[date] = None
     document_url: Optional[str] = None
@@ -296,6 +298,7 @@ class ContractResponse(BaseModel):
     account_number: str
     position: str
     contract_type: str
+    staff_area: str = "Sucursal"
     salary: Decimal
     start_date: date
     end_date: Optional[date] = None

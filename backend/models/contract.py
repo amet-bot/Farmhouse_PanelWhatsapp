@@ -59,6 +59,8 @@ class EmployeeContract(Base):
     # Contrato
     position = Column(String(100), nullable=False)
     contract_type = Column(String(30), nullable=False)       # Definido / Temporal / Indefinido / Servicios Profesionales
+    # "Sucursal" o "Administrativo": decide la plantilla del Word (sucursal = Definido, administración = Indefinido).
+    staff_area = Column(String(20), nullable=False, default="Sucursal", server_default="Sucursal")
     salary = Column(EncryptedDecimal, nullable=False)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)                   # obligatoria en Definido y Temporal
