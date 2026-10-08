@@ -16,7 +16,7 @@
  *
  * Uso: ContractDocx.buildDocx(rec) -> Blob. `rec`:
  *   nombre, apellido, genero ("M"/"F"), nacionalidad, numId, puesto, inicio y fin (AAAA-MM-DD; sin
- *   fin si es indefinido), indefinido (bool), salario (número), tieneDep (bool), dependientes
+ *   fin si es indefinido), indefinido (bool), direccion (texto), salario (número), tieneDep (bool), dependientes
  *   [{nombre, edad, parentesco}], funciones (texto, una por línea).
  */
 window.ContractDocx = (function () {
@@ -137,6 +137,14 @@ function documentXml(rec) {
       return { b: r.b, i: r.i, u: r.u, sz: r.sz, t: r.t.replace(/\{\{(\w+)\}\}/g, function (m, k) { return v[k]; }) };
     });
     if (rec.indefinido) aIndefinido(i, runs);
+    if (i === 1 && rec.direccion) {
+      // Domicilio del trabajador, justo después de su cédula: "..., con domicilio en <dirección>, actuando...".
+      runs.forEach(function (r) {
+        if (r.t.indexOf(", actuando en nombre y representación propia") === 0) {
+          r.t = ", con domicilio en " + String(rec.direccion).replace(/\s+/g, " ").trim().replace(/[.,;]+$/, "") + r.t;
+        }
+      });
+    }
     if (i === 32) {
       // Cláusula DÉCIMO. La frase termina en ":" (o en "." si no hay dependientes) y cada dependiente va en SU
       // propio párrafo, alineado a la izquierda: dentro del párrafo justificado, los saltos de línea estiraban

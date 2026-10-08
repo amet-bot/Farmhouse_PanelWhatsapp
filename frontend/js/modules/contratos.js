@@ -222,6 +222,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       numId: c.id_number, puesto: c.position, inicio: c.start_date,
       indefinido: c.contract_type === 'Indefinido',
       fin: c.contract_type === 'Indefinido' ? null : c.end_date,
+      direccion: c.address || '',
       salario: Number(c.salary),
       tieneDep: c.dependents.length > 0,
       dependientes: c.dependents.map((d) => ({ nombre: d.name, edad: d.age == null ? '' : String(d.age), parentesco: d.relationship })),
