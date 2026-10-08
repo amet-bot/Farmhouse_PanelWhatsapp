@@ -120,7 +120,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       contracts = await api.get('/contracts');
       renderContracts();
     } catch (err) {
-      $('contractTableBody').innerHTML = `<tr><td colspan="8" class="adm-empty">No se pudieron cargar los contratos. ${esc(err.message || '')}</td></tr>`;
+      $('contractTableBody').innerHTML = `<tr><td colspan="7" class="adm-empty">No se pudieron cargar los contratos. ${esc(err.message || '')}</td></tr>`;
     }
   }
 
@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     const body = $('contractTableBody');
     if (!rows.length) {
-      body.innerHTML = `<tr><td colspan="8" class="adm-empty">${contracts.length
+      body.innerHTML = `<tr><td colspan="7" class="adm-empty">${contracts.length
         ? 'Ningún contrato coincide con la búsqueda.'
         : 'Todavía no hay contratos. Crea el primero con «Nuevo contrato» o invita a un colaborador a llenar sus datos.'}</td></tr>`;
       return;
@@ -156,7 +156,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     body.innerHTML = rows.map((c) => {
       const st = statusOf(c);
       const note = statusNote(c, st);
-      const url = safeUrl(c.document_url);
       const exportable = Boolean(docxTemplate(c));
       return `
         <tr>
@@ -171,7 +170,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td data-label="Inicio">${esc(fmtDate(c.start_date))}</td>
           <td data-label="Vencimiento">${c.end_date ? `${esc(fmtDate(c.end_date))}${note ? `<div class="ct-sub">${note}</div>` : ''}` : '—'}</td>
           <td data-label="Estado"><span class="ct-badge ct-badge-${STATUS_CLASS[st]}">${st}</span></td>
-          <td data-label="Documento">${url ? `<a class="adm-link-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer"><i data-lucide="link"></i> Ver</a>` : '—'}</td>
           <td class="adm-td-actions" style="white-space:nowrap">
             <button type="button" class="btn-sm-action" data-act="export" data-id="${c.id}"${exportable ? '' : ` disabled title="${esc(noTemplateReason(c))}"`}><i data-lucide="download"></i> Exportar</button>
             <button type="button" class="btn-sm-action" data-act="edit" data-id="${c.id}"><i data-lucide="pencil"></i> Editar</button>
