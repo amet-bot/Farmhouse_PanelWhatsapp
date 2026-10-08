@@ -14,7 +14,7 @@
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/tokens.css?v=6.0.0">
   <link rel="stylesheet" href="css/style.css?v=6.0.0">
-  <link rel="stylesheet" href="css/base.css?v=6.0.0">
+  <link rel="stylesheet" href="css/base.css?v=6.0.1">
   <!-- Mismo armazón (cabecera, gate de sesión, botones) que Inventario y Prep. -->
   <link rel="stylesheet" href="css/inventory.css?v=6.0.0">
   <link rel="stylesheet" href="css/gestion.css?v=6.0.0">
@@ -213,14 +213,14 @@
         <div class="modal-body">
           <label class="modal-label" for="taskBranch">Sucursal</label>
           <select class="modal-select" id="taskBranch" required></select>
-          <label class="modal-label" for="taskTitle" style="margin-top:10px">Qué hay que hacer</label>
+          <label class="modal-label u-mt-3" for="taskTitle">Qué hay que hacer</label>
           <input class="modal-input" id="taskTitle" maxlength="150" required placeholder="Ej: Limpiar campana extractora" />
-          <label class="modal-label" for="taskDescription" style="margin-top:10px">Detalle (opcional)</label>
+          <label class="modal-label u-mt-3" for="taskDescription">Detalle (opcional)</label>
           <textarea class="modal-input" id="taskDescription" rows="2"></textarea>
-          <label class="modal-label" for="taskAssignee" style="margin-top:10px">Asignar a</label>
+          <label class="modal-label u-mt-3" for="taskAssignee">Asignar a</label>
           <select class="modal-select" id="taskAssignee"><option value="">Todo el equipo de la sucursal</option></select>
           <label class="ops-check task-photo-check"><input type="checkbox" id="taskRequiresPhoto" /> Pedir foto al terminar <small>(no se puede marcar hecha sin foto)</small></label>
-          <label class="modal-label" for="taskDueDate" style="margin-top:10px">Vence (opcional)</label>
+          <label class="modal-label u-mt-3" for="taskDueDate">Vence (opcional)</label>
           <div class="task-due-quick" role="group" aria-label="Elegir rápido">
             <button type="button" class="task-due-chip" data-due="hoy">Hoy</button>
             <button type="button" class="task-due-chip" data-due="manana">Mañana</button>
@@ -233,9 +233,9 @@
           <p class="task-due-hint" id="taskDueHint">Sin fecha: la tarea no vence.</p>
           <p class="ops-form-error" id="taskError" hidden></p>
         </div>
-        <div class="modal-footer" style="display:flex;gap:10px">
-          <button type="button" class="btn-cancel" data-close="modalTask" style="flex:1">Cancelar</button>
-          <button type="submit" class="btn-primary" style="flex:1">Crear tarea</button>
+        <div class="modal-footer u-row u-gap-3">
+          <button type="button" class="btn-cancel u-grow" data-close="modalTask">Cancelar</button>
+          <button type="submit" class="btn-primary u-grow">Crear tarea</button>
         </div>
       </form>
     </div>
@@ -254,29 +254,29 @@
                (value=""), que es una elección válida ("cada local"), no un campo vacío. -->
           <label class="modal-label" for="rtBranch">Sucursal</label>
           <select class="modal-select" id="rtBranch"></select>
-          <label class="modal-label" for="rtTitle" style="margin-top:10px">Qué hay que hacer</label>
+          <label class="modal-label u-mt-3" for="rtTitle">Qué hay que hacer</label>
           <input class="modal-input" id="rtTitle" maxlength="150" required placeholder="Ej: Limpieza de la mañana en el área de la línea" />
-          <label class="modal-label" for="rtDescription" style="margin-top:10px">Detalle (opcional)</label>
+          <label class="modal-label u-mt-3" for="rtDescription">Detalle (opcional)</label>
           <textarea class="modal-input" id="rtDescription" rows="2"></textarea>
-          <label class="modal-label" for="rtFrequency" style="margin-top:10px">Frecuencia</label>
+          <label class="modal-label u-mt-3" for="rtFrequency">Frecuencia</label>
           <select class="modal-select" id="rtFrequency">
             <option value="daily">Cada día</option>
             <option value="monthly">Un día del mes</option>
           </select>
           <div id="rtDayOfMonthWrap" hidden>
-            <label class="modal-label" for="rtDayOfMonth" style="margin-top:10px">Día del mes</label>
+            <label class="modal-label u-mt-3" for="rtDayOfMonth">Día del mes</label>
             <input class="modal-input" id="rtDayOfMonth" type="number" min="1" max="31" inputmode="numeric" pattern="[0-9]*" placeholder="Ej: 30" />
             <span class="modal-hint">Si el mes es más corto (por ejemplo, el 31 en febrero), se crea el último día del mes.</span>
           </div>
-          <p class="modal-label" id="rtTimesLabel" style="margin-top:10px">A qué hora se crea</p>
+          <p class="modal-label u-mt-3" id="rtTimesLabel">A qué hora se crea</p>
           <div class="rt-times" id="rtTimes" role="group" aria-labelledby="rtTimesLabel"></div>
           <button type="button" class="ops-btn rt-add-time" id="btnAddRtTime"><i data-lucide="plus"></i> Agregar otra hora</button>
           <span class="modal-hint">Puedes poner varias horas en el mismo día (hasta 10).</span>
           <p class="ops-form-error" id="rtError" hidden></p>
         </div>
-        <div class="modal-footer" style="display:flex;gap:10px">
-          <button type="button" class="btn-cancel" data-close="modalRecurringTask" style="flex:1">Cancelar</button>
-          <button type="submit" class="btn-primary" style="flex:1">Crear tarea recurrente</button>
+        <div class="modal-footer u-row u-gap-3">
+          <button type="button" class="btn-cancel u-grow" data-close="modalRecurringTask">Cancelar</button>
+          <button type="submit" class="btn-primary u-grow">Crear tarea recurrente</button>
         </div>
       </form>
     </div>
@@ -293,22 +293,22 @@
         <div class="modal-body">
           <label class="modal-label" for="incBranch">Sucursal</label>
           <select class="modal-select" id="incBranch" required></select>
-          <label class="modal-label" for="incTitle" style="margin-top:10px">Qué pasó</label>
+          <label class="modal-label u-mt-3" for="incTitle">Qué pasó</label>
           <input class="modal-input" id="incTitle" maxlength="150" required placeholder="Ej: Se dañó el refrigerador de bebidas" />
-          <label class="modal-label" for="incSev" style="margin-top:10px">Severidad</label>
+          <label class="modal-label u-mt-3" for="incSev">Severidad</label>
           <select class="modal-select" id="incSev">
             <option value="baja">Baja</option>
             <option value="media" selected>Media</option>
             <option value="alta">Alta</option>
           </select>
           <span class="modal-hint">Alta: impide trabajar o es un riesgo. Media: hay que arreglarlo pronto. Baja: puede esperar.</span>
-          <label class="modal-label" for="incDesc" style="margin-top:10px">Detalle (opcional)</label>
+          <label class="modal-label u-mt-3" for="incDesc">Detalle (opcional)</label>
           <textarea class="modal-input" id="incDesc" rows="2"></textarea>
           <p class="ops-form-error" id="incError" hidden></p>
         </div>
-        <div class="modal-footer" style="display:flex;gap:10px">
-          <button type="button" class="btn-cancel" data-close="modalIncident" style="flex:1">Cancelar</button>
-          <button type="submit" class="btn-primary" style="flex:1">Reportar</button>
+        <div class="modal-footer u-row u-gap-3">
+          <button type="button" class="btn-cancel u-grow" data-close="modalIncident">Cancelar</button>
+          <button type="submit" class="btn-primary u-grow">Reportar</button>
         </div>
       </form>
     </div>
@@ -326,9 +326,9 @@
           <label class="modal-label" for="resolveNotes">Cómo se resolvió</label>
           <textarea class="modal-input" id="resolveNotes" rows="3" placeholder="Ej: Vino el técnico y cambió el compresor."></textarea>
         </div>
-        <div class="modal-footer" style="display:flex;gap:10px">
-          <button type="button" class="btn-cancel" data-close="modalResolve" style="flex:1">Cancelar</button>
-          <button type="submit" class="btn-primary" style="flex:1">Marcar resuelta</button>
+        <div class="modal-footer u-row u-gap-3">
+          <button type="button" class="btn-cancel u-grow" data-close="modalResolve">Cancelar</button>
+          <button type="submit" class="btn-primary u-grow">Marcar resuelta</button>
         </div>
       </form>
     </div>
@@ -347,7 +347,7 @@
             <div><label class="modal-label" for="trfFrom">Sale de</label><select class="modal-select" id="trfFrom" required></select></div>
             <div><label class="modal-label" for="trfTo">Llega a</label><select class="modal-select" id="trfTo" required></select></div>
           </div>
-          <p class="modal-label" style="margin-top:12px">Insumos a trasladar</p>
+          <p class="modal-label u-mt-3">Insumos a trasladar</p>
           <span class="modal-hint" style="margin:0 0 6px">Busca el insumo, escribe la cantidad y toca "Agregar". Repite por cada uno.</span>
           <div class="ops-item-picker">
             <div class="ops-field ops-field-search">
@@ -363,13 +363,13 @@
           </div>
           <ul class="ops-item-list" id="trfItems"></ul>
           <p class="modal-hint" id="trfItemsEmpty">Todavía no agregaste insumos.</p>
-          <label class="modal-label" for="trfNotes" style="margin-top:10px">Nota (opcional)</label>
+          <label class="modal-label u-mt-3" for="trfNotes">Nota (opcional)</label>
           <input class="modal-input" id="trfNotes" maxlength="300" placeholder="Ej: urgente para el fin de semana" />
           <p class="ops-form-error" id="trfError" hidden></p>
         </div>
-        <div class="modal-footer" style="display:flex;gap:10px">
-          <button type="button" class="btn-cancel" data-close="modalTransfer" style="flex:1">Cancelar</button>
-          <button type="submit" class="btn-primary" style="flex:1">Pedir traslado</button>
+        <div class="modal-footer u-row u-gap-3">
+          <button type="button" class="btn-cancel u-grow" data-close="modalTransfer">Cancelar</button>
+          <button type="submit" class="btn-primary u-grow">Pedir traslado</button>
         </div>
       </form>
     </div>
@@ -385,9 +385,9 @@
       </div>
       <form id="confirmForm">
         <div class="modal-body" id="confirmBody"></div>
-        <div class="modal-footer" style="display:flex;gap:10px">
-          <button type="button" class="btn-cancel" data-close="modalConfirm" style="flex:1" id="confirmCancel">Volver</button>
-          <button type="submit" class="btn-primary" style="flex:1" id="confirmOk">Confirmar</button>
+        <div class="modal-footer u-row u-gap-3">
+          <button type="button" class="btn-cancel u-grow" data-close="modalConfirm" id="confirmCancel">Volver</button>
+          <button type="submit" class="btn-primary u-grow" id="confirmOk">Confirmar</button>
         </div>
       </form>
     </div>

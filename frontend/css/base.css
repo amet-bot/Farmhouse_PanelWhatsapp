@@ -131,6 +131,10 @@ table.table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
 .u-mb-2 { margin-bottom: var(--sp-2); } .u-mb-3 { margin-bottom: var(--sp-3); } .u-mb-4 { margin-bottom: var(--sp-4); }
 .u-gap-2 { gap: var(--sp-2); } .u-gap-3 { gap: var(--sp-3); }
 .u-ok { color: var(--ok-text); } .u-warn { color: var(--warn-text); } .u-bad { color: var(--bad-text); } .u-brand { color: var(--brand-strong); }
+.u-xs { font-size: var(--fs-xs); }
+.u-empty-cell { text-align: center; padding: var(--sp-6); color: var(--ink-3); }
+.u-flag-ok { font-size: var(--fs-xs); color: var(--brand-strong); font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+.u-dot-sm { width: 12px; height: 12px; display: inline-block; vertical-align: middle; }
 .form-error { display: none; padding: 10px 14px; background: var(--bad-bg); border: 1px solid var(--bad-border); border-radius: var(--r-sm); color: var(--bad-text); font-size: var(--fs-md); margin-top: var(--sp-3); }
 .form-error.is-visible { display: block; }
 

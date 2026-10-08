@@ -58,7 +58,7 @@ const devicesModule = {
     if (this.devices.length === 0) {
       tableBody.innerHTML = `
         <tr>
-          <td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">
+          <td class="u-empty-cell" colspan="6">
             No hay dispositivos registrados para esta sucursal.
           </td>
         </tr>
@@ -93,19 +93,19 @@ const devicesModule = {
       }
 
       if (isCurrent) {
-        actionsHtml += `<span style="font-size:11px;color:var(--green);font-weight:700;display:inline-flex;align-items:center;gap:4px"><i data-lucide="check"></i> Este equipo</span>`;
+        actionsHtml += `<span class="u-flag-ok"><i data-lucide="check"></i> Este equipo</span>`;
       }
 
       tr.innerHTML = `
         <td>
           <strong>${utils.escapeHtml(dev.name)}</strong>
-          <div style="font-size:11px;color:var(--text-muted);font-family:monospace">ID: ${utils.escapeHtml(dev.device_id)}</div>
+          <div class="u-mono u-muted">ID: ${utils.escapeHtml(dev.device_id)}</div>
         </td>
         <td><span class="tag-type">${utils.escapeHtml(dev.device_type)}</span></td>
         <td>${utils.escapeHtml(branchName)}</td>
         <td>${utils.escapeHtml(userName)}</td>
         <td>${statusBadge}</td>
-        <td style="white-space:nowrap">${actionsHtml}</td>
+        <td class="u-nowrap">${actionsHtml}</td>
       `;
       tableBody.appendChild(tr);
     });

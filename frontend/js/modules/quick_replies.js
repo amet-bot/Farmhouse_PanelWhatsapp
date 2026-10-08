@@ -226,15 +226,15 @@ const quickRepliesModule = {
     const tbody = document.getElementById('quickRepliesTableBody');
     if (!tbody) return;
     if (!this.items.length) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted)">Todavía no hay respuestas rápidas. Crea la primera con el formulario de arriba.</td></tr>`;
+      tbody.innerHTML = `<tr><td class="u-empty-cell" colspan="4">Todavía no hay respuestas rápidas. Crea la primera con el formulario de arriba.</td></tr>`;
       return;
     }
     tbody.innerHTML = this.items.map(r => `
       <tr${r.active ? '' : ' style="opacity:.55"'}>
         <td><span class="qr-shortcut-chip">/${utils.escapeHtml(r.shortcut)}</span><div style="font-weight:600;margin-top:3px">${utils.escapeHtml(r.title)}</div></td>
         <td class="qr-body-cell" title="${utils.escapeHtml(r.body)}">${utils.escapeHtml(r.body)}</td>
-        <td style="white-space:nowrap">${utils.escapeHtml(this.branchName(r.branch_id))}${r.active ? '' : '<div class="dev-badge offline" style="margin-top:4px;display:inline-block">Inactiva</div>'}</td>
-        <td style="white-space:nowrap">
+        <td class="u-nowrap">${utils.escapeHtml(this.branchName(r.branch_id))}${r.active ? '' : '<div class="dev-badge offline" style="margin-top:4px;display:inline-block">Inactiva</div>'}</td>
+        <td class="u-nowrap">
           <button type="button" class="btn-sm-action" data-qr-edit="${r.id}"><i data-lucide="pencil"></i> Editar</button>
           <button type="button" class="btn-sm-action delete-action" data-qr-del="${r.id}"><i data-lucide="trash-2"></i></button>
         </td>

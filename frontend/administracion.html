@@ -16,7 +16,7 @@
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/tokens.css?v=6.0.0">
   <link rel="stylesheet" href="css/style.css?v=6.0.0">
-  <link rel="stylesheet" href="css/base.css?v=6.0.0">
+  <link rel="stylesheet" href="css/base.css?v=6.0.1">
   <!-- El armazón (cabecera, gate de sesión) es el mismo de Inventario. Las tablas, botones y
        modales de Usuarios/Dispositivos son los mismos de Centro WhatsApp (style.css ya los
        define global) — este panel es el lugar dedicado que faltaba, no un sistema nuevo. -->
@@ -187,10 +187,10 @@
             <select id="addUserBranch" class="modal-select" required></select>
           </div>
           <p class="adm-hint adm-role-hint" id="addUserRoleHint"></p>
-          <div id="addUserError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+          <div class="form-error" id="addUserError"></div>
         </div>
         <div class="modal-footer">
-          <button type="submit" id="btnSaveUser" class="btn-primary" style="width:100%">Crear usuario</button>
+          <button type="submit" id="btnSaveUser" class="btn-primary u-full">Crear usuario</button>
         </div>
       </form>
     </div>
@@ -245,10 +245,10 @@
             <label class="modal-label" for="editUserPassword">Nueva contraseña (opcional)</label>
             <input type="password" id="editUserPassword" class="modal-input" placeholder="Déjala en blanco para no cambiarla" minlength="4" autocomplete="new-password" />
           </div>
-          <div id="editUserError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+          <div class="form-error" id="editUserError"></div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn-primary" style="width:100%">Guardar cambios</button>
+          <button type="submit" class="btn-primary u-full">Guardar cambios</button>
         </div>
       </form>
     </div>
@@ -272,9 +272,9 @@
         </div>
         <p class="adm-confirm-note">Se borra la cuenta y ya no podrá entrar. Los mensajes y comandas que atendió se quedan como están. Si solo quieres que deje de entrar por un tiempo, usa "Pausar".</p>
       </div>
-      <div class="modal-footer" style="display:flex;gap:10px">
-        <button type="button" class="btn-cancel" id="btnCancelDeleteUser" style="flex:1">Cancelar</button>
-        <button type="button" class="btn-danger" id="btnConfirmDeleteUser" style="flex:1">Eliminar usuario</button>
+      <div class="modal-footer u-row u-gap-3">
+        <button type="button" class="btn-cancel u-grow" id="btnCancelDeleteUser">Cancelar</button>
+        <button type="button" class="btn-danger u-grow" id="btnConfirmDeleteUser">Eliminar usuario</button>
       </div>
     </div>
   </div>
@@ -315,10 +315,10 @@
               <option value="">Sin asignar (lo usa quien esté de turno)</option>
             </select>
           </div>
-          <div id="addDevError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+          <div class="form-error" id="addDevError"></div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn-primary" style="width:100%">Registrar y generar código</button>
+          <button type="submit" class="btn-primary u-full">Registrar y generar código</button>
         </div>
       </form>
     </div>
@@ -334,15 +334,15 @@
         </div>
         <button class="modal-close-btn" id="closeModalDeviceCode" aria-label="Cerrar">&times;</button>
       </div>
-      <div class="modal-body" style="text-align:center">
+      <div class="modal-body u-center">
         <div class="device-code-value" id="deviceCodeValue"></div>
-        <p style="font-size:12px;color:var(--text-muted);margin:10px 0 0">
+        <p class="u-small u-muted u-mt-3">
           En ese equipo, quien tenga sesión entra a Centro WhatsApp → <strong>Dispositivos → Vincular este equipo</strong> y lo escribe. Sirve una sola vez y vence en 24 horas; después no se vuelve a mostrar.
         </p>
       </div>
-      <div class="modal-footer" style="display:flex;gap:8px">
-        <button type="button" class="btn-sm-action" id="btnCopyDeviceCode" style="flex:1"><i data-lucide="copy"></i> Copiar</button>
-        <button type="button" class="btn-primary" id="btnOkDeviceCode" style="flex:1">Listo</button>
+      <div class="modal-footer u-row">
+        <button type="button" class="btn-sm-action u-grow" id="btnCopyDeviceCode"><i data-lucide="copy"></i> Copiar</button>
+        <button type="button" class="btn-primary u-grow" id="btnOkDeviceCode">Listo</button>
       </div>
     </div>
   </div>
@@ -383,10 +383,10 @@
               <option value="revoked">✕ Revocado (acceso quitado)</option>
             </select>
           </div>
-          <div id="editDevError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+          <div class="form-error" id="editDevError"></div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn-primary" style="width:100%">Guardar cambios</button>
+          <button type="submit" class="btn-primary u-full">Guardar cambios</button>
         </div>
       </form>
     </div>
@@ -423,17 +423,17 @@
             <input id="addBranchColor" type="color" class="modal-input" value="#16a34a" style="height:44px;padding:4px" />
           </div>
           <div class="admin-checkbox-row">
-            <div class="form-row" style="display:flex;gap:12px">
-              <div class="form-group" style="flex:1"><label class="modal-label" for="addBranchOpens">Abre</label><input class="modal-input" type="time" id="addBranchOpens" /></div>
-              <div class="form-group" style="flex:1"><label class="modal-label" for="addBranchCloses">Cierra</label><input class="modal-input" type="time" id="addBranchCloses" /></div>
+            <div class="form-row u-row u-gap-3">
+              <div class="form-group u-grow"><label class="modal-label" for="addBranchOpens">Abre</label><input class="modal-input" type="time" id="addBranchOpens" /></div>
+              <div class="form-group u-grow"><label class="modal-label" for="addBranchCloses">Cierra</label><input class="modal-input" type="time" id="addBranchCloses" /></div>
             </div>
             <label for="addBranchDelivery"><input type="checkbox" id="addBranchDelivery" checked /> Acepta delivery</label>
             <label for="addBranchVisible" title="Desmárcala para una oficina: no sale en el menú digital ni en el bot de WhatsApp"><input type="checkbox" id="addBranchVisible" checked /> Visible para clientes (menú y WhatsApp)</label>
           </div>
-          <div id="addBranchError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+          <div class="form-error" id="addBranchError"></div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn-primary" style="width:100%">Crear sucursal</button>
+          <button type="submit" class="btn-primary u-full">Crear sucursal</button>
         </div>
       </form>
     </div>
@@ -468,17 +468,17 @@
             <input id="editBranchColor" type="color" class="modal-input" style="height:44px;padding:4px" />
           </div>
           <div class="admin-checkbox-row">
-            <div class="form-row" style="display:flex;gap:12px">
-              <div class="form-group" style="flex:1"><label class="modal-label" for="editBranchOpens">Abre</label><input class="modal-input" type="time" id="editBranchOpens" /></div>
-              <div class="form-group" style="flex:1"><label class="modal-label" for="editBranchCloses">Cierra</label><input class="modal-input" type="time" id="editBranchCloses" /></div>
+            <div class="form-row u-row u-gap-3">
+              <div class="form-group u-grow"><label class="modal-label" for="editBranchOpens">Abre</label><input class="modal-input" type="time" id="editBranchOpens" /></div>
+              <div class="form-group u-grow"><label class="modal-label" for="editBranchCloses">Cierra</label><input class="modal-input" type="time" id="editBranchCloses" /></div>
             </div>
             <label for="editBranchDelivery"><input type="checkbox" id="editBranchDelivery" /> Acepta delivery</label>
             <label for="editBranchVisible" title="Desmárcala para una oficina: no sale en el menú digital ni en el bot de WhatsApp"><input type="checkbox" id="editBranchVisible" /> Visible para clientes (menú y WhatsApp)</label>
           </div>
-          <div id="editBranchError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+          <div class="form-error" id="editBranchError"></div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn-primary" style="width:100%">Guardar cambios</button>
+          <button type="submit" class="btn-primary u-full">Guardar cambios</button>
         </div>
       </form>
     </div>
@@ -494,8 +494,8 @@
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/shared/shell.js?v=5.0.1003"></script>
   <script src="js/shared/native-app.js?v=5.0.1003"></script>
-  <script src="js/modules/users.js?v=5.0.1003"></script>
-  <script src="js/modules/administracion.js?v=5.0.1006"></script>
+  <script src="js/modules/users.js?v=6.0.0"></script>
+  <script src="js/modules/administracion.js?v=6.0.0"></script>
   <script src="js/modules/admin-sistema.js?v=5.0.1003"></script>
 </body>
 </html>

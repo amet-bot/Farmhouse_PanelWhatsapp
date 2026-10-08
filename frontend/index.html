@@ -16,7 +16,7 @@
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/tokens.css?v=6.0.0">
   <link rel="stylesheet" href="css/style.css?v=6.0.0">
-  <link rel="stylesheet" href="css/base.css?v=6.0.0">
+  <link rel="stylesheet" href="css/base.css?v=6.0.1">
   <!-- Componente propio de la pestaña "Flujo visual" (contenido real + mapa parcial del bot). -->
   <link rel="stylesheet" href="css/flow-editor.css?v=6.0.0">
   <!-- Tipografía de marca (ABC Ginto / PP Eiko), después de style.css para ganarle en cascada
@@ -269,7 +269,7 @@
             <div class="contact-header-card">
               <div class="wa-icon-badge"><i data-lucide="phone"></i></div>
               <div>
-                <strong id="detailName" style="font-size:13px;display:block">Sin conversación activa</strong>
+                <strong class="u-small" id="detailName">Sin conversación activa</strong>
                 <div class="muted-text" id="detailPhone">-</div>
               </div>
             </div>
@@ -285,7 +285,7 @@
               </div>
             </div>
 
-            <div class="muted-text" style="margin-top:10px">Sucursal</div>
+            <div class="muted-text u-mt-3">Sucursal</div>
             <div class="tag-container" id="detailTags">
               <span class="tag-pill blue" id="detailBranchTag">-</span>
             </div>
@@ -454,7 +454,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="submit" id="btnLoginSubmit" class="btn-primary" style="width:100%">Iniciar sesión</button>
+          <button type="submit" id="btnLoginSubmit" class="btn-primary u-full">Iniciar sesión</button>
         </div>
       </form>
     </div>
@@ -525,8 +525,8 @@
         <button class="modal-close-btn" id="closeModalUsersList" aria-label="Cerrar">&times;</button>
       </div>
       <div class="modal-body">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <span style="font-size:12px;color:var(--text-muted)">Usuarios registrados en el sistema</span>
+        <div class="u-row-between u-mb-3">
+          <span class="u-small u-muted">Usuarios registrados en el sistema</span>
           <button class="btn-primary" id="btnOpenAddUser"><i data-lucide="user-plus"></i> Crear Nuevo Agente / Usuario</button>
         </div>
         <div class="device-table-wrap">
@@ -589,10 +589,10 @@
               <!-- Llenado dinámicamente con GET /api/branches/ -->
             </select>
           </div>
-          <div id="addUserError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+          <div class="form-error" id="addUserError"></div>
         </div>
         <div class="modal-footer">
-          <button type="submit" id="btnSaveUser" class="btn-primary" style="width:100%">Guardar Usuario</button>
+          <button type="submit" id="btnSaveUser" class="btn-primary u-full">Guardar Usuario</button>
         </div>
       </form>
     </div>
@@ -646,10 +646,10 @@
             <label class="modal-label">Nueva Contraseña (Opcional):</label>
             <input type="password" id="editUserPassword" class="modal-input" placeholder="Mínimo 4 caracteres (dejar en blanco para conservar)" />
           </div>
-          <div id="editUserError" style="display:none;padding:10px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;margin-top:12px;"></div>
+          <div class="form-error" id="editUserError"></div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn-primary" style="width:100%">Guardar Cambios</button>
+          <button type="submit" class="btn-primary u-full">Guardar Cambios</button>
         </div>
       </form>
     </div>
@@ -675,13 +675,13 @@
           <div id="deleteUserUsernameSpan" class="alert-danger-detail"></div>
         </div>
         <div id="deleteUserAlert" class="alert-danger-banner" style="display:none"></div>
-        <p style="font-size:11px;color:var(--text-muted)">
+        <p class="u-meta">
           Esta acción borrará la cuenta del sistema. Los mensajes históricos y comandas se conservarán sin alteración.
         </p>
       </div>
-      <div class="modal-footer" style="display:flex;gap:10px">
-        <button type="button" class="btn-cancel" id="btnCancelDeleteUser" style="flex:1">Cancelar</button>
-        <button type="button" class="btn-danger" id="btnConfirmDeleteUser" style="flex:1">Eliminar usuario</button>
+      <div class="modal-footer u-row u-gap-3">
+        <button type="button" class="btn-cancel u-grow" id="btnCancelDeleteUser">Cancelar</button>
+        <button type="button" class="btn-danger u-grow" id="btnConfirmDeleteUser">Eliminar usuario</button>
       </div>
     </div>
   </div>
@@ -706,8 +706,8 @@
             <button type="button" class="btn-sm-action" id="btnUnlinkDevice" style="display:none"><i data-lucide="unlink"></i> Desvincular</button>
           </form>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <span style="font-size:12px;color:var(--text-muted)">Registrar equipos y generar códigos es exclusivo del Administrador.</span>
+        <div class="u-row-between u-mb-3">
+          <span class="u-small u-muted">Registrar equipos y generar códigos es exclusivo del Administrador.</span>
           <button class="btn-primary" id="btnOpenAddDevice" style="display:none"><i data-lucide="plus-circle"></i> Registrar Nuevo Dispositivo</button>
         </div>
         <div class="device-table-wrap">
@@ -769,7 +769,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn-primary" style="width:100%">Registrar y generar código de vinculación</button>
+          <button type="submit" class="btn-primary u-full">Registrar y generar código de vinculación</button>
         </div>
       </form>
     </div>
@@ -785,15 +785,15 @@
         </div>
         <button class="modal-close-btn" id="closeModalDeviceCode" aria-label="Cerrar">&times;</button>
       </div>
-      <div class="modal-body" style="text-align:center">
+      <div class="modal-body u-center">
         <div class="device-code-value" id="deviceCodeValue"></div>
-        <p style="font-size:12px;color:var(--text-muted);margin:10px 0 0">
+        <p class="u-small u-muted u-mt-3">
           Escríbelo en ese equipo en <strong>Dispositivos → Vincular este equipo</strong>. Sirve una sola vez y vence en 24 horas; después no se vuelve a mostrar.
         </p>
       </div>
-      <div class="modal-footer" style="display:flex;gap:8px">
-        <button type="button" class="btn-sm-action" id="btnCopyDeviceCode" style="flex:1"><i data-lucide="copy"></i> Copiar</button>
-        <button type="button" class="btn-primary" id="btnOkDeviceCode" style="flex:1">Listo</button>
+      <div class="modal-footer u-row">
+        <button type="button" class="btn-sm-action u-grow" id="btnCopyDeviceCode"><i data-lucide="copy"></i> Copiar</button>
+        <button type="button" class="btn-primary u-grow" id="btnOkDeviceCode">Listo</button>
       </div>
     </div>
   </div>
@@ -839,7 +839,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn-primary" style="width:100%">Guardar Cambios</button>
+          <button type="submit" class="btn-primary u-full">Guardar Cambios</button>
         </div>
       </form>
     </div>
@@ -860,12 +860,12 @@
         <select id="transferTargetBranch" class="modal-select">
           <!-- Llenado dinámicamente con GET /api/branches/ -->
         </select>
-        <label class="modal-label" style="margin-top:10px">Motivo de la transferencia (Nota Interna):</label>
+        <label class="modal-label u-mt-3">Motivo de la transferencia (Nota Interna):</label>
         <input id="transferReason" class="modal-input" placeholder="Ej: Cliente se encuentra en otra zona..." />
       </div>
-      <div class="modal-footer" style="display:flex;gap:10px">
-        <button type="button" class="btn-cancel" id="btnCancelTransfer" style="flex:1">Cancelar</button>
-        <button type="button" class="btn-primary" id="btnConfirmTransfer" style="flex:1">Confirmar</button>
+      <div class="modal-footer u-row u-gap-3">
+        <button type="button" class="btn-cancel u-grow" id="btnCancelTransfer">Cancelar</button>
+        <button type="button" class="btn-primary u-grow" id="btnConfirmTransfer">Confirmar</button>
       </div>
     </div>
   </div>
@@ -883,13 +883,13 @@
       <div class="modal-body">
         <label class="modal-label" for="yappyChargeTotal">Total a cobrar (con delivery si aplica):</label>
         <input id="yappyChargeTotal" class="modal-input" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Ej: 18.50" />
-        <label class="modal-label" style="margin-top:10px" for="yappyChargeDescription">Qué pidió (queda en el pedido):</label>
+        <label class="modal-label u-mt-3" for="yappyChargeDescription">Qué pidió (queda en el pedido):</label>
         <input id="yappyChargeDescription" class="modal-input" maxlength="500" placeholder="Ej: 2 bowls de pollo, 1 smoothie" />
-        <p style="font-size:12px;color:var(--text-muted);margin:10px 0 0">El pedido se marca como pagado solo cuando Yappy confirma el pago.</p>
+        <p class="u-small u-muted u-mt-3">El pedido se marca como pagado solo cuando Yappy confirma el pago.</p>
       </div>
-      <div class="modal-footer" style="display:flex;gap:10px">
-        <button type="button" class="btn-cancel" id="btnCancelYappyCharge" style="flex:1">Cancelar</button>
-        <button type="button" class="btn-primary" id="btnConfirmYappyCharge" style="flex:1">Enviar botón de pago</button>
+      <div class="modal-footer u-row u-gap-3">
+        <button type="button" class="btn-cancel u-grow" id="btnCancelYappyCharge">Cancelar</button>
+        <button type="button" class="btn-primary u-grow" id="btnConfirmYappyCharge">Enviar botón de pago</button>
       </div>
     </div>
   </div>
@@ -907,15 +907,15 @@
         <div class="modal-danger-icon-large">
           <i data-lucide="lock"></i>
         </div>
-        <strong id="deviceForbiddenText" class="alert-danger-title" style="margin-bottom:8px">
+        <strong id="deviceForbiddenText" class="alert-danger-title u-mb-2">
           Este dispositivo no está autorizado para atender conversaciones.
         </strong>
-        <p style="font-size:12px;color:var(--text-muted)">
+        <p class="u-small u-muted">
           Pide al administrador el código de vinculación de este equipo y escríbelo en «Vincular este equipo».
         </p>
       </div>
       <div class="modal-footer">
-        <button class="btn-primary" id="closeModalDeviceForbidden" style="width:100%">Vincular este equipo</button>
+        <button class="btn-primary u-full" id="closeModalDeviceForbidden">Vincular este equipo</button>
       </div>
     </div>
   </div>
@@ -954,7 +954,7 @@
           <label class="modal-label" for="qrBody">Mensaje</label>
           <textarea id="qrBody" class="modal-input" rows="3" maxlength="4000" required placeholder="Hola {nombre}, nuestro horario es…"></textarea>
           <div class="qr-form-foot">
-            <span class="muted-text" style="font-size:11px">Puedes usar <code>{nombre}</code> (primer nombre del cliente), <code>{sucursal}</code> y <code>{menu}</code> (enlace al menú digital).</span>
+            <span class="muted-text u-xs">Puedes usar <code>{nombre}</code> (primer nombre del cliente), <code>{sucursal}</code> y <code>{menu}</code> (enlace al menú digital).</span>
             <label class="qr-active-toggle"><input type="checkbox" id="qrActive" checked /> Activa</label>
             <button type="submit" class="btn-primary"><i data-lucide="save"></i> Guardar</button>
           </div>
@@ -1034,13 +1034,13 @@
   <script src="js/ws.js?v=4.2.0"></script>
   <script src="js/modules/auth.js?v=3.4.0"></script>
   <script src="js/modules/branches.js?v=4.5.0"></script>
-  <script src="js/modules/users.js?v=5.0.1003"></script>
-  <script src="js/modules/devices.js?v=5.0.1006"></script>
+  <script src="js/modules/users.js?v=6.0.0"></script>
+  <script src="js/modules/devices.js?v=6.0.0"></script>
   <script src="js/modules/contacts.js?v=1.0.0"></script>
-  <script src="js/modules/quick_replies.js?v=5.0.1007"></script>
-  <script src="js/modules/tags.js?v=5.0.1007"></script>
+  <script src="js/modules/quick_replies.js?v=6.0.0"></script>
+  <script src="js/modules/tags.js?v=6.0.0"></script>
   <script src="js/modules/conversations.js?v=5.0.1007"></script>
-  <script src="js/modules/chat.js?v=5.0.1007"></script>
+  <script src="js/modules/chat.js?v=6.0.0"></script>
   <script src="js/modules/push.js?v=4.0.0"></script>
   <script src="js/modules/notifications.js?v=4.0.0"></script>
   <script src="js/modules/flow_editor.js?v=4.1.0"></script>

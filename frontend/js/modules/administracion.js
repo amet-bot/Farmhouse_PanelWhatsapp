@@ -212,12 +212,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       return `
         <tr>
-          <td class="adm-td-main"><strong>${esc(dev.name)}</strong><div class="adm-sub" style="font-size:11px;color:var(--text-muted);font-family:monospace">Código: ${esc(dev.device_id)}</div></td>
+          <td class="adm-td-main"><strong>${esc(dev.name)}</strong><div class="adm-sub u-mono u-muted">Código: ${esc(dev.device_id)}</div></td>
           <td data-label="Tipo"><span class="tag-type">${esc(DEVICE_TYPES[dev.device_type] || dev.device_type)}</span></td>
           <td data-label="Sucursal">${branchName}</td>
           <td data-label="Usuario asignado">${userName}</td>
           <td data-label="Estado">${statusBadge}</td>
-          <td class="adm-td-actions" style="white-space:nowrap">${actions}</td>
+          <td class="adm-td-actions u-nowrap">${actions}</td>
         </tr>
       `;
     }).join('');
@@ -361,7 +361,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td data-label="Delivery">${b.accepts_delivery ? 'Sí' : 'No'}</td>
           <td data-label="Horario">${esc(hora12(b.opens_at || '10:30'))} a ${esc(hora12(b.closes_at || '21:30'))}</td>
           <td data-label="Estado">${statusBadge}</td>
-          <td class="adm-td-actions" style="white-space:nowrap">
+          <td class="adm-td-actions u-nowrap">
             <button type="button" class="btn-sm-action" onclick="adminModule.openEditBranch(${b.id})"><i data-lucide="pencil"></i> Editar</button>
             <button type="button" class="btn-sm-action${b.active ? ' delete-action' : ''}" onclick="adminModule.toggleBranch(${b.id})"><i data-lucide="${b.active ? 'pause' : 'play'}"></i> ${b.active ? 'Desactivar' : 'Activar'}</button>
           </td>

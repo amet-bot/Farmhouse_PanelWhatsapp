@@ -36,7 +36,7 @@ const usersModule = {
     if (this.users.length === 0) {
       tableBody.innerHTML = `
         <tr>
-          <td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted)">
+          <td class="u-empty-cell" colspan="5">
             No hay usuarios registrados.
           </td>
         </tr>
@@ -80,12 +80,12 @@ const usersModule = {
         <td class="adm-td-main">
           <strong>${utils.escapeHtml(u.name)}</strong>
           <div class="adm-sub" style="font-size:11px;color:var(--primary-color);font-weight:600">@${utils.escapeHtml(u.username)}</div>
-          ${u.email ? `<div class="adm-sub" style="font-size:11px;color:var(--text-muted)">${utils.escapeHtml(u.email)}</div>` : ''}
+          ${u.email ? `<div class="adm-sub u-meta">${utils.escapeHtml(u.email)}</div>` : ''}
         </td>
         <td data-label="Rol">${roleBadge}</td>
         <td data-label="Sucursal">${utils.escapeHtml(branchName)}</td>
         <td data-label="Estado">${statusBadge}</td>
-        <td class="adm-td-actions${actionsHtml ? '' : ' is-empty'}" style="white-space:nowrap">${actionsHtml}</td>
+        <td class="adm-td-actions${actionsHtml ? '' : ' is-empty'} u-nowrap">${actionsHtml}</td>
       `;
       tableBody.appendChild(tr);
     });

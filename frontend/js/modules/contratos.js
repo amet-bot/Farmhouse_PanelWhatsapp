@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td data-label="Inicio">${esc(fmtDate(c.start_date))}</td>
           <td data-label="Vencimiento">${c.end_date ? `${esc(fmtDate(c.end_date))}${note ? `<div class="ct-sub">${note}</div>` : ''}` : '—'}</td>
           <td data-label="Estado"><span class="ct-badge ct-badge-${STATUS_CLASS[st]}">${st}</span></td>
-          <td class="adm-td-actions" style="white-space:nowrap">
+          <td class="adm-td-actions u-nowrap">
             <button type="button" class="btn-sm-action" data-act="export" data-id="${c.id}"${exportable ? '' : ` disabled title="${esc(noTemplateReason(c))}"`}><i data-lucide="download"></i> Exportar</button>
             <button type="button" class="btn-sm-action" data-act="edit" data-id="${c.id}"><i data-lucide="pencil"></i> Editar</button>
             <button type="button" class="btn-sm-action delete-action" data-act="delete" data-id="${c.id}"><i data-lucide="trash-2"></i> Eliminar</button>
@@ -357,7 +357,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td data-label="Identificación">${esc(i.id_type === 'Cedula' ? 'Cédula' : i.id_type)} ${esc(i.id_number_masked)}</td>
         <td data-label="Origen"><span class="ct-origin${i.open_form ? ' open' : ''}">${i.open_form ? 'Formulario abierto' : 'Invitación'}</span></td>
         <td data-label="Recibida">${esc(fmtDateTime(i.created_at))}</td>
-        <td class="adm-td-actions" style="white-space:nowrap">
+        <td class="adm-td-actions u-nowrap">
           <button type="button" class="btn-sm-action" data-act="convert" data-id="${i.id}"><i data-lucide="file-plus"></i> Crear contrato</button>
           <button type="button" class="btn-sm-action delete-action" data-act="dismiss" data-id="${i.id}"><i data-lucide="x"></i> Descartar</button>
         </td>

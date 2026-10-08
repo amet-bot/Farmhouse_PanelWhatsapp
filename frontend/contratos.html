@@ -16,7 +16,7 @@
   <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('fh_theme')||'light')}catch(e){}try{if(window.self!==window.top&&window.top.location.origin===location.origin)document.documentElement.classList.add('fh-embedded')}catch(e){}</script>
   <link rel="stylesheet" href="css/tokens.css?v=6.0.0">
   <link rel="stylesheet" href="css/style.css?v=6.0.0">
-  <link rel="stylesheet" href="css/base.css?v=6.0.0">
+  <link rel="stylesheet" href="css/base.css?v=6.0.1">
   <!-- Armazón (cabecera, gate de sesión) de Inventario; pestañas y tablas de Administración. -->
   <link rel="stylesheet" href="css/inventory.css?v=6.0.0">
   <link rel="stylesheet" href="css/administracion.css?v=6.0.0">
@@ -75,7 +75,7 @@
       <div class="admin-view" id="viewContratos" data-view="contratos">
         <div class="admin-view-head">
           <span class="inv-panel-note">Cada fila es un contrato: quien renueva tiene dos. «Exportar» arma el contrato en Word.</span>
-          <span style="display:flex;gap:8px;flex-wrap:wrap">
+          <span class="u-row u-wrap">
             <button class="btn-sm-action" id="btnInvite"><i data-lucide="send"></i> Invitar colaborador</button>
             <button class="btn-primary" id="btnNewContract"><i data-lucide="file-plus"></i> Nuevo contrato</button>
           </span>
@@ -103,7 +103,7 @@
       <div class="admin-view" id="viewSolicitudes" data-view="solicitudes" hidden>
         <div class="admin-view-head">
           <span class="inv-panel-note">Datos que los colaboradores llenaron con su enlace. Revísalos, ponles puesto, salario y fechas, y conviértelos en contrato.</span>
-          <span style="display:flex;gap:8px;flex-wrap:wrap">
+          <span class="u-row u-wrap">
             <button class="btn-sm-action" id="btnRefreshIntakes"><i data-lucide="refresh-cw"></i> Actualizar</button>
             <button class="btn-sm-action" id="btnInvite2"><i data-lucide="send"></i> Invitar / enlace abierto</button>
           </span>
@@ -139,11 +139,11 @@
         <form id="formInvite" novalidate>
           <label class="modal-label" for="ctInviteLabel">¿Para quién es? <span class="ct-opt">(opcional, solo para que lo reconozcas)</span></label>
           <input id="ctInviteLabel" class="modal-input" maxlength="150" placeholder="Ej. Ana Pérez" autocomplete="off" />
-          <label class="modal-label" for="ctInviteHours" style="margin-top:12px">Vence en</label>
+          <label class="modal-label u-mt-3" for="ctInviteHours">Vence en</label>
           <select id="ctInviteHours" class="modal-select">
             <option value="24">24 horas</option><option value="72" selected>3 días</option><option value="168">7 días</option>
           </select>
-          <button type="submit" class="btn-primary" id="btnCreateInvite" style="width:100%;margin-top:14px">Crear enlace</button>
+          <button type="submit" class="btn-primary u-full u-mt-4" id="btnCreateInvite">Crear enlace</button>
         </form>
         <div class="ct-link-box" id="ctInviteResult" hidden>
           <p>Copia este enlace y envíaselo a la persona (WhatsApp, correo). <strong>No se volverá a mostrar.</strong></p>
@@ -258,8 +258,8 @@
 
           <div id="ctError" class="ct-error" style="display:none"></div>
         </div>
-        <div class="modal-footer" style="display:flex;gap:10px">
-          <button type="button" class="btn-cancel" id="btnCancelContract" style="flex:1">Cancelar</button>
+        <div class="modal-footer u-row u-gap-3">
+          <button type="button" class="btn-cancel u-grow" id="btnCancelContract">Cancelar</button>
           <button type="submit" class="btn-primary" id="btnSaveContract" style="flex:2">Guardar contrato</button>
         </div>
       </form>
@@ -278,6 +278,6 @@
   <script src="js/shared/native-app.js?v=5.0.1003"></script>
   <script src="js/modules/contract_admin_template.js?v=5.0.1008"></script>
   <script src="js/modules/contract_docx.js?v=5.0.1007"></script>
-  <script src="js/modules/contratos.js?v=5.0.1008"></script>
+  <script src="js/modules/contratos.js?v=6.0.0"></script>
 </body>
 </html>

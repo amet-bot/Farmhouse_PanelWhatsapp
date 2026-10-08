@@ -59,7 +59,7 @@ const tagsModule = {
     const btn = document.getElementById('btnEditContactTags');
     if (!box) return;
     const tags = (contact && contact.tags) || [];
-    box.innerHTML = tags.map(t => this.pillHtml(t)).join('') || '<span class="muted-text" style="font-size:11px">Sin etiquetas</span>';
+    box.innerHTML = tags.map(t => this.pillHtml(t)).join('') || '<span class="muted-text u-xs">Sin etiquetas</span>';
     if (btn) btn.style.display = contact && contact.id && this.canAssign() ? '' : 'none';
     if (this.pickerOpen) this.renderPicker();
   },
@@ -165,14 +165,14 @@ const tagsModule = {
     const tbody = document.getElementById('tagsTableBody');
     if (!tbody) return;
     if (!this.tags.length) {
-      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text-muted)">Todavía no hay etiquetas. Crea la primera con el formulario de arriba (por ejemplo: VIP, Corporativo, Reclamo, Frecuente).</td></tr>`;
+      tbody.innerHTML = `<tr><td class="u-empty-cell" colspan="3">Todavía no hay etiquetas. Crea la primera con el formulario de arriba (por ejemplo: VIP, Corporativo, Reclamo, Frecuente).</td></tr>`;
       return;
     }
     tbody.innerHTML = this.tags.map(t => `
       <tr>
         <td>${this.pillHtml(t)}</td>
-        <td><span class="tag-pick-dot" style="background:${utils.escapeHtml(t.color)};display:inline-block;vertical-align:middle;margin-right:6px"></span><span style="font-family:monospace;font-size:11px">${utils.escapeHtml(t.color)}</span></td>
-        <td style="white-space:nowrap">
+        <td><span class="tag-pick-dot" style="background:${utils.escapeHtml(t.color)};display:inline-block;vertical-align:middle;margin-right:6px"></span><span class="u-mono">${utils.escapeHtml(t.color)}</span></td>
+        <td class="u-nowrap">
           <button type="button" class="btn-sm-action" data-tag-edit="${t.id}"><i data-lucide="pencil"></i> Editar</button>
           <button type="button" class="btn-sm-action delete-action" data-tag-del="${t.id}"><i data-lucide="trash-2"></i></button>
         </td>

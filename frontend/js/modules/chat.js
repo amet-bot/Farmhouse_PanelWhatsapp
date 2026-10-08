@@ -140,7 +140,7 @@ const chatModule = {
 
     const messages = document.getElementById('chatMessages');
     if (messages) {
-      messages.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">Cargando conversación...</div>';
+      messages.innerHTML = '<div class="u-empty-cell">Cargando conversación...</div>';
     }
 
     const detailName = document.getElementById('detailName');
@@ -201,7 +201,7 @@ const chatModule = {
         <div class="empty-state">
           <div class="empty-icon"><i data-lucide="sprout"></i></div>
           <p>Bandeja de atención Farmhouse</p>
-          <span style="font-size:12px;color:var(--text-muted)">Selecciona una conversación para comenzar a responder</span>
+          <span class="u-small u-muted">Selecciona una conversación para comenzar a responder</span>
         </div>
       `;
     }
@@ -233,7 +233,7 @@ const chatModule = {
     } else if (user && user.id === conv.assigned_user_id) {
       actionBtnHtml = `<button class="btn-sm-action" style="color:var(--green);border-color:var(--green-border);display:inline-flex;align-items:center;gap:4px"><i data-lucide="check"></i> <span>En atención por ti</span></button>`;
     } else {
-      actionBtnHtml = `<span style="font-size:12px;color:var(--text-muted)">Atendido por: <strong>${utils.escapeHtml(assignedName)}</strong></span>`;
+      actionBtnHtml = `<span class="u-small u-muted">Atendido por: <strong>${utils.escapeHtml(assignedName)}</strong></span>`;
     }
 
     let deleteBtnHtml = '';
@@ -386,7 +386,7 @@ const chatModule = {
     const canDeleteMessages = user && (user.role === 'admin' || user.role === 'supervisor');
 
     if (messages.length === 0) {
-      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">No hay mensajes anteriores en esta conversación.</div>';
+      container.innerHTML = '<div class="u-empty-cell">No hay mensajes anteriores en esta conversación.</div>';
       return;
     }
 
@@ -420,19 +420,19 @@ const chatModule = {
 
       const timeStr = utils.formatTime(msg.created_at);
       const senderLabel = isInternal
-        ? '<i data-lucide="lock" style="width:12px;height:12px;display:inline-block;vertical-align:middle"></i> Nota Interna de Agente'
+        ? '<i class="u-dot-sm" data-lucide="lock"></i> Nota Interna de Agente'
         : (isOutgoing ? 'Farmhouse Panamá' : utils.escapeHtml(this.currentConversation.contact?.name || 'Cliente'));
 
       let statusBadge = '';
       if (isOutgoing && !isInternal) {
         if (msg.status === 'pending') {
-          statusBadge = '<span class="msg-status" title="Enviando..."><i data-lucide="clock" style="width:12px;height:12px;display:inline-block"></i></span>';
+          statusBadge = '<span class="msg-status" title="Enviando..."><i class="u-dot-sm" data-lucide="clock"></i></span>';
         } else if (msg.status === 'sent') {
-          statusBadge = '<span class="msg-status" title="Enviado a WhatsApp"><i data-lucide="check" style="width:12px;height:12px;display:inline-block"></i></span>';
+          statusBadge = '<span class="msg-status" title="Enviado a WhatsApp"><i class="u-dot-sm" data-lucide="check"></i></span>';
         } else if (msg.status === 'delivered') {
-          statusBadge = '<span class="msg-status" title="Entregado al cliente"><i data-lucide="check-check" style="width:12px;height:12px;display:inline-block"></i></span>';
+          statusBadge = '<span class="msg-status" title="Entregado al cliente"><i class="u-dot-sm" data-lucide="check-check"></i></span>';
         } else if (msg.status === 'read') {
-          statusBadge = '<span class="msg-status" style="color:#0284c7" title="Leído por el cliente"><i data-lucide="check-check" style="width:12px;height:12px;display:inline-block"></i></span>';
+          statusBadge = '<span class="msg-status" style="color:#0284c7" title="Leído por el cliente"><i class="u-dot-sm" data-lucide="check-check"></i></span>';
         } else if (msg.status === 'failed') {
           statusBadge = `<button class="btn-retry-msg" onclick="chatModule.retryMessage(${msg.id})" title="Error al enviar: ${utils.escapeHtml(msg.error_detail || 'Fallo de entrega')}" style="background:none;border:none;color:#ef4444;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;margin-left:4px"><i data-lucide="alert-circle" style="width:12px;height:12px"></i> Reintentar</button>`;
         }
