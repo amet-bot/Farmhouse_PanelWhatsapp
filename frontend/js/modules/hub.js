@@ -96,6 +96,15 @@ const HUB_MODULES = [
     tags: ['Ventas', 'Invu', 'Sucursales'], icon: 'line-chart', route: '/link',
     requiredPermission: 'reports.view',
   },
+  {
+    // Proyecto aparte (otro servicio en Railway): se abre en una pestaña nueva, no dentro del hub.
+    id: 'dashboard', name: 'Dashboard financiero', shortName: 'Dashboard',
+    description: 'Ventas, costos y resultados del negocio en un tablero ejecutivo.',
+    shortDescription: 'Tablero ejecutivo',
+    tags: ['Finanzas', 'Ventas', 'Gerencia'], icon: 'bar-chart-3',
+    route: 'https://farmhouse-financial-dashboard-production.up.railway.app', external: true,
+    requiredPermission: 'reports.view',
+  },
 ];
 
 // `title`: el nombre que encabeza el menú del sistema cuando está abierto (ver APP_NAV_SOURCES).
@@ -719,12 +728,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // sin entrada en el celular.
     const extra = modules.filter((m) => !quick.includes(m.id));
     const integ = HUB_SIDEBAR.find((s) => s.id === 'integraciones');
-    const extraLinks = extra.map((m) => ({ label: m.name, icon: m.icon, route: m.route }));
+    const extraLinks = extra.map((m) => ({ label: m.name, icon: m.icon, route: m.route, external: m.external }));
     if (integ && (user?.permissions || []).includes(integ.requiredPermission)) {
       extraLinks.push({ label: integ.label, icon: integ.icon, route: integ.route });
     }
     $('hubProfileLinks').innerHTML = (extraLinks.length ? '<p class="hub-sheet-title">Más módulos</p>' : '') + extraLinks.map((l) => `
-      <a class="hub-sheet-row" href="${utils.escapeHtml(l.route)}">
+      <a class="hub-sheet-row" href="${utils.escapeHtml(l.route)}"${l.external ? ' target="_blank" rel="noopener noreferrer"' : ''}>
         <i data-lucide="${utils.escapeHtml(l.icon)}" aria-hidden="true"></i><span>${utils.escapeHtml(l.label)}</span>
       </a>`).join('');
   }

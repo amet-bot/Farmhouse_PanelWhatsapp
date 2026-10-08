@@ -19,6 +19,8 @@
   const esc = (s) => utils.escapeHtml(s ?? '');
   const icon = (name) => `<i data-lucide="${esc(name)}" aria-hidden="true"></i>`;
 
+  const ext = (m) => (m.external ? ' target="_blank" rel="noopener noreferrer"' : '');
+
   function sidebarNav(items, activeId) {
     return items.map((item) => {
       const active = item.id === activeId;
@@ -32,7 +34,7 @@
 
   function moduleCard(m) {
     return `
-      <a class="hub-module-card" href="${esc(m.route)}" data-module-id="${esc(m.id)}"
+      <a class="hub-module-card" href="${esc(m.route)}"${ext(m)} data-module-id="${esc(m.id)}"
          data-search="${esc(`${m.name} ${m.description} ${m.tags.join(' ')}`.toLowerCase())}">
         <span class="hub-module-top">
           <span class="hub-module-icon">${icon(m.icon)}</span>
@@ -56,7 +58,7 @@
 
   function mobileModuleCard(m) {
     return `
-      <a class="hub-m-card" href="${esc(m.route)}" data-module-id="${esc(m.id)}">
+      <a class="hub-m-card" href="${esc(m.route)}"${ext(m)} data-module-id="${esc(m.id)}">
         <span class="hub-m-card-top">
           <span class="hub-module-icon hub-module-icon-lg">${icon(m.icon)}</span>
           <span class="hub-m-card-arrow">${icon('chevron-right')}</span>
