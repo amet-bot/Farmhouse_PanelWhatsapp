@@ -222,6 +222,51 @@ def _get(
     return payload
 
 
+def _post(path_query: str, body: Dict[str, Any], credenciales: Credenciales, _retrying: bool = False) -> Dict[str, Any]:
+    """
+    Una petición POST con cuerpo JSON. A diferencia de `_get`, NO reintenta ante un 429: repetir
+    una escritura podría duplicar la orden en el POS. Solo reintenta una vez si el token venció,
+    porque en ese caso Invu rechazó la petición antes de procesarla.
+    """
+    token = get_token(credenciales=credenciales)
+    try:
+        response = httpx.post(
+            f"{_base_url()}/invuApiPos/index.php",
+            params={"r": path_query},
+            json=body,
+            headers={"authorization": token},
+            timeout=REQUEST_TIMEOUT,
+        )
+    except httpx.HTTPError as e:
+        raise InvuError(f"No se pudo contactar a Invu: {e}") from e
+
+    if response.status_code in (401, 403) and not _retrying:
+        get_token(force_refresh=True, credenciales=credenciales)
+        return _post(path_query, body, credenciales, _retrying=True)
+    if response.status_code == 429:
+        raise InvuError("Invu está limitando las peticiones; la orden no se envió.")
+    if response.status_code not in (200, 201):
+        raise InvuError(f"Invu respondió HTTP {response.status_code} en '{path_query}'.")
+
+    payload = response.json()
+    if isinstance(payload, dict) and str(payload.get("status")) in ("401", "403"):
+        if _retrying:
+            raise InvuError("Invu rechazó el token de este usuario de API.")
+        get_token(force_refresh=True, credenciales=credenciales)
+        return _post(path_query, body, credenciales, _retrying=True)
+    if isinstance(payload, dict) and payload.get("error"):
+        raise InvuError(str(payload.get("msg") or f"Invu devolvió un error en '{path_query}'."))
+    return payload
+
+
+def create_order(credenciales: Credenciales, body: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Crea una orden en el POS de la sucursal (`citas/add`); aparece como comanda en su pantalla.
+    Requiere que Invu haya habilitado el endpoint para la licencia (certificación).
+    """
+    return _post("citas/add", body, credenciales)
+
+
 def _retry_after_seconds(response: httpx.Response) -> float:
     """
     Cuánto esperar tras un 429. La API dice qué ventana se pasó por las cabeceras

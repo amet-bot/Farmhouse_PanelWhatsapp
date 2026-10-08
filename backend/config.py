@@ -145,6 +145,11 @@ class Settings(BaseSettings):
 
     INVU_SALES_BRANCH_CODES: tuple = ("CLY", "CDE", "VP", "SF", "OBR")
 
+    # Mandar cada pedido confirmado del Menú Digital a la pantalla (comandas) de Invu con
+    # `citas/add`. Apagado de fábrica: ese endpoint solo funciona tras la certificación con
+    # Integraciones de Invu (ver services/invu_order_push.py).
+    INVU_ORDER_PUSH_ENABLED: bool = False
+
     def invu_branch_credentials(self) -> Dict[str, tuple]:
         """{código de sucursal: (usuario, contraseña)} solo de las sucursales con ambos datos."""
         credenciales = {}

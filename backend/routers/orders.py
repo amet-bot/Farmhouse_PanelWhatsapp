@@ -31,6 +31,7 @@ from services.websocket_manager import ws_manager
 from services.whatsapp_service import get_whatsapp_service
 from services.yappy_payment import build_yappy_payment_url, is_yappy_configured
 from services.invu_sales_sync import PANAMA_TZ
+from services.invu_order_push import push_order_to_invu
 
 logger = logging.getLogger("farmhouse.orders")
 
@@ -409,6 +410,9 @@ async def create_public_order(
             _send_delayed_yappy_button,
             conv.id, contact.phone, conv.whatsapp_phone_number_id, order_code, payment_message, payment_url,
         )
+
+    # Fuera de la petición del cliente: si Invu tarda o falla, el pedido ya quedó registrado.
+    background_tasks.add_task(push_order_to_invu, order.id)
 
     logger.info(f"[PublicOrder] Comanda {order_code} creada desde /menu para conv {conv.id} (Total: ${total})")
 
