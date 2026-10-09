@@ -20,7 +20,22 @@ depends_on: Union[str, Sequence[str], None] = None
 DEFAULT_REPLIES = [
     ("menu", "Ver productos", "Claro, te comparto nuestro menú para que veas todos los productos disponibles 😊\n{menu}"),
     ("pedido", "Estado de mi pedido", "¿Me confirmas tu nombre o número de pedido para revisar el estado?"),
-    ("horario", "Horarios y sucursales", "Nuestro horario es de Lunes a Domingo, 8:00 AM a 9:30 PM (Vía Porras y Obarrio abren desde las 6:00 AM). ¿Te comparto la dirección de la sucursal más cercana?"),
+    ("horario", "Horarios y sucursales",
+     "Horario de las sucursales:\n"
+     "farmhouse | Obarrio — 8:00 a. m. a 9:00 p. m., todos los días.\n"
+     "farmhouse | San Francisco — 8:00 a. m. a 9:00 p. m., todos los días.\n"
+     "farmhouse | Costa del Este (Torre MMG) — 8:00 a. m. a 9:00 p. m., todos los días.\n"
+     "farmhouse | Clayton — 8:00 a. m. a 9:00 p. m., todos los días.\n"
+     "farmhouse by the park | Parque Omar — 6:00 a. m. a 9:00 p. m., todos los días."),
+    ("sedes", "Sucursales y ubicaciones",
+     "Sucursales:\n\n"
+     "Aquí puede ver las ubicaciones de nuestras sedes:\n"
+     "Instagram: https://www.instagram.com/somosfarmhouse/\n"
+     "•  Costa del Este: https://maps.app.goo.gl/8cKwdQ1b4Kh3RH6c9\n"
+     "•  San Francisco: https://maps.app.goo.gl/hQsn2NkxkhfukYcJA\n"
+     "•  Clayton: https://maps.app.goo.gl/4dfQp1r1pphThU4S6\n"
+     "•  Obarrio: https://maps.app.goo.gl/y37SjxELSRJok3Km7\n"
+     "•  Vía Porras (express): https://maps.app.goo.gl/1SSJvWX8yQGgA6VG6"),
     ("asesor", "Hablar con un asesor", "Con gusto te comunico con un asesor para que te ayude personalmente."),
 ]
 

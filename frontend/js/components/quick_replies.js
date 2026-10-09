@@ -87,7 +87,7 @@ const quickRepliesModule = {
     const fallback = {
       menu: `Claro, te comparto nuestro menú para que veas todos los productos disponibles 😊\n${window.location.origin}/menu`,
       order: '¿Me confirmas tu nombre o número de pedido para revisar el estado?',
-      hours: 'Nuestro horario es de Lunes a Domingo, 8:00 AM a 9:30 PM (Vía Porras y Obarrio abren desde las 6:00 AM). ¿Te comparto la dirección de la sucursal más cercana?',
+      hours: 'Horario de las sucursales:\nfarmhouse | Obarrio — 8:00 a. m. a 9:00 p. m., todos los días.\nfarmhouse | San Francisco — 8:00 a. m. a 9:00 p. m., todos los días.\nfarmhouse | Costa del Este (Torre MMG) — 8:00 a. m. a 9:00 p. m., todos los días.\nfarmhouse | Clayton — 8:00 a. m. a 9:00 p. m., todos los días.\nfarmhouse by the park | Parque Omar — 6:00 a. m. a 9:00 p. m., todos los días.',
       human: 'Con gusto te comunico con un asesor para que te ayude personalmente.',
     }[kind];
     if (fallback) this.insert({ body: fallback });
