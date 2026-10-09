@@ -10,7 +10,7 @@ import pytest
 from models.inventory_item import InventoryItem
 from models.inventory_movement import InventoryMovement
 from routers import inventory as inv
-from tests.conftest import auth_headers_for
+from tests.conftest import auth_headers_for, patch_inventory
 
 
 @pytest.fixture
@@ -75,9 +75,9 @@ def test_analisis_no_descuenta_dos_veces_el_consumo_a_mano(setup, db_session, mo
     client, item, b, h, hs = setup
     client.post("/api/inventory/counts", json={"branch_id": b, "items": [{"inventory_item_id": item.id, "counted_quantity": "20"}]}, headers=h)
     _consumo(client, b, item, h, "6")
-    monkeypatch.setattr(inv, "_insumos_con_receta", lambda db, branch_id: {item.id})
-    monkeypatch.setattr(inv, "_recetas_de_sucursal", lambda db, branch_id: ({}, {}))
-    monkeypatch.setattr(inv, "_uso_por_ventas", lambda db, branch_id, desde, hasta, **kw: {item.id: Decimal("4")})
+    patch_inventory(monkeypatch, "_insumos_con_receta", lambda db, branch_id: {item.id})
+    patch_inventory(monkeypatch, "_recetas_de_sucursal", lambda db, branch_id: ({}, {}))
+    patch_inventory(monkeypatch, "_uso_por_ventas", lambda db, branch_id, desde, hasta, **kw: {item.id: Decimal("4")})
     c = client.post("/api/inventory/counts", json={"branch_id": b, "items": [{"inventory_item_id": item.id, "counted_quantity": "14"}]}, headers=h).json()
     linea = c["analysis"]["lines"][0]
     assert Decimal(linea["used_by_sales"]) == 0 and linea["status"] == "cuadra"

@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ==========================================================================
-  // Tema y sesión (utilidad compartida, ver js/shared/shell.js)
+  // Tema y sesión (utilidad compartida, ver js/core/shell.js)
   // ==========================================================================
   FarmhouseShell.initTheme({
     // El gráfico lee los colores del tema y necesita repintarse cuando cambia.
@@ -1206,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ==========================================================================
-  // Merma (análisis): lo pinta js/modules/waste-analysis.js, con sus propios filtros
+  // Merma (análisis): lo pinta js/components/waste-analysis.js, con sus propios filtros
   // ==========================================================================
   let mermaReady = false;
   function loadMerma() {

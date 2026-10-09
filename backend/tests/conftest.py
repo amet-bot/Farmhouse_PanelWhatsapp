@@ -288,3 +288,18 @@ def auth_headers_for(user: User, device_id: str = None) -> dict:
     if device_id:
         headers["X-Device-ID"] = device_id
     return headers
+
+
+def patch_inventory(monkeypatch, name: str, value) -> None:
+    """
+    Reemplaza un helper del paquete routers/inventory en TODOS sus módulos. Desde que el
+    inventario se dividió por temas, cada módulo importa el helper por nombre: parchearlo solo
+    en el paquete no alcanzaba a quien lo llama.
+    """
+    import importlib, pkgutil
+    import routers.inventory as pkg
+    monkeypatch.setattr(pkg, name, value, raising=False)
+    for info in pkgutil.iter_modules(pkg.__path__):
+        mod = importlib.import_module(f"routers.inventory.{info.name}")
+        if hasattr(mod, name):
+            monkeypatch.setattr(mod, name, value)

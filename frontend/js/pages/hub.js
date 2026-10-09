@@ -1,9 +1,9 @@
 /**
  * Farmhouse Link - Panel General (hub)
  *
- * Login liviano + panel de entrada a los sistemas. Reutiliza auth.js/api.js tal cual (misma
+ * Login liviano + panel de entrada a los sistemas. Reutiliza auth.js/core/api.js tal cual (misma
  * sesión por cookie que el resto de las apps). Las piezas de la pantalla se arman con las
- * funciones de js/modules/hub_components.js; acá vive la configuración (qué módulos hay, a qué
+ * funciones de js/components/hub_components.js; acá vive la configuración (qué módulos hay, a qué
  * ruta van, quién los ve) y la carga de datos.
  *
  * Dos estructuras según el dispositivo, no la misma apilada (ver hub.html): escritorio con

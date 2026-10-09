@@ -2,7 +2,7 @@
  * Farmhouse Link — Administración (Sucursales, empleados y dispositivos)
  *
  * El panel dedicado que "Sucursales, empleados y dispositivos" prometía en el hub en vez de
- * seguir enterrado dentro de Centro WhatsApp. Usuarios reusa js/modules/users.js tal cual (ya
+ * seguir enterrado dentro de Centro WhatsApp. Usuarios reusa js/components/users.js tal cual (ya
  * era genérico, sin nada atado a WhatsApp) — los mismos formularios y el mismo backend, calcados
  * de Centro WhatsApp. Dispositivos es lógica nueva y más simple: el módulo devices.js de Centro
  * WhatsApp trae enganchado wsClient/conversationsModule (auto-vincular ESTE navegador a un
@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('auth:unauthorized', () => { window.location.href = '/'; });
 
   // ==========================================================================
-  // Usuarios — reusa usersModule tal cual (js/modules/users.js), mismos ids de formulario.
+  // Usuarios — reusa usersModule tal cual (js/components/users.js), mismos ids de formulario.
   // ==========================================================================
   $('btnOpenAddUser').addEventListener('click', () => usersModule.openAddModal());
   $('closeModalAddUser').addEventListener('click', () => $('modalAddUser').classList.remove('active'));

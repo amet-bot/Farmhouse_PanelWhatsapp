@@ -710,7 +710,7 @@ def test_word_contract_lists_each_dependent_in_its_own_paragraph(tmp_path):
     docx = pytest.importorskip("docx")
     if not node:
         pytest.skip("Node no está instalado")
-    builder = Path(__file__).resolve().parents[2] / "frontend" / "js" / "modules" / "contract_docx.js"
+    builder = Path(__file__).resolve().parents[2] / "frontend" / "js" / "components" / "contract_docx.js"
     out = tmp_path / "c.docx"
     script = tmp_path / "make.js"
     script.write_text(

@@ -43,15 +43,20 @@ farmhouse-whatsapp-center/
 ├── backend/                 FastAPI
 │   ├── main.py              arranque, rutas de las pantallas, tareas en segundo plano
 │   ├── config.py            Pydantic Settings (.env)
-│   ├── models/  schemas/  routers/  services/  security/
+│   ├── models/  schemas/  services/  security/
+│   ├── routers/             un archivo por recurso; inventory/ es un paquete por temas
+│   │                        (items, shipments, waste, stock, counts, movements, invu + helpers)
 │   ├── migrations/          Alembic (una migración por cambio de esquema, numeradas)
 │   ├── seeds/seed_data.py   sucursales, admin inicial, bot (corre en cada deploy, idempotente)
 │   ├── tests/               pytest (SQLite en memoria; ~650 pruebas)
 │   └── requirements.txt
 ├── frontend/                HTML + CSS + JS sin framework
 │   ├── *.html               una página por sistema (ver tabla)
-│   ├── js/modules/          un módulo por pantalla o función
-│   ├── js/shared/           shell común, app nativa
+│   ├── css/tokens.css       colores, tipografía, espacio: EL lugar donde se cambia la apariencia
+│   ├── css/base.css         componentes compartidos (.btn, .field, .badge, .table, utilidades u-*)
+│   ├── js/core/             api, websocket, utilidades, shell común, app nativa
+│   ├── js/components/       piezas que comparten varias pantallas (chat, usuarios, etiquetas…)
+│   ├── js/pages/            un archivo por pantalla (whatsapp, hub, inventory, …)
 │   └── css/
 ├── public_intake/           SERVICIO APARTE: formulario público del colaborador (cifrado extremo a extremo)
 ├── mobile/                  app Android (Capacitor) que abre el hub en producción
@@ -127,5 +132,7 @@ cifrado de contratos, formulario público).
 
 - Español en interfaz, mensajes de error, comentarios y commits (`tipo(área): qué cambia y por qué`).
 - Sin frameworks de frontend; cada pantalla carga `?v=` en sus scripts para romper la caché al cambiar.
+- Diseño: solo tokens de `css/tokens.css` (nada de colores o tamaños sueltos); tamaños de letra `var(--fs-*)`,
+  mínimo 11 px; Inter en toda la plataforma. El sistema completo está en `design/prototype-v1.html`.
 - Cada cambio de esquema es una migración nueva que *revisa* la anterior (cadena única).
 - Las pruebas acompañan cada bloque de trabajo; `python -m pytest -q` debe quedar en verde antes de hacer push.

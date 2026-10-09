@@ -13,7 +13,7 @@ from models.inventory_item import InventoryItem
 from models.shipment import Shipment, ShipmentItem
 from models.stock_count import StockCount, StockCountItem
 from routers import inventory as inv
-from tests.conftest import auth_headers_for
+from tests.conftest import auth_headers_for, patch_inventory
 
 
 @pytest.fixture
@@ -67,9 +67,9 @@ def test_con_consumo_a_mano_no_se_estima_por_ventas(db_session, clayton_branch, 
     conteo = StockCount(branch_id=clayton_branch.id, counted_by_user_id=supervisor_user.id, counted_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1))
     conteo.items.append(StockCountItem(inventory_item_id=pollo.id, expected_quantity=Decimal("20"), counted_quantity=Decimal("20"), difference=Decimal("0")))
     db_session.add(conteo); db_session.commit()
-    monkeypatch.setattr(inv, "_insumos_con_receta", lambda db, branch_id: {pollo.id})
-    monkeypatch.setattr(inv, "_recetas_de_sucursal", lambda db, branch_id: ({}, {}))
-    monkeypatch.setattr(inv, "_uso_por_ventas", lambda db, branch_id, desde, hasta, **kw: {pollo.id: Decimal("4")})
+    patch_inventory(monkeypatch, "_insumos_con_receta", lambda db, branch_id: {pollo.id})
+    patch_inventory(monkeypatch, "_recetas_de_sucursal", lambda db, branch_id: ({}, {}))
+    patch_inventory(monkeypatch, "_uso_por_ventas", lambda db, branch_id, desde, hasta, **kw: {pollo.id: Decimal("4")})
 
     assert inv._existencia_map(db_session, clayton_branch.id, [pollo.id])[pollo.id] == Decimal("16")   # 20 − 4 estimados
 

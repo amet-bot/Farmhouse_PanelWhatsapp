@@ -9,7 +9,7 @@ Lo que agrega sobre el navegador:
   pantalla, suenan, vibran y se ven con el teléfono bloqueado). Tocar una abre su pantalla.
 - Botón "atrás" del teléfono dentro del sistema, cámara directa, ícono propio.
 
-El código web de la app vive en `frontend/js/shared/native-app.js` (viaja con Railway).
+El código web de la app vive en `frontend/js/core/native-app.js` (viaja con Railway).
 
 ## Compilar el APK (Windows)
 

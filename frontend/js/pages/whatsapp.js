@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const modalLogin = document.getElementById('modalLogin');
   const loginForm = document.getElementById('loginForm');
 
-  // 2. Control de Tema (Claro / Oscuro), utilidad compartida (ver js/shared/shell.js)
+  // 2. Control de Tema (Claro / Oscuro), utilidad compartida (ver js/core/shell.js)
   FarmhouseShell.initTheme();
 
   // 2.05 Respuestas rápidas del chat: pastillas y popover "/" los maneja quick_replies.js
@@ -171,7 +171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Logout (utilidad compartida, ver js/shared/shell.js) — acá con sus dos pasos propios: cortar
+  // Logout (utilidad compartida, ver js/core/shell.js) — acá con sus dos pasos propios: cortar
   // push/websocket antes y después de auth.logout(), que ninguna otra página necesita.
   FarmhouseShell.initLogout({
     logoutBtnId: 'btnLogout',
@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!user) return;
     appInitialized = true;
 
-    // Encabezado de Usuario (utilidad compartida, ver js/shared/shell.js)
+    // Encabezado de Usuario (utilidad compartida, ver js/core/shell.js)
     FarmhouseShell.fillUserHeader({ nameId: 'topAgentName', roleId: 'topAgentRole', avatarId: 'topAgentAvatar' }, user);
 
     // Permisos de Menú

@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const senderText = (s) => (s === 'Vos' ? 'Tú' : s);
 
   // ==========================================================================
-  // Tema y sesión (utilidad compartida, ver js/shared/shell.js)
+  // Tema y sesión (utilidad compartida, ver js/core/shell.js)
   // ==========================================================================
   FarmhouseShell.initTheme();
   FarmhouseShell.initLogout({ redirectTo: '/' });

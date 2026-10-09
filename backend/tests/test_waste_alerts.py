@@ -13,7 +13,7 @@ import pytest
 from models.inventory_item import InventoryItem
 from models.invu_sales import InvuRecipeLine, InvuSale, InvuSaleLine
 from routers import inventory as inv_router
-from tests.conftest import auth_headers_for
+from tests.conftest import auth_headers_for, patch_inventory
 
 _orden = iter(range(700000, 800000))
 
@@ -21,7 +21,7 @@ _orden = iter(range(700000, 800000))
 @pytest.fixture(autouse=True)
 def avisos(monkeypatch):
     enviados = []
-    monkeypatch.setattr(inv_router, "_avisar_merma_background",
+    patch_inventory(monkeypatch, "_avisar_merma_background",
                         lambda branch_id, title, body, url, tag: enviados.append((branch_id, title, body, url)))
     return enviados
 

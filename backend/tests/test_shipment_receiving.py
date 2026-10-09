@@ -13,7 +13,7 @@ from models.shipment import ExpectedShipment, Shipment
 from routers import inventory as inv_router
 from routers import receiving as recv_router
 from services import invu_sales_sync
-from tests.conftest import auth_headers_for
+from tests.conftest import auth_headers_for, patch_inventory
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
@@ -22,7 +22,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 def avisos(monkeypatch):
     """Los avisos por push se anotan en vez de salir (y sin abrir la base real en segundo plano)."""
     enviados = []
-    monkeypatch.setattr(inv_router, "_avisar_diferencias_background",
+    patch_inventory(monkeypatch, "_avisar_diferencias_background",
                         lambda branch_id, title, body, url, tag: enviados.append(("diferencias", branch_id, title, body)))
     monkeypatch.setattr(recv_router, "_avisar_agendado_background",
                         lambda branch_id, title, body, tag: enviados.append(("agendado", branch_id, title, body)))

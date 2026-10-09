@@ -3,7 +3,7 @@
  * Datos: /contracts (routers/contracts.py).
  *
  * Cada fila es un contrato: quien renueva tiene dos. «Exportar» arma el contrato en Word en el
- * navegador (js/modules/contract_docx.js) con los datos guardados; el servidor solo los guarda.
+ * navegador (js/components/contract_docx.js) con los datos guardados; el servidor solo los guarda.
  * Hay dos plantillas, según el área del colaborador: la de SUCURSAL (solo contrato Definido) y la de
  * personal ADMINISTRATIVO (solo Indefinido, contract_admin_template.js). Lo demás no se exporta.
  *

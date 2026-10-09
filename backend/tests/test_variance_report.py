@@ -8,7 +8,7 @@ from decimal import Decimal
 from models.inventory_item import InventoryItem
 from models.shipment import Shipment, ShipmentItem
 from routers import inventory as inv
-from tests.conftest import auth_headers_for
+from tests.conftest import auth_headers_for, patch_inventory
 
 
 def test_faltante_sin_explicar_por_sucursal(client, db_session, admin_user, clayton_branch, obarrio_branch, supervisor_user, clayton_device, monkeypatch):
@@ -25,8 +25,8 @@ def test_faltante_sin_explicar_por_sucursal(client, db_session, admin_user, clay
     # Primer cierre = arranque (no cuenta). Segundo: se fueron 8 kg de pollo y 30 bolsas.
     client.post("/api/inventory/closing-sheet", json={"branch_id": clayton_branch.id, "lines": [{"inventory_item_id": pollo.id, "counted_quantity": "20"}, {"inventory_item_id": bolsa.id, "counted_quantity": "100"}]}, headers=hs)
     # Las ventas por receta explican 5 kg de pollo; la bolsa no tiene receta.
-    monkeypatch.setattr(inv, "_recetas_de_sucursal", lambda db, branch_id: ({}, {}))
-    monkeypatch.setattr(inv, "_uso_por_ventas", lambda db, branch_id, desde, hasta, **kw: {pollo.id: Decimal("5")})
+    patch_inventory(monkeypatch, "_recetas_de_sucursal", lambda db, branch_id: ({}, {}))
+    patch_inventory(monkeypatch, "_uso_por_ventas", lambda db, branch_id, desde, hasta, **kw: {pollo.id: Decimal("5")})
     client.post("/api/inventory/closing-sheet", json={"branch_id": clayton_branch.id, "lines": [{"inventory_item_id": pollo.id, "counted_quantity": "12"}, {"inventory_item_id": bolsa.id, "counted_quantity": "70"}]}, headers=hs)
 
     d = client.get("/api/reports/inventory/variance", headers=auth_headers_for(admin_user)).json()
